@@ -1,0 +1,22 @@
+{
+  "name": "tairet-dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspaces/tairet-mono-2",
+  "postCreateCommand": "corepack enable && pnpm -v",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "ms-ossdata.vscode-postgresql",
+        "mikestead.dotenv"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 4000],
+  "remoteUser": "node"
+}
+

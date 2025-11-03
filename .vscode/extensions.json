@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "streetsidesoftware.code-spell-checker",
+    "bierner.markdown-preview-github-styles",
+    "yoavbls.pretty-ts-errors",
+    "ms-azuretools.vscode-docker",
+    "ms-vscode.powershell",
+    "ms-ossdata.vscode-postgresql",
+    "mikestead.dotenv",
+    "rangav.vscode-thunder-client"
+  ]
+}
+

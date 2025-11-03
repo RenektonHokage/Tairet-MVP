@@ -1,0 +1,17 @@
+{
+  "name": "tairet-mono-2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo PNPM para Tairet MVP",
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10"
+}
+

@@ -1,0 +1,165 @@
+# .cursor/rules.yaml
+# Reglas de trabajo para agentes en Tairet (MVP)
+# Objetivo: evitar “inventos”, reescrituras innecesarias y cambios peligrosos.
+# Contexto del proyecto:
+# - Frontend: Next.js (App Router) + TypeScript + Tailwind + shadcn/ui
+# - Backend: Express + TypeScript (Fastify se evalúa post-MVP)
+# - DB/Auth/Storage: Supabase (RLS)
+# - Pasarela: Checkout Lite (Bancard/Dinelco) con callback idempotente
+# - Analytics: PostHog (producto) + GA4 (marketing)
+# - Observabilidad: Sentry
+# - Zona horaria: America/Asuncion, Moneda: PYG
+# - MVP sin QR (check-in manual "Usada"), QR queda para v2
+
+project:
+  name: "Tairet MVP"
+  language: "typescript"
+  packageManager: "pnpm"
+
+constraints:
+  general:
+    - "No inventar APIs, tipos ni tablas. Si falta contexto, PREGUNTAR."
+    - "No crear funcionalidades fuera del MVP definido."
+    - "No tocar archivos fuera del alcance indicado en cada tarea."
+    - "Mantener cada archivo <= 400 líneas; si supera, dividir en módulos."
+    - "No eliminar código existente salvo que se indique expresamente."
+    - "No mover carpetas de nivel raíz sin aprobación."
+    - "No introducir librerías nuevas sin justificar y sin agregar al README."
+  security:
+    - "Nunca exponer claves/secretos en el repo. Usar .env y .env.example."
+    - "Cumplir RLS en Supabase; no hacer endpoints que salten RLS."
+  style:
+    - "Seguir TypeScript estricto. Preferir tipos explícitos."
+    - "Validar entradas con zod (backend y formularios)."
+    - "Nada de any implícito, console.log en prod ni comentarios ruidosos."
+  performance_accessibility:
+    - "Evitar renders pesados. Componentes de UI accesibles (shadcn/ui base)."
+    - "Cargar diferida (lazy) cuando aplique; sin blocking fetches en client."
+
+folders:
+  allowedWrites:
+    - "apps/web-next"
+    - "functions/api"
+    - "packages/types"
+    - "packages/ui"
+    - "infra/sql"
+    - ".devcontainer"
+    - ".github/workflows"
+    - "scripts"
+  readOnly:
+    - "node_modules"
+    - ".git"
+    - ".cursor"
+
+frontend:
+  framework: "nextjs-app-router"
+  rules:
+    - "Usar Client Components solo cuando sea necesario (interacción/estado)."
+    - "Estilos con Tailwind; componentes base de shadcn/ui."
+    - "Forms con react-hook-form + zod. Mostrar errores de validación."
+    - "Data fetching con TanStack Query. Estados: loading/error/empty."
+    - "Feature flags en config/flags.ts para ocultar lo no-MVP."
+    - "Rutas públicas B2C y panel B2B coherentes con el MVP."
+  doNot:
+    - "No introducir Redux/ Zustand/ grandes state managers."
+    - "No SSR costoso innecesario. Mantener simplicidad del MVP."
+  filesStructureHints:
+    - "apps/web-next/app/(panel)/...  -> vistas B2B"
+    - "apps/web-next/app/(public)/... -> vistas B2C"
+    - "apps/web-next/components/...   -> UI reusables"
+    - "apps/web-next/lib/...          -> clientes y utilidades (supabase, posthog)"
+    - "packages/ui/...                -> UI compartida (Button, cn, etc.)"
+
+backend:
+  runtime: "node18+"
+  framework: "express"
+  rules:
+    - "Endpoints mínimos del MVP, con zod y manejo de errores centralizado."
+    - "Idempotencia en /payments/callback: usar tabla payment_events con unique index."
+    - "Check-in manual: PATCH /orders/:id/use -> set used_at si no existe."
+    - "CORS abierto solo a dominios del front configurados en .env."
+    - "Logs con request-id y nivel (info/warn/error)."
+  endpoints:
+    - "POST /orders                       # crear orden de entrada (precio fijo por local)"
+    - "POST /payments/callback            # confirmar pago (idempotente)"
+    - "GET  /orders/:id                   # obtener orden"
+    - "PATCH /orders/:id/use              # marcar entrada como usada (check-in manual)"
+    - "POST /reservations                 # crear reserva (bares; estado 'en_revision')"
+    - "GET  /locals/:id/reservations      # listar reservas del local"
+    - "GET  /locals/:id/promos            # listar promos"
+    - "POST /locals/:id/promos            # crear/editar promo (imagen + fechas informativas)"
+    - "POST /events/whatsapp_click        # registrar clic a WhatsApp (intención)"
+    - "GET  /metrics/summary              # KPIs simples por rango (vistas/clics/reservas/ventas)"
+  doNot:
+    - "No implementar QR en v1 (solo preparar campo used_at)."
+    - "No reembolsos desde el panel en MVP."
+    - "No paginar de forma compleja; listas cortas y filtros básicos."
+
+database_supabase:
+  rules:
+    - "Aplicar RLS multi-tenant: cada local solo ve sus propios datos."
+    - "No exponer SERVICE_ROLE en frontend."
+    - "Guardar eventos de pago para idempotencia (payment_events)."
+    - "Tablas mínimas coherentes con infra/sql/schema.sql."
+  doNot:
+    - "No hacer consultas sin filtros de localId/tenantId."
+    - "No saltar políticas RLS."
+  filesStructureHints:
+    - "infra/sql/schema.sql  # tablas base"
+    - "infra/sql/rls.sql     # políticas RLS"
+    - "infra/sql/seed.sql    # datos de ejemplo"
+
+emails:
+  provider: "Resend o SendGrid"
+  templates:
+    - "Reserva recibida (bares)"
+    - "Reserva confirmada (bares - manual)"
+    - "Compra confirmada (entradas, sin QR)"
+  rules:
+    - "No enviar emails con datos sensibles en claro."
+    - "Plantillas en /functions/api/emails o /apps/web-next/lib/emails (una sola fuente)."
+
+analytics:
+  product: "PostHog"
+  events:
+    - "profile_view"
+    - "promo_open"
+    - "whatsapp_click"
+    - "reservation_created"
+    - "checkout_started"
+    - "order_paid"
+    - "order_used"
+  marketing: "GA4 (solo front, sin PII)"
+  rules:
+    - "No duplicar eventos; envolver tracking en helpers."
+
+logging_errors:
+  logging:
+    - "Incluir request-id, método, path, status."
+  sentry:
+    - "Configurar en FE/BE con DSN por entorno."
+  doNot:
+    - "No loggear PII ni secretos."
+
+env_ci:
+  envExamples:
+    - "apps/web-next/.env.example: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_POSTHOG_KEY, NEXT_PUBLIC_POSTHOG_HOST"
+    - "functions/api/.env.example: PORT, SUPABASE_URL, SUPABASE_SERVICE_ROLE, RESEND_API_KEY, POSTHOG_KEY, POSTHOG_HOST, FRONTEND_ORIGIN"
+  ci:
+    - ".github/workflows: build FE/BE, lint, typecheck"
+  rules:
+    - "Nunca commitear .env reales."
+    - "README con pasos dev/build/deploy."
+
+workflow:
+  guardrails:
+    - "Antes de editar, LEER archivos relacionados (types, helpers)."
+    - "Si existe helper, REUTILIZAR, no reinventar."
+    - "Para cambios grandes, proponer plan (1.1, 1.2, 2.1...)."
+    - "Tras cada tarea, resumir cambios y archivos tocados."
+  prStyle:
+    - "Commits pequeños, mensajes claros (convencional)."
+    - "No mezclar frontend y backend en el mismo commit si se puede evitar."
+  testing_min:
+    - "Al menos pruebas de unidad en helpers críticos (idempotencia callback, guards de check-in)."
+    - "Endpoints: probar estados 200/400/409."
