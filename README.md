@@ -43,7 +43,7 @@ tairet-mono-2/
 └── .devcontainer/         # DevContainer para VS Code
 ```
 
-## Cómo correr
+## Quick Start (Stage)
 
 ### Prerequisitos
 
@@ -51,20 +51,28 @@ tairet-mono-2/
 - pnpm 10+
 - Supabase (proyecto configurado)
 
-### Instalación
+### Setup inicial
 
-```bash
-# Instalar dependencias de todos los workspaces
-pnpm install
-```
+1. **Variables de entorno**:
+   - Copiar `apps/web-next/.env.example` → `apps/web-next/.env` y completar variables
+   - Copiar `functions/api/.env.example` → `functions/api/.env` y completar variables
+
+2. **Base de datos Supabase**:
+   - Ejecutar `infra/sql/schema.sql` (crear tablas)
+   - Ejecutar `infra/sql/rls.sql` (configurar RLS)
+   - Ejecutar `infra/sql/seed.sql` (datos de prueba, opcional)
+
+3. **Instalar dependencias**:
+   ```bash
+   pnpm install
+   ```
 
 ### Desarrollo
 
 #### Frontend (Next.js)
 
 ```bash
-cd apps/web-next
-pnpm dev
+pnpm -C apps/web-next dev
 ```
 
 El frontend estará disponible en `http://localhost:3000`
@@ -72,8 +80,7 @@ El frontend estará disponible en `http://localhost:3000`
 #### Backend (Express)
 
 ```bash
-cd functions/api
-pnpm dev
+pnpm -C functions/api dev
 ```
 
 El backend estará disponible en `http://localhost:4000`
@@ -119,8 +126,8 @@ Usar [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Rutas
 
-- **B2C (público)**: `/app/(public)/*`
-- **B2B (panel)**: `/app/(panel)/*`
+- **B2C (público)**: `/app/page.tsx` (home pública)
+- **B2B (panel)**: `/app/panel/*` (panel de gestión)
 
 ### Tipos
 

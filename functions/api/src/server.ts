@@ -13,21 +13,25 @@ export const app = express();
 
 // Middlewares
 app.use(corsMiddleware);
-
-app.use(express.json());
 app.use(requestId);
+app.use(express.json());
 
 // Health check
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
+  res.json({ ok: true });
 });
 
 // Routes
 app.use("/orders", ordersRouter);
 app.use("/payments", paymentsRouter);
+
+// Reservas globales (crear reserva de bar)
 app.use("/reservations", reservationsRouter);
-app.use("/locals", promosRouter);
+
+// Rutas bajo /locals
 app.use("/locals", localsReservationsRouter); // GET /locals/:id/reservations
+app.use("/locals", promosRouter);
+
 app.use("/metrics", metricsRouter);
 app.use("/events", eventsRouter);
 
