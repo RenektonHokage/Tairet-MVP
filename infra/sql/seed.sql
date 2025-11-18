@@ -38,5 +38,40 @@ VALUES
   )
 ON CONFLICT DO NOTHING;
 
+-- Insertar profile_view de ejemplo (opcional)
+INSERT INTO profile_views (local_id, ip_address, user_agent, source)
+VALUES
+  (
+    '550e8400-e29b-41d4-a716-446655440001',
+    '192.168.1.1',
+    'Mozilla/5.0',
+    'lovable_test'
+  )
+ON CONFLICT DO NOTHING;
+
+-- Usuario de panel B2B de prueba
+-- NOTA: Este usuario debe crearse primero en Supabase Auth (Authentication > Users > Add user)
+-- Email: panel@tairet.test
+-- Password: (configurar en Supabase Auth)
+-- Luego copiar el auth_user_id (UUID) generado por Supabase y reemplazarlo en el INSERT siguiente
+-- 
+-- Para desarrollo local, puedes crear el usuario manualmente en Supabase Dashboard:
+-- 1. Ir a Authentication > Users
+-- 2. Click "Add user" > "Create new user"
+-- 3. Email: panel@tairet.test
+-- 4. Password: (elegir una contraseña segura)
+-- 5. Copiar el User UID generado
+-- 6. Reemplazar 'REPLACE_WITH_AUTH_USER_ID' en el INSERT siguiente con ese UUID
+--
+-- INSERT INTO panel_users (auth_user_id, email, local_id, role)
+-- VALUES
+--   (
+--     'REPLACE_WITH_AUTH_USER_ID', -- Reemplazar con el UUID del usuario creado en Supabase Auth
+--     'panel@tairet.test',
+--     '550e8400-e29b-41d4-a716-446655440001',
+--     'owner'
+--   )
+-- ON CONFLICT (auth_user_id) DO NOTHING;
+
 -- TODO: Agregar más datos de prueba según necesidades
 

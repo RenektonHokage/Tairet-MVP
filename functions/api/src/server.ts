@@ -8,6 +8,8 @@ import { reservationsRouter, localsReservationsRouter } from "./routes/reservati
 import { promosRouter } from "./routes/promos";
 import { metricsRouter } from "./routes/metrics";
 import { eventsRouter } from "./routes/events";
+import { activityRouter } from "./routes/activity";
+import { panelRouter } from "./routes/panel";
 
 export const app = express();
 
@@ -34,6 +36,8 @@ app.use("/locals", promosRouter);
 
 app.use("/metrics", metricsRouter);
 app.use("/events", eventsRouter);
+app.use("/activity", activityRouter);
+app.use("/panel", panelRouter);
 
 // Error handler (último middleware)
 app.use(errorHandler);

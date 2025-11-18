@@ -1,4 +1,5 @@
 // Interfaz stub para servicio de emails (Resend/SendGrid)
+import { logger } from "../utils/logger";
 
 export interface EmailOptions {
   to: string;
@@ -13,27 +14,37 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
 }
 
 // Templates placeholder
-export async function sendReservationReceivedEmail(data: {
+export async function sendReservationReceivedEmail(payload: {
   email: string;
-  reservationId: string;
+  name: string;
+  localName?: string;
+  date?: string;
+  people?: number;
 }): Promise<void> {
-  // TODO: Template de reserva recibida
-  await sendEmail({
-    to: data.email,
-    subject: "Reserva recibida",
-    html: `<p>Tu reserva ${data.reservationId} ha sido recibida.</p>`,
+  // Stub: solo loguear
+  logger.info("Reservation received email (stub)", {
+    to: payload.email,
+    name: payload.name,
+    localName: payload.localName,
+    date: payload.date,
+    people: payload.people,
   });
 }
 
-export async function sendReservationConfirmedEmail(data: {
+export async function sendReservationConfirmedEmail(payload: {
   email: string;
-  reservationId: string;
+  name: string;
+  localName?: string;
+  date?: string;
+  people?: number;
 }): Promise<void> {
-  // TODO: Template de reserva confirmada
-  await sendEmail({
-    to: data.email,
-    subject: "Reserva confirmada",
-    html: `<p>Tu reserva ${data.reservationId} ha sido confirmada.</p>`,
+  // Stub: solo loguear
+  logger.info("Reservation confirmed email (stub)", {
+    to: payload.email,
+    name: payload.name,
+    localName: payload.localName,
+    date: payload.date,
+    people: payload.people,
   });
 }
 

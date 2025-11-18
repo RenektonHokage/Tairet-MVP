@@ -100,7 +100,19 @@ CREATE TABLE IF NOT EXISTS profile_views (
   local_id UUID NOT NULL REFERENCES locals(id) ON DELETE CASCADE,
   ip_address TEXT,
   user_agent TEXT,
+  source TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Tabla: panel_users (usuarios del panel B2B)
+CREATE TABLE IF NOT EXISTS panel_users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  auth_user_id UUID NOT NULL UNIQUE, -- id del usuario en Supabase Auth
+  email TEXT NOT NULL,
+  local_id UUID NOT NULL REFERENCES locals(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'owner',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Índices
@@ -115,4 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_events_public_local_id ON events_public(local_id)
 CREATE INDEX IF NOT EXISTS idx_events_public_type ON events_public(type);
 CREATE INDEX IF NOT EXISTS idx_whatsapp_clicks_local_id ON whatsapp_clicks(local_id);
 CREATE INDEX IF NOT EXISTS idx_profile_views_local_id ON profile_views(local_id);
+CREATE INDEX IF NOT EXISTS idx_panel_users_auth_user_id ON panel_users(auth_user_id);
+CREATE INDEX IF NOT EXISTS idx_panel_users_local_id ON panel_users(local_id);
+CREATE INDEX IF NOT EXISTS idx_panel_users_email ON panel_users(email);
 
