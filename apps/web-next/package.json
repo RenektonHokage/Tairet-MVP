@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "next type-check"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "15.0.3",
