@@ -4,12 +4,14 @@ export interface Reservation {
   id: string;
   local_id?: string;
   name: string;
+  last_name?: string | null;
   email?: string;
   phone?: string;
   date: string;
   guests: number;
   status: "en_revision" | "confirmed" | "cancelled";
-  notes?: string;
+  notes?: string | null;
+  table_note?: string | null;
   created_at: string;
   updated_at?: string;
 }
@@ -17,11 +19,13 @@ export interface Reservation {
 export interface CreateReservationInput {
   local_id: string;
   name: string;
+  last_name?: string;
   email: string;
   phone: string;
   date: string;
   guests: number;
   notes?: string;
+  table_note?: string;
 }
 
 export async function createReservation(
@@ -54,7 +58,8 @@ export async function getPanelReservationsByLocalId(
 }
 
 export interface UpdateReservationStatusInput {
-  status: "confirmed" | "cancelled";
+  status?: "confirmed" | "cancelled";
+  table_note?: string | null;
 }
 
 export async function updateReservationStatus(
@@ -66,6 +71,7 @@ export async function updateReservationStatus(
 
 /**
  * Actualiza estado de reserva desde el panel (requiere autenticación)
+ * También permite actualizar table_note
  */
 export async function updatePanelReservationStatus(
   reservationId: string,

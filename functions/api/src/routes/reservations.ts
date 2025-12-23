@@ -18,12 +18,14 @@ reservationsRouter.post("/", async (req, res, next) => {
       .insert({
         local_id: validated.local_id,
         name: validated.name,
+        last_name: validated.last_name ?? null,
         email: validated.email,
         phone: validated.phone,
         date: validated.date,
         guests: validated.guests,
         status: "en_revision",
-        notes: validated.notes,
+        notes: validated.notes ?? null,
+        table_note: validated.table_note ?? null,
       })
       .select()
       .single();
@@ -75,23 +77,43 @@ reservationsRouter.patch("/:id", async (req, res, next) => {
       return res.status(404).json({ error: "Reservation not found" });
     }
 
-    // Validar que solo se puede cambiar desde 'en_revision'
-    if (reservation.status !== "en_revision") {
-      return res.status(400).json({
-        error: "La reserva ya fue procesada",
-        currentStatus: reservation.status,
-      });
+    // Preparar objeto de actualización
+    const updateData: {
+      status?: string;
+      table_note?: string | null;
+      updated_at: string;
+    } = {
+      updated_at: new Date().toISOString(),
+    };
+
+    // Si se intenta cambiar el status, validar que solo se puede desde 'en_revision'
+    if (validated.status !== undefined) {
+      if (reservation.status !== "en_revision") {
+        return res.status(400).json({
+          error: "La reserva ya fue procesada",
+          currentStatus: reservation.status,
+        });
+      }
+      updateData.status = validated.status;
     }
 
-    // Actualizar el estado
+    // Permitir actualizar table_note independientemente del status
+    if (validated.table_note !== undefined) {
+      updateData.table_note = validated.table_note;
+    }
+
+    // Si no hay nada que actualizar, retornar error
+    if (Object.keys(updateData).length === 1) {
+      // Solo updated_at, no hay cambios reales
+      return res.status(400).json({ error: "No hay campos para actualizar" });
+    }
+
+    // Actualizar la reserva
     const { data: updated, error: updateError } = await supabase
       .from("reservations")
-      .update({
-        status: validated.status,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq("id", id)
-      .select("id, local_id, name, email, phone, date, guests, status, notes, created_at, updated_at")
+      .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at")
       .single();
 
     if (updateError) {
@@ -147,7 +169,7 @@ localsReservationsRouter.get("/:id/reservations", panelAuth, async (req, res, ne
     const { data, error } = await supabase
     .from("reservations")
     .select(
-      "id, local_id, name, email, phone, date, guests, status, notes, created_at, updated_at"
+      "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
     )
     .eq("local_id", id)
     .order("created_at", { ascending: false })

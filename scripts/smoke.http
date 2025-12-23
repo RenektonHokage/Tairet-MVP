@@ -1,3 +1,14 @@
+### ============================================
+### CÓMO OBTENER ACCESS TOKEN PARA REQUESTS AUTENTICADOS
+### ============================================
+### 
+### 1. Hacer login en http://localhost:3000/panel/login
+### 2. Abrir DevTools (F12) > Console
+### 3. Ejecutar: (await supabase.auth.getSession()).data.session?.access_token
+### 4. Copiar el token y reemplazar {{accessToken}} en los requests que lo requieren
+### 
+### ============================================
+
 ### Healthcheck del Backend
 GET http://localhost:4000/health
 
@@ -6,6 +17,19 @@ GET http://localhost:3000/
 
 ### Frontend - Panel B2B
 GET http://localhost:3000/panel
+
+### ============================================
+### PUBLIC ENDPOINTS (B2C - Sin autenticación)
+### ============================================
+
+### Obtener local por slug (bar)
+GET http://localhost:4000/public/locals/by-slug/mckharthys-bar
+
+### Obtener local por slug (club)
+GET http://localhost:4000/public/locals/by-slug/morgan
+
+### Obtener local por slug (no existe - debe retornar 404)
+GET http://localhost:4000/public/locals/by-slug/local-inexistente
 
 ### Orders
 
@@ -57,24 +81,71 @@ Content-Type: application/json
   "notes": "Mesa cerca de la ventana"
 }
 
-### Listar reservas por local (reemplazar {{localId}} con un UUID real)
+### Crear reserva con last_name y notes
+POST http://localhost:4000/reservations
+Content-Type: application/json
+
+{
+  "local_id": "550e8400-e29b-41d4-a716-446655440001",
+  "name": "María",
+  "last_name": "González",
+  "email": "maria@example.com",
+  "phone": "+595981234568",
+  "date": "2024-12-26T21:00:00Z",
+  "guests": 2,
+  "notes": "Preferencia: mesa al aire libre"
+}
+
+### Listar reservas por local (REQUIERE AUTENTICACIÓN)
+### Reemplazar {{localId}} con un UUID real y {{accessToken}} con el token del panel
 GET http://localhost:4000/locals/{{localId}}/reservations
+Authorization: Bearer {{accessToken}}
 
 ### Actualizar estado de reserva (Confirmar o Cancelar)
-### Reemplazar {{reservationId}} con el ID de una reserva creada con status "en_revision"
+### REQUIERE AUTENTICACIÓN - Reemplazar {{reservationId}} y {{accessToken}}
 PATCH http://localhost:4000/reservations/{{reservationId}}
 Content-Type: application/json
+Authorization: Bearer {{accessToken}}
 
 {
   "status": "confirmed"
 }
 
-### Cancelar reserva
+### Cancelar reserva (REQUIERE AUTENTICACIÓN)
 PATCH http://localhost:4000/reservations/{{reservationId}}
 Content-Type: application/json
+Authorization: Bearer {{accessToken}}
 
 {
   "status": "cancelled"
+}
+
+### Actualizar table_note de una reserva (requiere autenticación del panel)
+PATCH http://localhost:4000/reservations/{{reservationId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "table_note": "Mesa 5 / cerca ventana"
+}
+
+### Actualizar table_note a null
+PATCH http://localhost:4000/reservations/{{reservationId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "table_note": null
+}
+
+### Actualizar status y table_note simultáneamente (solo si status es en_revision)
+PATCH http://localhost:4000/reservations/{{reservationId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "status": "confirmed",
+  "table_note": "Mesa 3 / terraza"
 }
 
 ### WhatsApp Click - Registrar
@@ -90,9 +161,10 @@ Content-Type: application/json
 ### WhatsApp Clicks - Count por local
 GET http://localhost:4000/events/whatsapp_clicks/count?localId=550e8400-e29b-41d4-a716-446655440001
 
-### Crear promo
+### Crear promo (REQUIERE AUTENTICACIÓN)
 POST http://localhost:4000/locals/{{localId}}/promos
 Content-Type: application/json
+Authorization: Bearer {{accessToken}}
 
 {
   "title": "2x1 en tragos hasta las 1AM",
@@ -102,8 +174,9 @@ Content-Type: application/json
   "end_date": "2025-01-11T03:00:00Z"
 }
 
-### Listar promos
+### Listar promos (REQUIERE AUTENTICACIÓN)
 GET http://localhost:4000/locals/{{localId}}/promos
+Authorization: Bearer {{accessToken}}
 
 ### Registrar promo abierta
 POST http://localhost:4000/events/promo_open
@@ -115,13 +188,15 @@ Content-Type: application/json
   "source": "panel_test"
 }
 
-### Metrics Summary
+### Metrics Summary (REQUIERE AUTENTICACIÓN)
 GET http://localhost:4000/metrics/summary?localId={{localId}}
+Authorization: Bearer {{accessToken}}
 
-### Metrics Summary con rango
+### Metrics Summary con rango (REQUIERE AUTENTICACIÓN)
 GET http://localhost:4000/metrics/summary?localId={{localId}}&from=2025-01-01T00:00:00Z&to=2025-12-31T23:59:59Z
+Authorization: Bearer {{accessToken}}
 
-### Profile View - Registrar
+### Profile View - Registrar (PÚBLICO - No requiere autenticación)
 POST http://localhost:4000/events/profile_view
 Content-Type: application/json
 
@@ -131,4 +206,56 @@ Content-Type: application/json
   "user_agent": "curl/8.0",
   "source": "lovable_test"
 }
+
+### ============================================
+### CALENDARIO / OPERACIÓN (REQUIERE AUTENTICACIÓN)
+### ============================================
+
+### Obtener calendario mensual
+### Reemplazar {{month}} con formato YYYY-MM (ej: 2025-01)
+GET http://localhost:4000/panel/calendar/month?month={{month}}
+Authorization: Bearer {{accessToken}}
+
+### Obtener detalle de un día
+### Reemplazar {{day}} con formato YYYY-MM-DD (ej: 2025-01-15)
+GET http://localhost:4000/panel/calendar/day?day={{day}}
+Authorization: Bearer {{accessToken}}
+
+### Actualizar operación de un día (is_open y/o note)
+PATCH http://localhost:4000/panel/calendar/day
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "day": "2025-01-15",
+  "is_open": false,
+  "note": "Cerrado por mantenimiento"
+}
+
+### Actualizar solo la nota (sin cambiar is_open)
+PATCH http://localhost:4000/panel/calendar/day
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "day": "2025-01-15",
+  "note": "Halloween - Evento especial"
+}
+
+### Actualizar solo el estado (sin cambiar note)
+PATCH http://localhost:4000/panel/calendar/day
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "day": "2025-01-15",
+  "is_open": true
+}
+
+### ============================================
+### NOTAS:
+### - Requests marcados como "REQUIERE AUTENTICACIÓN" necesitan el header Authorization
+### - Requests públicos (POST /reservations, POST /events/*, POST /orders) no requieren auth
+### - Para obtener el access token, ver instrucciones al inicio del archivo
+### ============================================
 

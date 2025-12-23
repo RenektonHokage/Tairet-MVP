@@ -6,7 +6,10 @@
   "scripts": {
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "dev:web-b2c": "pnpm -C apps/web-b2c dev",
+    "build:web-b2c": "pnpm -C apps/web-b2c build",
+    "typecheck:web-b2c": "pnpm -C apps/web-b2c typecheck"
   },
   "engines": {
     "node": ">=18.0.0",

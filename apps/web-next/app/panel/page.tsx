@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { getPanelUserInfo } from "@/lib/panel";
 import { getOrder, useOrder, type Order } from "@/lib/orders";
@@ -33,6 +34,8 @@ export default function PanelPage() {
     null
   );
   const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null);
+  const [editingTableNoteId, setEditingTableNoteId] = useState<string | null>(null);
+  const [tableNoteValue, setTableNoteValue] = useState<string>("");
 
   const [whatsappCount, setWhatsappCount] = useState<number | null>(null);
   const [loadingWhatsapp, setLoadingWhatsapp] = useState(false);
@@ -173,6 +176,37 @@ export default function PanelPage() {
       console.error("Error updating reservation:", err);
     } finally {
       setUpdatingReservationId(null);
+    }
+  };
+
+  const handleStartEditTableNote = (reservation: Reservation) => {
+    setEditingTableNoteId(reservation.id);
+    setTableNoteValue(reservation.table_note || "");
+  };
+
+  const handleCancelEditTableNote = () => {
+    setEditingTableNoteId(null);
+    setTableNoteValue("");
+  };
+
+  const handleSaveTableNote = async (reservationId: string) => {
+    setErrorReservations(null);
+
+    try {
+      await updatePanelReservationStatus(reservationId, {
+        table_note: tableNoteValue.trim() || null,
+      });
+      // Refrescar la lista de reservas
+      if (localId) {
+        const data = await getPanelReservationsByLocalId(localId);
+        setReservations(data);
+      }
+      setEditingTableNoteId(null);
+      setTableNoteValue("");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Error al actualizar la nota";
+      setErrorReservations(errorMessage);
+      console.error("Error updating table note:", err);
     }
   };
 
@@ -343,7 +377,15 @@ export default function PanelPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold">Dashboard</h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-3xl font-bold">Dashboard</h2>
+          <Link
+            href="/panel/calendar"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+          >
+            📅 Calendario
+          </Link>
+        </div>
         {userEmail && (
           <div className="text-sm text-gray-600">
             <span className="font-medium">{userEmail}</span>
@@ -534,6 +576,9 @@ export default function PanelPage() {
                       Nombre
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Apellido
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Fecha
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -543,7 +588,10 @@ export default function PanelPage() {
                       Estado
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Notas
+                      Notas Cliente
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Mesa/Nota Interna
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Creado
@@ -558,6 +606,9 @@ export default function PanelPage() {
                     <tr key={reservation.id}>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {reservation.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {reservation.last_name || "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {new Date(reservation.date).toLocaleDateString()}
@@ -581,6 +632,45 @@ export default function PanelPage() {
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {reservation.notes || "-"}
                       </td>
+                      <td className="px-4 py-3 text-sm">
+                        {editingTableNoteId === reservation.id ? (
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              value={tableNoteValue}
+                              onChange={(e) => setTableNoteValue(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Ej: Mesa 5 / cerca ventana"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleSaveTableNote(reservation.id)}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={handleCancelEditTableNote}
+                              className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900">
+                              {reservation.table_note || "-"}
+                            </span>
+                            <button
+                              onClick={() => handleStartEditTableNote(reservation)}
+                              className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200"
+                              title="Editar nota interna"
+                            >
+                              ✏️
+                            </button>
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {new Date(reservation.created_at).toLocaleString()}
                       </td>
@@ -591,7 +681,7 @@ export default function PanelPage() {
                               onClick={() =>
                                 handleUpdateReservationStatus(reservation.id, "confirmed")
                               }
-                              disabled={updatingReservationId === reservation.id}
+                              disabled={updatingReservationId === reservation.id || editingTableNoteId === reservation.id}
                               className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {updatingReservationId === reservation.id ? "..." : "Confirmar"}
@@ -600,7 +690,7 @@ export default function PanelPage() {
                               onClick={() =>
                                 handleUpdateReservationStatus(reservation.id, "cancelled")
                               }
-                              disabled={updatingReservationId === reservation.id}
+                              disabled={updatingReservationId === reservation.id || editingTableNoteId === reservation.id}
                               className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {updatingReservationId === reservation.id ? "..." : "Cancelar"}

@@ -10,6 +10,7 @@ import { metricsRouter } from "./routes/metrics";
 import { eventsRouter } from "./routes/events";
 import { activityRouter } from "./routes/activity";
 import { panelRouter } from "./routes/panel";
+import { publicRouter } from "./routes/public";
 
 export const app = express();
 
@@ -22,6 +23,9 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
+
+// Public routes (sin auth)
+app.use("/public", publicRouter);
 
 // Routes
 app.use("/orders", ordersRouter);

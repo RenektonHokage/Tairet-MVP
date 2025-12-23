@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 
+
 /**
  * Middleware de autenticación SOLO para endpoints del panel B2B.
  * 
@@ -16,6 +17,7 @@ import { logger } from "../utils/logger";
  * - POST /orders
  * Estos endpoints siguen funcionando sin autenticación.
  */
+
 export interface PanelUser {
   userId: string;
   email: string;
@@ -37,9 +39,12 @@ export async function panelAuth(
   next: NextFunction
 ) {
   try {
+    // ✅ IMPORTANTÍSIMO: dejar pasar el preflight CORS (OPTIONS) sin autenticar
+    if (req.method === "OPTIONS") return next();
+
     // Leer token del header Authorization
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ error: "Missing or invalid Authorization header" });
     }

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { panelAuth } from "../middlewares/panelAuth";
+import { calendarRouter } from "./calendar";
 
 export const panelRouter = Router();
 
@@ -18,4 +19,7 @@ panelRouter.get("/me", panelAuth, async (req, res) => {
     role: req.panelUser.role,
   });
 });
+
+// Rutas de calendario
+panelRouter.use("/calendar", calendarRouter);
 

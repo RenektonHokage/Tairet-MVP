@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS locals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE,
+  type TEXT NOT NULL CHECK (type IN ('bar', 'club')), -- Tipo de local: bar o club
   description TEXT,
   address TEXT,
   phone TEXT,
@@ -66,12 +67,14 @@ CREATE TABLE IF NOT EXISTS reservations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   local_id UUID NOT NULL REFERENCES locals(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  last_name TEXT, -- Apellido (opcional, para alinearse con formulario B2C)
   email TEXT NOT NULL,
   phone TEXT NOT NULL,
   date TIMESTAMPTZ NOT NULL,
   guests INTEGER NOT NULL CHECK (guests > 0),
   status TEXT NOT NULL DEFAULT 'en_revision' CHECK (status IN ('en_revision', 'confirmed', 'cancelled')),
-  notes TEXT,
+  notes TEXT, -- Comentario del cliente
+  table_note TEXT, -- Nota interna del local (ej: "Mesa X / cerca ventana")
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -115,6 +118,18 @@ CREATE TABLE IF NOT EXISTS panel_users (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Tabla: local_daily_ops (operación diaria del local)
+CREATE TABLE IF NOT EXISTS local_daily_ops (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  local_id UUID NOT NULL REFERENCES locals(id) ON DELETE CASCADE,
+  day DATE NOT NULL, -- día local, sin hora
+  is_open BOOLEAN NOT NULL DEFAULT true,
+  note TEXT, -- nota corta del día (ej: "Halloween", "Privado")
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(local_id, day)
+);
+
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_orders_local_id ON orders(local_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
@@ -130,4 +145,6 @@ CREATE INDEX IF NOT EXISTS idx_profile_views_local_id ON profile_views(local_id)
 CREATE INDEX IF NOT EXISTS idx_panel_users_auth_user_id ON panel_users(auth_user_id);
 CREATE INDEX IF NOT EXISTS idx_panel_users_local_id ON panel_users(local_id);
 CREATE INDEX IF NOT EXISTS idx_panel_users_email ON panel_users(email);
+CREATE INDEX IF NOT EXISTS idx_local_daily_ops_local_id ON local_daily_ops(local_id);
+CREATE INDEX IF NOT EXISTS idx_local_daily_ops_day ON local_daily_ops(day);
 

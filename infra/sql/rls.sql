@@ -9,6 +9,7 @@ ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events_public ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_clicks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profile_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE local_daily_ops ENABLE ROW LEVEL SECURITY;
 
 -- Policy: locals (cada usuario autenticado puede ver sus locales)
 -- TODO: Ajustar según sistema de autenticación (Supabase Auth)
@@ -63,6 +64,19 @@ CREATE POLICY "profile_views_select_by_local" ON profile_views
 CREATE POLICY "profile_views_insert_public" ON profile_views
   FOR INSERT
   WITH CHECK (true); -- Permitir insertar vistas públicamente
+
+-- Policy: local_daily_ops (solo ver/modificar operación del local correspondiente)
+CREATE POLICY "local_daily_ops_select_by_local" ON local_daily_ops
+  FOR SELECT
+  USING (true); -- TODO: Filtrar por local_id según usuario autenticado
+
+CREATE POLICY "local_daily_ops_insert_by_local" ON local_daily_ops
+  FOR INSERT
+  WITH CHECK (true); -- TODO: Validar local_id según usuario
+
+CREATE POLICY "local_daily_ops_update_by_local" ON local_daily_ops
+  FOR UPDATE
+  USING (true); -- TODO: Validar local_id según usuario
 
 -- TODO: Ajustar políticas según sistema de autenticación Supabase
 -- Ejemplo con auth.uid():
