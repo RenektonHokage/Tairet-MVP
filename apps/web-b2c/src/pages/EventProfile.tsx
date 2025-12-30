@@ -31,6 +31,12 @@ const mockEventData = {
     artist: "DJ Martinez & Guest",
     images: [techno, nightlifeScene, techno],
     tickets: [{
+      id: "free-pass-event-1",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso al evento", "Válido para una persona"]
+    }, {
       id: "general",
       name: "Entrada General",
       price: 50000,

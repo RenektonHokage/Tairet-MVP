@@ -3,7 +3,7 @@
 
 -- Insertar 5 locales MVP con slugs exactos para B2C
 -- Usar ON CONFLICT(id) DO UPDATE para permitir reseed idempotente
--- Si existe club-example-2 u otros locales de ejemplo, no se borran automáticamente
+-- 
 INSERT INTO locals (id, name, slug, type, description, phone, whatsapp, email, ticket_price)
 VALUES
   -- Bares (ticket_price = 0 o bajo para bares)

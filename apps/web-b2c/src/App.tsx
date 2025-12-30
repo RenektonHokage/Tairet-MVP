@@ -37,6 +37,7 @@ import AfterOffice from "@/pages/experiencias/AfterOffice";
 import Promociones from "@/pages/experiencias/Promociones";
 import PurchaseConfirmation from "@/pages/PurchaseConfirmation";
 import ReservaForm from "@/pages/ReservaForm";
+import MisEntradas from "@/pages/MisEntradas";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const App = () => (
           <Route path="/explorar" element={<Explorar />} />
           <Route path="/eventos" element={<Eventos />} />
           <Route path="/zonas" element={<Zonas />} />
+          <Route path="/mis-entradas" element={<MisEntradas />} />
           
           {/* Experience pages */}
           <Route path="/experiencias/rooftop" element={<Rooftop />} />

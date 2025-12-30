@@ -1,4 +1,5 @@
-// Interfaz stub para servicio de emails (Resend/SendGrid)
+// Servicio de emails transaccionales con Resend
+import { Resend } from "resend";
 import { logger } from "../utils/logger";
 
 export interface EmailOptions {
@@ -7,13 +8,55 @@ export interface EmailOptions {
   html: string;
 }
 
+// Inicializar cliente Resend solo si hay API key
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+/**
+ * Envía un email usando Resend.
+ * Si EMAIL_ENABLED !== 'true' o no hay API key, solo loguea (stub).
+ */
 export async function sendEmail(options: EmailOptions): Promise<void> {
-  // TODO: Implementar con Resend o SendGrid
-  // const apiKey = process.env.RESEND_API_KEY;
-  console.log("[EMAIL STUB]", options);
+  if (!resend || process.env.EMAIL_ENABLED !== "true") {
+    logger.info("[EMAIL STUB]", { to: options.to, subject: options.subject });
+    return;
+  }
+
+  try {
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM_ADDRESS || "noreply@example.com",
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    });
+
+    if (error) {
+      logger.error("Error sending email via Resend", {
+        to: options.to,
+        subject: options.subject,
+        error: error.message,
+      });
+      throw new Error(error.message);
+    }
+
+    logger.info("Email sent successfully", {
+      to: options.to,
+      subject: options.subject,
+    });
+  } catch (err) {
+    logger.error("Failed to send email", {
+      to: options.to,
+      subject: options.subject,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
-// Templates placeholder
+/**
+ * Email de confirmación de recepción de reserva
+ */
 export async function sendReservationReceivedEmail(payload: {
   email: string;
   name: string;
@@ -21,16 +64,39 @@ export async function sendReservationReceivedEmail(payload: {
   date?: string;
   people?: number;
 }): Promise<void> {
-  // Stub: solo loguear
-  logger.info("Reservation received email (stub)", {
+  const dateStr = payload.date
+    ? new Date(payload.date).toLocaleDateString("es-PY", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "fecha por confirmar";
+
+  await sendEmail({
     to: payload.email,
-    name: payload.name,
-    localName: payload.localName,
-    date: payload.date,
-    people: payload.people,
+    subject: `Reserva recibida${payload.localName ? ` en ${payload.localName}` : ""}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>¡Hola ${payload.name}!</h2>
+        <p>Hemos recibido tu solicitud de reserva.</p>
+        <ul>
+          <li><strong>Fecha:</strong> ${dateStr}</li>
+          ${payload.people ? `<li><strong>Personas:</strong> ${payload.people}</li>` : ""}
+          ${payload.localName ? `<li><strong>Local:</strong> ${payload.localName}</li>` : ""}
+        </ul>
+        <p>Te notificaremos cuando sea confirmada.</p>
+        <p style="color: #666; font-size: 12px;">Este es un mensaje automático, por favor no respondas a este email.</p>
+      </div>
+    `,
   });
 }
 
+/**
+ * Email de confirmación de reserva aprobada
+ */
 export async function sendReservationConfirmedEmail(payload: {
   email: string;
   name: string;
@@ -38,25 +104,75 @@ export async function sendReservationConfirmedEmail(payload: {
   date?: string;
   people?: number;
 }): Promise<void> {
-  // Stub: solo loguear
-  logger.info("Reservation confirmed email (stub)", {
+  const dateStr = payload.date
+    ? new Date(payload.date).toLocaleDateString("es-PY", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "fecha por confirmar";
+
+  await sendEmail({
     to: payload.email,
-    name: payload.name,
-    localName: payload.localName,
-    date: payload.date,
-    people: payload.people,
+    subject: `¡Reserva confirmada!${payload.localName ? ` en ${payload.localName}` : ""}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>¡Hola ${payload.name}!</h2>
+        <p style="color: green; font-weight: bold;">Tu reserva ha sido confirmada.</p>
+        <ul>
+          <li><strong>Fecha:</strong> ${dateStr}</li>
+          ${payload.people ? `<li><strong>Personas:</strong> ${payload.people}</li>` : ""}
+          ${payload.localName ? `<li><strong>Local:</strong> ${payload.localName}</li>` : ""}
+        </ul>
+        <p>¡Te esperamos!</p>
+        <p style="color: #666; font-size: 12px;">Este es un mensaje automático, por favor no respondas a este email.</p>
+      </div>
+    `,
   });
 }
 
+/**
+ * Email de confirmación de orden/compra con token de check-in
+ */
 export async function sendOrderConfirmationEmail(data: {
   email: string;
+  name: string;
   orderId: string;
+  checkinToken: string;
+  localName?: string;
+  quantity?: number;
+  totalAmount?: number;
 }): Promise<void> {
-  // TODO: Template de compra confirmada (sin QR en MVP)
+  const isFreePass = data.totalAmount === 0 || data.totalAmount === undefined;
+  const subject = isFreePass ? "Tu Free Pass está listo" : "Compra confirmada";
+
   await sendEmail({
     to: data.email,
-    subject: "Compra confirmada",
-    html: `<p>Tu orden ${data.orderId} ha sido confirmada.</p>`,
+    subject,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2>¡Hola ${data.name}!</h2>
+        <p>${isFreePass ? "Tu <strong>Free Pass</strong> está listo." : "Tu compra ha sido confirmada."}</p>
+        
+        ${data.localName ? `<p><strong>Local:</strong> ${data.localName}</p>` : ""}
+        ${data.quantity ? `<p><strong>Cantidad:</strong> ${data.quantity} entrada(s)</p>` : ""}
+        ${!isFreePass && data.totalAmount ? `<p><strong>Total:</strong> ${data.totalAmount.toLocaleString("es-PY")} PYG</p>` : ""}
+        
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+          <h3 style="margin-top: 0;">Tu código de entrada</h3>
+          <p style="font-size: 11px; color: #333; word-break: break-all; font-family: monospace; background: white; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+            ${data.checkinToken}
+          </p>
+          <p style="font-size: 12px; color: #666; margin-bottom: 0;">
+            Presenta este código al llegar o ingresa tu email en <strong>Mis Entradas</strong> para ver el QR.
+          </p>
+        </div>
+        
+        <p style="color: #999; font-size: 11px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este email.</p>
+      </div>
+    `,
   });
 }
-

@@ -70,13 +70,12 @@ const PurchaseSelector = ({
         type: type as 'ticket' | 'table',
         name: item.name,
         venue: "Venue Name",
-        // This should come from parent component
+        localId, // UUID del local para crear orders
         quantity,
         price: item.price,
         totalPrice: item.price * quantity,
         date: new Date().toISOString().split('T')[0],
-        // This should come from parent
-        time: "21:00" // This should come from parent
+        time: "21:00"
       };
       addItem(cartItem);
     });
@@ -86,6 +85,14 @@ const PurchaseSelector = ({
 
     // Open unified checkout
     setShowCheckout(true);
+  };
+
+  // Seleccionar free pass (quantity = 1 fijo)
+  const selectFreePass = (ticketId: string) => {
+    setQuantities(prev => ({
+      ...prev,
+      [ticketId]: prev[ticketId] ? 0 : 1 // Toggle: si tiene 1, poner 0; si tiene 0, poner 1
+    }));
   };
   return <section className="space-y-6">
       <div>
@@ -111,20 +118,39 @@ const PurchaseSelector = ({
                       </div>
 
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:justify-end">
-                        <span className="text-base md:text-lg font-bold text-foreground">
-                          {formatPYG(ticket.price)}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, -1)} disabled={!quantities[ticket.id]}>
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">
-                            {quantities[ticket.id] || 0}
-                          </span>
-                          <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, 1)}>
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {ticket.price === 0 ? (
+                          // Free pass: sin +/-, solo toggle
+                          <>
+                            <span className="text-base md:text-lg font-bold text-green-600">
+                              FREE PASS
+                            </span>
+                            <Button 
+                              variant={quantities[ticket.id] ? "default" : "outline"} 
+                              size="sm" 
+                              onClick={() => selectFreePass(ticket.id)}
+                            >
+                              {quantities[ticket.id] ? "Seleccionado ✓" : "Seleccionar"}
+                            </Button>
+                          </>
+                        ) : (
+                          // Ticket con precio: +/- normal
+                          <>
+                            <span className="text-base md:text-lg font-bold text-foreground">
+                              {formatPYG(ticket.price)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, -1)} disabled={!quantities[ticket.id]}>
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="w-8 text-center font-medium">
+                                {quantities[ticket.id] || 0}
+                              </span>
+                              <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, 1)}>
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 

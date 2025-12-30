@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { panelAuth } from "../middlewares/panelAuth";
+import { requireRole } from "../middlewares/requireRole";
 
 export const metricsRouter = Router();
 
@@ -12,8 +13,8 @@ const querySchema = z.object({
   to: z.string().datetime().optional(),
 });
 
-// GET /metrics/summary - Requiere autenticación del panel
-metricsRouter.get("/summary", panelAuth, async (req, res) => {
+// GET /metrics/summary - Requiere autenticación del panel y rol owner
+metricsRouter.get("/summary", panelAuth, requireRole(["owner"]), async (req, res) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });

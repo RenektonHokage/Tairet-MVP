@@ -21,11 +21,6 @@ const Navbar = () => {
     // Search functionality will be implemented when backend is ready
   };
 
-  const handlePublishClick = () => {
-    // Track publish button click
-  };
-
-
   return (
     <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center">
@@ -84,49 +79,35 @@ const Navbar = () => {
         <div className="hidden lg:flex items-center space-x-3">
           <ThemeToggle />
           
-          {!isAuthenticated ? (
-            <>
-              <Button 
-                variant="default" 
-                asChild
-                onClick={handlePublishClick}
-                className="font-medium"
-              >
-                <Link to="/para-locales/publica-tu-local">Publicá tu local</Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                variant="default" 
-                asChild
-                onClick={handlePublishClick}
-                className="font-medium"
-              >
-                <Link to="/para-locales/publica-tu-local">Publicá tu local</Link>
-              </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    className="relative h-8 w-8 rounded-full"
-                    aria-label="Abrir menú de usuario"
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>JP</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="flex items-center">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Cerrar sesión
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
+          <Button 
+            variant="default" 
+            asChild
+            className="font-medium"
+          >
+            <Link to="/mis-entradas">Mis entradas</Link>
+          </Button>
+
+          {isAuthenticated && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="relative h-8 w-8 rounded-full"
+                  aria-label="Abrir menú de usuario"
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>JP</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={logout} className="flex items-center">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 

@@ -1,7 +1,7 @@
 // src/lib/api.ts
 import { API_URL } from "@/constants";
 
-function getApiBase(): string {
+export function getApiBase(): string {
   return import.meta.env?.VITE_API_URL || API_URL || "http://localhost:4000";
 }
 

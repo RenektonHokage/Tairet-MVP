@@ -212,6 +212,7 @@ export interface CartItem {
   type: 'ticket' | 'table' | 'reservation';
   name: string;
   venue: string;
+  localId?: string; // UUID del local para crear orders
   quantity: number;
   price: number;
   totalPrice: number;

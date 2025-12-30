@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, User, MapPin, X, ShoppingBag } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, User, MapPin, X, ShoppingBag, CheckCircle, Copy, Check } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,10 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CartItem } from "@/lib/types";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { createOrder, Order } from "@/lib/orders";
 
 interface CheckoutBaseProps {
   isOpen: boolean;
@@ -21,7 +22,6 @@ interface CheckoutBaseProps {
 }
 
 const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: CheckoutBaseProps) => {
-  const navigate = useNavigate();
   const { state: cartState, clearCart, removeFromCart } = useCart();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -34,6 +34,8 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [orderCreated, setOrderCreated] = useState<Order | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -50,6 +52,13 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     });
   };
 
+  const copyToken = (token: string) => {
+    navigator.clipboard.writeText(token);
+    setCopied(true);
+    toast({ title: "Token copiado", description: "El código fue copiado al portapapeles" });
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -61,18 +70,125 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       });
       return;
     }
+
+    // Solo permitir free_pass (total = 0) por ahora
+    if (cartState.total !== 0) {
+      toast({
+        title: "Error",
+        description: "Por el momento solo están habilitados los Free Pass (entradas gratuitas)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar que haya items
+    if (cartState.items.length === 0) {
+      toast({
+        title: "Error",
+        description: "El carrito está vacío",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Obtener localId del primer item
+    const firstItem = cartState.items[0];
+    if (!firstItem.localId) {
+      toast({
+        title: "Error",
+        description: "No se pudo identificar el local. Por favor, vuelve a seleccionar tu entrada.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsProcessing(true);
     
-    // Simular procesamiento de pago
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      const order = await createOrder({
+        local_id: firstItem.localId,
+        quantity: 1, // Forzar 1 para free_pass MVP
+        total_amount: 0,
+        currency: "PYG",
+        payment_method: "free_pass",
+        customer_email: formData.email,
+        customer_name: formData.firstName,
+        customer_last_name: formData.lastName,
+        customer_phone: formData.phone,
+        customer_document: formData.cedula,
+      });
+
+      setOrderCreated(order);
       clearCart();
-      onClose();
-    }, 2000);
+      
+      toast({
+        title: "¡Listo!",
+        description: "Tu Free Pass fue creado. Revisa tu email.",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "No se pudo completar la compra",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!isOpen) return null;
+
+  // Vista de confirmación después de compra exitosa
+  if (orderCreated) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+        <div className="bg-background max-w-md w-full max-h-[90vh] overflow-y-auto rounded-lg shadow-lg">
+          <div className="p-6 space-y-6 text-center">
+            <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
+            <h2 className="text-2xl font-bold text-foreground">¡Free Pass Creado!</h2>
+            <p className="text-muted-foreground">
+              Te enviamos un email con tu código a <strong>{formData.email}</strong>
+            </p>
+            
+            {/* QR Code */}
+            <div className="bg-white p-6 rounded-lg inline-block mx-auto">
+              <QRCodeSVG value={orderCreated.checkin_token} size={200} level="M" />
+            </div>
+            
+            {/* Token con botón copiar */}
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Tu código de entrada:</p>
+              <div className="flex items-center gap-2 justify-center">
+                <code className="flex-1 max-w-xs p-2 bg-muted rounded text-xs break-all font-mono text-left">
+                  {orderCreated.checkin_token}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToken(orderCreated.checkin_token)}
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            
+            <p className="text-sm text-muted-foreground">
+              También puedes ver tus entradas en <strong>Mis Entradas</strong> ingresando tu email.
+            </p>
+            
+            <div className="flex gap-3 justify-center pt-4">
+              <Button variant="outline" onClick={() => { setOrderCreated(null); onClose(); }}>
+                Cerrar
+              </Button>
+              <Button asChild>
+                <Link to="/mis-entradas">Ver Mis Entradas</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">

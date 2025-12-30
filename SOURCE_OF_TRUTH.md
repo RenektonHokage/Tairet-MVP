@@ -201,7 +201,6 @@ pnpm -r typecheck
 | `celavie` | `550e8400-e29b-41d4-a716-446655440005` | `club` | Celavie |
 | `dlirio` | `550e8400-e29b-41d4-a716-446655440006` | `club` | DLirio |
 
-**Nota:** La DB actual puede tener 6 locals (incluye `club-example-2` u otros de ejemplo), pero el B2C filtra por los 5 slugs MVP definidos en `apps/web-b2c/src/lib/mvpSlugs.ts`.
 
 **EVIDENCIA:** `infra/sql/seed.sql`, `apps/web-b2c/src/lib/mvpSlugs.ts`
 

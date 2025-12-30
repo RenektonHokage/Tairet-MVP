@@ -143,6 +143,12 @@ const mockClubData = {
     genre: "Electrónica",
     entryPrice: "70.000 Gs",
     tickets: [{
+      id: "free-pass-dlirio",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso completo", "Válido para una persona"]
+    }, {
       id: "general",
       name: "Entrada General",
       description: "Acceso a todas las áreas del club",

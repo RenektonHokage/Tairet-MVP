@@ -77,6 +77,6 @@ export async function updatePanelReservationStatus(
   reservationId: string,
   input: UpdateReservationStatusInput
 ): Promise<Reservation> {
-  return apiPatchWithAuth<Reservation>(`/reservations/${reservationId}`, input);
+  return apiPatchWithAuth<Reservation>(`/panel/reservations/${reservationId}`, input);
 }
 

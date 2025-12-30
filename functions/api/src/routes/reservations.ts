@@ -1,9 +1,8 @@
 import { Router } from "express";
-import { ZodError } from "zod";
-import { createReservationSchema, updateReservationStatusSchema } from "../schemas/reservations";
+import { createReservationSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
-import { sendReservationReceivedEmail, sendReservationConfirmedEmail } from "../services/emails";
+import { sendReservationReceivedEmail } from "../services/emails";
 import { panelAuth } from "../middlewares/panelAuth";
 
 export const reservationsRouter = Router();
@@ -51,98 +50,13 @@ reservationsRouter.post("/", async (req, res, next) => {
   }
 });
 
-// PATCH /reservations/:id
-reservationsRouter.patch("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.status(400).json({ error: "Missing reservation id" });
-    }
-
-    const validated = updateReservationStatusSchema.parse(req.body);
-
-    // Buscar la reserva actual
-    const { data: reservation, error: fetchError } = await supabase
-      .from("reservations")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (fetchError || !reservation) {
-      logger.error("Error fetching reservation", {
-        error: fetchError?.message,
-        reservationId: id,
-      });
-      return res.status(404).json({ error: "Reservation not found" });
-    }
-
-    // Preparar objeto de actualización
-    const updateData: {
-      status?: string;
-      table_note?: string | null;
-      updated_at: string;
-    } = {
-      updated_at: new Date().toISOString(),
-    };
-
-    // Si se intenta cambiar el status, validar que solo se puede desde 'en_revision'
-    if (validated.status !== undefined) {
-      if (reservation.status !== "en_revision") {
-        return res.status(400).json({
-          error: "La reserva ya fue procesada",
-          currentStatus: reservation.status,
-        });
-      }
-      updateData.status = validated.status;
-    }
-
-    // Permitir actualizar table_note independientemente del status
-    if (validated.table_note !== undefined) {
-      updateData.table_note = validated.table_note;
-    }
-
-    // Si no hay nada que actualizar, retornar error
-    if (Object.keys(updateData).length === 1) {
-      // Solo updated_at, no hay cambios reales
-      return res.status(400).json({ error: "No hay campos para actualizar" });
-    }
-
-    // Actualizar la reserva
-    const { data: updated, error: updateError } = await supabase
-      .from("reservations")
-      .update(updateData)
-      .eq("id", id)
-      .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at")
-      .single();
-
-    if (updateError) {
-      logger.error("Error updating reservation", {
-        error: updateError.message,
-        reservationId: id,
-      });
-      return res.status(500).json({ error: updateError.message });
-    }
-
-    // Enviar email de confirmación si el nuevo estado es 'confirmed'
-    if (validated.status === "confirmed") {
-      sendReservationConfirmedEmail({
-        email: reservation.email,
-        name: reservation.name,
-        date: reservation.date,
-        people: reservation.guests,
-      }).catch((err) => {
-        logger.error("Error sending reservation confirmation email", { error: err });
-      });
-    }
-
-    res.status(200).json(updated);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return res.status(400).json({ error: error.flatten() });
-    }
-    next(error);
-  }
+// PATCH /reservations/:id (DEPRECATED)
+// Este endpoint público ha sido deshabilitado por seguridad.
+// Usar PATCH /panel/reservations/:id con autenticación.
+reservationsRouter.patch("/:id", (_req, res) => {
+  return res.status(410).json({
+    error: "This endpoint is deprecated. Use PATCH /panel/reservations/:id with authentication.",
+  });
 });
 
 // GET /locals/:id/reservations

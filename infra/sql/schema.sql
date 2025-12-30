@@ -38,16 +38,19 @@ CREATE TABLE IF NOT EXISTS promos (
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   local_id UUID NOT NULL REFERENCES locals(id) ON DELETE CASCADE,
+  checkin_token UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(), -- Token para QR check-in
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   total_amount DECIMAL(10, 2) NOT NULL,
   currency TEXT NOT NULL DEFAULT 'PYG',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'cancelled')),
   payment_method TEXT,
   transaction_id TEXT,
-  used_at TIMESTAMPTZ, -- Check-in manual (MVP sin QR)
+  used_at TIMESTAMPTZ, -- Check-in manual
   customer_email TEXT,
   customer_name TEXT,
+  customer_last_name TEXT,
   customer_phone TEXT,
+  customer_document TEXT, -- Cédula de identidad
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -134,6 +137,8 @@ CREATE TABLE IF NOT EXISTS local_daily_ops (
 CREATE INDEX IF NOT EXISTS idx_orders_local_id ON orders(local_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_checkin_token ON orders(checkin_token);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON orders(customer_email);
 CREATE INDEX IF NOT EXISTS idx_payment_events_transaction_id ON payment_events(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_local_id ON reservations(local_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status);

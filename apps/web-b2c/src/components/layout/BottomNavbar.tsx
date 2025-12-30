@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Search, MapPin, Info } from "lucide-react";
+import { Home, Search, MapPin, Info, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const BottomNavbar = () => {
@@ -8,6 +8,7 @@ const BottomNavbar = () => {
   const navItems = [
     { name: "Inicio", path: "/", icon: Home },
     { name: "Zonas", path: "/explorar", icon: Search },
+    { name: "Mis entradas", path: "/mis-entradas", icon: Ticket },
     { name: "Eventos", path: "/eventos", icon: MapPin },
     { name: "Información", path: "/informacion", icon: Info },
   ];
