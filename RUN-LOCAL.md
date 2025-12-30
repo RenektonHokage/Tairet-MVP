@@ -156,8 +156,3 @@ Para probar el flujo completo de órdenes:
 - Revisa los logs del backend para errores
 
 
-# Copiar token desde DevTools (/panel/me)
-$token = "eyJhbGciOiJIUzI1NiIsImtpZCI6IkU2SnhCTjMvRW54V2JRdjgiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL29tdGV5Y3RtcmdhaGF2Z2Zhb2R3LnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJkY2FjZWRlMS05ODMwLTRiNTctOTA0ZC0zNmI4MmE2MjkxZDAiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzY2MzgxODA1LCJpYXQiOjE3NjYzNzgyMDUsImVtYWlsIjoicGFuZWxAdGFpcmV0LnRlc3QiLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsX3ZlcmlmaWVkIjp0cnVlfSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc2NjM3ODIwNX1dLCJzZXNzaW9uX2lkIjoiY2RmYzUzZmEtZTVlMS00MjNmLTlmNzYtZmZjMmQxMGEzNzUwIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.SHN3coBznD2A9j9ZuDauxsVHloghI4AVq0DN6_BXZcs"
-Invoke-RestMethod "http://localhost:4000/panel/me" -Headers @{ Authorization = "Bearer $token" }
-Invoke-RestMethod "http://localhost:4000/metrics/summary" -Headers @{ Authorization = "Bearer $token" }
-
