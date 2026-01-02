@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Users, Minus, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Users, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TicketType, TableType, PurchaseSelectorProps, SelectedItem, CartItem } from "@/lib/types";
 import CheckoutBase from "@/components/shared/CheckoutBase";
@@ -25,6 +26,11 @@ const PurchaseSelector = ({
     addItem
   } = useCart();
   const updateQuantity = (itemId: string, change: number) => {
+    // Guard: bloquear tickets pagos (price > 0)
+    const ticket = tickets.find(t => t.id === itemId);
+    if (ticket && ticket.price > 0) {
+      return; // No permitir modificar cantidad de tickets pagos
+    }
     setQuantities(prev => ({
       ...prev,
       [itemId]: Math.max(0, (prev[itemId] || 0) + change)
@@ -133,22 +139,14 @@ const PurchaseSelector = ({
                             </Button>
                           </>
                         ) : (
-                          // Ticket con precio: +/- normal
+                          // Ticket con precio: bloqueado (pagos próximamente)
                           <>
                             <span className="text-base md:text-lg font-bold text-foreground">
                               {formatPYG(ticket.price)}
                             </span>
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, -1)} disabled={!quantities[ticket.id]}>
-                                <Minus className="h-4 w-4" />
-                              </Button>
-                              <span className="w-8 text-center font-medium">
-                                {quantities[ticket.id] || 0}
-                              </span>
-                              <Button variant="outline" size="sm" onClick={() => updateQuantity(ticket.id, 1)}>
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              Próximamente (Pagos)
+                            </Badge>
                           </>
                         )}
                       </div>
@@ -190,7 +188,12 @@ const PurchaseSelector = ({
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-3 md:justify-end">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:justify-end">
+                        {table.price !== undefined && (
+                          <span className="text-base md:text-lg font-bold text-foreground">
+                            {table.price.toLocaleString("es-PY")} Gs
+                          </span>
+                        )}
                         <Button size="lg" onClick={() => {
                     // Tracking fire-and-forget: no bloquear navegación
                     if (localId) {

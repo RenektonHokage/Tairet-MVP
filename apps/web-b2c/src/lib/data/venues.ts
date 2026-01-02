@@ -138,6 +138,39 @@ export const allBars: Bar[] = [
     location: 'Las Carmelitas • Asunción',
     image: '/images/bar.jpg' 
   },
+  { 
+    id: 13,
+    name: 'Capitao Bar', 
+    dateTop: 'Abierto',
+    dateBottom: 'HOY',
+    schedule: '18:00–02:00', 
+    rating: '4.5',
+    specialties: ['Cervezas artesanales', 'Cocteles'],
+    location: 'Carmelitas • Asunción',
+    image: '/images/bar.jpg' 
+  },
+  { 
+    id: 14,
+    name: 'Arsenal Bar', 
+    dateTop: 'Abierto',
+    dateBottom: 'HOY',
+    schedule: '17:00–01:00', 
+    rating: '4.6',
+    specialties: ['Cervezas artesanales', 'After Office'],
+    location: 'Villa Morra • Asunción',
+    image: '/images/bar.jpg' 
+  },
+  { 
+    id: 15,
+    name: 'Koape Bar', 
+    dateTop: 'Abierto',
+    dateBottom: 'HOY',
+    schedule: '19:00–02:00', 
+    rating: '4.7',
+    specialties: ['Cocteles', 'Terraza'],
+    location: 'Centro • Asunción',
+    image: '/images/bar.jpg' 
+  },
 ];
 
 // ===========================================
@@ -213,6 +246,26 @@ export const allClubs: Club[] = [
     rating: "4.6",
     genres: ["Reggaeton", "Electronica"],
     customImage: dlirioLogoCard
+  },
+  {
+    id: 13,
+    name: "fresa",
+    dateTop: "Vie, 12",
+    dateBottom: "SEP",
+    schedule: "23:59–07:00",
+    rating: "4.5",
+    genres: ["Pop", "Latino"],
+    customImage: undefined
+  },
+  {
+    id: 14,
+    name: "mambo",
+    dateTop: "Sab, 13",
+    dateBottom: "SEP",
+    schedule: "23:59–07:00",
+    rating: "4.6",
+    genres: ["Reggaeton", "Latino"],
+    customImage: undefined
   },
   {
     id: 8,

@@ -1,11 +1,20 @@
 // Servicio de emails transaccionales con Resend
 import { Resend } from "resend";
+import QRCode from "qrcode";
 import { logger } from "../utils/logger";
+
+export interface EmailAttachment {
+  filename: string;
+  content: string; // base64
+  contentType: string;
+  contentId?: string; // Para inline CID
+}
 
 export interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachment[];
 }
 
 // Inicializar cliente Resend solo si hay API key
@@ -29,6 +38,7 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       to: options.to,
       subject: options.subject,
       html: options.html,
+      attachments: options.attachments,
     });
 
     if (error) {
@@ -135,7 +145,7 @@ export async function sendReservationConfirmedEmail(payload: {
 }
 
 /**
- * Email de confirmación de orden/compra con token de check-in
+ * Email de confirmación de orden/compra con token de check-in y QR visual
  */
 export async function sendOrderConfirmationEmail(data: {
   email: string;
@@ -148,6 +158,32 @@ export async function sendOrderConfirmationEmail(data: {
 }): Promise<void> {
   const isFreePass = data.totalAmount === 0 || data.totalAmount === undefined;
   const subject = isFreePass ? "Tu Free Pass está listo" : "Compra confirmada";
+
+  // Generar QR como PNG (best-effort)
+  let qrBase64: string | null = null;
+  try {
+    const qrBuffer = await QRCode.toBuffer(data.checkinToken, {
+      errorCorrectionLevel: "H",
+      margin: 1,
+      width: 300,
+    });
+    qrBase64 = qrBuffer.toString("base64");
+  } catch (err) {
+    logger.warn("Failed to generate QR code for email", {
+      orderId: data.orderId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Continuar sin QR - fallback a solo token texto
+  }
+
+  // HTML con QR si está disponible, siempre con token texto como fallback
+  const qrHtml = qrBase64
+    ? `
+        <div style="text-align: center; margin: 20px 0;">
+          <img src="cid:checkin-qr" alt="Código QR" style="max-width: 200px; display: block; margin: 0 auto;" />
+        </div>
+      `
+    : "";
 
   await sendEmail({
     to: data.email,
@@ -163,16 +199,27 @@ export async function sendOrderConfirmationEmail(data: {
         
         <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
           <h3 style="margin-top: 0;">Tu código de entrada</h3>
+          ${qrHtml}
           <p style="font-size: 11px; color: #333; word-break: break-all; font-family: monospace; background: white; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
             ${data.checkinToken}
           </p>
           <p style="font-size: 12px; color: #666; margin-bottom: 0;">
-            Presenta este código al llegar o ingresa tu email en <strong>Mis Entradas</strong> para ver el QR.
+            ${qrBase64 ? "Escanea el QR o presenta" : "Presenta"} este código al llegar.
           </p>
         </div>
         
         <p style="color: #999; font-size: 11px; margin-top: 30px;">Este es un mensaje automático, por favor no respondas a este email.</p>
       </div>
     `,
+    attachments: qrBase64
+      ? [
+          {
+            filename: "checkin-qr.png",
+            content: qrBase64,
+            contentType: "image/png",
+            contentId: "checkin-qr",
+          },
+        ]
+      : undefined,
   });
 }

@@ -35,6 +35,12 @@ const mockClubData = {
     genre: "Reggaeton",
     entryPrice: "50.000 Gs",
     tickets: [{
+      id: "free-pass-morgan",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso completo", "Válido para una persona"]
+    }, {
       id: "general",
       name: "Entrada General",
       description: "Acceso a todas las áreas del club",
@@ -86,9 +92,15 @@ const mockClubData = {
     video: undefined,
     ageRestriction: "+18",
     schedule: "23:00–06:00",
-    genre: "Comercial",
+    genre: "Mix",
     entryPrice: "60.000 Gs",
     tickets: [{
+      id: "free-pass-celavie",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso completo", "Válido para una persona"]
+    }, {
       id: "general",
       name: "Entrada General",
       description: "Acceso a todas las áreas del club",
@@ -193,6 +205,78 @@ const mockClubData = {
       title: "La Fórmula Perfecta",
       image: formulaPromo
     }]
+  },
+  fresa: {
+    name: "Fresa",
+    images: ["/images/bar.jpg", "/images/bar.jpg"],
+    video: undefined,
+    ageRestriction: "+18",
+    schedule: "23:00–06:00",
+    genre: "Pop",
+    entryPrice: "50.000 Gs",
+    tickets: [{
+      id: "free-pass-fresa",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso completo", "Válido para una persona"]
+    }, {
+      id: "general",
+      name: "Entrada General",
+      description: "Acceso a todas las áreas del club",
+      price: 50000,
+      benefits: ["Acceso a pista de baile", "Acceso a barra"]
+    }],
+    tables: [{
+      id: "regular",
+      name: "Mesa Regular",
+      capacity: 4,
+      price: 150000,
+      drinks: ["Botella de fernet", "6 mixers", "Hielera y vasos", "Servicio de mesero"]
+    }, {
+      id: "preferencial",
+      name: "Mesa Preferencial",
+      capacity: 6,
+      price: 250000,
+      drinks: ["Botella premium", "8 mixers", "Hielera y vasos", "Servicio preferencial"]
+    }],
+    promotions: []
+  },
+  mambo: {
+    name: "Mambo",
+    images: ["/images/bar.jpg", "/images/bar.jpg"],
+    video: undefined,
+    ageRestriction: "+18",
+    schedule: "23:00–06:00",
+    genre: "Reggaeton",
+    entryPrice: "45.000 Gs",
+    tickets: [{
+      id: "free-pass-mambo",
+      name: "Free Pass",
+      price: 0,
+      description: "Entrada gratuita promocional",
+      benefits: ["Acceso completo", "Válido para una persona"]
+    }, {
+      id: "general",
+      name: "Entrada General",
+      description: "Acceso a todas las áreas del club",
+      price: 45000,
+      benefits: ["Acceso a pista de baile", "Acceso a barra"]
+    }],
+    tables: [{
+      id: "regular",
+      name: "Mesa Regular",
+      capacity: 4,
+      price: 140000,
+      drinks: ["Botella de fernet", "6 mixers", "Hielera y vasos", "Servicio de mesero"]
+    }, {
+      id: "preferencial",
+      name: "Mesa Preferencial",
+      capacity: 6,
+      price: 240000,
+      drinks: ["Botella premium", "8 mixers", "Hielera y vasos", "Servicio preferencial"]
+    }],
+    promotions: []
   }
 };
 const ClubProfile = () => {

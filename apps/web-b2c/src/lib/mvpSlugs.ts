@@ -4,10 +4,10 @@
  */
 
 // Slugs de bares MVP
-export const MVP_BAR_SLUGS = ["mckharthys-bar", "killkenny-pub"] as const;
+export const MVP_BAR_SLUGS = ["mckharthys-bar", "killkenny-pub", "capitao-bar", "arsenal-bar", "koape-bar"] as const;
 
 // Slugs de clubs MVP
-export const MVP_CLUB_SLUGS = ["morgan", "celavie", "dlirio"] as const;
+export const MVP_CLUB_SLUGS = ["morgan", "celavie", "dlirio", "fresa", "mambo"] as const;
 
 // Todos los slugs MVP
 export const MVP_SLUGS = [...MVP_BAR_SLUGS, ...MVP_CLUB_SLUGS] as const;

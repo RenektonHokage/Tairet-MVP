@@ -273,12 +273,12 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
       });
     }
 
-    // Actualizar used_at
+    // Actualizar used_at y devolver datos del comprador para verificación
     const { data: updated, error: updateError } = await supabase
       .from("orders")
       .update({ used_at: new Date().toISOString() })
       .eq("checkin_token", token)
-      .select("id, local_id, status, used_at")
+      .select("id, local_id, status, used_at, customer_name, customer_last_name, customer_document")
       .single();
 
     if (updateError) {
