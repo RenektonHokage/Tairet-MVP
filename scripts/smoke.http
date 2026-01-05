@@ -252,6 +252,30 @@ Authorization: Bearer {{accessToken}}
   "is_open": true
 }
 
+# 1. Crear free pass
+curl -X POST http://localhost:4000/orders `
+  -H "Content-Type: application/json" `
+  -d '{
+    "local_id": "550e8400-e29b-41d4-a716-446655440006",
+    "quantity": 1,
+    "total_amount": 0,
+    "payment_method": "free_pass",
+    "customer_email": "TU_EMAIL_REAL@example.com",
+    "customer_name": "Test",
+    "customer_last_name": "User",
+    "customer_phone": "0981234567",
+    "customer_document": "1234567"
+  }'
+
+# Probar QR antifraude
+
+  $token = "CHECKIN_TOKEN_DE_LA_ORDER"
+$authToken = "BEARER_TOKEN_DEL_PANEL"
+
+Invoke-RestMethod "http://localhost:4000/panel/checkin/$token" `
+  -Method PATCH `
+  -Headers @{ Authorization = "Bearer $authToken" }
+
 ### ============================================
 ### NOTAS:
 ### - Requests marcados como "REQUIERE AUTENTICACIÓN" necesitan el header Authorization

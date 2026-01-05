@@ -16,6 +16,7 @@ import MapSection from "@/components/shared/MapSection";
 import { getLocalBySlug } from "@/lib/locals";
 import { useNavigate } from "react-router-dom";
 import { mockBarData } from "@/lib/mocks/bars";
+import { ContactInfo } from "@/lib/contact";
 
 const BarProfile = () => {
   const isMobile = useIsMobile();
@@ -23,6 +24,7 @@ const BarProfile = () => {
   const { barId } = useParams();
   const [localId, setLocalId] = useState<string | null>(null);
   const [localType, setLocalType] = useState<string | null>(null);
+  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -62,6 +64,11 @@ const BarProfile = () => {
 
         setLocalId(local.id);
         setLocalType(local.type);
+        setContactInfo({
+          phone: local.phone,
+          whatsapp: local.whatsapp,
+          email: local.email,
+        });
         setIsLoading(false);
       })
       .catch((error) => {
@@ -172,7 +179,7 @@ const BarProfile = () => {
         </section>
 
         {/* Reservation Section */}
-        {localId && <BarReservation localId={localId} />}
+        {localId && <BarReservation localId={localId} contactInfo={contactInfo} />}
 
         {/* Promotions */}
         {localId && <BarPromotions promotions={barData.promotions} localId={localId} />}

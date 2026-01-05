@@ -263,7 +263,7 @@ export interface PurchaseSelectorProps {
   title?: string;
   subtitle?: string;
   mode?: 'tickets' | 'tables' | 'both';
-  whatsappNumber?: string;
+  contactInfo?: import("./contact").ContactInfo | null;
   localId?: string; // Para tracking de whatsapp_click
 }
 

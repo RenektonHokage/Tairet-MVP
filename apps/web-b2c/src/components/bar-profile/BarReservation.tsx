@@ -4,12 +4,14 @@ import { Calendar, MessageCircle } from 'lucide-react';
 import { trackWhatsappClick } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ContactInfo, hasContactChannel, openContactChannel } from '@/lib/contact';
 
 interface BarReservationProps {
   localId: string;
+  contactInfo?: ContactInfo | null;
 }
 
-const BarReservation: React.FC<BarReservationProps> = ({ localId }) => {
+const BarReservation: React.FC<BarReservationProps> = ({ localId, contactInfo }) => {
   const navigate = useNavigate();
   const { barId } = useParams();
 
@@ -53,12 +55,19 @@ const BarReservation: React.FC<BarReservationProps> = ({ localId }) => {
                 variant="outline"
                 size="lg"
                 className="h-12 px-8 border-border/50 hover:border-primary/50"
+                disabled={!hasContactChannel(contactInfo)}
                 onClick={() => {
-                  if (localId) {
+                  if (localId && contactInfo) {
                     // Fire-and-forget: no bloquear window.open
-                    void trackWhatsappClick(localId, "+595981234567", "bar_reservation");
+                    void trackWhatsappClick(
+                      localId, 
+                      contactInfo.whatsapp || contactInfo.phone || undefined, 
+                      "bar_reservation"
+                    );
                   }
-                  window.open('https://wa.me/595981234567', '_blank');
+                  if (contactInfo) {
+                    openContactChannel(contactInfo, "Hola! Me gustaría hacer una consulta sobre reservas.");
+                  }
                 }}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />

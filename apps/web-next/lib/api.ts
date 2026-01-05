@@ -29,7 +29,7 @@ async function getAuthToken(): Promise<string | null> {
 /**
  * Crea headers con Authorization si hay sesión activa
  */
-async function getAuthHeaders(): Promise<HeadersInit> {
+export async function getAuthHeaders(): Promise<HeadersInit> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };

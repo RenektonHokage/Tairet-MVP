@@ -16,6 +16,7 @@ import TouchSlideGallery from "@/components/TouchSlideGallery";
 import { getLocalBySlug } from "@/lib/locals";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
+import { ContactInfo } from "@/lib/contact";
 
 const ClubProfile = () => {
   const isMobile = useIsMobile();
@@ -23,6 +24,7 @@ const ClubProfile = () => {
   const { clubId } = useParams();
   const [localId, setLocalId] = useState<string | null>(null);
   const [localType, setLocalType] = useState<string | null>(null);
+  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -62,6 +64,11 @@ const ClubProfile = () => {
 
         setLocalId(local.id);
         setLocalType(local.type);
+        setContactInfo({
+          phone: local.phone,
+          whatsapp: local.whatsapp,
+          email: local.email,
+        });
         setIsLoading(false);
       })
       .catch((error) => {
@@ -241,7 +248,7 @@ const ClubProfile = () => {
             title="" 
             subtitle="" 
             onCheckout={() => {}} 
-            whatsappNumber="595981234567" 
+            contactInfo={contactInfo} 
             localId={localId} 
           />
         )}

@@ -13,7 +13,9 @@ export interface LocalInfo {
   id: string; // UUID
   slug: string;
   name: string;
+  phone: string | null;
   whatsapp: string | null;
+  email: string | null;
   ticket_price: number;
   type: "bar" | "club";
 }

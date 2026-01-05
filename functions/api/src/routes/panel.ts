@@ -301,6 +301,90 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
   }
 });
 
+// GET /panel/checkins
+// Últimos check-ins del local (used_at NOT NULL)
+// Roles permitidos: owner, staff
+panelRouter.get("/checkins", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const limitParam = req.query.limit;
+    const limit = typeof limitParam === "string" ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+
+    const { data: checkins, error } = await supabase
+      .from("orders")
+      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_document")
+      .eq("local_id", req.panelUser.localId)
+      .not("used_at", "is", null)
+      .order("used_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error("Error fetching checkins", { error: error.message });
+      return res.status(500).json({ error: "Failed to fetch checkins" });
+    }
+
+    res.status(200).json({ items: checkins ?? [], count: checkins?.length ?? 0 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /panel/orders/search
+// Buscar órdenes por email o documento
+// Roles permitidos: owner, staff
+panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { email, document } = req.query;
+
+    // Validar que venga exactamente uno
+    const hasEmail = typeof email === "string" && email.trim().length > 0;
+    const hasDocument = typeof document === "string" && document.trim().length > 0;
+
+    if (!hasEmail && !hasDocument) {
+      return res.status(400).json({ error: "Missing required parameter: email or document" });
+    }
+
+    if (hasEmail && hasDocument) {
+      return res.status(400).json({ error: "Provide only one parameter: email or document" });
+    }
+
+    const limitParam = req.query.limit;
+    const limit = typeof limitParam === "string" ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+
+    let query = supabase
+      .from("orders")
+      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_document, created_at")
+      .eq("local_id", req.panelUser.localId);
+
+    if (hasEmail) {
+      const emailLower = email.trim().toLowerCase();
+      query = query.eq("customer_email_lower", emailLower);
+    } else if (hasDocument) {
+      query = query.eq("customer_document", document.trim());
+    }
+
+    const { data: orders, error } = await query
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      logger.error("Error searching orders", { error: error.message });
+      return res.status(500).json({ error: "Failed to search orders" });
+    }
+
+    res.status(200).json({ items: orders ?? [], count: orders?.length ?? 0 });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Rutas de calendario
 panelRouter.use("/calendar", calendarRouter);
 

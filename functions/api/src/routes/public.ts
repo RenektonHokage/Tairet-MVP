@@ -36,7 +36,7 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
     // Buscar local por slug
     const { data: local, error } = await supabase
       .from("locals")
-      .select("id, slug, name, whatsapp, ticket_price, type")
+      .select("id, slug, name, phone, whatsapp, email, ticket_price, type")
       .eq("slug", validSlug)
       .single();
 
@@ -72,7 +72,9 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       id: local.id,
       slug: local.slug,
       name: local.name,
+      phone: local.phone || null,
       whatsapp: local.whatsapp || null,
+      email: local.email || null,
       ticket_price: Number(local.ticket_price) || 0,
       type: local.type as "bar" | "club",
     });
@@ -94,11 +96,12 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
 publicRouter.get("/orders", async (req, res, next) => {
   try {
     const { email } = emailQuerySchema.parse(req.query);
+    const emailLower = email.trim().toLowerCase();
 
     const { data, error } = await supabase
       .from("orders")
       .select("id, local_id, checkin_token, quantity, total_amount, currency, status, payment_method, used_at, created_at")
-      .eq("customer_email", email)
+      .eq("customer_email_lower", emailLower)
       .order("created_at", { ascending: false })
       .limit(50);
 

@@ -385,6 +385,18 @@ export default function PanelPage() {
           >
             📅 Calendario
           </Link>
+          <Link
+            href="/panel/checkin"
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
+          >
+            ✓ Check-in
+          </Link>
+          <Link
+            href="/panel/orders"
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm font-medium"
+          >
+            📋 Órdenes
+          </Link>
         </div>
         {userEmail && (
           <div className="text-sm text-gray-600">

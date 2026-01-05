@@ -9,6 +9,7 @@ import CheckoutBase from "@/components/shared/CheckoutBase";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { trackWhatsappClick } from "@/lib/api";
+import { hasContactChannel, openContactChannel } from "@/lib/contact";
 const PurchaseSelector = ({
   tickets = [],
   tables = [],
@@ -16,7 +17,7 @@ const PurchaseSelector = ({
   title = "Compra de Entradas y Mesas",
   subtitle = "Selecciona las opciones que deseas",
   mode = "both",
-  whatsappNumber,
+  contactInfo,
   localId
 }: PurchaseSelectorProps) => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -194,15 +195,25 @@ const PurchaseSelector = ({
                             {table.price.toLocaleString("es-PY")} Gs
                           </span>
                         )}
-                        <Button size="lg" onClick={() => {
-                    // Tracking fire-and-forget: no bloquear navegación
-                    if (localId) {
-                      void trackWhatsappClick(localId, whatsappNumber ? `+${whatsappNumber}` : undefined, "club_table_reservation");
-                    }
-                    const message = `Hola! Me gustaría reservar una ${table.name} para ${table.capacity} personas.`;
-                    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
-                    window.open(whatsappUrl, '_blank');
-                  }} className="w-full md:w-auto mt-2">
+                        <Button 
+                          size="lg" 
+                          disabled={!hasContactChannel(contactInfo)}
+                          onClick={() => {
+                            // Tracking fire-and-forget: no bloquear navegación
+                            if (localId && contactInfo) {
+                              void trackWhatsappClick(
+                                localId, 
+                                contactInfo.whatsapp || contactInfo.phone || undefined, 
+                                "club_table_reservation"
+                              );
+                            }
+                            if (contactInfo) {
+                              const message = `Hola! Me gustaría reservar una ${table.name} para ${table.capacity} personas.`;
+                              openContactChannel(contactInfo, message);
+                            }
+                          }} 
+                          className="w-full md:w-auto mt-2"
+                        >
                           Reservar
                         </Button>
                       </div>
