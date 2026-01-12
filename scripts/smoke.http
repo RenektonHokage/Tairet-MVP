@@ -276,6 +276,21 @@ Invoke-RestMethod "http://localhost:4000/panel/checkin/$token" `
   -Method PATCH `
   -Headers @{ Authorization = "Bearer $authToken" }
 
+$API="https://tairetapi-production.up.railway.app"
+
+# 1) Health
+Invoke-RestMethod "$API/health"
+
+# 2) Tracking (debería devolver 204; en PowerShell puede no mostrar nada si no hay body)
+$eventBody = '{"local_id":"550e8400-e29b-41d4-a716-446655440001","source":"smoke","user_agent":"smoke-test"}'
+Invoke-WebRequest "$API/events/profile_view" -Method POST -Headers @{ "Content-Type"="application/json" } -Body $eventBody | Select-Object StatusCode
+
+# 3) Reserva (201 + JSON)
+$resBody = '{"local_id":"550e8400-e29b-41d4-a716-446655440001","name":"Smoke","last_name":"Test","email":"smoke@test.com","phone":"+595981000000","date":"2026-01-10T21:00:00.000Z","guests":2,"notes":"smoke prod"}'
+Invoke-RestMethod "$API/reservations" -Method POST -Headers @{ "Content-Type"="application/json" } -Body $resBody
+
+
+
 ### ============================================
 ### NOTAS:
 ### - Requests marcados como "REQUIERE AUTENTICACIÓN" necesitan el header Authorization

@@ -164,8 +164,8 @@ export async function sendOrderConfirmationEmail(data: {
   try {
     const qrBuffer = await QRCode.toBuffer(data.checkinToken, {
       errorCorrectionLevel: "H",
-      margin: 1,
-      width: 300,
+      margin: 2,
+      width: 720,
     });
     qrBase64 = qrBuffer.toString("base64");
   } catch (err) {
@@ -180,7 +180,10 @@ export async function sendOrderConfirmationEmail(data: {
   const qrHtml = qrBase64
     ? `
         <div style="text-align: center; margin: 20px 0;">
-          <img src="cid:checkin-qr" alt="Código QR" style="max-width: 200px; display: block; margin: 0 auto;" />
+          <p style="font-size: 13px; color: #666; margin-bottom: 10px;">
+            Si el código no se lee bien, abrí el adjunto <strong>TAIRET-QR.png</strong> en pantalla completa.
+          </p>
+          <img src="cid:checkin-qr" alt="Código QR" style="width: 320px; max-width: 100%; height: auto; display: block; margin: 0 auto;" />
         </div>
       `
     : "";
@@ -214,10 +217,15 @@ export async function sendOrderConfirmationEmail(data: {
     attachments: qrBase64
       ? [
           {
-            filename: "checkin-qr.png",
+            filename: "checkin-qr-inline.png",
             content: qrBase64,
             contentType: "image/png",
             contentId: "checkin-qr",
+          },
+          {
+            filename: "TAIRET-QR.png",
+            content: qrBase64,
+            contentType: "image/png",
           },
         ]
       : undefined,
