@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { usePanelContext } from "@/lib/panelContext";
+import { NotAvailable } from "@/components/panel/NotAvailable";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 
 interface OrderItem {
@@ -26,9 +25,7 @@ interface OrdersResponse {
 type SearchType = "email" | "document";
 
 export default function OrdersPage() {
-  const router = useRouter();
-
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
 
   // Historial de check-ins
   const [checkins, setCheckins] = useState<OrderItem[]>([]);
@@ -45,37 +42,25 @@ export default function OrdersPage() {
   // Copiar token
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Verificar sesión al montar
+  // ==================================================
+  // GATING TEMPRANO: Determinar si página está bloqueada
+  // ==================================================
+  const isBlocked = context?.local.type === "bar";
+
+  // Cargar check-ins SOLO si no está bloqueado y contexto listo
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    // GUARD: No ejecutar si contexto cargando o bloqueado
+    if (contextLoading) return;
+    if (isBlocked) return;
+    if (!context) return;
 
-        if (!session) {
-          router.push("/panel/login");
-          return;
-        }
+    loadCheckinsInternal();
+  }, [contextLoading, isBlocked, context]);
 
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error("Error checking session:", err);
-        router.push("/panel/login");
-      }
-    };
+  const loadCheckinsInternal = useCallback(async () => {
+    // GUARD extra
+    if (isBlocked) return;
 
-    checkSession();
-  }, [router]);
-
-  // Cargar check-ins al autenticarse
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadCheckins();
-    }
-  }, [isAuthenticated]);
-
-  const loadCheckins = useCallback(async () => {
     setLoadingCheckins(true);
     setCheckinsError(null);
 
@@ -99,9 +84,11 @@ export default function OrdersPage() {
     } finally {
       setLoadingCheckins(false);
     }
-  }, []);
+  }, [isBlocked]);
 
   const handleSearch = async () => {
+    // GUARD: No buscar si bloqueado
+    if (isBlocked) return;
     if (!searchValue.trim()) return;
 
     setLoadingSearch(true);
@@ -200,29 +187,51 @@ export default function OrdersPage() {
     </tr>
   );
 
-  // Mostrar loading mientras se verifica la sesión
-  if (isAuthenticated === null) {
+  // ==================================================
+  // RENDERS TEMPRANOS (antes de cualquier UI compleja)
+  // ==================================================
+
+  // GATING 1: Loading del contexto
+  if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <p className="text-gray-600">Verificando sesión...</p>
+          <p className="text-gray-600">Cargando...</p>
         </div>
       </div>
     );
   }
 
+  // GATING 2: Error en contexto
+  if (contextError || !context) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-600">{contextError || "Error al cargar información del panel"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // GATING 3: Tipo de local bloqueado (ANTES de cualquier render complejo)
+  if (context.local.type === "bar") {
+    return (
+      <NotAvailable
+        localType="bar"
+        feature="Órdenes & Check-ins"
+        message="Los bares gestionan reservas. Las órdenes están disponibles solo para discotecas."
+      />
+    );
+  }
+
+  // ==================================================
+  // RENDER PRINCIPAL (solo para clubs)
+  // ==================================================
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-3xl font-bold">Órdenes & Check-ins</h2>
-          <Link
-            href="/panel"
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium"
-          >
-            ← Volver al Dashboard
-          </Link>
-        </div>
+        <h2 className="text-3xl font-bold">Órdenes & Check-ins</h2>
       </div>
 
       {/* Búsqueda */}
@@ -318,7 +327,7 @@ export default function OrdersPage() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Últimos 20 Check-ins</h3>
           <button
-            onClick={loadCheckins}
+            onClick={loadCheckinsInternal}
             disabled={loadingCheckins}
             className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
           >

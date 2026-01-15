@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { usePanelContext } from "@/lib/panelContext";
+import { NotAvailable } from "@/components/panel/NotAvailable";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 
 // Tipos para la respuesta del endpoint
@@ -22,10 +21,6 @@ interface CheckinAlreadyUsed {
   usedAt: string;
 }
 
-interface CheckinForbidden {
-  error: "Forbidden: This order belongs to another local";
-}
-
 type CheckinResult =
   | { type: "success"; data: CheckinSuccess }
   | { type: "already_used"; usedAt: string }
@@ -41,13 +36,12 @@ type CameraStatus =
   | "error";
 
 export default function CheckinPage() {
-  const router = useRouter();
+  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanningRef = useRef(false);
   const readerRef = useRef<import("@zxing/browser").BrowserQRCodeReader | null>(null);
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckinResult | null>(null);
@@ -55,41 +49,29 @@ export default function CheckinPage() {
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // Verificar sesión al montar
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          router.push("/panel/login");
-          return;
-        }
-
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error("Error checking session:", err);
-        router.push("/panel/login");
-      }
-    };
-
-    checkSession();
-  }, [router]);
+  // ==================================================
+  // GATING TEMPRANO: Determinar si página está bloqueada
+  // ==================================================
+  const isBlocked = context?.local.type === "bar";
 
   // Limpiar cámara al desmontar
   useEffect(() => {
+    // GUARD: No ejecutar si contexto aún cargando o bloqueado
+    if (contextLoading || isBlocked) return;
+
     return () => {
       scanningRef.current = false;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, []);
+  }, [contextLoading, isBlocked]);
 
   // Conectar stream al video cuando esté disponible
   useEffect(() => {
+    // GUARD: No ejecutar si contexto aún cargando o bloqueado
+    if (contextLoading || isBlocked) return;
+
     if (cameraStatus === "active" && streamRef.current && videoRef.current) {
       videoRef.current.srcObject = streamRef.current;
       videoRef.current.play().catch(() => {
@@ -97,14 +79,16 @@ export default function CheckinPage() {
       });
       startScanning();
     }
-  }, [cameraStatus]);
+  }, [cameraStatus, contextLoading, isBlocked]);
 
   const startCamera = useCallback(async () => {
+    // GUARD extra (aunque no debería llegar aquí si está bloqueado)
+    if (isBlocked) return;
+
     setCameraError(null);
     setCameraStatus("requesting");
 
     try {
-      // Verificar si hay dispositivos de video
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter((d) => d.kind === "videoinput");
       if (videoDevices.length === 0) {
@@ -117,8 +101,6 @@ export default function CheckinPage() {
         video: { facingMode: { ideal: "environment" } },
       });
       streamRef.current = stream;
-
-      // Setear active DESPUÉS de tener el stream - el useEffect lo conectará al video
       setCameraStatus("active");
     } catch (err) {
       const error = err as Error;
@@ -132,7 +114,7 @@ export default function CheckinPage() {
         );
       }
     }
-  }, []);
+  }, [isBlocked]);
 
   const stopCamera = useCallback(() => {
     scanningRef.current = false;
@@ -151,11 +133,10 @@ export default function CheckinPage() {
   }, []);
 
   const startScanning = useCallback(async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || isBlocked) return;
 
     scanningRef.current = true;
 
-    // Importar ZXing dinámicamente
     const { BrowserQRCodeReader } = await import("@zxing/browser");
     const codeReader = new BrowserQRCodeReader();
     readerRef.current = codeReader;
@@ -182,14 +163,11 @@ export default function CheckinPage() {
       }
     };
 
-    // Esperar un poco a que el video tenga frames
     setTimeout(scanLoop, 500);
-  }, [stopCamera]);
+  }, [stopCamera, isBlocked]);
 
   const handleCheckin = async () => {
-    if (!token.trim()) {
-      return;
-    }
+    if (!token.trim() || isBlocked) return;
 
     setLoading(true);
     setResult(null);
@@ -239,36 +217,57 @@ export default function CheckinPage() {
     setCameraError(null);
   };
 
-  // Mostrar loading mientras se verifica la sesión
-  if (isAuthenticated === null) {
+  // ==================================================
+  // RENDERS TEMPRANOS (antes de cualquier UI compleja)
+  // ==================================================
+
+  // GATING 1: Loading del contexto
+  if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
-          <p className="text-gray-600">Verificando sesión...</p>
+          <p className="text-gray-600">Cargando...</p>
         </div>
       </div>
     );
   }
 
+  // GATING 2: Error en contexto
+  if (contextError || !context) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <p className="text-red-600">{contextError || "Error al cargar información del panel"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // GATING 3: Tipo de local bloqueado (ANTES de cualquier render complejo)
+  if (context.local.type === "bar") {
+    return (
+      <NotAvailable
+        localType="bar"
+        feature="Check-in en Puerta"
+        message="Los bares gestionan reservas en lugar de entradas con check-in."
+      />
+    );
+  }
+
+  // ==================================================
+  // RENDER PRINCIPAL (solo para clubs)
+  // ==================================================
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h2 className="text-3xl font-bold">Check-in en Puerta</h2>
-          <Link
-            href="/panel"
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm font-medium"
-          >
-            ← Volver al Dashboard
-          </Link>
-        </div>
+        <h2 className="text-3xl font-bold">Check-in en Puerta</h2>
       </div>
 
       {/* Scanner de QR */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Escanear QR</h3>
 
-        {/* Estado de la cámara (diagnóstico) */}
         <p className="text-xs text-gray-500 mb-2">
           Cámara:{" "}
           {cameraStatus === "idle" && "lista"}

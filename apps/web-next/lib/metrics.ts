@@ -15,6 +15,7 @@ export interface MetricsSummary {
   kpis: {
     whatsapp_clicks: number;
     profile_views: number;
+    promo_open_count: number;
     reservations_total: number;
     reservations_en_revision: number;
     reservations_confirmed: number;

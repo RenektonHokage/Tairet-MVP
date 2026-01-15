@@ -5,15 +5,15 @@ export interface Reservation {
   local_id?: string;
   name: string;
   last_name?: string | null;
-  email?: string;
-  phone?: string;
+  email: string | null; // Puede ser null
+  phone: string | null; // Puede ser null
   date: string;
   guests: number;
   status: "en_revision" | "confirmed" | "cancelled";
   notes?: string | null;
   table_note?: string | null;
   created_at: string;
-  updated_at?: string;
+  updated_at: string | null; // Puede ser null
 }
 
 export interface CreateReservationInput {
@@ -55,6 +55,18 @@ export async function getPanelReservationsByLocalId(
   localId: string
 ): Promise<Reservation[]> {
   return apiGetWithAuth<Reservation[]>(`/locals/${localId}/reservations`);
+}
+
+/**
+ * Busca reservas del panel por email, teléfono, nombre o apellido
+ * Requiere autenticación
+ */
+export async function searchPanelReservations(
+  query: string
+): Promise<Reservation[]> {
+  return apiGetWithAuth<Reservation[]>(
+    `/panel/reservations/search?q=${encodeURIComponent(query)}`
+  );
 }
 
 export interface UpdateReservationStatusInput {

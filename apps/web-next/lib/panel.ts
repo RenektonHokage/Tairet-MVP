@@ -1,9 +1,14 @@
 import { apiGetWithAuth } from "./api";
 
 export interface PanelUserInfo {
-  local_id: string;
-  email: string;
   role: string;
+  email: string;
+  local: {
+    id: string;
+    name: string;
+    slug: string;
+    type: "bar" | "club";
+  };
 }
 
 /**

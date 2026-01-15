@@ -19,12 +19,84 @@ panelRouter.get("/me", panelAuth, async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  res.status(200).json({
-    local_id: req.panelUser.localId,
-    email: req.panelUser.email,
-    role: req.panelUser.role,
-  });
+  try {
+    // Obtener información del local (con JOIN)
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("id, name, slug, type")
+      .eq("id", req.panelUser.localId)
+      .single();
+
+    if (localError || !local) {
+      logger.warn("Local not found for panel user", {
+        localId: req.panelUser.localId,
+        error: localError?.message,
+      });
+      return res.status(404).json({ error: "Local not found for panel user" });
+    }
+
+    res.status(200).json({
+      role: req.panelUser.role,
+      email: req.panelUser.email,
+      local: {
+        id: local.id,
+        name: local.name,
+        slug: local.slug,
+        type: local.type,
+      },
+    });
+  } catch (error) {
+    logger.error("Error fetching panel user info", {
+      localId: req.panelUser.localId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
+
+// GET /panel/reservations/search?q=<term>
+// Buscar reservas por email, phone, name o last_name
+// Roles permitidos: owner, staff
+panelRouter.get(
+  "/reservations/search",
+  panelAuth,
+  requireRole(["owner", "staff"]),
+  async (req, res, next) => {
+    try {
+      if (!req.panelUser) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { q } = req.query;
+      if (!q || typeof q !== "string" || q.trim().length === 0) {
+        return res.status(400).json({ error: "Missing search query (q)" });
+      }
+
+      const searchTerm = q.trim();
+
+      // Búsqueda multi-criterio: email, phone, name, last_name
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at")
+        .eq("local_id", req.panelUser.localId) // TENANT SEGURO
+        .or(`email.ilike.%${searchTerm}%,phone.eq.${searchTerm},name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        logger.error("Error searching reservations", {
+          error: error.message,
+          localId: req.panelUser.localId,
+        });
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.status(200).json(data || []);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 // PATCH /panel/reservations/:id
 // Actualiza estado o table_note de una reserva

@@ -13,8 +13,8 @@ const querySchema = z.object({
   to: z.string().datetime().optional(),
 });
 
-// GET /metrics/summary - Requiere autenticación del panel y rol owner
-metricsRouter.get("/summary", panelAuth, requireRole(["owner"]), async (req, res) => {
+// GET /metrics/summary - Requiere autenticación del panel y rol owner o staff
+metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async (req, res) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -123,6 +123,9 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner"]), async (req, res
       });
     }
 
+    // Total de eventos promo_open en la ventana
+    const promoOpenCount = promoEvents?.length ?? 0;
+
     const {
       count: profileViewsCount,
       error: profileViewsError,
@@ -219,6 +222,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner"]), async (req, res
       kpis: {
         whatsapp_clicks: whatsappCount ?? 0,
         profile_views: profileViewsError ? 0 : profileViewsCount ?? 0,
+        promo_open_count: promoOpenCount,
         reservations_total: reservationsStats.total,
         reservations_en_revision: reservationsStats.en_revision,
         reservations_confirmed: reservationsStats.confirmed,

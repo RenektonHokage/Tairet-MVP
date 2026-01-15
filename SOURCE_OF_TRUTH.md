@@ -1129,3 +1129,4 @@ Expected: 201 (reserva creada con status: "en_revision")
 
 **FIN DEL DOCUMENTO**
 
+# dejá anotado como regla de oro: antes de crear endpoints nuevos para métricas, siempre buscar si ya hay uno (como / metrics/#summary) y extenderlo, así no se fragmenta el panel.
