@@ -21,7 +21,9 @@ export interface VenueCardProps {
   // Date header mode (optional - if not provided, uses image header)
   dateTop?: string;
   dateBottom?: string;
-  // Show +18 badge
+  // Age restriction (null = no restriction shown, number = show +{minAge} badge)
+  minAge?: number | null;
+  // Legacy: show +18 badge (deprecated, use minAge instead)
   showAgeRestriction?: boolean;
 }
 
@@ -45,9 +47,13 @@ const VenueCard: React.FC<VenueCardProps> = ({
   href,
   type,
   className = '',
+  minAge,
   showAgeRestriction = true
 }) => {
   const features = type === 'bar' ? specialties : genres;
+  // minAge: null/undefined = no mostrar badge, number = mostrar +{minAge}
+  // No usar fallback a 18 - si no hay edad en DB, no se muestra badge
+  const displayAge = typeof minAge === 'number' ? minAge : null;
   const Icon = type === 'bar' ? Wine : Music;
   const hasDateHeader = dateTop && dateBottom;
 
@@ -123,13 +129,13 @@ const VenueCard: React.FC<VenueCardProps> = ({
               </Badge>
             )}
 
-            {showAgeRestriction && (
+            {displayAge !== null && displayAge > 0 && (
               <Badge 
                 variant="secondary" 
                 className={buttonStyles.badge}
                 aria-label="Restricción de edad"
               >
-                +18
+                +{displayAge}
               </Badge>
             )}
           </div>

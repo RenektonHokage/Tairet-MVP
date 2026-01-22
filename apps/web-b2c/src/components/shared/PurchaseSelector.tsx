@@ -119,9 +119,7 @@ const PurchaseSelector = ({
                         <CardTitle className="text-base sm:text-lg font-semibold">
                           {ticket.name}
                         </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {ticket.description}
-                        </p>
+                        {/* Description ya no se muestra como subtítulo fijo */}
                       </div>
 
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:justify-end">
@@ -153,18 +151,22 @@ const PurchaseSelector = ({
                       </div>
                     </div>
 
-                    {ticket.benefits && <Collapsible open={openCollapsibles[ticket.id]} onOpenChange={open => toggleCollapsible(ticket.id, open)}>
+                    {/* Mostrar "Ver beneficios" solo si hay beneficios con contenido */}
+                    {ticket.benefits && ticket.benefits.length > 0 && <Collapsible open={openCollapsibles[ticket.id]} onOpenChange={open => toggleCollapsible(ticket.id, open)}>
                         <CollapsibleTrigger asChild>
-                          <div className="flex items-center gap-2 cursor-pointer">
+                          <div className="flex items-center gap-2 cursor-pointer mt-2">
                             <span className="text-sm text-muted-foreground">Ver beneficios</span>
                             <ChevronDown className={`h-4 w-4 transition-transform ${openCollapsibles[ticket.id] ? 'rotate-180' : ''}`} />
                           </div>
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-3" id={`item-details-${ticket.id}`}>
-                          {ticket.benefits.map((benefit, index) => <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <ChevronRight className="h-3 w-3 text-foreground" />
-                              <span>{benefit}</span>
-                            </div>)}
+                        <CollapsibleContent className="pt-3" id={`item-details-${ticket.id}`}>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {ticket.benefits.map((benefit, index) => (
+                              <li key={index} className="text-sm text-muted-foreground">
+                                {benefit}
+                              </li>
+                            ))}
+                          </ul>
                         </CollapsibleContent>
                       </Collapsible>}
                   </CardHeader>
@@ -219,22 +221,27 @@ const PurchaseSelector = ({
                       </div>
                     </div>
 
-                    {(table.benefits || table.drinks) && <Collapsible open={openCollapsibles[table.id]} onOpenChange={open => toggleCollapsible(table.id, open)}>
+                    {/* Mostrar "Ver beneficios" solo si hay benefits o drinks con contenido */}
+                    {((table.benefits && table.benefits.length > 0) || (table.drinks && table.drinks.length > 0)) && <Collapsible open={openCollapsibles[table.id]} onOpenChange={open => toggleCollapsible(table.id, open)}>
                         <CollapsibleTrigger asChild>
-                          <div className="flex items-center gap-2 cursor-pointer">
-                            <span className="text-sm text-muted-foreground">Ver detalles de la mesa</span>
+                          <div className="flex items-center gap-2 cursor-pointer mt-2">
+                            <span className="text-sm text-muted-foreground">Ver beneficios</span>
                             <ChevronDown className={`h-4 w-4 transition-transform ${openCollapsibles[table.id] ? 'rotate-180' : ''}`} />
                           </div>
                         </CollapsibleTrigger>
-                        <CollapsibleContent className="space-y-2 pt-3" id={`item-details-${table.id}`}>
-                          {table.benefits?.map((benefit, index) => <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <ChevronRight className="h-3 w-3 text-foreground" />
-                              <span>{benefit}</span>
-                            </div>)}
-                          {table.drinks?.map((drink, index) => <div key={index} className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <ChevronRight className="h-3 w-3 text-foreground" />
-                              <span>{drink}</span>
-                            </div>)}
+                        <CollapsibleContent className="pt-3" id={`item-details-${table.id}`}>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {table.benefits?.map((benefit, index) => (
+                              <li key={`benefit-${index}`} className="text-sm text-muted-foreground">
+                                {benefit}
+                              </li>
+                            ))}
+                            {table.drinks?.map((drink, index) => (
+                              <li key={`drink-${index}`} className="text-sm text-muted-foreground">
+                                {drink}
+                              </li>
+                            ))}
+                          </ul>
                         </CollapsibleContent>
                       </Collapsible>}
                   </CardHeader>

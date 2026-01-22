@@ -7,10 +7,89 @@ import { sendOrderConfirmationEmail } from "../services/emails";
 
 export const ordersRouter = Router();
 
+// Tipo para snapshot de items guardado en DB
+interface OrderItemSnapshot {
+  kind: "ticket";
+  ticket_type_id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 // POST /orders
 ordersRouter.post("/", async (req, res, next) => {
   try {
     const validated = createOrderSchema.parse(req.body);
+
+    // Variables para el snapshot y total calculado
+    let itemsSnapshot: OrderItemSnapshot[] = [];
+    let calculatedTotal = validated.total_amount;
+    let totalQuantity = validated.quantity;
+
+    // Si vienen items, validar contra ticket_types y crear snapshot
+    if (validated.items && validated.items.length > 0) {
+      const ticketTypeIds = validated.items.map((i) => i.ticket_type_id);
+
+      // Buscar los ticket_types en DB
+      const { data: ticketTypes, error: ticketError } = await supabase
+        .from("ticket_types")
+        .select("id, name, price, local_id, is_active")
+        .in("id", ticketTypeIds);
+
+      if (ticketError) {
+        logger.error("Error fetching ticket types for order", { error: ticketError.message });
+        return res.status(500).json({ error: "Error al validar entradas" });
+      }
+
+      // Crear mapa para búsqueda rápida
+      const ticketMap = new Map(ticketTypes?.map((t) => [t.id, t]) || []);
+
+      // Validar cada item
+      for (const item of validated.items) {
+        const ticketType = ticketMap.get(item.ticket_type_id);
+
+        if (!ticketType) {
+          return res.status(400).json({
+            error: `Entrada no encontrada: ${item.ticket_type_id}`,
+          });
+        }
+
+        if (ticketType.local_id !== validated.local_id) {
+          return res.status(400).json({
+            error: "Las entradas no pertenecen al local especificado",
+          });
+        }
+
+        if (!ticketType.is_active) {
+          return res.status(400).json({
+            error: `La entrada "${ticketType.name}" ya no está disponible`,
+          });
+        }
+
+        // Agregar al snapshot
+        itemsSnapshot.push({
+          kind: "ticket",
+          ticket_type_id: ticketType.id,
+          name: ticketType.name,
+          price: Number(ticketType.price),
+          quantity: item.quantity,
+        });
+      }
+
+      // Calcular total y cantidad desde snapshot (fuente de verdad)
+      calculatedTotal = itemsSnapshot.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      totalQuantity = itemsSnapshot.reduce((sum, item) => sum + item.quantity, 0);
+
+      // Validar que el total enviado coincida (prevenir manipulación)
+      if (Math.abs(calculatedTotal - validated.total_amount) > 0.01) {
+        logger.warn("Order total mismatch", {
+          sent: validated.total_amount,
+          calculated: calculatedTotal,
+          localId: validated.local_id,
+        });
+        // Usar el calculado por seguridad
+      }
+    }
 
     // Free pass nace como "paid", el resto como "pending"
     const status = validated.payment_method === "free_pass" ? "paid" : "pending";
@@ -19,8 +98,8 @@ ordersRouter.post("/", async (req, res, next) => {
       .from("orders")
       .insert({
         local_id: validated.local_id,
-        quantity: validated.quantity,
-        total_amount: validated.total_amount,
+        quantity: totalQuantity,
+        total_amount: calculatedTotal,
         currency: validated.currency || "PYG",
         status, // Dinamico segun payment_method
         payment_method: validated.payment_method || null,
@@ -29,6 +108,7 @@ ordersRouter.post("/", async (req, res, next) => {
         customer_last_name: validated.customer_last_name,
         customer_phone: validated.customer_phone,
         customer_document: validated.customer_document,
+        items: itemsSnapshot.length > 0 ? itemsSnapshot : [],
       })
       .select()
       .single();

@@ -14,6 +14,7 @@ import { allBars } from "@/lib/data/venues";
 import type { Bar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { MVP_BAR_SLUGS } from "@/lib/mvpSlugs";
+import { getLocalsList, type LocalListItem } from "@/lib/locals";
 
 // Bar specialties for filtering
 const barSpecialties = [
@@ -108,9 +109,53 @@ export default function AllBars() {
   const [showMoreBars, setShowMoreBars] = useState(8);
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  
+  // DB data for enriching mocks (covers, location, city, attributes, minAge)
+  const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
+  const [dbLocations, setDbLocations] = useState<Map<string, string>>(new Map());
+  const [dbCities, setDbCities] = useState<Map<string, string>>(new Map());
+  const [dbAttributes, setDbAttributes] = useState<Map<string, string[]>>(new Map());
+  const [dbMinAges, setDbMinAges] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     document.title = "Todos los Bares | Tairet";
+    
+    // Cargar data desde DB para enriquecer cards
+    getLocalsList("bar", 100)
+      .then((locals) => {
+        const coverMap = new Map<string, string>();
+        const locationMap = new Map<string, string>();
+        const cityMap = new Map<string, string>();
+        const attributesMap = new Map<string, string[]>();
+        const minAgeMap = new Map<string, number>();
+        
+        locals.forEach((local) => {
+          if (local.cover_url) {
+            coverMap.set(local.slug, local.cover_url);
+          }
+          if (local.location) {
+            locationMap.set(local.slug, local.location);
+          }
+          if (local.city) {
+            cityMap.set(local.slug, local.city);
+          }
+          if (local.attributes && local.attributes.length > 0) {
+            attributesMap.set(local.slug, local.attributes);
+          }
+          if (local.min_age !== null && local.min_age !== undefined) {
+            minAgeMap.set(local.slug, local.min_age);
+          }
+        });
+        
+        setDbCovers(coverMap);
+        setDbLocations(locationMap);
+        setDbCities(cityMap);
+        setDbAttributes(attributesMap);
+        setDbMinAges(minAgeMap);
+      })
+      .catch(() => {
+        // Silently fail - mocks will be used
+      });
   }, []);
 
   // Filtrar solo bares MVP (que tienen perfil real)
@@ -307,19 +352,34 @@ export default function AllBars() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-              {displayedBars.map(bar => (
-                <VenueCard 
-                  key={bar.id}
-                  id={bar.id}
-                  name={bar.name}
-                  schedule={bar.schedule}
-                  rating={bar.rating}
-                  specialties={bar.specialties}
-                  image={bar.image}
-                  href={`/bar/${slugify(bar.name)}`}
-                  type="bar"
-                />
-              ))}
+              {displayedBars.map(bar => {
+                const barSlug = slugify(bar.name);
+                // DB-first: usar cover, location, city, attributes, minAge de DB si existen, fallback a mock
+                const coverUrl = dbCovers.get(barSlug) || bar.image;
+                const dbLocation = dbLocations.get(barSlug);
+                const dbCity = dbCities.get(barSlug);
+                // Build "Zona • Ciudad" display string
+                const locationDisplay = dbLocation && dbCity
+                  ? `${dbLocation} • ${dbCity}`
+                  : dbLocation || dbCity || bar.location;
+                const specialties = dbAttributes.get(barSlug) || bar.specialties;
+                const minAge = dbMinAges.get(barSlug) ?? null; // null = no badge, DB-first sin fallback
+                return (
+                  <VenueCard 
+                    key={bar.id}
+                    id={bar.id}
+                    name={bar.name}
+                    schedule={bar.schedule}
+                    rating={bar.rating}
+                    specialties={specialties}
+                    location={locationDisplay}
+                    image={coverUrl}
+                    href={`/bar/${barSlug}`}
+                    type="bar"
+                    minAge={minAge}
+                  />
+                );
+              })}
             </div>
 
             {/* Load More */}

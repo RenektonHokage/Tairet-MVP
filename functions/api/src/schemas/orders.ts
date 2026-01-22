@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+// Schema para items del carrito (snapshot para órdenes de clubs)
+export const orderItemSchema = z.object({
+  ticket_type_id: z.string().uuid(),
+  quantity: z.number().int().min(1).max(10),
+});
+
 export const createOrderSchema = z
   .object({
     local_id: z.string().uuid(),
@@ -12,6 +18,8 @@ export const createOrderSchema = z
     customer_last_name: z.string().optional(),
     customer_phone: z.string().optional(),
     customer_document: z.string().optional(),
+    // Items para órdenes de clubs con tickets pagos (snapshot)
+    items: z.array(orderItemSchema).max(10).optional(),
   })
   .superRefine((data, ctx) => {
     // Si total_amount es 0, payment_method DEBE ser "free_pass"

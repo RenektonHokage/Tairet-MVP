@@ -13,7 +13,8 @@ import ClubPromotions from "@/components/club-profile/ClubPromotions";
 import ClubReviews from "@/components/club-profile/ClubReviews";
 import MapSection from "@/components/shared/MapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
-import { getLocalBySlug } from "@/lib/locals";
+import { getLocalBySlug, getClubCatalog, type LocalGalleryItem, type CatalogTicket, type CatalogTable } from "@/lib/locals";
+import { parseBenefits } from "@/lib/parseBenefits";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
 import { ContactInfo } from "@/lib/contact";
@@ -24,10 +25,18 @@ const ClubProfile = () => {
   const { clubId } = useParams();
   const [localId, setLocalId] = useState<string | null>(null);
   const [localType, setLocalType] = useState<string | null>(null);
+  const [localAddress, setLocalAddress] = useState<string | null>(null);
+  const [localLocation, setLocalLocation] = useState<string | null>(null);
+  const [localCity, setLocalCity] = useState<string | null>(null);
+  const [localHours, setLocalHours] = useState<string[]>([]);
+  const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
+  const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [catalogTickets, setCatalogTickets] = useState<CatalogTicket[] | null>(null);
+  const [catalogTables, setCatalogTables] = useState<CatalogTable[] | null>(null);
   const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -64,12 +73,31 @@ const ClubProfile = () => {
 
         setLocalId(local.id);
         setLocalType(local.type);
+        setLocalAddress(local.address);
+        setLocalLocation(local.location);
+        setLocalCity(local.city);
+        setLocalHours(local.hours || []);
+        setLocalAdditionalInfo(local.additional_info || []);
+        setLocalGallery(local.gallery || []);
         setContactInfo({
           phone: local.phone,
           whatsapp: local.whatsapp,
-          email: local.email,
         });
-        setIsLoading(false);
+
+        // Cargar catálogo de la API
+        getClubCatalog(clubId)
+          .then((catalog) => {
+            if (catalog) {
+              setCatalogTickets(catalog.tickets);
+              setCatalogTables(catalog.tables);
+            }
+          })
+          .catch((err) => {
+            console.warn("Error al cargar catálogo, usando mocks:", err);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
       })
       .catch((error) => {
         console.error("Error al obtener local por slug:", error);
@@ -118,12 +146,57 @@ const ClubProfile = () => {
       setIsPlaying(!isPlaying);
     }
   };
-  const galleryImages = Array.from({
-    length: 4
-  }, (_, i) => ({
-    src: clubData.images[i % clubData.images.length],
-    alt: `${clubData.name} ${i + 1}`
-  }));
+
+  // ==========================================================================
+  // Galería DB-first con fallback a mocks
+  // ==========================================================================
+
+  // ==========================================================================
+  // Galería DB-first con fallback a mocks
+  // ==========================================================================
+
+  // Ordenar galería por order
+  const sortedGallery = [...localGallery].sort((a, b) => a.order - b.order);
+
+  // Para clubs: separar cover, hero y carousel
+  const coverImage = sortedGallery.find(g => g.kind === "cover");
+  const heroImageItem = sortedGallery.find(g => g.kind === "hero");
+  const carouselImages = sortedGallery.filter(g => g.kind === "carousel");
+
+  // Hero image: 
+  // 1. Si existe hero => usar hero
+  // 2. Si NO existe hero => fallback a primer carousel
+  // 3. Si no hay nada => fallback a mock
+  // NUNCA usar cover como hero
+  const heroImage = heroImageItem
+    ? heroImageItem.url
+    : carouselImages[0]?.url || clubData.images[0];
+
+  // Galería completa para modal desktop - DB-first con fallback a mocks
+  // Si hay carousel en DB, usar solo esos. Si no, fallback a mocks.
+  const galleryImages = carouselImages.length > 0
+    ? carouselImages.map(g => ({ src: g.url, alt: "Galería" }))
+    : clubData.images.map((src, i) => ({ src, alt: `${clubData.name} ${i + 1}` }));
+
+  // Mobile gallery: hero como primera imagen + carousel (NUNCA cover)
+  const mobileGalleryImages = (() => {
+    const images: { src: string; alt: string }[] = [];
+    // Hero primero si existe
+    if (heroImage) {
+      images.push({ src: heroImage, alt: "Imagen principal" });
+    }
+    // Luego carousel (excluyendo hero si ya está)
+    carouselImages.forEach(g => {
+      if (g.url !== heroImage) {
+        images.push({ src: g.url, alt: "Galería" });
+      }
+    });
+    // Fallback a mocks si no hay nada
+    if (images.length === 0) {
+      return clubData.images.map((src, i) => ({ src, alt: `${clubData.name} ${i + 1}` }));
+    }
+    return images;
+  })();
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
       <Navbar />
@@ -132,9 +205,9 @@ const ClubProfile = () => {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8">
         <BackButton label="Volver a explorar" fallbackTo="/explorar" />
         
-        {/* Gallery */}
+        {/* Gallery - DB-first con fallback a mocks */}
         <section className="w-full relative">
-          {!clubData.images || clubData.images.length === 0 ? (
+          {galleryImages.length === 0 ? (
             /* Placeholder when no images */
             <div className="w-full h-[400px] sm:h-[500px] lg:h-[600px] bg-muted rounded-lg flex items-center justify-center">
               <p className="text-muted-foreground text-sm text-center px-4">
@@ -143,7 +216,7 @@ const ClubProfile = () => {
             </div>
           ) : isMobile ? (
             <TouchSlideGallery 
-              images={galleryImages}
+              images={mobileGalleryImages}
               onPlayClick={clubData.video ? handlePlayPause : undefined}
               isPlaying={isPlaying}
               hideSlideButton={true}
@@ -168,7 +241,7 @@ const ClubProfile = () => {
             />
           ) : (
             <>
-              <img src={clubData.images[0]} alt="Galería del club" className="w-full h-[400px] sm:h-[500px] lg:h-[600px] object-cover rounded-lg" />
+              <img src={heroImage} alt="Galería del club" className="w-full h-[400px] sm:h-[500px] lg:h-[600px] object-cover rounded-lg" />
               <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-6 sm:p-8 rounded-b-lg">
                 <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{clubData.name}</h2>
                 <div className="flex flex-wrap gap-2 sm:gap-3 text-white/90 text-sm sm:text-base mb-2">
@@ -239,11 +312,37 @@ const ClubProfile = () => {
           )}
         </section>
 
-        {/* Tickets and Table Reservations */}
+        {/* Tickets and Table Reservations - DB-first con fallback a mocks */}
         {localId && (
           <PurchaseSelector 
-            tickets={clubData.tickets} 
-            tables={clubData.tables} 
+            tickets={
+              // DB-first: transformar tickets de API a formato esperado, ordenados por precio ASC
+              catalogTickets && catalogTickets.length > 0
+                ? [...catalogTickets]
+                    .sort((a, b) => a.price - b.price)
+                    .map((t) => ({
+                      id: t.id,
+                      name: t.name,
+                      price: t.price,
+                      description: "", // Ya no se muestra como subtítulo fijo
+                      benefits: parseBenefits(t.description), // Parsear description a benefits[]
+                    }))
+                : clubData.tickets
+            } 
+            tables={
+              // DB-first: transformar tables de API a formato esperado, ordenados por precio ASC (NULLS LAST)
+              catalogTables && catalogTables.length > 0
+                ? [...catalogTables]
+                    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+                    .map((t) => ({
+                      id: t.id,
+                      name: t.name,
+                    capacity: t.capacity || 0,
+                    price: t.price || 0,
+                    drinks: parseBenefits(t.includes), // Parsear includes a drinks[]
+                  }))
+                : clubData.tables
+            } 
             mode="both" 
             title="" 
             subtitle="" 
@@ -256,8 +355,16 @@ const ClubProfile = () => {
         {/* Promotions */}
         {localId && <ClubPromotions promotions={clubData.promotions} localId={localId} localSlug={clubId} />}
 
-        {/* Map */}
-        <MapSection venue={clubData.name} location="Villa Morra, Asunción" address="Av. Mariscal López 1234" hours={["Jue - Sáb: 23:00 - 06:00", "Dom - Mié: Cerrado", "Abierto hoy"]} phone="(021) 555-123" additionalInfo={["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]} />
+        {/* Map - DB-first con fallback */}
+        <MapSection
+          venue={clubData.name}
+          location={localLocation || "Villa Morra, Asuncion"}
+          address={localAddress || "Av. Mariscal Lopez 1234"}
+          city={localCity}
+          hours={localHours.length > 0 ? localHours : ["Jue - Sab: 23:00 - 06:00", "Dom - Mie: Cerrado", "Abierto hoy"]}
+          phone={contactInfo?.phone || "(021) 555-123"}
+          additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]}
+        />
 
         {/* Reviews */}
         <ClubReviews />

@@ -10,6 +10,7 @@ interface MapSectionProps {
   venue: string;
   location: string;
   address?: string;
+  city?: string | null;
   hours?: string[];
   phone?: string;
   additionalInfo?: string[];
@@ -22,6 +23,7 @@ const MapSection: React.FC<MapSectionProps> = ({
   venue,
   location,
   address,
+  city,
   hours = [],
   phone = "(021) 555-123",
   additionalInfo = [],
@@ -72,9 +74,47 @@ const MapSection: React.FC<MapSectionProps> = ({
     };
   }, [venue, displayLocation]);
 
+  /**
+   * Construye destination string para Google Maps Directions.
+   * Prioriza address (direccion precisa) sobre venue+location (ambiguo).
+   * Usa city si existe, fallback a "Asunción".
+   * Siempre agrega "Paraguay" para mejorar geocoding.
+   */
+  const buildDirectionsDestination = (): string => {
+    const parts: string[] = [];
+    
+    // Prioridad: address > venue
+    const trimmedAddress = address?.trim();
+    if (trimmedAddress) {
+      parts.push(trimmedAddress);
+    } else {
+      parts.push(venue.trim());
+    }
+    
+    // Agregar location (barrio/zona) si existe
+    const trimmedLocation = location?.trim();
+    if (trimmedLocation) {
+      parts.push(trimmedLocation);
+    }
+    
+    // Agregar city si existe, sino Asunción por defecto
+    const trimmedCity = city?.trim();
+    if (trimmedCity) {
+      parts.push(trimmedCity);
+    } else {
+      parts.push("Asunción");
+    }
+    
+    // Siempre agregar pais para mejor geocoding
+    parts.push("Paraguay");
+    
+    return parts.join(", ");
+  };
+
   const handleGetDirections = () => {
-    const query = encodeURIComponent(`${venue}, ${displayLocation}`);
-    window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+    const destination = buildDirectionsDestination();
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (

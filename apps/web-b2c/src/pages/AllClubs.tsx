@@ -14,6 +14,7 @@ import { allClubs } from "@/lib/data/venues";
 import type { Club } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
+import { getLocalsList } from "@/lib/locals";
 
 // Music genres for filtering
 const musicGenres = [
@@ -104,9 +105,53 @@ export default function AllClubs() {
   const [showMoreClubs, setShowMoreClubs] = useState(8);
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  
+  // DB data for enriching mocks (covers, location, city, attributes, minAge)
+  const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
+  const [dbLocations, setDbLocations] = useState<Map<string, string>>(new Map());
+  const [dbCities, setDbCities] = useState<Map<string, string>>(new Map());
+  const [dbGenres, setDbGenres] = useState<Map<string, string[]>>(new Map());
+  const [dbMinAges, setDbMinAges] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     document.title = "Todas las Discotecas | Tairet";
+    
+    // Cargar data desde DB para enriquecer cards
+    getLocalsList("club", 100)
+      .then((locals) => {
+        const coverMap = new Map<string, string>();
+        const locationMap = new Map<string, string>();
+        const cityMap = new Map<string, string>();
+        const genresMap = new Map<string, string[]>();
+        const minAgeMap = new Map<string, number>();
+        
+        locals.forEach((local) => {
+          if (local.cover_url) {
+            coverMap.set(local.slug, local.cover_url);
+          }
+          if (local.location) {
+            locationMap.set(local.slug, local.location);
+          }
+          if (local.city) {
+            cityMap.set(local.slug, local.city);
+          }
+          if (local.attributes && local.attributes.length > 0) {
+            genresMap.set(local.slug, local.attributes);
+          }
+          if (local.min_age !== null && local.min_age !== undefined) {
+            minAgeMap.set(local.slug, local.min_age);
+          }
+        });
+        
+        setDbCovers(coverMap);
+        setDbLocations(locationMap);
+        setDbCities(cityMap);
+        setDbGenres(genresMap);
+        setDbMinAges(minAgeMap);
+      })
+      .catch(() => {
+        // Silently fail - mocks will be used
+      });
   }, []);
 
   // Filtrar solo clubs MVP (que tienen perfil real)
@@ -304,19 +349,34 @@ export default function AllClubs() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-              {displayedClubs.map(club => (
-                <VenueCard 
-                  key={club.id}
-                  id={club.id}
-                  name={club.name}
-                  schedule={club.schedule}
-                  rating={club.rating}
-                  genres={club.genres}
-                  image={club.customImage}
-                  href={`/club/${slugify(club.name)}`}
-                  type="club"
-                />
-              ))}
+              {displayedClubs.map(club => {
+                const clubSlug = slugify(club.name);
+                // DB-first: usar cover, location, city, genres, minAge de DB si existen, fallback a mock
+                const coverUrl = dbCovers.get(clubSlug) || club.customImage;
+                const dbLocation = dbLocations.get(clubSlug);
+                const dbCity = dbCities.get(clubSlug);
+                // Build "Zona • Ciudad" display string
+                const locationDisplay = dbLocation && dbCity
+                  ? `${dbLocation} • ${dbCity}`
+                  : dbLocation || dbCity || club.location;
+                const genres = dbGenres.get(clubSlug) || club.genres;
+                const minAge = dbMinAges.get(clubSlug) ?? null; // null = no badge, DB-first sin fallback
+                return (
+                  <VenueCard 
+                    key={club.id}
+                    id={club.id}
+                    name={club.name}
+                    schedule={club.schedule}
+                    rating={club.rating}
+                    genres={genres}
+                    location={locationDisplay}
+                    image={coverUrl}
+                    href={`/club/${clubSlug}`}
+                    type="club"
+                    minAge={minAge}
+                  />
+                );
+              })}
             </div>
 
             {/* Load More */}

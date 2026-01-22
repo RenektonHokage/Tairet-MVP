@@ -13,7 +13,8 @@ import BarPromotions from "@/components/bar-profile/BarPromotions";
 import BarReviews from "@/components/bar-profile/BarReviews";
 import BarReservation from "@/components/bar-profile/BarReservation";
 import MapSection from "@/components/shared/MapSection";
-import { getLocalBySlug } from "@/lib/locals";
+import { getLocalBySlug, type LocalGalleryItem, type GalleryKind } from "@/lib/locals";
+import { getCover, getHero, getBarGalleryImages, getBarCategory } from "@/lib/gallery";
 import { useNavigate } from "react-router-dom";
 import { mockBarData } from "@/lib/mocks/bars";
 import { ContactInfo } from "@/lib/contact";
@@ -24,11 +25,18 @@ const BarProfile = () => {
   const { barId } = useParams();
   const [localId, setLocalId] = useState<string | null>(null);
   const [localType, setLocalType] = useState<string | null>(null);
+  const [localAddress, setLocalAddress] = useState<string | null>(null);
+  const [localLocation, setLocalLocation] = useState<string | null>(null);
+  const [localCity, setLocalCity] = useState<string | null>(null);
+  const [localHours, setLocalHours] = useState<string[]>([]);
+  const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
+  const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showGalleryMenu, setShowGalleryMenu] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
 
   // Resolver local_id real desde slug
@@ -64,10 +72,15 @@ const BarProfile = () => {
 
         setLocalId(local.id);
         setLocalType(local.type);
+        setLocalAddress(local.address);
+        setLocalLocation(local.location);
+        setLocalCity(local.city);
+        setLocalHours(local.hours || []);
+        setLocalAdditionalInfo(local.additional_info || []);
+        setLocalGallery(local.gallery || []);
         setContactInfo({
           phone: local.phone,
           whatsapp: local.whatsapp,
-          email: local.email,
         });
         setIsLoading(false);
       })
@@ -108,19 +121,104 @@ const BarProfile = () => {
   if (!barData) {
     return null; // Se redirige a 404
   }
-  
-  const galleryImages = Array.from({
-    length: 4
-  }, (_, i) => ({
-    src: barData.images[i % barData.images.length],
-    alt: `${barData.name} ${i + 1}`
-  }));
 
-  const categoryTitles = ["Comida", "Interior", "Carta", "Tragos"];
+  // ==========================================================================
+  // Galería DB-first con fallback a mocks
+  // ==========================================================================
+
+  // Obtener cover (foto de perfil para cards) - NUNCA usar como hero
+  const coverImage = getCover(localGallery);
+
+  // Obtener hero (imagen principal del perfil) - SEPARADO de cover
+  const heroImageItem = getHero(localGallery);
+
+  // Galería SIN cover (para mobile y modales de categoría)
+  // Incluye hero + categorías
+  const galleryWithoutCover = getBarGalleryImages(localGallery);
+
+  // Mapeo de categoría UI → kind en DB
+  const categoryToKind: Record<string, GalleryKind> = {
+    Comida: "food",
+    Interior: "interior",
+    Carta: "menu",
+    Tragos: "drinks",
+  };
+
+  // Labels para mostrar en modal
+  const GALLERY_KIND_LABELS: Record<GalleryKind, string> = {
+    cover: "Portada",
+    hero: "Principal",
+    carousel: "Galería",
+    food: "Comida",
+    interior: "Interior",
+    menu: "Carta",
+    drinks: "Tragos",
+  };
+
+  // Obtener primera imagen de una categoría para el tile del grid
+  const getCategoryImage = (kind: GalleryKind, fallbackIdx: number) => {
+    const categoryImages = getBarCategory(localGallery, kind);
+    if (categoryImages.length > 0) {
+      return { src: categoryImages[0].url, alt: GALLERY_KIND_LABELS[kind] };
+    }
+    // Fallback al mock
+    return {
+      src: barData.images[fallbackIdx % barData.images.length],
+      alt: GALLERY_KIND_LABELS[kind],
+    };
+  };
+
+  // Imágenes para el grid 2x2 por categoría (primera imagen de cada kind)
+  const categoryImages = {
+    Comida: getCategoryImage("food", 0),
+    Interior: getCategoryImage("interior", 1),
+    Carta: getCategoryImage("menu", 2),
+    Tragos: getCategoryImage("drinks", 3),
+  };
+
+  // Hero image: prioridad hero > primera imagen no-cover > mock
+  // NUNCA usar cover como hero
+  const heroImage = (() => {
+    // 1. Si existe hero, usarlo
+    if (heroImageItem) {
+      return { src: heroImageItem.url, alt: barData.name };
+    }
+    // 2. Si existe alguna imagen que no sea cover ni hero, usar la primera
+    const firstNonCover = galleryWithoutCover.find(g => g.kind !== "hero");
+    if (firstNonCover) {
+      return { src: firstNonCover.url, alt: barData.name };
+    }
+    // 3. Fallback a mock
+    return { src: barData.images[0], alt: barData.name };
+  })();
+
+  // Galería para TouchSlideGallery (mobile) - SIN cover, incluye hero
+  const galleryImages = galleryWithoutCover.length > 0
+    ? galleryWithoutCover.map(g => ({ src: g.url, alt: GALLERY_KIND_LABELS[g.kind] }))
+    : barData.images.map((src, i) => ({ src, alt: `${barData.name} ${i + 1}` }));
+
+  const categoryTitles = ["Comida", "Interior", "Carta", "Tragos"] as const;
   
+  // Obtener todas las imágenes de una categoría específica para el modal
   const getCategoryImages = (category: string) => {
-    // In a real app, this would filter images by category
-    return galleryImages;
+    const kind = categoryToKind[category];
+    if (!kind) return []; // Categoría inválida: devolver vacío, NO todo
+    
+    // Filtrar imágenes de la galería por kind (excluye cover automáticamente)
+    const kindImages = getBarCategory(localGallery, kind)
+      .map(g => ({ src: g.url, alt: `${barData.name} - ${GALLERY_KIND_LABELS[kind]}` }));
+    
+    // Si hay imágenes para ese kind, usarlas
+    if (kindImages.length > 0) {
+      return kindImages;
+    }
+    
+    // Fallback: usar imagen correspondiente del mock
+    const fallbackIndex = Object.keys(categoryToKind).indexOf(category);
+    return [{ 
+      src: barData.images[fallbackIndex % barData.images.length], 
+      alt: `${barData.name} - ${category}` 
+    }];
   };
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -130,9 +228,9 @@ const BarProfile = () => {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8">
         <BackButton label="Volver a explorar" fallbackTo="/explorar" />
 
-        {/* Gallery Section */}
+        {/* Gallery Section - DB-first con fallback a mocks */}
         <section className="w-full relative">
-          {!barData.images || barData.images.length === 0 ? (
+          {galleryImages.length === 0 ? (
             /* Placeholder when no images */
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 h-[400px] lg:h-[500px]">
               <div className="col-span-2 lg:col-span-4 row-span-2 relative overflow-hidden rounded-xl bg-muted flex items-center justify-center">
@@ -142,30 +240,43 @@ const BarProfile = () => {
               </div>
             </div>
           ) : isMobile ? (
-            <TouchSlideGallery 
-              images={galleryImages}
-            />
+            <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden">
+              <img 
+                src={heroImage.src}
+                alt={heroImage.alt}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <Button
+                variant="outline"
+                onClick={() => setShowGalleryMenu(true)}
+                className="absolute bottom-6 right-6 flex items-center gap-2 bg-black/40 hover:bg-black/60 text-white border border-white/20"
+              >
+                <Grid3X3 size={16} />
+                Ver galería
+              </Button>
+            </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 h-[400px] lg:h-[500px]">
-              {/* Imagen destacada - ocupa 2 columnas y 2 filas */}
+              {/* Imagen destacada (cover) - ocupa 2 columnas y 2 filas */}
               <div className="col-span-2 row-span-2 relative overflow-hidden rounded-xl">
                 <img 
-                  src={galleryImages[0].src}
-                  alt={barData.name}
+                  src={heroImage.src}
+                  alt={heroImage.alt}
                   className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />
               </div>
               
-              {/* Imágenes pequeñas con categorías */}
-              {categoryTitles.map((category, index) => (
+              {/* Imágenes pequeñas con categorías - DB-first por kind */}
+              {categoryTitles.map((category) => (
                 <div 
                   key={category}
                   className="relative overflow-hidden rounded-xl cursor-pointer group"
                   onClick={() => setSelectedCategory(category)}
                 >
                   <img 
-                    src={galleryImages[index].src}
-                    alt={category}
+                    src={categoryImages[category].src}
+                    alt={categoryImages[category].alt}
                     className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
@@ -184,12 +295,51 @@ const BarProfile = () => {
         {/* Promotions */}
         {localId && <BarPromotions promotions={barData.promotions} localId={localId} />}
 
-        {/* Map */}
-        <MapSection venue={barData.name} location="Centro, Asunción" address="Palma 123 esq. Chile" hours={["Lun - Jue: 18:00 - 02:00", "Vie - Sáb: 18:00 - 03:00", "Dom: Cerrado"]} phone="(021) 123-456" additionalInfo={["Estacionamiento disponible", "Acceso para personas con discapacidad", "WiFi gratuito", "Aceptamos tarjetas de crédito", "Ambiente climatizado"]} />
+        {/* Map - DB-first con fallback */}
+        <MapSection
+          venue={barData.name}
+          location={localLocation || "Centro, Asuncion"}
+          address={localAddress || "Palma 123 esq. Chile"}
+          city={localCity}
+          hours={localHours.length > 0 ? localHours : ["Lun - Jue: 18:00 - 02:00", "Vie - Sab: 18:00 - 03:00", "Dom: Cerrado"]}
+          phone={contactInfo?.phone || "(021) 123-456"}
+          additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento disponible", "Acceso para personas con discapacidad", "WiFi gratuito", "Aceptamos tarjetas de credito", "Ambiente climatizado"]}
+        />
 
         {/* Reviews */}
         <BarReviews />
       </div>
+
+      {/* Mobile Gallery Menu Dialog */}
+      <Dialog open={showGalleryMenu} onOpenChange={setShowGalleryMenu}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Galería de {barData.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            {categoryTitles.map((category) => (
+              <button
+                key={category}
+                onClick={() => {
+                  setShowGalleryMenu(false);
+                  setSelectedCategory(category);
+                }}
+                className="relative aspect-square rounded-xl overflow-hidden group"
+              >
+                <img 
+                  src={categoryImages[category].src}
+                  alt={category}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute bottom-3 left-3">
+                  <h3 className="text-white text-base font-bold">{category}</h3>
+                </div>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Category Gallery Dialog */}
       <Dialog open={selectedCategory !== null} onOpenChange={() => setSelectedCategory(null)}>
