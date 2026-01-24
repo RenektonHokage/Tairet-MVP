@@ -497,6 +497,7 @@ panelRouter.patch(
 // Generate signed upload URL for direct browser upload to Supabase Storage
 // This avoids the express.json() body limit issue with base64
 // Roles permitidos: owner
+// Supports kind="promo" for promo images (separate path: promos/{localId}/...)
 panelRouter.post(
   "/local/gallery/signed-upload",
   panelAuth,
@@ -516,32 +517,41 @@ panelRouter.post(
         });
       }
 
-      // Get local type to validate kind
-      const { data: localData, error: localError } = await supabase
-        .from("locals")
-        .select("type")
-        .eq("id", req.panelUser.localId)
-        .single();
+      // Special case: kind="promo" bypasses gallery kind validation
+      const isPromoUpload = kind === "promo";
 
-      if (localError || !localData) {
-        return res.status(404).json({ error: "Local not found" });
-      }
+      if (!isPromoUpload) {
+        // Get local type to validate kind (only for gallery uploads)
+        const { data: localData, error: localError } = await supabase
+          .from("locals")
+          .select("type")
+          .eq("id", req.panelUser.localId)
+          .single();
 
-      const localType = localData.type as "bar" | "club";
-      const allowedKinds = localType === "club" ? CLUB_GALLERY_KINDS : BAR_GALLERY_KINDS;
+        if (localError || !localData) {
+          return res.status(404).json({ error: "Local not found" });
+        }
 
-      // Validate kind
-      if (!kind || !allowedKinds.includes(kind as GalleryKind)) {
-        return res.status(400).json({
-          error: `kind inválido para ${localType}. Permitidos: ${allowedKinds.join(", ")}`,
-        });
+        const localType = localData.type as "bar" | "club";
+        const allowedKinds = localType === "club" ? CLUB_GALLERY_KINDS : BAR_GALLERY_KINDS;
+
+        // Validate kind
+        if (!kind || !allowedKinds.includes(kind as GalleryKind)) {
+          return res.status(400).json({
+            error: `kind inválido para ${localType}. Permitidos: ${allowedKinds.join(", ")}`,
+          });
+        }
       }
 
       // Generate unique path
       const fileId = uuidv4();
       const extension = contentType.split("/")[1]; // jpeg, png, webp
       const safeName = fileName ? fileName.replace(/[^a-zA-Z0-9.-]/g, "_").substring(0, 50) : "image";
-      const storagePath = `${req.panelUser.localId}/${fileId}_${safeName}.${extension}`;
+      
+      // Use separate path for promos to not mix with gallery
+      const storagePath = isPromoUpload
+        ? `promos/${req.panelUser.localId}/${fileId}_${safeName}.${extension}`
+        : `${req.panelUser.localId}/${fileId}_${safeName}.${extension}`;
 
       // Create signed upload URL (expires in 5 minutes)
       const { data: signedData, error: signedError } = await supabase.storage

@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
-import { getPanelUserInfo } from "@/lib/panel";
+import { usePanelContext } from "@/lib/panelContext";
 import {
   getCalendarMonth,
   getCalendarDay,
@@ -14,9 +12,7 @@ import {
 } from "@/lib/calendar";
 
 export default function CalendarPage() {
-  const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [localId, setLocalId] = useState<string | null>(null);
+  const { data: panelData, loading: panelLoading } = usePanelContext();
 
   // Estado del calendario
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -36,38 +32,14 @@ export default function CalendarPage() {
   // Estado de edición
   const [isOpen, setIsOpen] = useState(true);
   const [note, setNote] = useState("");
+  const [manualTables, setManualTables] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Verificar sesión
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (!session) {
-          router.push("/panel/login");
-          return;
-        }
-
-        setIsAuthenticated(true);
-
-        try {
-          const userInfo = await getPanelUserInfo();
-          setLocalId(userInfo.local.id);
-        } catch (err) {
-          console.error("Error loading panel user info:", err);
-          router.push("/panel/login");
-        }
-      } catch (err) {
-        console.error("Error checking session:", err);
-        router.push("/panel/login");
-      }
-    };
-
-    checkSession();
-  }, [router]);
+  // Tipo de local desde el contexto
+  const localType = panelData?.local.type ?? "bar";
+  const localId = panelData?.local.id ?? null;
 
   // Cargar mes cuando cambia
   useEffect(() => {
@@ -86,6 +58,7 @@ export default function CalendarPage() {
     if (dayDetail) {
       setIsOpen(dayDetail.operation.is_open);
       setNote(dayDetail.operation.note ?? "");
+      setManualTables(dayDetail.operation.club_manual_tables ?? 0);
     }
   }, [dayDetail]);
 
@@ -128,11 +101,23 @@ export default function CalendarPage() {
     setSaveSuccess(false);
 
     try {
-      await updateCalendarDay({
+      const payload: {
+        day: string;
+        is_open: boolean;
+        note: string | null;
+        club_manual_tables?: number;
+      } = {
         day: selectedDay,
         is_open: isOpen,
         note: note.trim() || null,
-      });
+      };
+
+      // Solo enviar club_manual_tables para clubs
+      if (localType === "club") {
+        payload.club_manual_tables = manualTables;
+      }
+
+      await updateCalendarDay(payload);
 
       setSaveSuccess(true);
       // Recargar mes y detalle
@@ -206,7 +191,7 @@ export default function CalendarPage() {
     );
   };
 
-  if (isAuthenticated === null) {
+  if (panelLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600">Cargando...</div>
@@ -214,7 +199,7 @@ export default function CalendarPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!panelData) {
     return null;
   }
 
@@ -243,8 +228,18 @@ export default function CalendarPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Calendario / Operación</h1>
-          <p className="text-gray-600 mt-1">Vista mensual con actividad y estado diario</p>
+          <p className="text-gray-600 mt-1">
+            {localType === "club"
+              ? "Gestiona el estado diario, check-ins y mesas"
+              : "Gestiona el estado diario y reservas"}
+          </p>
         </div>
+        <Link
+          href="/panel/metrics"
+          className="text-sm text-blue-600 hover:text-blue-800 underline"
+        >
+          Ver métricas completas →
+        </Link>
       </div>
 
       {/* Controles de mes */}
@@ -330,10 +325,12 @@ export default function CalendarPage() {
                   </div>
                   {hasAct && (
                     <div className="text-xs text-gray-600 space-y-0.5">
-                      {data && data.reservations_total > 0 && (
+                      {/* Para bares: mostrar reservas */}
+                      {localType === "bar" && data && data.reservations_total > 0 && (
                         <div>R: {data.reservations_total}</div>
                       )}
-                      {data && data.orders_paid > 0 && (
+                      {/* Para clubs: mostrar órdenes pagadas */}
+                      {localType === "club" && data && data.orders_paid > 0 && (
                         <div>V: {data.orders_paid}</div>
                       )}
                     </div>
@@ -360,7 +357,7 @@ export default function CalendarPage() {
             </div>
           ) : dayDetail ? (
             <div className="space-y-6">
-              {/* Operación del día */}
+              {/* Operación del día - Común para ambos */}
               <div className="border-b pb-4">
                 <h4 className="text-lg font-medium text-gray-900 mb-4">Operación</h4>
                 <div className="space-y-4">
@@ -387,7 +384,7 @@ export default function CalendarPage() {
                       onChange={(e) => setNote(e.target.value)}
                       disabled={saving}
                       maxLength={200}
-                      rows={3}
+                      rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Ej: Halloween, Privado, Evento especial..."
                     />
@@ -395,87 +392,132 @@ export default function CalendarPage() {
                       {note.length}/200 caracteres
                     </div>
                   </div>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? "Guardando..." : "Guardar"}
-                  </button>
-                  {saveSuccess && (
-                    <div className="text-green-600 text-sm">✓ Guardado exitosamente</div>
-                  )}
-                  {saveError && (
-                    <div className="text-red-600 text-sm">{saveError}</div>
-                  )}
                 </div>
               </div>
 
-              {/* Reservas del día */}
-              <div>
-                <h4 className="text-lg font-medium text-gray-900 mb-4">
-                  Reservas ({dayDetail.reservations.length})
-                </h4>
-                {dayDetail.reservations.length === 0 ? (
-                  <p className="text-gray-600">No hay reservas para este día</p>
-                ) : (
-                  <div className="space-y-2">
-                    {dayDetail.reservations.map((reservation) => (
-                      <div
-                        key={reservation.id}
-                        className="p-3 bg-gray-50 rounded-md border border-gray-200"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {reservation.name}
-                              {reservation.last_name && ` ${reservation.last_name}`}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {reservation.guests} personas •{" "}
-                              {new Date(reservation.date).toLocaleTimeString("es-PY", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </div>
-                            {reservation.table_note && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                📝 {reservation.table_note}
+              {/* Sección específica para BARES */}
+              {localType === "bar" && (
+                <div className="border-b pb-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-medium text-gray-900">
+                      Reservas del día ({dayDetail.reservations_total})
+                    </h4>
+                    <Link
+                      href="/panel/reservations"
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Ver todas las reservas →
+                    </Link>
+                  </div>
+                  {dayDetail.reservations.length === 0 ? (
+                    <p className="text-gray-600">No hay reservas para este día</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {dayDetail.reservations.map((reservation) => (
+                        <div
+                          key={reservation.id}
+                          className="p-3 bg-gray-50 rounded-md border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {reservation.name}
+                                {reservation.last_name && ` ${reservation.last_name}`}
                               </div>
-                            )}
+                              <div className="text-sm text-gray-600">
+                                {reservation.guests} personas •{" "}
+                                {new Date(reservation.date).toLocaleTimeString("es-PY", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-2 py-1 text-xs rounded ${
+                                reservation.status === "confirmed"
+                                  ? "bg-green-100 text-green-800"
+                                  : reservation.status === "cancelled"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-yellow-100 text-yellow-800"
+                              }`}
+                            >
+                              {reservation.status === "en_revision"
+                                ? "En revisión"
+                                : reservation.status === "confirmed"
+                                ? "Confirmada"
+                                : "Cancelada"}
+                            </span>
                           </div>
-                          <span
-                            className={`px-2 py-1 text-xs rounded ${
-                              reservation.status === "confirmed"
-                                ? "bg-green-100 text-green-800"
-                                : reservation.status === "cancelled"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-yellow-100 text-yellow-800"
-                            }`}
-                          >
-                            {reservation.status}
-                          </span>
+                        </div>
+                      ))}
+                      {dayDetail.reservations_total > 5 && (
+                        <p className="text-sm text-gray-500 text-center">
+                          Mostrando 5 de {dayDetail.reservations_total} reservas
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sección específica para CLUBS */}
+              {localType === "club" && (
+                <div className="border-b pb-4">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Check-ins y Mesas</h4>
+                  <div className="space-y-4">
+                    {/* Órdenes checkeadas */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-md border border-gray-200">
+                      <div>
+                        <div className="text-sm font-medium text-gray-700">
+                          Órdenes checkeadas
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900">
+                          {dayDetail.checkins_count}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <Link
+                        href="/panel/checkin"
+                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+                      >
+                        Ir a Check-in →
+                      </Link>
+                    </div>
 
-              {/* Resumen de órdenes */}
-              <div>
-                <h4 className="text-lg font-medium text-gray-900 mb-4">Ventas</h4>
-                {dayDetail.orders_summary.count === 0 ? (
-                  <p className="text-gray-600">No hay ventas para este día</p>
-                ) : (
-                  <div className="p-4 bg-gray-50 rounded-md border border-gray-200">
-                    <div className="text-sm text-gray-600">
-                      <div>Órdenes pagadas: {dayDetail.orders_summary.count}</div>
-                      <div className="font-medium text-gray-900 mt-1">
-                        Total: PYG {dayDetail.orders_summary.total.toLocaleString("es-PY")}
-                      </div>
+                    {/* Mesas confirmadas manualmente */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Mesas confirmadas (manual)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Mesas reservadas por WhatsApp u otros medios externos
+                      </p>
+                      <input
+                        type="number"
+                        min={0}
+                        value={manualTables}
+                        onChange={(e) => setManualTables(Math.max(0, parseInt(e.target.value) || 0))}
+                        disabled={saving}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Botón guardar */}
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? "Guardando..." : "Guardar"}
+                </button>
+                {saveSuccess && (
+                  <div className="text-green-600 text-sm">✓ Guardado exitosamente</div>
+                )}
+                {saveError && (
+                  <div className="text-red-600 text-sm">{saveError}</div>
                 )}
               </div>
             </div>

@@ -32,12 +32,19 @@ export interface ReservationDetail {
 
 export interface CalendarDayResponse {
   local_id: string;
+  local_type: "bar" | "club";
   day: string;
   operation: {
     is_open: boolean;
     note: string | null;
+    club_manual_tables: number;
   };
+  // Bar-specific
   reservations: ReservationDetail[];
+  reservations_total: number;
+  // Club-specific
+  checkins_count: number;
+  // General summary
   orders_summary: {
     count: number;
     total: number;
@@ -48,6 +55,7 @@ export interface UpdateCalendarDayInput {
   day: string;
   is_open?: boolean;
   note?: string | null;
+  club_manual_tables?: number;
 }
 
 /**

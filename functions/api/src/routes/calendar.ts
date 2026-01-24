@@ -220,13 +220,35 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
     const localId = req.panelUser.localId;
     const { day } = parseResult.data;
 
+    // Robust date range filtering: gte dayStart, lt nextDayStart
     const dayStart = `${day}T00:00:00Z`;
-    const dayEnd = `${day}T23:59:59Z`;
+    const [yearStr, monthStr, dayStr] = day.split("-");
+    const nextDate = new Date(
+      Date.UTC(Number(yearStr), Number(monthStr) - 1, Number(dayStr) + 1)
+    );
+    const nextDayStart = nextDate.toISOString().split("T")[0] + "T00:00:00Z";
 
-    // Obtener operación del día
+    // Obtener tipo de local para determinar qué datos devolver
+    const { data: localData, error: localError } = await supabase
+      .from("locals")
+      .select("type")
+      .eq("id", localId)
+      .single();
+
+    if (localError) {
+      logger.error("Error fetching local type for calendar", {
+        error: localError.message,
+        localId,
+      });
+      return res.status(500).json({ error: localError.message });
+    }
+
+    const localType = localData?.type as "bar" | "club";
+
+    // Obtener operación del día (incluye club_manual_tables)
     const { data: dailyOp, error: opsError } = await supabase
       .from("local_daily_ops")
-      .select("is_open, note")
+      .select("is_open, note, club_manual_tables")
       .eq("local_id", localId)
       .eq("day", day)
       .single();
@@ -241,35 +263,95 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
       return res.status(500).json({ error: opsError.message });
     }
 
-    // Obtener reservas del día
-    const { data: reservations, error: reservationsError } = await supabase
-      .from("reservations")
-      .select(
-        "id, name, last_name, guests, date, status, notes, table_note, created_at"
-      )
-      .eq("local_id", localId)
-      .gte("date", dayStart)
-      .lte("date", dayEnd)
-      .order("date", { ascending: true })
-      .limit(10);
+    // Para BARES: Obtener reservas del día (preview)
+    let reservations: Array<{
+      id: string;
+      name: string;
+      last_name?: string;
+      guests: number;
+      date: string;
+      status: string;
+      notes?: string;
+      table_note?: string | null;
+      created_at: string;
+    }> = [];
+    let reservationsTotal = 0;
 
-    if (reservationsError) {
-      logger.error("Error fetching reservations for day", {
-        error: reservationsError.message,
-        localId,
-        day,
-      });
-      return res.status(500).json({ error: reservationsError.message });
+    if (localType === "bar") {
+      // Count total reservations for the day
+      const { count: resCount, error: countError } = await supabase
+        .from("reservations")
+        .select("*", { count: "exact", head: true })
+        .eq("local_id", localId)
+        .gte("date", dayStart)
+        .lt("date", nextDayStart);
+
+      if (countError) {
+        logger.error("Error counting reservations for day", {
+          error: countError.message,
+          localId,
+          day,
+        });
+      } else {
+        reservationsTotal = resCount ?? 0;
+      }
+
+      // Get preview (first 5 reservations)
+      const { data: reservationsData, error: reservationsError } = await supabase
+        .from("reservations")
+        .select(
+          "id, name, last_name, guests, date, status, notes, table_note, created_at"
+        )
+        .eq("local_id", localId)
+        .gte("date", dayStart)
+        .lt("date", nextDayStart)
+        .order("date", { ascending: true })
+        .limit(5);
+
+      if (reservationsError) {
+        logger.error("Error fetching reservations for day", {
+          error: reservationsError.message,
+          localId,
+          day,
+        });
+        return res.status(500).json({ error: reservationsError.message });
+      }
+
+      reservations = reservationsData ?? [];
     }
 
-    // Obtener órdenes pagadas del día
+    // Para CLUBS: Contar órdenes checkeadas (con used_at != null)
+    let checkinsCount = 0;
+
+    if (localType === "club") {
+      const { count: checkinCount, error: checkinError } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .eq("local_id", localId)
+        .eq("status", "paid")
+        .not("used_at", "is", null)
+        .gte("used_at", dayStart)
+        .lt("used_at", nextDayStart);
+
+      if (checkinError) {
+        logger.error("Error counting check-ins for day", {
+          error: checkinError.message,
+          localId,
+          day,
+        });
+      } else {
+        checkinsCount = checkinCount ?? 0;
+      }
+    }
+
+    // Obtener órdenes pagadas del día (para resumen general, ambos tipos)
     const { data: orders, error: ordersError } = await supabase
       .from("orders")
       .select("id, quantity, total_amount, created_at")
       .eq("local_id", localId)
       .eq("status", "paid")
       .gte("created_at", dayStart)
-      .lte("created_at", dayEnd);
+      .lt("created_at", nextDayStart);
 
     if (ordersError) {
       logger.error("Error fetching orders for day", {
@@ -282,18 +364,26 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
 
     // Calcular resumen de órdenes
     const ordersCount = orders?.length ?? 0;
-    const ordersTotal = orders?.reduce((sum, o) => {
-      return sum + Number(o.total_amount ?? 0);
-    }, 0) ?? 0;
+    const ordersTotal =
+      orders?.reduce((sum, o) => {
+        return sum + Number(o.total_amount ?? 0);
+      }, 0) ?? 0;
 
     return res.status(200).json({
       local_id: localId,
+      local_type: localType,
       day,
       operation: {
         is_open: dailyOp?.is_open ?? true,
         note: dailyOp?.note ?? null,
+        club_manual_tables: dailyOp?.club_manual_tables ?? 0,
       },
-      reservations: reservations ?? [],
+      // Bar-specific data
+      reservations,
+      reservations_total: reservationsTotal,
+      // Club-specific data
+      checkins_count: checkinsCount,
+      // General summary (both)
       orders_summary: {
         count: ordersCount,
         total: ordersTotal,
@@ -323,7 +413,24 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
     }
 
     const localId = req.panelUser.localId;
-    const { day, is_open, note } = parseResult.data;
+    const { day, is_open, note, club_manual_tables } = parseResult.data;
+
+    // Obtener tipo de local para validar club_manual_tables
+    const { data: localData, error: localError } = await supabase
+      .from("locals")
+      .select("type")
+      .eq("id", localId)
+      .single();
+
+    if (localError) {
+      logger.error("Error fetching local type for calendar update", {
+        error: localError.message,
+        localId,
+      });
+      return res.status(500).json({ error: localError.message });
+    }
+
+    const localType = localData?.type as "bar" | "club";
 
     // Upsert en local_daily_ops
     const updatePayload: {
@@ -331,6 +438,7 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
       day: string;
       is_open?: boolean;
       note?: string | null;
+      club_manual_tables?: number;
       updated_at: string;
     } = {
       local_id: localId,
@@ -346,12 +454,17 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
       updatePayload.note = note;
     }
 
+    // Solo aceptar club_manual_tables para clubs
+    if (club_manual_tables !== undefined && localType === "club") {
+      updatePayload.club_manual_tables = club_manual_tables;
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from("local_daily_ops")
       .upsert(updatePayload, {
         onConflict: "local_id,day",
       })
-      .select("day, is_open, note")
+      .select("day, is_open, note, club_manual_tables")
       .single();
 
     if (updateError) {
@@ -365,9 +478,11 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
 
     return res.status(200).json({
       local_id: localId,
+      local_type: localType,
       day: updated.day,
       is_open: updated.is_open,
       note: updated.note,
+      club_manual_tables: updated.club_manual_tables ?? 0,
     });
   } catch (error) {
     if (error instanceof ZodError) {

@@ -14,11 +14,12 @@ export interface BaseCarouselHandle {
 interface BaseCarouselProps extends PropsWithChildren {
   className?: string;          // viewport
   containerClassName?: string; // inner flex row
+  slideClassName?: string;     // individual slide wrapper (for sizing override)
   options?: EmblaOptionsType;
 }
 
 export const BaseCarousel = forwardRef<BaseCarouselHandle, BaseCarouselProps>(
-  ({ children, className, containerClassName, options }, ref) => {
+  ({ children, className, containerClassName, slideClassName, options }, ref) => {
     const [emblaRef, emblaApi] = useEmblaCarousel({
       dragFree: true,
       containScroll: "trimSnaps",
@@ -44,7 +45,7 @@ export const BaseCarousel = forwardRef<BaseCarouselHandle, BaseCarouselProps>(
       >
         <div className={cn("flex", containerClassName)}>
           {React.Children.map(children, (child, index) => (
-            <div key={index} className="flex-[0_0_auto]">
+            <div key={index} className={cn("flex-[0_0_auto]", slideClassName)}>
               {child}
             </div>
           ))}

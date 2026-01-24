@@ -140,6 +140,27 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       });
     }
 
+    // Fetch active promotions within date window
+    // Filter: is_active=true AND (start_date IS NULL OR start_date <= now) AND (end_date IS NULL OR end_date >= now)
+    const now = new Date().toISOString();
+    const { data: promotions, error: promosError } = await supabase
+      .from("promos")
+      .select("id, title, description, image_url, start_date, end_date")
+      .eq("local_id", local.id)
+      .eq("is_active", true)
+      .or(`start_date.is.null,start_date.lte.${now}`)
+      .or(`end_date.is.null,end_date.gte.${now}`)
+      .order("sort_order", { ascending: true })
+      .limit(20);
+
+    if (promosError) {
+      logger.error("Error fetching promotions for local", {
+        error: promosError.message,
+        localId: local.id,
+      });
+      // Don't fail the request, just return empty promotions
+    }
+
     // Retornar solo los campos necesarios para B2C
     return res.status(200).json({
       id: local.id,
@@ -155,6 +176,7 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       ticket_price: Number(local.ticket_price) || 0,
       type: local.type as "bar" | "club",
       gallery: Array.isArray(local.gallery) ? local.gallery : [],
+      promotions: promotions ?? [],
     });
   } catch (error) {
     logger.error("Unexpected error in GET /public/locals/by-slug/:slug", { error });

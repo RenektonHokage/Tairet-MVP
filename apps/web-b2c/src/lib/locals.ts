@@ -4,6 +4,7 @@
  */
 
 import { API_URL } from "@/constants";
+import type { ApiPromotion } from "./types";
 
 function getApiBase(): string {
   return import.meta.env?.VITE_API_URL || API_URL || "http://localhost:4000";
@@ -36,6 +37,8 @@ export interface LocalInfo {
   ticket_price: number;
   type: "bar" | "club";
   gallery: LocalGalleryItem[];
+  // Promotions from DB (may be undefined if backend is old, empty array if no promos)
+  promotions?: ApiPromotion[];
 }
 
 // Tipo para listado de locales (resumido, con cover)

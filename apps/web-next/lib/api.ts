@@ -166,3 +166,17 @@ export async function apiPatchWithAuth<T>(path: string, body?: unknown): Promise
 
   return response.json();
 }
+
+export async function apiDeleteWithAuth(path: string): Promise<void> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${getApiBase()}${path}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(error.error || `API Error: ${response.statusText}`);
+  }
+}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { usePanelContext } from "@/lib/panelContext";
 import { getPanelMetricsSummary, type MetricsSummary } from "@/lib/metrics";
 import { getPanelActivity, type ActivityItem } from "@/lib/activity";
+import { getClubBreakdown, type ClubBreakdown } from "@/lib/metricsBreakdown";
 
 type Period = "7d" | "30d" | "90d";
 
@@ -40,6 +41,7 @@ export default function MetricsPage() {
   const [period, setPeriod] = useState<Period>("7d");
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [breakdown, setBreakdown] = useState<ClubBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +65,18 @@ export default function MetricsPage() {
       setMetrics(metricsData);
       // Activity no filtra por periodo, muestra ultimos eventos
       setActivity(activityData.items.slice(0, 10));
+
+      // Cargar breakdown solo para clubs
+      if (context?.local.type === "club") {
+        try {
+          const breakdownData = await getClubBreakdown(period);
+          setBreakdown(breakdownData);
+        } catch (breakdownErr) {
+          // No fallar si breakdown falla, solo log
+          console.warn("Error loading breakdown:", breakdownErr);
+          setBreakdown(null);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar métricas");
     } finally {
@@ -202,6 +216,119 @@ export default function MetricsPage() {
               icon="💰"
             />
           </div>
+        </div>
+      )}
+
+      {/* Breakdown por Tipo de Entrada (solo clubs) */}
+      {isClub && breakdown && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Entradas por Tipo
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              (últimos {periodLabels[period]})
+            </span>
+          </h2>
+          {breakdown.tickets_top.length > 0 ? (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tipo
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Vendidas (qty)
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Usadas (órdenes)
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Ingresos
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {breakdown.tickets_top.map((ticket, index) => (
+                    <tr key={ticket.ticket_type_id ?? index}>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {ticket.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                        {ticket.sold_qty}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 text-right">
+                        {ticket.used_orders}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                        {formatCurrency(ticket.revenue)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500">
+                Usadas = órdenes escaneadas (check-in). Si una orden incluye 2 entradas, al escanear cuenta como 1 orden usada (MVP).
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <p className="text-gray-500">
+                Aún no hay datos de entradas por tipo en este período
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Interés en Mesas (solo clubs) */}
+      {isClub && breakdown && (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">
+            Mesas con más interés
+            <span className="text-sm font-normal text-gray-500 ml-2">
+              (clicks WhatsApp - últimos {periodLabels[period]})
+            </span>
+          </h2>
+          {breakdown.tables_interest_top.length > 0 ? (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Mesa
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Precio ref.
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Clicks
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {breakdown.tables_interest_top.map((table, index) => (
+                    <tr key={table.table_type_id ?? index}>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {table.name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 text-right">
+                        {table.price != null ? formatCurrency(table.price) : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium">
+                        {table.interest_count}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <p className="text-gray-500">
+                Aún no hay interés registrado en mesas en este período
+              </p>
+            </div>
+          )}
         </div>
       )}
 

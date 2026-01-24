@@ -32,7 +32,19 @@ export async function trackProfileView(localId: string, metadata?: { source?: st
 }
 
 // 2) Click en WhatsApp
-export async function trackWhatsappClick(localId: string, phone?: string, source?: string) {
+// Metadata opcional para tracking de mesas (table_type_id, table_name, table_price)
+export interface WhatsappClickMetadata {
+  table_type_id?: string;
+  table_name?: string;
+  table_price?: number;
+}
+
+export async function trackWhatsappClick(
+  localId: string,
+  phone?: string,
+  source?: string,
+  metadata?: WhatsappClickMetadata
+) {
   try {
     await fetch(`${getApiBase()}/events/whatsapp_click`, {
       method: "POST",
@@ -41,6 +53,7 @@ export async function trackWhatsappClick(localId: string, phone?: string, source
         local_id: localId,
         phone: phone ?? null,
         source: source ?? "b2c_web",
+        metadata: metadata ?? undefined,
       }),
     });
   } catch (e) {

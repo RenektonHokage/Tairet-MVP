@@ -74,8 +74,8 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
             items: [{ href: "/panel/profile", label: "Perfil del Local", icon: "🏢" }],
           },
           {
-            title: "Ajustes",
-            items: [{ href: "/panel/settings", label: "Ajustes", icon: "⚙️" }],
+            title: "Soporte",
+            items: [{ href: "/panel/settings", label: "Soporte", icon: "🛟" }],
           },
         ]
       : [
@@ -107,8 +107,8 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
             items: [{ href: "/panel/profile", label: "Perfil del Local", icon: "🏢" }],
           },
           {
-            title: "Ajustes",
-            items: [{ href: "/panel/settings", label: "Ajustes", icon: "⚙️" }],
+            title: "Soporte",
+            items: [{ href: "/panel/settings", label: "Soporte", icon: "🛟" }],
           },
         ];
 

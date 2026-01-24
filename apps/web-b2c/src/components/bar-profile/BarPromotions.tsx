@@ -17,7 +17,39 @@ interface BarPromotionsProps {
   localId: string;
 }
 
+// Unified Promo Card - same visual size for grid and carousel
+const PromoCard: React.FC<{ promo: Promotion; onClick: () => void; showDate?: boolean }> = ({ 
+  promo, 
+  onClick,
+  showDate = false 
+}) => (
+  <Card 
+    className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer w-full"
+    onClick={onClick}
+  >
+    <div className="aspect-[4/3] relative overflow-hidden">
+      <img 
+        src={promo.image} 
+        alt={promo.title}
+        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+      <div className="absolute bottom-4 left-4 right-4">
+        <h3 className="text-white font-semibold text-lg">{promo.title}</h3>
+        {showDate && (
+          <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
+            <Calendar className="w-4 h-4" />
+            <span>Válido hoy</span>
+          </div>
+        )}
+      </div>
+    </div>
+  </Card>
+);
+
 const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) => {
+  // Desktop: use carousel if more than 3 promos to prevent layout wrap
+  const shouldCarouselDesktop = promotions.length > 3;
 
   const handleOpenPromo = (promo: Promotion) => {
     // Guard clause: si no hay promo o localId, no trackear
@@ -57,62 +89,55 @@ const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) =>
         </Badge>
       </div>
 
-      {/* Mobile: Embla carousel with touch support */}
+      {/* Mobile: Always carousel with fixed-width slides */}
       <div className="md:hidden">
         <BaseCarousel
           className="scrollbar-hide"
           containerClassName="gap-4"
+          slideClassName="!basis-[280px] sm:!basis-[300px]"
           options={{ dragFree: true, align: "start" }}
         >
           {promotions.map((promo) => (
-            <Card 
+            <PromoCard
               key={promo.id}
-              className="overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer w-[280px] sm:w-[300px]"
+              promo={promo}
               onClick={() => handleOpenPromo(promo)}
-            >
-              <div className="aspect-[4/3] relative">
-                <img 
-                  src={promo.image} 
-                  alt={promo.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h3 className="text-white font-semibold text-lg">{promo.title}</h3>
-                </div>
-              </div>
-            </Card>
+            />
           ))}
         </BaseCarousel>
       </div>
 
-      {/* Desktop: Grid layout */}
-      <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-        {promotions.map((promo) => (
-          <Card 
-            key={promo.id} 
-            className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer"
-            onClick={() => handleOpenPromo(promo)}
+      {/* Desktop: Grid if <=3, Carousel with 3-per-view if >3 */}
+      <div className="hidden md:block">
+        {shouldCarouselDesktop ? (
+          <BaseCarousel
+            className="scrollbar-hide"
+            containerClassName="gap-6"
+            slideClassName="!basis-[calc(33.333%-16px)]"
+            options={{ dragFree: true, align: "start" }}
           >
-            <div className="aspect-[4/3] relative overflow-hidden">
-              <img 
-                src={promo.image} 
-                alt={promo.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            {promotions.map((promo) => (
+              <PromoCard
+                key={promo.id}
+                promo={promo}
+                onClick={() => handleOpenPromo(promo)}
+                showDate
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <div className="absolute bottom-4 left-4 right-4">
-                <h3 className="text-white font-semibold text-lg">{promo.title}</h3>
-                <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
-                  <Calendar className="w-4 h-4" />
-                  <span>Válido hoy</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-        ))}
+            ))}
+          </BaseCarousel>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+            {promotions.map((promo) => (
+              <PromoCard
+                key={promo.id}
+                promo={promo}
+                onClick={() => handleOpenPromo(promo)}
+                showDate
+              />
+            ))}
+          </div>
+        )}
       </div>
-
     </section>
   );
 };

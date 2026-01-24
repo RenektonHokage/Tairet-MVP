@@ -175,6 +175,16 @@ export interface Promotion {
   discount?: number;
 }
 
+// API Promotion type (from /public/locals/by-slug/:slug response)
+export interface ApiPromotion {
+  id: string;
+  title: string;
+  description?: string | null;
+  image_url?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
 // Place types (legacy - for profile pages)
 export interface ClubProfile extends BasePlace {
   type: 'club';

@@ -12,7 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
-import { createOrder, Order } from "@/lib/orders";
+import { createOrder, Order, type OrderItemPayload } from "@/lib/orders";
+
+// Helper para validar si un string parece UUID
+function isUuidLike(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
 
 interface CheckoutBaseProps {
   isOpen: boolean;
@@ -105,10 +110,24 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     setIsProcessing(true);
     
     try {
+      // Construir items desde el carrito (solo tickets) con formato qty
+      const orderItems: OrderItemPayload[] = cartState.items
+        .filter((item) => item.type === "ticket")
+        .map((item) => ({
+          kind: "ticket" as const,
+          ticket_type_id: isUuidLike(item.id) ? item.id : null,
+          name: item.name,
+          price: item.price ?? 0,
+          qty: item.quantity,
+        }));
+
+      // Calcular cantidad total desde items
+      const totalQty = orderItems.reduce((sum, i) => sum + i.qty, 0) || 1;
+
       const order = await createOrder({
         local_id: firstItem.localId,
-        quantity: 1, // Forzar 1 para free_pass MVP
-        total_amount: 0,
+        quantity: totalQty,
+        total_amount: cartState.total,
         currency: "PYG",
         payment_method: "free_pass",
         customer_email: formData.email,
@@ -116,6 +135,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
         customer_last_name: formData.lastName,
         customer_phone: formData.phone,
         customer_document: formData.cedula,
+        items: orderItems.length > 0 ? orderItems : undefined,
       });
 
       setOrderCreated(order);

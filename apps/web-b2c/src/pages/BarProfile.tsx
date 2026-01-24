@@ -38,6 +38,8 @@ const BarProfile = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showGalleryMenu, setShowGalleryMenu] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
+  // Promotions from API (undefined = backend viejo/fetch failed, [] = no promos, [...] = promos)
+  const [apiPromotions, setApiPromotions] = useState<{id: string; title: string; image: string}[] | undefined>(undefined);
 
   // Resolver local_id real desde slug
   useEffect(() => {
@@ -82,6 +84,19 @@ const BarProfile = () => {
           phone: local.phone,
           whatsapp: local.whatsapp,
         });
+
+        // DB-first promotions: if API returns promotions field, use it (even if empty)
+        // Only fallback to mock if promotions is undefined (old backend)
+        if (local.promotions !== undefined) {
+          setApiPromotions(
+            local.promotions.map((p) => ({
+              id: p.id,
+              title: p.title,
+              image: p.image_url ?? "/placeholder.svg",
+            }))
+          );
+        }
+
         setIsLoading(false);
       })
       .catch((error) => {
@@ -292,8 +307,13 @@ const BarProfile = () => {
         {/* Reservation Section */}
         {localId && <BarReservation localId={localId} contactInfo={contactInfo} />}
 
-        {/* Promotions */}
-        {localId && <BarPromotions promotions={barData.promotions} localId={localId} />}
+        {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
+        {localId && (
+          <BarPromotions 
+            promotions={apiPromotions !== undefined ? apiPromotions : barData.promotions} 
+            localId={localId} 
+          />
+        )}
 
         {/* Map - DB-first con fallback */}
         <MapSection

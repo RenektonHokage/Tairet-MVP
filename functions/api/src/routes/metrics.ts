@@ -244,3 +244,261 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
   }
 });
 
+// ============================================================================
+// GET /metrics/club/breakdown - Métricas desglosadas por tipo (solo clubs)
+// ============================================================================
+
+const windowSchema = z.object({
+  window: z.enum(["7d", "30d", "90d"]).optional().default("30d"),
+});
+
+interface TicketBreakdownItem {
+  ticket_type_id: string | null;
+  name: string;
+  sold_qty: number;
+  used_orders: number;
+  revenue: number;
+}
+
+interface TableInterestItem {
+  table_type_id: string | null;
+  name: string;
+  price: number | null;
+  interest_count: number;
+}
+
+metricsRouter.get(
+  "/club/breakdown",
+  panelAuth,
+  requireRole(["owner", "staff"]),
+  async (req, res) => {
+    try {
+      if (!req.panelUser) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const localId = req.panelUser.localId;
+
+      // Parse window parameter
+      const parseResult = windowSchema.safeParse(req.query);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.flatten() });
+      }
+      const { window } = parseResult.data;
+
+      // Calcular windowStart
+      const now = new Date();
+      const daysMap: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
+      const days = daysMap[window] ?? 30;
+      const windowStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const windowStartIso = windowStart.toISOString();
+
+      // Verificar que el local sea club
+      const { data: localData, error: localError } = await supabase
+        .from("locals")
+        .select("type")
+        .eq("id", localId)
+        .single();
+
+      if (localError) {
+        logger.error("Error fetching local type for breakdown", {
+          error: localError.message,
+          localId,
+        });
+        return res.status(500).json({ error: "Error fetching local" });
+      }
+
+      if (localData?.type !== "club") {
+        return res.status(403).json({
+          error: "Breakdown solo disponible para discotecas (clubs)",
+        });
+      }
+
+      // ================================================================
+      // 1. Tickets vendidos + ingresos (por tipo) - desde orders.items
+      // ================================================================
+      const { data: soldOrders, error: soldError } = await supabase
+        .from("orders")
+        .select("id, status, created_at, items")
+        .eq("local_id", localId)
+        .eq("status", "paid")
+        .gte("created_at", windowStartIso);
+
+      if (soldError) {
+        logger.error("Error fetching sold orders for breakdown", {
+          error: soldError.message,
+          localId,
+        });
+        return res.status(500).json({ error: "Error fetching orders" });
+      }
+
+      // Agregar por tipo en Node
+      const ticketsSoldMap = new Map<
+        string,
+        { ticket_type_id: string | null; name: string; sold_qty: number; revenue: number }
+      >();
+
+      for (const order of soldOrders ?? []) {
+        const items = order.items as Array<{
+          kind?: string;
+          ticket_type_id?: string;
+          name?: string;
+          price?: number;
+          qty?: number;
+        }> | null;
+
+        if (!items || !Array.isArray(items)) continue;
+
+        for (const item of items) {
+          if (item.kind !== "ticket") continue;
+
+          const key = item.ticket_type_id ?? item.name ?? "unknown";
+          const existing = ticketsSoldMap.get(key);
+          const qty = Number(item.qty ?? 0);
+          const price = Number(item.price ?? 0);
+          const revenue = price * qty;
+
+          if (existing) {
+            existing.sold_qty += qty;
+            existing.revenue += revenue;
+          } else {
+            ticketsSoldMap.set(key, {
+              ticket_type_id: item.ticket_type_id ?? null,
+              name: item.name ?? "Entrada",
+              sold_qty: qty,
+              revenue,
+            });
+          }
+        }
+      }
+
+      // ================================================================
+      // 2. Tickets usados (ORDENES escaneadas) - por tipo
+      // ================================================================
+      const { data: usedOrders, error: usedError } = await supabase
+        .from("orders")
+        .select("id, used_at, items")
+        .eq("local_id", localId)
+        .not("used_at", "is", null)
+        .gte("used_at", windowStartIso);
+
+      if (usedError) {
+        logger.error("Error fetching used orders for breakdown", {
+          error: usedError.message,
+          localId,
+        });
+        return res.status(500).json({ error: "Error fetching used orders" });
+      }
+
+      // Contar ordenes usadas por tipo (no qty)
+      const ticketsUsedMap = new Map<string, number>();
+
+      for (const order of usedOrders ?? []) {
+        const items = order.items as Array<{
+          kind?: string;
+          ticket_type_id?: string;
+          name?: string;
+        }> | null;
+
+        if (!items || !Array.isArray(items)) continue;
+
+        // Buscar primer ticket item para determinar tipo
+        const ticketItem = items.find((i) => i.kind === "ticket");
+        if (!ticketItem) continue;
+
+        const key = ticketItem.ticket_type_id ?? ticketItem.name ?? "unknown";
+        ticketsUsedMap.set(key, (ticketsUsedMap.get(key) ?? 0) + 1);
+      }
+
+      // Merge sold + used
+      const ticketsTop: TicketBreakdownItem[] = [];
+      for (const [key, soldData] of ticketsSoldMap) {
+        ticketsTop.push({
+          ticket_type_id: soldData.ticket_type_id,
+          name: soldData.name,
+          sold_qty: soldData.sold_qty,
+          used_orders: ticketsUsedMap.get(key) ?? 0,
+          revenue: soldData.revenue,
+        });
+      }
+
+      // Ordenar por sold_qty desc
+      ticketsTop.sort((a, b) => b.sold_qty - a.sold_qty);
+
+      // ================================================================
+      // 3. Interés en mesas (WhatsApp clicks con metadata)
+      // ================================================================
+      const { data: whatsappData, error: whatsappError } = await supabase
+        .from("whatsapp_clicks")
+        .select("created_at, metadata")
+        .eq("local_id", localId)
+        .gte("created_at", windowStartIso);
+
+      if (whatsappError) {
+        logger.error("Error fetching whatsapp clicks for breakdown", {
+          error: whatsappError.message,
+          localId,
+        });
+        // No fallar, solo devolver array vacío para mesas
+      }
+
+      // Agregar interés por mesa
+      const tablesInterestMap = new Map<
+        string,
+        { table_type_id: string | null; name: string; price: number | null; count: number }
+      >();
+
+      for (const click of whatsappData ?? []) {
+        const metadata = click.metadata as {
+          table_type_id?: string;
+          table_name?: string;
+          table_price?: number;
+        } | null;
+
+        // Solo contar si tiene metadata de mesa
+        if (!metadata?.table_type_id && !metadata?.table_name) continue;
+
+        const key = metadata.table_type_id ?? metadata.table_name ?? "unknown";
+        const existing = tablesInterestMap.get(key);
+
+        if (existing) {
+          existing.count += 1;
+        } else {
+          tablesInterestMap.set(key, {
+            table_type_id: metadata.table_type_id ?? null,
+            name: metadata.table_name ?? "Mesa",
+            price: metadata.table_price ?? null,
+            count: 1,
+          });
+        }
+      }
+
+      const tablesInterestTop: TableInterestItem[] = [];
+      for (const [, data] of tablesInterestMap) {
+        tablesInterestTop.push({
+          table_type_id: data.table_type_id,
+          name: data.name,
+          price: data.price,
+          interest_count: data.count,
+        });
+      }
+
+      // Ordenar por interest_count desc
+      tablesInterestTop.sort((a, b) => b.interest_count - a.interest_count);
+
+      return res.status(200).json({
+        window,
+        tickets_top: ticketsTop,
+        tables_interest_top: tablesInterestTop,
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      logger.error("Unexpected error in club breakdown", { error });
+      return res.status(500).json({ error: "Unexpected error" });
+    }
+  }
+);
+

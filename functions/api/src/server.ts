@@ -22,6 +22,7 @@ import { eventsRouter } from "./routes/events";
 import { activityRouter } from "./routes/activity";
 import { panelRouter } from "./routes/panel";
 import { publicRouter } from "./routes/public";
+import { supportRouter } from "./routes/support";
 
 export const app = express();
 
@@ -63,8 +64,10 @@ app.use("/activity", activityRouter);
 // Panel: rate limit opcional (RATE_LIMIT_PANEL=true)
 if (isPanelRateLimitEnabled()) {
   app.use("/panel", panelMinuteLimiter, panelDayLimiter, panelRouter);
+  app.use("/panel/support", panelMinuteLimiter, panelDayLimiter, supportRouter);
 } else {
   app.use("/panel", panelRouter);
+  app.use("/panel/support", supportRouter);
 }
 
 // Error handler (último middleware)

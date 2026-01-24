@@ -7,13 +7,13 @@ import { sendOrderConfirmationEmail } from "../services/emails";
 
 export const ordersRouter = Router();
 
-// Tipo para snapshot de items guardado en DB
+// Tipo para snapshot de items guardado en DB (usa qty, NO quantity)
 interface OrderItemSnapshot {
   kind: "ticket";
-  ticket_type_id: string;
+  ticket_type_id: string | null;
   name: string;
   price: number;
-  quantity: number;
+  qty: number;
 }
 
 // POST /orders
@@ -66,19 +66,19 @@ ordersRouter.post("/", async (req, res, next) => {
           });
         }
 
-        // Agregar al snapshot
+        // Agregar al snapshot (usa qty, NO quantity)
         itemsSnapshot.push({
           kind: "ticket",
           ticket_type_id: ticketType.id,
           name: ticketType.name,
           price: Number(ticketType.price),
-          quantity: item.quantity,
+          qty: item.quantity,
         });
       }
 
       // Calcular total y cantidad desde snapshot (fuente de verdad)
-      calculatedTotal = itemsSnapshot.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      totalQuantity = itemsSnapshot.reduce((sum, item) => sum + item.quantity, 0);
+      calculatedTotal = itemsSnapshot.reduce((sum, item) => sum + item.price * item.qty, 0);
+      totalQuantity = itemsSnapshot.reduce((sum, item) => sum + item.qty, 0);
 
       // Validar que el total enviado coincida (prevenir manipulación)
       if (Math.abs(calculatedTotal - validated.total_amount) > 0.01) {
@@ -89,6 +89,24 @@ ordersRouter.post("/", async (req, res, next) => {
         });
         // Usar el calculado por seguridad
       }
+    } else {
+      // FALLBACK: Si items NO viene o viene vacío, construir desde campos legacy
+      const qty = validated.quantity ?? 1;
+      const unitPrice = qty > 0 ? validated.total_amount / qty : validated.total_amount;
+      const isFreePas = validated.total_amount === 0;
+
+      itemsSnapshot = [
+        {
+          kind: "ticket",
+          ticket_type_id: null,
+          name: isFreePas ? "Free Pass" : "Entrada",
+          price: unitPrice,
+          qty,
+        },
+      ];
+      // Mantener valores originales
+      calculatedTotal = validated.total_amount;
+      totalQuantity = qty;
     }
 
     // Free pass nace como "paid", el resto como "pending"
@@ -108,7 +126,7 @@ ordersRouter.post("/", async (req, res, next) => {
         customer_last_name: validated.customer_last_name,
         customer_phone: validated.customer_phone,
         customer_document: validated.customer_document,
-        items: itemsSnapshot.length > 0 ? itemsSnapshot : [],
+        items: itemsSnapshot, // Siempre tiene al menos 1 item (fallback)
       })
       .select()
       .single();
@@ -175,4 +193,37 @@ ordersRouter.patch("/:id/use", (_req, res) => {
     error: "This endpoint is deprecated. Use PATCH /panel/orders/:id/use with authentication.",
   });
 });
+
+/*
+================================================================================
+BACKFILL SQL (solo documentación - NO ejecutar automáticamente)
+================================================================================
+
+Rellenar items[] en órdenes existentes que tienen items vacío.
+Usa formato con `qty` (no `quantity`) para compatibilidad con breakdown metrics.
+
+-- Backfill órdenes de últimos 90 días con items vacío
+UPDATE orders
+SET items = jsonb_build_array(
+  jsonb_build_object(
+    'kind', 'ticket',
+    'ticket_type_id', NULL,
+    'name', CASE WHEN total_amount = 0 THEN 'Free Pass' ELSE 'Entrada' END,
+    'price', CASE WHEN quantity > 0 THEN total_amount / quantity ELSE total_amount END,
+    'qty', quantity
+  )
+)
+WHERE items = '[]'::jsonb
+  AND quantity > 0
+  AND created_at >= NOW() - INTERVAL '90 days';
+
+-- Verificar resultado:
+SELECT id, quantity, total_amount, items
+FROM orders
+WHERE created_at >= NOW() - INTERVAL '90 days'
+ORDER BY created_at DESC
+LIMIT 10;
+
+================================================================================
+*/
 

@@ -37,6 +37,17 @@ export async function getOrdersByEmail(email: string): Promise<Order[]> {
 }
 
 /**
+ * Item de orden para snapshot (usa qty, NO quantity)
+ */
+export interface OrderItemPayload {
+  kind: "ticket";
+  ticket_type_id: string | null;
+  name: string;
+  price: number;
+  qty: number;
+}
+
+/**
  * Payload para crear una orden free_pass
  */
 export interface CreateOrderPayload {
@@ -50,6 +61,7 @@ export interface CreateOrderPayload {
   customer_last_name: string;
   customer_phone: string;
   customer_document: string;
+  items?: OrderItemPayload[];
 }
 
 /**

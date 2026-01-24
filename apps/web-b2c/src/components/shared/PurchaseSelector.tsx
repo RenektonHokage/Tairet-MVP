@@ -8,8 +8,15 @@ import { TicketType, TableType, PurchaseSelectorProps, SelectedItem, CartItem } 
 import CheckoutBase from "@/components/shared/CheckoutBase";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
-import { trackWhatsappClick } from "@/lib/api";
+import { trackWhatsappClick, type WhatsappClickMetadata } from "@/lib/api";
 import { hasContactChannel, openContactChannel } from "@/lib/contact";
+
+// Helper para validar si un string parece UUID (evitar contaminar con IDs mock)
+function isUuidLike(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 const PurchaseSelector = ({
   tickets = [],
   tables = [],
@@ -203,10 +210,24 @@ const PurchaseSelector = ({
                           onClick={() => {
                             // Tracking fire-and-forget: no bloquear navegación
                             if (localId && contactInfo) {
+                              // Construir metadata de mesa para analytics
+                              const tableMetadata: WhatsappClickMetadata = {
+                                table_name: table.name,
+                              };
+                              // Solo enviar table_type_id si parece UUID válido
+                              if (isUuidLike(table.id)) {
+                                tableMetadata.table_type_id = table.id;
+                              }
+                              // Solo enviar precio si existe
+                              if (table.price != null && !isNaN(Number(table.price))) {
+                                tableMetadata.table_price = Number(table.price);
+                              }
+
                               void trackWhatsappClick(
                                 localId, 
                                 contactInfo.whatsapp || contactInfo.phone || undefined, 
-                                "club_table_reservation"
+                                "club_table_reservation",
+                                tableMetadata
                               );
                             }
                             if (contactInfo) {

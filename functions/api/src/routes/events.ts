@@ -24,12 +24,26 @@ eventsRouter.post("/whatsapp_click", async (req, res, next) => {
   try {
     const validated = whatsappClickSchema.parse(req.body);
 
-    const metadata = validated.source ? { source: validated.source } : null;
+    // Merge source + metadata adicional (para tracking de mesas)
+    const metadata: Record<string, unknown> = {};
+    if (validated.source) {
+      metadata.source = validated.source;
+    }
+    // Agregar metadata de mesa si existe
+    if (validated.metadata?.table_type_id) {
+      metadata.table_type_id = validated.metadata.table_type_id;
+    }
+    if (validated.metadata?.table_name) {
+      metadata.table_name = validated.metadata.table_name;
+    }
+    if (validated.metadata?.table_price != null) {
+      metadata.table_price = validated.metadata.table_price;
+    }
 
     const { error } = await supabase.from("whatsapp_clicks").insert({
       local_id: validated.local_id,
       phone: validated.phone ?? null,
-      metadata,
+      metadata: Object.keys(metadata).length > 0 ? metadata : null,
     });
 
     if (error) {

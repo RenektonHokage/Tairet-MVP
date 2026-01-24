@@ -38,6 +38,8 @@ const ClubProfile = () => {
   const [catalogTickets, setCatalogTickets] = useState<CatalogTicket[] | null>(null);
   const [catalogTables, setCatalogTables] = useState<CatalogTable[] | null>(null);
   const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
+  // Promotions from API (undefined = backend viejo/fetch failed, [] = no promos, [...] = promos)
+  const [apiPromotions, setApiPromotions] = useState<{id: string; title: string; image: string}[] | undefined>(undefined);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Resolver local_id real desde slug
@@ -83,6 +85,18 @@ const ClubProfile = () => {
           phone: local.phone,
           whatsapp: local.whatsapp,
         });
+
+        // DB-first promotions: if API returns promotions field, use it (even if empty)
+        // Only fallback to mock if promotions is undefined (old backend)
+        if (local.promotions !== undefined) {
+          setApiPromotions(
+            local.promotions.map((p) => ({
+              id: p.id,
+              title: p.title,
+              image: p.image_url ?? "/placeholder.svg",
+            }))
+          );
+        }
 
         // Cargar catálogo de la API
         getClubCatalog(clubId)
@@ -352,8 +366,14 @@ const ClubProfile = () => {
           />
         )}
 
-        {/* Promotions */}
-        {localId && <ClubPromotions promotions={clubData.promotions} localId={localId} localSlug={clubId} />}
+        {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
+        {localId && (
+          <ClubPromotions 
+            promotions={apiPromotions !== undefined ? apiPromotions : clubData.promotions} 
+            localId={localId} 
+            localSlug={clubId} 
+          />
+        )}
 
         {/* Map - DB-first con fallback */}
         <MapSection
