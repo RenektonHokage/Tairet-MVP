@@ -4,18 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { TicketType, TableType, PurchaseSelectorProps, SelectedItem, CartItem } from "@/lib/types";
+import { TicketType, TableType, PurchaseSelectorProps, SelectedItem, CartItem, isUuidLike } from "@/lib/types";
 import CheckoutBase from "@/components/shared/CheckoutBase";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
+import { useToast } from "@/hooks/use-toast";
 import { trackWhatsappClick, type WhatsappClickMetadata } from "@/lib/api";
 import { hasContactChannel, openContactChannel } from "@/lib/contact";
-
-// Helper para validar si un string parece UUID (evitar contaminar con IDs mock)
-function isUuidLike(str: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(str);
-}
 
 const PurchaseSelector = ({
   tickets = [],
@@ -30,9 +25,8 @@ const PurchaseSelector = ({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [openCollapsibles, setOpenCollapsibles] = useState<Record<string, boolean>>({});
   const [showCheckout, setShowCheckout] = useState(false);
-  const {
-    addItem
-  } = useCart();
+  const { addItem } = useCart();
+  const { toast } = useToast();
   const updateQuantity = (itemId: string, change: number) => {
     // Guard: bloquear tickets pagos (price > 0)
     const ticket = tickets.find(t => t.id === itemId);
@@ -74,14 +68,36 @@ const PurchaseSelector = ({
   const handleCheckout = () => {
     // Add items to cart
     const selectedItems = getSelectedItems();
+
+    // Validar que todos los items tengan UUIDs válidos del catálogo
+    const invalidItems = selectedItems.filter(({ item, type }) => {
+      if (type === 'ticket') {
+        return !isUuidLike(item.id);
+      }
+      if (type === 'table') {
+        return !isUuidLike(item.id);
+      }
+      return false;
+    });
+
+    if (invalidItems.length > 0) {
+      toast({
+        title: "Error",
+        description: "Catálogo no disponible. Por favor, intenta más tarde.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     selectedItems.forEach(({
       item,
       quantity,
       type
     }) => {
       const cartItem: CartItem = {
-        id: `${type}-${item.id}-${Date.now()}`,
-        type: type as 'ticket' | 'table',
+        id: `${type}-${item.id}-${Date.now()}`, // ID compuesto interno
+        kind: type as 'ticket' | 'table', // Tipo explícito para backend
+        type: type as 'ticket' | 'table', // Legacy, mantener por compatibilidad
         name: item.name,
         venue: "Venue Name",
         localId, // UUID del local para crear orders
@@ -89,7 +105,10 @@ const PurchaseSelector = ({
         price: item.price,
         totalPrice: item.price * quantity,
         date: new Date().toISOString().split('T')[0],
-        time: "21:00"
+        time: "21:00",
+        // Setear UUID puro del catálogo según tipo
+        ticket_type_id: type === 'ticket' ? item.id : undefined,
+        table_type_id: type === 'table' ? item.id : undefined,
       };
       addItem(cartItem);
     });

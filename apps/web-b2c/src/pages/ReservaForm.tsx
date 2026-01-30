@@ -28,7 +28,7 @@ const reservationSchema = z.object({
   people: z.string().min(1, { message: "Selecciona la cantidad de personas" }),
   date: z.date({ required_error: "Selecciona una fecha" }),
   time: z.string().min(1, { message: "Selecciona un horario" }),
-  comments: z.string().max(500).optional(),
+  comments: z.string().max(200).optional(),
 });
 
 const ReservaForm = () => {
@@ -329,9 +329,15 @@ const ReservaForm = () => {
                           placeholder="Algún comentario o solicitud especial..."
                           className="resize-none text-base"
                           rows={4}
+                          maxLength={200}
                           {...field}
                         />
                       </FormControl>
+                      <div className="flex justify-end">
+                        <span className="text-xs text-muted-foreground">
+                          {field.value?.length ?? 0}/200
+                        </span>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

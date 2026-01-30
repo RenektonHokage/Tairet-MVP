@@ -6,26 +6,68 @@ export interface TopPromoKpi {
   view_count: number;
 }
 
+export interface MetricsKpis {
+  whatsapp_clicks: number;
+  profile_views: number;
+  promo_open_count: number;
+  reservations_total: number;
+  reservations_en_revision: number;
+  reservations_confirmed: number;
+  reservations_cancelled: number;
+  orders_total: number;
+  tickets_sold: number;
+  tickets_used: number;
+  revenue_paid: number;
+  top_promo: TopPromoKpi | null;
+}
+
 export interface MetricsSummary {
   local_id: string;
   range: {
     from: string;
     to: string;
   };
-  kpis: {
-    whatsapp_clicks: number;
-    profile_views: number;
-    promo_open_count: number;
-    reservations_total: number;
-    reservations_en_revision: number;
-    reservations_confirmed: number;
-    reservations_cancelled: number;
-    orders_total: number;
-    tickets_sold: number;
-    tickets_used: number;
-    revenue_paid: number;
-    top_promo: TopPromoKpi | null;
-  };
+  kpis: MetricsKpis;
+}
+
+// ============================================================================
+// Nuevos tipos para series temporales (includeSeries=1)
+// ============================================================================
+
+export interface ProfileViewBucket {
+  bucket: string; // "YYYY-MM-DD"
+  value: number;
+}
+
+export interface ReservationStatusBucket {
+  bucket: string;
+  confirmed: number;
+  pending: number;
+  cancelled: number;
+}
+
+export interface OrdersSoldUsedBucket {
+  bucket: string;
+  sold: number;
+  used: number;
+}
+
+export interface MetricsKpisRange {
+  tickets_sold: number; // Semántica A: SUM(qty) orders creadas en rango
+  tickets_used: number; // Semántica A: SUM(qty) orders con used_at en rango
+  avg_party_size_confirmed?: number | null; // AVG(guests) de reservas confirmadas
+}
+
+export interface MetricsSeries {
+  bucket_mode: "day" | "week";
+  profile_views: ProfileViewBucket[];
+  reservations_by_status: ReservationStatusBucket[];
+  orders_sold_used: OrdersSoldUsedBucket[];
+}
+
+export interface MetricsSummaryWithSeries extends MetricsSummary {
+  kpis_range: MetricsKpisRange;
+  series: MetricsSeries;
 }
 
 export async function getMetricsSummary(
@@ -62,4 +104,23 @@ export async function getPanelMetricsSummary(
 
   const query = params.toString();
   return apiGetWithAuth<MetricsSummary>(`/metrics/summary${query ? `?${query}` : ""}`);
+}
+
+/**
+ * Obtiene métricas del panel CON series temporales (includeSeries=1)
+ * Incluye kpis_range (semántica A) y series para gráficos
+ */
+export async function getPanelMetricsSummaryWithSeries(params: {
+  from: string;
+  to: string;
+}): Promise<MetricsSummaryWithSeries> {
+  const searchParams = new URLSearchParams({
+    includeSeries: "1",
+    from: params.from,
+    to: params.to,
+  });
+
+  return apiGetWithAuth<MetricsSummaryWithSeries>(
+    `/metrics/summary?${searchParams.toString()}`
+  );
 }

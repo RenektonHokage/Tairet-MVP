@@ -4,13 +4,19 @@ import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { panelAuth } from "../middlewares/panelAuth";
 import { requireRole } from "../middlewares/requireRole";
+import {
+  getBucketMode,
+  dateToBucket,
+  generateEmptyBuckets,
+  initBucketMap,
+} from "../lib/dateBuckets";
 
 export const metricsRouter = Router();
 
 const querySchema = z.object({
-  localId: z.string().uuid().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
+  includeSeries: z.enum(["0", "1"]).optional(),
 });
 
 // GET /metrics/summary - Requiere autenticación del panel y rol owner o staff
@@ -26,9 +32,10 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       return res.status(400).json({ error: parseResult.error.flatten() });
     }
 
-    // Usar localId del usuario autenticado, ignorar cualquier localId del query
+    // Usar localId del usuario autenticado (no del query)
     const localId = req.panelUser.localId;
-    const { from, to } = parseResult.data;
+    const { from, to, includeSeries } = parseResult.data;
+    const wantSeries = includeSeries === "1";
 
     const toDate = to ? new Date(to) : new Date();
     const fromDate = from
@@ -63,9 +70,10 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       return res.status(500).json({ error: whatsappError.message });
     }
 
+    // Query de reservations: incluir guests para avg_party_size (campo ignorado en response legacy)
     const { data: reservationsData, error: reservationsError } = await supabase
       .from("reservations")
-      .select("status")
+      .select("status, created_at, guests")
       .eq("local_id", localId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso);
@@ -74,6 +82,8 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       logger.error("Error fetching reservations for metrics", {
         error: reservationsError.message,
         localId,
+        fromIso,
+        toIso,
       });
       return res.status(500).json({ error: reservationsError.message });
     }
@@ -83,7 +93,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       error: ordersError,
     } = await supabase
       .from("orders")
-      .select("id, status, quantity, total_amount, used_at")
+      .select("id, status, quantity, total_amount, used_at, created_at")
       .eq("local_id", localId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso);
@@ -166,9 +176,12 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       }
     }
 
+    // =========================================================================
+    // KPIs legacy (sin cambios para compatibilidad)
+    // =========================================================================
     let ordersTotal = ordersData?.length ?? 0;
     let ticketsSold = 0;
-    let ticketsUsed = 0;
+    let ticketsUsedLegacy = 0; // Legacy: cuenta órdenes con used_at (no qty)
     let revenuePaid = 0;
 
     for (const order of ordersData ?? []) {
@@ -187,7 +200,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
           revenuePaid += amount;
         }
         if (order.used_at) {
-          ticketsUsed += 1;
+          ticketsUsedLegacy += 1;
         }
       }
     }
@@ -213,7 +226,10 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       }
     }
 
-    return res.status(200).json({
+    // =========================================================================
+    // Response base (kpis legacy - siempre presente)
+    // =========================================================================
+    const baseResponse = {
       local_id: localId,
       range: {
         from: fromIso,
@@ -229,9 +245,166 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
         reservations_cancelled: reservationsStats.cancelled,
         orders_total: ordersTotal,
         tickets_sold: ticketsSold,
-        tickets_used: ticketsUsed,
+        tickets_used: ticketsUsedLegacy,
         revenue_paid: revenuePaid,
         top_promo: topPromo,
+      },
+    };
+
+    // Si no se solicitan series, devolver response legacy (idéntico al actual)
+    if (!wantSeries) {
+      return res.status(200).json(baseResponse);
+    }
+
+    // =========================================================================
+    // Series temporales + kpis_range (semántica A)
+    // Solo cuando includeSeries=1
+    // =========================================================================
+    const bucketMode = getBucketMode(fromDate, toDate);
+    const emptyBuckets = generateEmptyBuckets(fromDate, toDate, bucketMode);
+
+    // ----- Semántica A para kpis_range -----
+    // Vendidas (sold): SUM(quantity) de orders con created_at en rango y status=paid
+    // Ya calculado en ticketsSold (correcto)
+
+    // Usadas (used): SUM(quantity) de orders con used_at en rango y status=paid
+    // Necesitamos query adicional para órdenes cuyo used_at está en el rango
+    const { data: usedOrdersData, error: usedOrdersError } = await supabase
+      .from("orders")
+      .select("quantity, used_at")
+      .eq("local_id", localId)
+      .eq("status", "paid")
+      .not("used_at", "is", null)
+      .gte("used_at", fromIso)
+      .lte("used_at", toIso);
+
+    if (usedOrdersError) {
+      logger.error("Error fetching used orders for series", {
+        error: usedOrdersError.message,
+        localId,
+      });
+    }
+
+    let ticketsUsedSemanticA = 0;
+    for (const order of usedOrdersData ?? []) {
+      const qty = Number(order.quantity ?? 0);
+      if (!Number.isNaN(qty)) {
+        ticketsUsedSemanticA += qty;
+      }
+    }
+
+    // ----- avg_party_size_confirmed para kpis_range -----
+    // Calcular AVG(guests) de reservas confirmadas en el rango
+    // Usa reservationsData que ya incluye guests cuando wantSeries=true
+    let avgPartySizeConfirmed: number | null = null;
+    const confirmedReservations = (reservationsData ?? []).filter(
+      (r) =>
+        r.status === "confirmed" &&
+        r.guests != null &&
+        typeof r.guests === "number" &&
+        !Number.isNaN(r.guests)
+    );
+    if (confirmedReservations.length > 0) {
+      const totalGuests = confirmedReservations.reduce(
+        (sum, r) => sum + (r.guests as number),
+        0
+      );
+      avgPartySizeConfirmed = totalGuests / confirmedReservations.length;
+    }
+
+    // ----- Series: profile_views -----
+    const { data: profileViewsSeriesData, error: pvSeriesError } = await supabase
+      .from("profile_views")
+      .select("created_at")
+      .eq("local_id", localId)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso);
+
+    if (pvSeriesError) {
+      logger.error("Error fetching profile_views for series", {
+        error: pvSeriesError.message,
+        localId,
+      });
+    }
+
+    const profileViewsBuckets = initBucketMap(emptyBuckets, () => 0);
+    for (const pv of profileViewsSeriesData ?? []) {
+      const bucket = dateToBucket(new Date(pv.created_at), bucketMode);
+      profileViewsBuckets.set(bucket, (profileViewsBuckets.get(bucket) ?? 0) + 1);
+    }
+
+    // ----- Series: reservations_by_status -----
+    const reservationsBuckets = initBucketMap(emptyBuckets, () => ({
+      confirmed: 0,
+      pending: 0,
+      cancelled: 0,
+    }));
+    for (const r of reservationsData ?? []) {
+      const bucket = dateToBucket(new Date(r.created_at), bucketMode);
+      const entry = reservationsBuckets.get(bucket);
+      if (entry) {
+        switch (r.status) {
+          case "confirmed":
+            entry.confirmed += 1;
+            break;
+          case "en_revision":
+            entry.pending += 1;
+            break;
+          case "cancelled":
+            entry.cancelled += 1;
+            break;
+        }
+      }
+    }
+
+    // ----- Series: orders_sold_used (semántica A) -----
+    // Sold: agrupar ordersData (created_at en rango, status=paid) por bucket
+    const ordersSoldBuckets = initBucketMap(emptyBuckets, () => 0);
+    for (const order of ordersData ?? []) {
+      if (order.status !== "paid") continue;
+      const qty = Number(order.quantity ?? 0);
+      if (Number.isNaN(qty)) continue;
+      const bucket = dateToBucket(new Date(order.created_at), bucketMode);
+      ordersSoldBuckets.set(bucket, (ordersSoldBuckets.get(bucket) ?? 0) + qty);
+    }
+
+    // Used: agrupar usedOrdersData (used_at en rango, status=paid) por bucket
+    const ordersUsedBuckets = initBucketMap(emptyBuckets, () => 0);
+    for (const order of usedOrdersData ?? []) {
+      const qty = Number(order.quantity ?? 0);
+      if (Number.isNaN(qty)) continue;
+      const bucket = dateToBucket(new Date(order.used_at!), bucketMode);
+      ordersUsedBuckets.set(bucket, (ordersUsedBuckets.get(bucket) ?? 0) + qty);
+    }
+
+    // Merge sold + used into single array
+    const ordersSoldUsedSeries = emptyBuckets.map((bucket) => ({
+      bucket,
+      sold: ordersSoldBuckets.get(bucket) ?? 0,
+      used: ordersUsedBuckets.get(bucket) ?? 0,
+    }));
+
+    // =========================================================================
+    // Response con series y kpis_range (semántica A)
+    // =========================================================================
+    return res.status(200).json({
+      ...baseResponse,
+      kpis_range: {
+        tickets_sold: ticketsSold, // SUM(qty) de orders creadas en rango, status=paid
+        tickets_used: ticketsUsedSemanticA, // SUM(qty) de orders con used_at en rango, status=paid
+        avg_party_size_confirmed: avgPartySizeConfirmed, // AVG(guests) de reservas confirmadas, null si no hay
+      },
+      series: {
+        bucket_mode: bucketMode, // "day" | "week"
+        profile_views: emptyBuckets.map((bucket) => ({
+          bucket,
+          value: profileViewsBuckets.get(bucket) ?? 0,
+        })),
+        reservations_by_status: emptyBuckets.map((bucket) => ({
+          bucket,
+          ...(reservationsBuckets.get(bucket) ?? { confirmed: 0, pending: 0, cancelled: 0 }),
+        })),
+        orders_sold_used: ordersSoldUsedSeries,
       },
     });
   } catch (error) {

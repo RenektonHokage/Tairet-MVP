@@ -37,14 +37,12 @@ export async function getOrdersByEmail(email: string): Promise<Order[]> {
 }
 
 /**
- * Item de orden para snapshot (usa qty, NO quantity)
+ * Item de orden para el payload POST /orders
+ * Contrato backend (orderItemSchema): { ticket_type_id: uuid, quantity: int 1..10 }
  */
 export interface OrderItemPayload {
-  kind: "ticket";
-  ticket_type_id: string | null;
-  name: string;
-  price: number;
-  qty: number;
+  ticket_type_id: string; // UUID requerido
+  quantity: number; // 1..10
 }
 
 /**

@@ -216,10 +216,16 @@ export interface EventProfile {
   address?: string;
 }
 
+// Helper para validar si un string es un UUID válido
+export function isUuidLike(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 // Cart and checkout types
 export interface CartItem {
-  id: string;
-  type: 'ticket' | 'table' | 'reservation';
+  id: string; // ID compuesto interno para dedupe/remove (ej: "ticket-<uuid>-<timestamp>")
+  kind: 'ticket' | 'table'; // Tipo explícito para backend
+  type: 'ticket' | 'table' | 'reservation'; // Legacy field, mantener por compatibilidad
   name: string;
   venue: string;
   localId?: string; // UUID del local para crear orders
@@ -228,6 +234,11 @@ export interface CartItem {
   totalPrice: number;
   date?: string;
   time?: string;
+  // IDs del catálogo (UUIDs puros) para backend
+  ticket_type_id?: string; // UUID de ticket_types.id (solo para kind="ticket")
+  table_type_id?: string; // UUID de table_types.id (solo para kind="table")
+  // Flag para items legacy/inválidos (detectados en hydrate)
+  _invalid?: boolean;
 }
 
 // User and buyer information

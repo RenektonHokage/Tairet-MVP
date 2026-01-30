@@ -1,18 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { usePanelContext, type PanelUserInfo } from "@/lib/panelContext";
-import { getOrder, useOrder, type Order } from "@/lib/orders";
+// reservations se usa solo en /panel/reservations, no en dashboard
 import {
-  getPanelReservationsByLocalId,
-  updatePanelReservationStatus,
-  type Reservation,
-} from "@/lib/reservations";
-import { getPanelMetricsSummary, type MetricsSummary } from "@/lib/metrics";
-import { getPanelActivity, type ActivityResponse } from "@/lib/activity";
+  getPanelMetricsSummaryWithSeries,
+  type MetricsSummaryWithSeries,
+} from "@/lib/metrics";
+import {
+  DashboardClubView,
+  DashboardBarView,
+} from "@/components/panel/views/dashboard";
+import {
+  calculateBarSummaryFromKpis,
+  calculateClubSummary,
+  type RangeDays,
+} from "@/lib/dashboardHelpers";
+
+// ============================================================
+// Helper: Calcula from/to ISO strings según rango
+// ============================================================
+function getRangeDates(rangeDays: RangeDays): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString();
+  const from = new Date(now.getTime() - rangeDays * 24 * 60 * 60 * 1000).toISOString();
+  return { from, to };
+}
 
 // ============================================================
 // Componente: Header del Panel (común para bar y club)
@@ -46,341 +61,232 @@ function PanelHeader({ context }: { context: PanelUserInfo }) {
 // Componente: Dashboard para Clubs (discotecas)
 // ============================================================
 function DashboardClub({ context }: { context: PanelUserInfo }) {
-  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const router = useRouter();
+  const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
-  const [activity, setActivity] = useState<ActivityResponse | null>(null);
-  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [range, setRange] = useState<RangeDays>(30);
 
+  // Calcular from/to basado en el rango actual
+  const rangeDates = useMemo(() => getRangeDates(range), [range]);
+
+  // Cargar métricas CON series cuando cambia el rango
   useEffect(() => {
-    const loadData = async () => {
+    const loadMetrics = async () => {
       setLoadingMetrics(true);
-      setLoadingActivity(true);
-
       try {
-        const [metricsData, activityData] = await Promise.all([
-          getPanelMetricsSummary(),
-          getPanelActivity(),
-        ]);
-        setMetrics(metricsData);
-        setActivity(activityData);
+        const data = await getPanelMetricsSummaryWithSeries(rangeDates);
+        setMetrics(data);
       } catch (err) {
-        console.error("Error loading club data:", err);
+        console.error("Error loading club metrics:", err);
       } finally {
         setLoadingMetrics(false);
-        setLoadingActivity(false);
       }
     };
 
-    loadData();
+    loadMetrics();
+  }, [rangeDates]);
+
+  const handlePrimaryAction = useCallback(() => {
+    router.push("/panel/checkin");
+  }, [router]);
+
+  const handleRangeChange = useCallback((value: "7d" | "30d") => {
+    setRange(value === "7d" ? 7 : 30);
   }, []);
 
-  const getActivityBadge = (type: ActivityResponse["items"][number]["type"]) => {
-    switch (type) {
-      case "order_paid":
-        return { label: "Orden pagada", className: "bg-green-100 text-green-800" };
-      case "order_created":
-        return { label: "Orden creada", className: "bg-gray-100 text-gray-700" };
-      case "order_used":
-        return { label: "Orden usada", className: "bg-blue-100 text-blue-800" };
-      case "whatsapp_click":
-        return { label: "Click WhatsApp", className: "bg-emerald-100 text-emerald-800" };
-      case "promo_view":
-        return { label: "Promo vista", className: "bg-purple-100 text-purple-800" };
-      case "profile_view":
-        return { label: "Vista perfil", className: "bg-slate-100 text-slate-700" };
-      default:
-        return { label: type, className: "bg-gray-100 text-gray-700" };
-    }
+  // =========================================================================
+  // FUENTES DE DATOS (desde backend con includeSeries=1):
+  // - kpis: legacy KPIs (compatibilidad)
+  // - kpis_range: semántica A (tickets sold/used por rango)
+  // - series: series temporales para charts
+  // =========================================================================
+
+  // KPIs: usar kpis_range (semántica A, coherente con series)
+  const kpis = {
+    ticketsSold: metrics?.kpis_range?.tickets_sold ?? metrics?.kpis.tickets_sold ?? 0,
+    ticketsUsed: metrics?.kpis_range?.tickets_used ?? metrics?.kpis.tickets_used ?? 0,
+    revenuePaid: metrics?.kpis.revenue_paid ?? 0,
   };
 
-  return (
-    <div className="space-y-6">
-      {/* CTA Principal */}
-      <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg shadow-lg p-8 text-white">
-        <h3 className="text-2xl font-bold mb-2">Check-in de Entradas</h3>
-        <p className="mb-4 opacity-90">Escanea QR o ingresa código manualmente</p>
-        <Link
-          href="/panel/checkin"
-          className="inline-block px-6 py-3 bg-white text-green-600 font-semibold rounded-md hover:bg-gray-100"
-        >
-          ✓ Abrir Check-in
-        </Link>
-      </div>
+  // Profile views y WhatsApp clicks: usar kpis (totales en rango)
+  const profileViews = metrics?.kpis.profile_views ?? 0;
+  const whatsappClicks = metrics?.kpis.whatsapp_clicks ?? 0;
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics && (
-          <>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Entradas Vendidas</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.tickets_sold}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Entradas Usadas</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.tickets_used}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Ingresos Pagados</h4>
-              <p className="text-2xl font-bold mt-2">
-                PYG {metrics.kpis.revenue_paid.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">WhatsApp Clicks</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.whatsapp_clicks}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Visitas al Perfil (30d)</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.profile_views}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Promo más vista (30d)</h4>
-              {metrics.kpis.top_promo ? (
-                <>
-                  <p className="text-lg font-bold mt-2 truncate" title={metrics.kpis.top_promo.title}>
-                    {metrics.kpis.top_promo.title}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {metrics.kpis.top_promo.view_count} vistas de {metrics.kpis.promo_open_count} totales
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 mt-2">Aún sin datos</p>
-              )}
-            </div>
-          </>
-        )}
-        {loadingMetrics && (
-          <div className="col-span-4 text-center text-gray-500">Cargando métricas...</div>
-        )}
-      </div>
-
-      {/* Actividad Reciente */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4">Actividad Reciente</h3>
-        {loadingActivity && <p className="text-sm text-gray-500">Cargando actividad...</p>}
-        {activity && activity.items.length > 0 && (
-          <ul className="space-y-3">
-            {activity.items.slice(0, 10).map((item, index) => {
-              const badge = getActivityBadge(item.type);
-              return (
-                <li key={`${item.type}-${item.timestamp}-${index}`} className="p-3 bg-gray-50 border border-gray-200 rounded-md">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${badge.className}`}>
-                      {badge.label}
-                    </span>
-                    <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {activity && activity.items.length === 0 && !loadingActivity && (
-          <p className="text-sm text-gray-500">Sin actividad reciente</p>
-        )}
-      </div>
-    </div>
+  // Summary metrics
+  const summary = calculateClubSummary(
+    kpis.ticketsSold,
+    profileViews,
+    kpis.revenuePaid,
+    range
   );
+
+  // Trend data: usar series.orders_sold_used del backend
+  const trendData = useMemo(() => {
+    const series = metrics?.series?.orders_sold_used ?? [];
+    return series.map((s) => ({
+      label: formatBucketLabel(s.bucket, metrics?.series?.bucket_mode ?? "day"),
+      vendidas: s.sold,
+      usadas: s.used,
+    }));
+  }, [metrics?.series]);
+
+  // Visitas series: usar series.profile_views del backend
+  const visitsData = useMemo(() => {
+    const series = metrics?.series?.profile_views ?? [];
+    return series.map((s) => ({
+      label: formatBucketLabel(s.bucket, metrics?.series?.bucket_mode ?? "day"),
+      value: s.value,
+    }));
+  }, [metrics?.series]);
+
+  // Top promo
+  const topPromo = metrics?.kpis.top_promo
+    ? {
+        title: metrics.kpis.top_promo.title,
+        viewCount: metrics.kpis.top_promo.view_count,
+      }
+    : null;
+
+  return (
+    <DashboardClubView
+      onPrimaryAction={handlePrimaryAction}
+      kpis={kpis}
+      loading={loadingMetrics}
+      trendData={trendData}
+      visitsData={visitsData}
+      totalVisits={profileViews}
+      summary={summary}
+      whatsappClicks={whatsappClicks}
+      topPromo={topPromo}
+      range={range === 7 ? "7d" : "30d"}
+      onRangeChange={handleRangeChange}
+    />
+  );
+}
+
+// Helper para formatear bucket labels según el modo
+function formatBucketLabel(bucket: string, mode: "day" | "week"): string {
+  const date = new Date(bucket);
+  if (mode === "day") {
+    // Día de la semana abreviado
+    const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    return days[date.getUTCDay()];
+  }
+  // Semana: mostrar "Sem N" o fecha del lunes
+  const day = date.getUTCDate();
+  const month = date.getUTCMonth() + 1;
+  return `${day}/${month}`;
 }
 
 // ============================================================
 // Componente: Dashboard para Bars
 // ============================================================
 function DashboardBar({ context }: { context: PanelUserInfo }) {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [loadingReservations, setLoadingReservations] = useState(false);
-  const [updatingReservationId, setUpdatingReservationId] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const router = useRouter();
+  const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [range, setRange] = useState<RangeDays>(30);
 
+  // Calcular from/to basado en el rango actual
+  const rangeDates = useMemo(() => getRangeDates(range), [range]);
+
+  // Cargar métricas CON series cuando cambia el rango
   useEffect(() => {
-    const loadData = async () => {
-      setLoadingReservations(true);
+    const loadMetrics = async () => {
       setLoadingMetrics(true);
-
       try {
-        const [reservationsData, metricsData] = await Promise.all([
-          getPanelReservationsByLocalId(context.local.id),
-          getPanelMetricsSummary(),
-        ]);
-        setReservations(reservationsData);
-        setMetrics(metricsData);
+        const data = await getPanelMetricsSummaryWithSeries(rangeDates);
+        setMetrics(data);
       } catch (err) {
-        console.error("Error loading bar data:", err);
+        console.error("Error loading bar metrics:", err);
       } finally {
-        setLoadingReservations(false);
         setLoadingMetrics(false);
       }
     };
 
-    loadData();
-  }, [context.local.id]);
+    loadMetrics();
+  }, [rangeDates]);
 
-  const handleUpdateReservationStatus = async (
-    reservationId: string,
-    status: "confirmed" | "cancelled"
-  ) => {
-    setUpdatingReservationId(reservationId);
-    try {
-      await updatePanelReservationStatus(reservationId, { status });
-      const data = await getPanelReservationsByLocalId(context.local.id);
-      setReservations(data);
-    } catch (err) {
-      console.error("Error updating reservation:", err);
-    } finally {
-      setUpdatingReservationId(null);
-    }
+  const handlePrimaryAction = useCallback(() => {
+    router.push("/panel/reservations");
+  }, [router]);
+
+  const handleRangeChange = useCallback((value: "7d" | "30d") => {
+    setRange(value === "7d" ? 7 : 30);
+  }, []);
+
+  // =========================================================================
+  // FUENTES DE DATOS (desde backend con includeSeries=1):
+  // - kpis: KPIs de reservas (en rango)
+  // - series: series temporales para charts
+  // =========================================================================
+
+  // KPIs de reservas: usar kpis del backend (ya filtrados por rango)
+  const kpis = {
+    reservationsTotal: metrics?.kpis.reservations_total ?? 0,
+    reservationsConfirmed: metrics?.kpis.reservations_confirmed ?? 0,
+    reservationsEnRevision: metrics?.kpis.reservations_en_revision ?? 0,
   };
 
-  const pendingReservations = reservations.filter((r) => r.status === "en_revision");
+  // Profile views y WhatsApp clicks: usar kpis (totales en rango)
+  const profileViews = metrics?.kpis.profile_views ?? 0;
+  const whatsappClicks = metrics?.kpis.whatsapp_clicks ?? 0;
+
+  // Summary metrics: usar KPIs del backend
+  const avgPartySizeConfirmed = metrics?.kpis_range?.avg_party_size_confirmed ?? null;
+  const summary = calculateBarSummaryFromKpis(
+    kpis.reservationsTotal,
+    profileViews,
+    range,
+    avgPartySizeConfirmed
+  );
+
+  // Trend data: usar series.reservations_by_status del backend
+  const trendData = useMemo(() => {
+    const series = metrics?.series?.reservations_by_status ?? [];
+    return series.map((s) => ({
+      label: formatBucketLabel(s.bucket, metrics?.series?.bucket_mode ?? "day"),
+      confirmadas: s.confirmed,
+      canceladas: s.cancelled,
+      pendientes: s.pending,
+    }));
+  }, [metrics?.series]);
+
+  // Visitas series: usar series.profile_views del backend
+  const visitsData = useMemo(() => {
+    const series = metrics?.series?.profile_views ?? [];
+    return series.map((s) => ({
+      label: formatBucketLabel(s.bucket, metrics?.series?.bucket_mode ?? "day"),
+      value: s.value,
+    }));
+  }, [metrics?.series]);
+
+  // Top promo
+  const topPromo = metrics?.kpis.top_promo
+    ? {
+        title: metrics.kpis.top_promo.title,
+        viewCount: metrics.kpis.top_promo.view_count,
+      }
+    : { title: "Analizando...", viewCount: undefined };
+
+  // Indica si hay datos reales de promedio de personas (no null)
+  const hasAvgPartySizeData = avgPartySizeConfirmed != null;
 
   return (
-    <div className="space-y-6">
-      {/* CTA Principal */}
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-lg shadow-lg p-8 text-white">
-        <h3 className="text-2xl font-bold mb-2">Gestión de Reservas</h3>
-        <p className="mb-4 opacity-90">
-          {pendingReservations.length > 0
-            ? `Tienes ${pendingReservations.length} reserva(s) pendiente(s) de confirmación`
-            : "Todas las reservas están gestionadas"}
-        </p>
-        <button
-          onClick={() => {
-            const section = document.getElementById("reservations-section");
-            section?.scrollIntoView({ behavior: "smooth" });
-          }}
-          className="inline-block px-6 py-3 bg-white text-amber-600 font-semibold rounded-md hover:bg-gray-100"
-        >
-          📌 Ver Reservas
-        </button>
-      </div>
-
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics && (
-          <>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Reservas Totales</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.reservations_total}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Confirmadas</h4>
-              <p className="text-3xl font-bold mt-2 text-green-600">
-                {metrics.kpis.reservations_confirmed}
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">En Revisión</h4>
-              <p className="text-3xl font-bold mt-2 text-yellow-600">
-                {metrics.kpis.reservations_en_revision}
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">WhatsApp Clicks</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.whatsapp_clicks}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Visitas al Perfil (30d)</h4>
-              <p className="text-3xl font-bold mt-2">{metrics.kpis.profile_views}</p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <h4 className="text-sm font-medium text-gray-600">Promo más vista (30d)</h4>
-              {metrics.kpis.top_promo ? (
-                <>
-                  <p className="text-lg font-bold mt-2 truncate" title={metrics.kpis.top_promo.title}>
-                    {metrics.kpis.top_promo.title}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {metrics.kpis.top_promo.view_count} vistas de {metrics.kpis.promo_open_count} totales
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 mt-2">Aún sin datos</p>
-              )}
-            </div>
-          </>
-        )}
-        {loadingMetrics && (
-          <div className="col-span-4 text-center text-gray-500">Cargando métricas...</div>
-        )}
-      </div>
-
-      {/* Reservas Recientes */}
-      <div id="reservations-section" className="bg-white p-6 rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-4">Reservas</h3>
-        {loadingReservations && <p className="text-sm text-gray-500">Cargando reservas...</p>}
-        {reservations.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Personas</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {reservations.map((reservation) => (
-                  <tr key={reservation.id}>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {reservation.name} {reservation.last_name || ""}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {new Date(reservation.date).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{reservation.guests}</td>
-                    <td className="px-4 py-3 text-sm">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          reservation.status === "confirmed"
-                            ? "bg-green-100 text-green-800"
-                            : reservation.status === "cancelled"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {reservation.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {reservation.status === "en_revision" ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleUpdateReservationStatus(reservation.id, "confirmed")}
-                            disabled={updatingReservationId === reservation.id}
-                            className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-                          >
-                            Confirmar
-                          </button>
-                          <button
-                            onClick={() => handleUpdateReservationStatus(reservation.id, "cancelled")}
-                            disabled={updatingReservationId === reservation.id}
-                            className="px-3 py-1 text-xs bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
-                          >
-                            Cancelar
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {reservations.length === 0 && !loadingReservations && (
-          <p className="text-sm text-gray-500">No hay reservas para este local</p>
-        )}
-      </div>
-    </div>
+    <DashboardBarView
+      onPrimaryAction={handlePrimaryAction}
+      kpis={kpis}
+      loading={loadingMetrics}
+      trendData={trendData}
+      visitsData={visitsData}
+      totalVisits={profileViews}
+      summary={summary}
+      hasAvgPartySizeData={hasAvgPartySizeData}
+      whatsappClicks={whatsappClicks}
+      topPromo={topPromo}
+      range={range === 7 ? "7d" : "30d"}
+      onRangeChange={handleRangeChange}
+    />
   );
 }
 

@@ -326,36 +326,37 @@ const ClubProfile = () => {
           )}
         </section>
 
-        {/* Tickets and Table Reservations - DB-first con fallback a mocks */}
-        {localId && (
+        {/* Tickets and Table Reservations - DB-first ONLY (sin mocks) */}
+        {localId && catalogTickets !== null && (
           <PurchaseSelector 
             tickets={
-              // DB-first: transformar tickets de API a formato esperado, ordenados por precio ASC
-              catalogTickets && catalogTickets.length > 0
+              // DB-first ONLY: transformar tickets de API a formato esperado, ordenados por precio ASC
+              // PROHIBIDO: usar mocks en flujo transaccional
+              catalogTickets.length > 0
                 ? [...catalogTickets]
                     .sort((a, b) => a.price - b.price)
                     .map((t) => ({
-                      id: t.id,
+                      id: t.id, // UUID real del catálogo
                       name: t.name,
                       price: t.price,
                       description: "", // Ya no se muestra como subtítulo fijo
                       benefits: parseBenefits(t.description), // Parsear description a benefits[]
                     }))
-                : clubData.tickets
+                : [] // Sin tickets disponibles = array vacío, NO mocks
             } 
             tables={
-              // DB-first: transformar tables de API a formato esperado, ordenados por precio ASC (NULLS LAST)
+              // DB-first ONLY: transformar tables de API a formato esperado, ordenados por precio ASC (NULLS LAST)
               catalogTables && catalogTables.length > 0
                 ? [...catalogTables]
                     .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
                     .map((t) => ({
-                      id: t.id,
+                      id: t.id, // UUID real del catálogo
                       name: t.name,
                     capacity: t.capacity || 0,
                     price: t.price || 0,
                     drinks: parseBenefits(t.includes), // Parsear includes a drinks[]
                   }))
-                : clubData.tables
+                : [] // Sin mesas disponibles = array vacío, NO mocks
             } 
             mode="both" 
             title="" 
@@ -364,6 +365,20 @@ const ClubProfile = () => {
             contactInfo={contactInfo} 
             localId={localId} 
           />
+        )}
+        
+        {/* Mensaje cuando el catálogo no está disponible */}
+        {localId && catalogTickets === null && (
+          <section className="w-full py-8 text-center">
+            <div className="bg-muted/50 rounded-lg p-6">
+              <p className="text-muted-foreground">
+                Catálogo de entradas y mesas no disponible en este momento.
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Por favor, intenta más tarde o contacta al local directamente.
+              </p>
+            </div>
+          </section>
         )}
 
         {/* Promotions - DB-first: API promotions if available, mock only if undefined */}

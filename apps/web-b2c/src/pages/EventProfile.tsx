@@ -4,11 +4,8 @@ import Navbar from "@/components/layout/Navbar";
 import BottomNavbar from "@/components/layout/BottomNavbar";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PurchaseSelector from "@/components/shared/PurchaseSelector";
 import MapSection from "@/components/shared/MapSection";
 import EventHeroCompact from "@/components/event-profile/EventHeroCompact";
-import CheckoutBase from "@/components/shared/CheckoutBase";
-import { SelectedItem } from "@/lib/types";
 
 // Importar imágenes
 import nightlifeScene from "@/assets/nightlife-scene.jpg";
@@ -149,8 +146,6 @@ const mockEventData = {
 const EventProfile = () => {
   const { eventId } = useParams();
   const [activeSection, setActiveSection] = useState<'tickets' | 'ubicacion'>('tickets');
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   
   const eventData = eventId ? mockEventData[eventId as keyof typeof mockEventData] : null;
 
@@ -170,17 +165,6 @@ const EventProfile = () => {
       </div>
     );
   }
-
-  const handleCheckout = (items: SelectedItem[]) => {
-    setSelectedItems(items);
-    setShowCheckout(true);
-  };
-
-  const getTotalAmount = () => {
-    return selectedItems.reduce((total, item) => {
-      return total + (item.item.price * item.quantity);
-    }, 0);
-  };
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -242,14 +226,20 @@ const EventProfile = () => {
         {/* Content Sections */}
         <div className="space-y-8">
           {activeSection === 'tickets' && (
-            <PurchaseSelector
-              tickets={eventData.tickets}
-              tables={[]}
-              onCheckout={handleCheckout}
-              title="Entradas"
-              subtitle="Selecciona tus entradas para el evento"
-              mode="tickets"
-            />
+            // EventProfile actualmente usa datos mock sin catálogo real (DB-first)
+            // PROHIBIDO: pasar mocks a PurchaseSelector para flujo transaccional
+            // TODO: integrar catálogo real de eventos cuando exista
+            <section className="w-full py-8 text-center">
+              <div className="bg-muted/50 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Entradas</h3>
+                <p className="text-muted-foreground">
+                  La venta de entradas para este evento no está disponible en este momento.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Contacta al organizador para más información.
+                </p>
+              </div>
+            </section>
           )}
           {activeSection === 'ubicacion' && (
             <MapSection
@@ -266,14 +256,6 @@ const EventProfile = () => {
           )}
         </div>
       </div>
-
-      {/* Checkout Modal */}
-      <CheckoutBase
-        isOpen={showCheckout}
-        onClose={() => setShowCheckout(false)}
-        title="Finalizar Compra"
-        venue={eventData.name}
-      />
 
       <BottomNavbar />
     </div>

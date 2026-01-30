@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { CartItem } from '@/lib/types';
+import { CartItem, isUuidLike } from '@/lib/types';
 
 // Cart actions
 type CartAction = 
@@ -14,6 +14,7 @@ type CartAction =
 interface CartState {
   items: CartItem[];
   total: number;
+  hasInvalidItems: boolean; // True si hay items legacy sin UUID válido
 }
 
 // Cart context
@@ -31,6 +32,40 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 // Calculate total from items
 const calculateTotal = (items: CartItem[]): number => {
   return items.reduce((sum, item) => sum + item.totalPrice, 0);
+};
+
+// Check if any items are invalid (legacy without valid UUID)
+const checkHasInvalidItems = (items: CartItem[]): boolean => {
+  return items.some((item) => {
+    // For tickets, ticket_type_id must be a valid UUID
+    if (item.kind === 'ticket' || item.type === 'ticket') {
+      return !item.ticket_type_id || !isUuidLike(item.ticket_type_id);
+    }
+    // For tables, table_type_id must be a valid UUID
+    if (item.kind === 'table' || item.type === 'table') {
+      return !item.table_type_id || !isUuidLike(item.table_type_id);
+    }
+    return false;
+  });
+};
+
+// Normalize items from storage: mark invalid items
+const normalizeStoredItems = (items: CartItem[]): CartItem[] => {
+  return items.map((item) => {
+    // For tickets, check if ticket_type_id is a valid UUID
+    if (item.kind === 'ticket' || item.type === 'ticket') {
+      if (!item.ticket_type_id || !isUuidLike(item.ticket_type_id)) {
+        return { ...item, _invalid: true };
+      }
+    }
+    // For tables, check if table_type_id is a valid UUID
+    if (item.kind === 'table' || item.type === 'table') {
+      if (!item.table_type_id || !isUuidLike(item.table_type_id)) {
+        return { ...item, _invalid: true };
+      }
+    }
+    return item;
+  });
 };
 
 // Cart reducer
@@ -51,14 +86,16 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         };
         return {
           items: updatedItems,
-          total: calculateTotal(updatedItems)
+          total: calculateTotal(updatedItems),
+          hasInvalidItems: checkHasInvalidItems(updatedItems)
         };
       } else {
         // Add new item
         const newItems = [...state.items, action.payload];
         return {
           items: newItems,
-          total: calculateTotal(newItems)
+          total: calculateTotal(newItems),
+          hasInvalidItems: checkHasInvalidItems(newItems)
         };
       }
     }
@@ -69,7 +106,8 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         const newItems = state.items.filter(item => item.id !== action.payload.id);
         return {
           items: newItems,
-          total: calculateTotal(newItems)
+          total: calculateTotal(newItems),
+          hasInvalidItems: checkHasInvalidItems(newItems)
         };
       }
       
@@ -81,7 +119,8 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       
       return {
         items: updatedItems,
-        total: calculateTotal(updatedItems)
+        total: calculateTotal(updatedItems),
+        hasInvalidItems: checkHasInvalidItems(updatedItems)
       };
     }
     
@@ -89,7 +128,8 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       const newItems = state.items.filter(item => item.id !== action.payload);
       return {
         items: newItems,
-        total: calculateTotal(newItems)
+        total: calculateTotal(newItems),
+        hasInvalidItems: checkHasInvalidItems(newItems)
       };
     }
     
@@ -97,21 +137,26 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       const newItems = state.items.filter((_, index) => index !== action.payload);
       return {
         items: newItems,
-        total: calculateTotal(newItems)
+        total: calculateTotal(newItems),
+        hasInvalidItems: checkHasInvalidItems(newItems)
       };
     }
     
     case 'CLEAR_CART':
       return {
         items: [],
-        total: 0
+        total: 0,
+        hasInvalidItems: false
       };
       
-    case 'LOAD_FROM_STORAGE':
+    case 'LOAD_FROM_STORAGE': {
+      const normalizedItems = normalizeStoredItems(action.payload);
       return {
-        items: action.payload,
-        total: calculateTotal(action.payload)
+        items: normalizedItems,
+        total: calculateTotal(normalizedItems),
+        hasInvalidItems: checkHasInvalidItems(normalizedItems)
       };
+    }
       
     default:
       return state;
@@ -121,7 +166,8 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
 // Initial state
 const initialState: CartState = {
   items: [],
-  total: 0
+  total: 0,
+  hasInvalidItems: false
 };
 
 // Cart provider

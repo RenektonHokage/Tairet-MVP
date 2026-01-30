@@ -13,11 +13,7 @@ import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder, Order, type OrderItemPayload } from "@/lib/orders";
-
-// Helper para validar si un string parece UUID
-function isUuidLike(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-}
+import { isUuidLike } from "@/lib/types";
 
 interface CheckoutBaseProps {
   isOpen: boolean;
@@ -76,6 +72,16 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       return;
     }
 
+    // Bloquear si hay items inválidos (legacy sin UUID)
+    if (cartState.hasInvalidItems) {
+      toast({
+        title: "Error",
+        description: "Tu carrito tiene items desactualizados. Vacía el carrito y vuelve a seleccionar tus entradas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Solo permitir free_pass (total = 0) por ahora
     if (cartState.total !== 0) {
       toast({
@@ -106,23 +112,73 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       });
       return;
     }
+
+    // Validar que todos los tickets tengan ticket_type_id UUID válido
+    const ticketItems = cartState.items.filter(
+      (item) => item.kind === "ticket" || item.type === "ticket"
+    );
+
+    // Validación 1: todos los tickets deben tener ticket_type_id UUID
+    const invalidTicketIds = ticketItems.filter(
+      (item) => !item.ticket_type_id || !isUuidLike(item.ticket_type_id)
+    );
+    if (invalidTicketIds.length > 0) {
+      toast({
+        title: "Error",
+        description: "Algunos tickets no tienen ID válido. Por favor, vuelve a seleccionar tus entradas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validación 2: todos los items deben tener quantity > 0
+    const invalidQty = ticketItems.filter(
+      (item) => typeof item.quantity !== "number" || item.quantity <= 0
+    );
+    if (invalidQty.length > 0) {
+      toast({
+        title: "Error",
+        description: "Algunos items tienen cantidad inválida.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validación 3: todos los items deben tener price como número
+    const invalidPrice = ticketItems.filter(
+      (item) => typeof item.price !== "number"
+    );
+    if (invalidPrice.length > 0) {
+      toast({
+        title: "Error",
+        description: "Algunos items tienen precio inválido.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsProcessing(true);
     
     try {
-      // Construir items desde el carrito (solo tickets) con formato qty
-      const orderItems: OrderItemPayload[] = cartState.items
-        .filter((item) => item.type === "ticket")
-        .map((item) => ({
-          kind: "ticket" as const,
-          ticket_type_id: isUuidLike(item.id) ? item.id : null,
-          name: item.name,
-          price: item.price ?? 0,
-          qty: item.quantity,
-        }));
+      // Construir items con formato del contrato backend: { ticket_type_id, quantity }
+      const orderItems: OrderItemPayload[] = ticketItems.map((item) => ({
+        ticket_type_id: item.ticket_type_id!, // Ya validado como UUID
+        quantity: Number(item.quantity), // Usar quantity (no qty)
+      }));
+
+      // Validación 4: debe haber al menos un item para enviar
+      if (orderItems.length === 0) {
+        toast({
+          title: "Error",
+          description: "No hay entradas válidas en el carrito.",
+          variant: "destructive",
+        });
+        setIsProcessing(false);
+        return;
+      }
 
       // Calcular cantidad total desde items
-      const totalQty = orderItems.reduce((sum, i) => sum + i.qty, 0) || 1;
+      const totalQty = orderItems.reduce((sum, i) => sum + i.quantity, 0) || 1;
 
       const order = await createOrder({
         local_id: firstItem.localId,
@@ -135,7 +191,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
         customer_last_name: formData.lastName,
         customer_phone: formData.phone,
         customer_document: formData.cedula,
-        items: orderItems.length > 0 ? orderItems : undefined,
+        items: orderItems, // Siempre enviar items (ya validados)
       });
 
       setOrderCreated(order);
@@ -251,6 +307,31 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                     </>
                   )}
 
+                  {/* Banner de advertencia para items inválidos (legacy) */}
+                  {cartState.hasInvalidItems && (
+                    <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg space-y-3">
+                      <p className="text-sm font-medium text-destructive">
+                        Tu carrito tiene items desactualizados que no se pueden procesar.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Por favor, vacía el carrito y vuelve a seleccionar tus entradas.
+                      </p>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={() => {
+                          clearCart();
+                          toast({
+                            title: "Carrito vaciado",
+                            description: "Ahora puedes seleccionar nuevas entradas.",
+                          });
+                        }}
+                      >
+                        Vaciar carrito
+                      </Button>
+                    </div>
+                  )}
+
                   {cartState.items.length === 0 ? (
                     <div className="text-center py-8">
                       <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
@@ -261,7 +342,11 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                       {cartState.items.map((item, index) => (
                         <div 
                           key={`${item.type}-${item.id}-${index}`} 
-                          className="group relative p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                          className={`group relative p-3 rounded-lg border transition-colors ${
+                            item._invalid 
+                              ? "border-destructive/50 bg-destructive/5" 
+                              : "bg-card hover:bg-muted/30"
+                          }`}
                         >
                           <Button
                             variant="ghost"
@@ -286,6 +371,11 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                                 {item.type === 'ticket' && (
                                   <Badge variant="default" className="text-xs">
                                     Entrada
+                                  </Badge>
+                                )}
+                                {item._invalid && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Inválido
                                   </Badge>
                                 )}
                               </div>
@@ -429,7 +519,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                   type="submit" 
                   className="w-full" 
                   size="lg"
-                  disabled={isProcessing || cartState.items.length === 0 || !acceptedTerms}
+                  disabled={isProcessing || cartState.items.length === 0 || !acceptedTerms || cartState.hasInvalidItems}
                 >
                   {isProcessing ? "Procesando..." : `Pagar ${formatPYG(cartState.total)}`}
                 </Button>
