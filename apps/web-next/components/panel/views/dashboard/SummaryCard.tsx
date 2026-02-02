@@ -1,6 +1,6 @@
 import * as React from "react";
-import { BarChart3, Info } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../ui";
+import { BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, InfoTip } from "../../ui";
 import { RangeToggle, type RangeValue } from "./RangeToggle";
 
 export interface SummaryMetric {
@@ -56,17 +56,7 @@ export function SummaryCard({
           <div key={index} className="space-y-0.5">
             <div className="flex items-center gap-1 text-xs text-neutral-500">
               <span>{metric.label}</span>
-              {metric.tooltip && (
-                <span
-                  tabIndex={0}
-                  role="button"
-                  aria-label={metric.tooltip}
-                  title={metric.tooltip}
-                  className="inline-flex cursor-help rounded-full focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-1"
-                >
-                  <Info className="h-3.5 w-3.5 text-neutral-400 hover:text-neutral-600" />
-                </span>
-              )}
+              {metric.tooltip && <InfoTip text={metric.tooltip} />}
             </div>
             <div
               className={`text-2xl font-bold ${colorMap[metric.color ?? "default"]}`}

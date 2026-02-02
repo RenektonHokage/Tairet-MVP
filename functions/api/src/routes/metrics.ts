@@ -384,6 +384,22 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       used: ordersUsedBuckets.get(bucket) ?? 0,
     }));
 
+    // ----- Series: revenue_paid (ingresos pagados por bucket) -----
+    // Misma definición que kpis.revenue_paid: SUM(total_amount) de orders status=paid
+    const revenuePaidBuckets = initBucketMap(emptyBuckets, () => 0);
+    for (const order of ordersData ?? []) {
+      if (order.status !== "paid") continue;
+      const amount = Number(order.total_amount ?? 0);
+      if (Number.isNaN(amount)) continue;
+      const bucket = dateToBucket(new Date(order.created_at), bucketMode);
+      revenuePaidBuckets.set(bucket, (revenuePaidBuckets.get(bucket) ?? 0) + amount);
+    }
+
+    const revenuePaidSeries = emptyBuckets.map((bucket) => ({
+      bucket,
+      value: revenuePaidBuckets.get(bucket) ?? 0,
+    }));
+
     // =========================================================================
     // Response con series y kpis_range (semántica A)
     // =========================================================================
@@ -393,6 +409,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
         tickets_sold: ticketsSold, // SUM(qty) de orders creadas en rango, status=paid
         tickets_used: ticketsUsedSemanticA, // SUM(qty) de orders con used_at en rango, status=paid
         avg_party_size_confirmed: avgPartySizeConfirmed, // AVG(guests) de reservas confirmadas, null si no hay
+        revenue_paid: revenuePaid, // SUM(total_amount) de orders status=paid en rango
       },
       series: {
         bucket_mode: bucketMode, // "day" | "week"
@@ -405,6 +422,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
           ...(reservationsBuckets.get(bucket) ?? { confirmed: 0, pending: 0, cancelled: 0 }),
         })),
         orders_sold_used: ordersSoldUsedSeries,
+        revenue_paid: revenuePaidSeries,
       },
     });
   } catch (error) {

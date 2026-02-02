@@ -52,10 +52,16 @@ export interface OrdersSoldUsedBucket {
   used: number;
 }
 
+export interface RevenuePaidBucket {
+  bucket: string;
+  value: number;
+}
+
 export interface MetricsKpisRange {
   tickets_sold: number; // Semántica A: SUM(qty) orders creadas en rango
   tickets_used: number; // Semántica A: SUM(qty) orders con used_at en rango
   avg_party_size_confirmed?: number | null; // AVG(guests) de reservas confirmadas
+  revenue_paid?: number; // SUM(total_amount) de orders status=paid en rango
 }
 
 export interface MetricsSeries {
@@ -63,6 +69,7 @@ export interface MetricsSeries {
   profile_views: ProfileViewBucket[];
   reservations_by_status: ReservationStatusBucket[];
   orders_sold_used: OrdersSoldUsedBucket[];
+  revenue_paid?: RevenuePaidBucket[];
 }
 
 export interface MetricsSummaryWithSeries extends MetricsSummary {

@@ -1,7 +1,7 @@
 "use client";
 
-import { DashboardSandboxView } from "@/components/panel/views/DashboardSandboxView";
+import { LineupView } from "@/components/panel/views/lineup/LineupView";
 
 export default function LineupPage() {
-  return <DashboardSandboxView />;
+  return <LineupView />;
 }
