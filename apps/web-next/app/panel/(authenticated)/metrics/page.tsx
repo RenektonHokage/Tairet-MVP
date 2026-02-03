@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePanelContext } from "@/lib/panelContext";
 import {
   getPanelMetricsSummaryWithSeries,
@@ -8,17 +8,9 @@ import {
 } from "@/lib/metrics";
 import { getPanelActivity, type ActivityItem } from "@/lib/activity";
 import { getClubBreakdown, type ClubBreakdown } from "@/lib/metricsBreakdown";
-import {
-  InfoTip,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  LineChartSimple,
-  BarChartGrouped,
-  cn,
-  panelUi,
-} from "@/components/panel/ui";
+import { Card, CardContent, CardHeader, CardTitle, cn, panelUi } from "@/components/panel/ui";
+import { TicketsByTypeCard } from "@/components/panel/views/metrics/TicketsByTypeCard";
+import { LineupBarView } from "@/components/panel/views/lineup/LineupBarView";
 import {
   CheckCircle2,
   ClipboardList,
@@ -31,19 +23,28 @@ import {
   Megaphone,
   CalendarDays,
   RefreshCw,
-  Clock,
 } from "lucide-react";
 
 type Period = "7d" | "30d" | "90d";
-type TrendMode = "entries" | "revenue";
-
-type RevenueBucket = { bucket: string; value: number };
+type PanelContextData = NonNullable<ReturnType<typeof usePanelContext>["data"]>;
 
 const getPeriodDates = (period: Period): { from: string; to: string } => {
   const to = new Date();
   const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
   return { from: from.toISOString(), to: to.toISOString() };
+};
+
+const getPreviousRange = (range: { from: string; to: string }) => {
+  const fromMs = new Date(range.from).getTime();
+  const toMs = new Date(range.to).getTime();
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return null;
+  const durationMs = toMs - fromMs;
+  if (durationMs <= 0) return null;
+  return {
+    from: new Date(fromMs - durationMs).toISOString(),
+    to: new Date(fromMs).toISOString(),
+  };
 };
 
 const periodLabels: Record<Period, string> = {
@@ -74,7 +75,28 @@ const activityIcons: Record<ActivityItem["type"], ReactNode> = {
   profile_view: <Eye className="h-4 w-4" />,
 };
 
-const deltaPlaceholder = "— vs período anterior";
+type DeltaTone = "positive" | "negative" | "neutral";
+
+const deltaToneClass: Record<DeltaTone, string> = {
+  positive: "text-emerald-600",
+  negative: "text-rose-600",
+  neutral: "text-neutral-400",
+};
+
+const formatDelta = (current: number, previous?: number | null) => {
+  if (previous == null || previous <= 0) {
+    return { text: "Sin datos previos", tone: "neutral" as const };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  const sign = pct > 0 ? "+" : "";
+  const tone: DeltaTone = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  return { text: `${sign}${pct}% vs período anterior`, tone };
+};
+
+const renderDelta = (current: number, previous?: number | null) => {
+  const result = formatDelta(current, previous);
+  return <span className={deltaToneClass[result.tone]}>{result.text}</span>;
+};
 
 const formatNumber = (value: number) => new Intl.NumberFormat("es-PY").format(value);
 
@@ -91,13 +113,6 @@ const iconWrap = (icon: ReactNode) => (
     {icon}
   </span>
 );
-
-const formatBucketLabel = (bucket: string, mode: "day" | "week") => {
-  const date = new Date(bucket);
-  if (Number.isNaN(date.getTime())) return bucket;
-  const label = date.toLocaleDateString("es-PY", { day: "2-digit", month: "2-digit" });
-  return mode === "week" ? `Sem ${label}` : label;
-};
 
 function formatTime(isoString: string): string {
   try {
@@ -154,40 +169,48 @@ function KpiGrid({ items }: { items: KpiItem[] }) {
   );
 }
 
-export default function MetricsPage() {
-  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
+function ClubMetricsContent({ context }: { context: PanelContextData }) {
   const [period, setPeriod] = useState<Period>("7d");
 
   // Club (discotecas) state
   const [clubSummary, setClubSummary] = useState<MetricsSummaryWithSeries | null>(null);
+  const [clubSummaryPrev, setClubSummaryPrev] = useState<MetricsSummaryWithSeries | null>(null);
   const [clubBreakdown, setClubBreakdown] = useState<ClubBreakdown | null>(null);
   const [clubActivity, setClubActivity] = useState<ActivityItem[]>([]);
   const [clubLoading, setClubLoading] = useState(true);
   const [clubError, setClubError] = useState<string | null>(null);
-  const [trendMode, setTrendMode] = useState<TrendMode>("entries");
   const activityLoadedRef = useRef(false);
-
-  // Bar state (mantener layout existente)
-  const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const isClub = context?.local.type === "club";
-  const isBar = context?.local.type === "bar";
+  const clubFetchKeyRef = useRef<string | null>(null);
+  const clubPeriodRangeRef = useRef<{ period: Period; range: { from: string; to: string } } | null>(
+    null
+  );
 
   useEffect(() => {
-    if (contextLoading || !context || !isClub) return;
+    if (context.local.type !== "club") return;
+
+    let range: { from: string; to: string };
+    if (!clubPeriodRangeRef.current || clubPeriodRangeRef.current.period !== period) {
+      range = getPeriodDates(period);
+      clubPeriodRangeRef.current = { period, range };
+    } else {
+      range = clubPeriodRangeRef.current.range;
+    }
+
+    const fetchKey = `${period}-${range.from}-${range.to}`;
+    if (clubFetchKeyRef.current === fetchKey) return;
+    clubFetchKeyRef.current = fetchKey;
+    const prevRange = getPreviousRange(range);
 
     const loadClubData = async () => {
       setClubLoading(true);
       setClubError(null);
       try {
-        const { from, to } = getPeriodDates(period);
-        const [summaryResult, breakdownResult] = await Promise.allSettled([
-          getPanelMetricsSummaryWithSeries({ from, to }),
-          getClubBreakdown(period),
-        ]);
+        const [summaryResult, prevSummaryResult, breakdownResult] =
+          await Promise.allSettled([
+            getPanelMetricsSummaryWithSeries(range),
+            prevRange ? getPanelMetricsSummaryWithSeries(prevRange) : Promise.resolve(null),
+            getClubBreakdown(period),
+          ]);
 
         if (summaryResult.status === "fulfilled") {
           setClubSummary(summaryResult.value);
@@ -197,6 +220,12 @@ export default function MetricsPage() {
               ? summaryResult.reason.message
               : "Error al cargar métricas"
           );
+        }
+
+        if (prevSummaryResult.status === "fulfilled") {
+          setClubSummaryPrev(prevSummaryResult.value as MetricsSummaryWithSeries | null);
+        } else {
+          setClubSummaryPrev(null);
         }
 
         if (breakdownResult.status === "fulfilled") {
@@ -212,10 +241,10 @@ export default function MetricsPage() {
     };
 
     loadClubData();
-  }, [contextLoading, context, isClub, period]);
+  }, [context, period]);
 
   useEffect(() => {
-    if (contextLoading || !context || (!isClub && !isBar)) return;
+    if (context.local.type !== "club") return;
     if (activityLoadedRef.current) return;
     activityLoadedRef.current = true;
 
@@ -224,38 +253,16 @@ export default function MetricsPage() {
         const activityData = await getPanelActivity();
         const items = activityData.items ?? [];
         setClubActivity(items);
-        setActivity(items.slice(0, 10));
       } catch (err) {
         const message = err instanceof Error ? err.message : "Error al cargar actividad";
-        if (isClub) setClubError(message);
-        if (isBar) setError(message);
+        setClubError(message);
       }
     };
 
     loadActivity();
-  }, [contextLoading, context, isClub, isBar]);
+  }, [context]);
 
-  useEffect(() => {
-    if (contextLoading || !context || !isBar) return;
-
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { from, to } = getPeriodDates(period);
-        const metricsData = await getPanelMetricsSummaryWithSeries({ from, to });
-        setMetrics(metricsData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar métricas");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, [contextLoading, context, isBar, period]);
-
-  if (contextLoading) {
+  if (clubLoading) {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 rounded bg-neutral-200/70 animate-pulse" />
@@ -268,137 +275,97 @@ export default function MetricsPage() {
     );
   }
 
-  if (contextError || !context) {
+  if (clubError) {
     return (
       <div className={panelUi.emptyWrap}>
-        <p className="text-sm text-neutral-600">
-          {contextError || "No se pudo cargar la información del panel."}
-        </p>
+        <p className="text-sm text-neutral-600">{clubError}</p>
       </div>
     );
   }
 
-  if (isClub) {
-    if (clubLoading) {
-      return (
-        <div className="space-y-6">
-          <div className="h-8 w-48 rounded bg-neutral-200/70 animate-pulse" />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
-            ))}
-          </div>
-        </div>
-      );
-    }
+  if (!clubSummary) {
+    return (
+      <div className={panelUi.emptyWrap}>
+        <p className="text-sm text-neutral-600">No hay datos disponibles</p>
+      </div>
+    );
+  }
 
-    if (clubError) {
-      return (
-        <div className={panelUi.emptyWrap}>
-          <p className="text-sm text-neutral-600">{clubError}</p>
-        </div>
-      );
-    }
-
-    if (!clubSummary) {
-      return (
-        <div className={panelUi.emptyWrap}>
-          <p className="text-sm text-neutral-600">No hay datos disponibles</p>
-        </div>
-      );
-    }
-
-    const revenueRange =
+  const revenueRange =
       (clubSummary as unknown as { kpis_range?: { revenue_paid?: number } }).kpis_range
         ?.revenue_paid ?? clubSummary.kpis.revenue_paid;
 
     const revenueValue =
       revenueRange > 0 ? formatCurrency(revenueRange) : "Aún no hay ingresos";
+    const prevRevenueRange =
+      (clubSummaryPrev as unknown as { kpis_range?: { revenue_paid?: number } }).kpis_range
+        ?.revenue_paid ?? clubSummaryPrev?.kpis.revenue_paid;
+
+    const currentTicketsSold =
+      clubSummary.kpis_range?.tickets_sold ?? clubSummary.kpis.tickets_sold ?? 0;
+    const currentTicketsUsed =
+      clubSummary.kpis_range?.tickets_used ?? clubSummary.kpis.tickets_used ?? 0;
+    const prevTicketsSold =
+      clubSummaryPrev?.kpis_range?.tickets_sold ?? clubSummaryPrev?.kpis.tickets_sold;
+    const prevTicketsUsed =
+      clubSummaryPrev?.kpis_range?.tickets_used ?? clubSummaryPrev?.kpis.tickets_used;
 
     const kpiItems: KpiItem[] = [
       {
         label: "Visitas al perfil",
         value: formatNumber(clubSummary.kpis.profile_views),
-        hint: deltaPlaceholder,
+        hint: renderDelta(clubSummary.kpis.profile_views, clubSummaryPrev?.kpis.profile_views),
         icon: iconWrap(<Eye className="h-5 w-5" />),
       },
       {
         label: "Clicks WhatsApp",
         value: formatNumber(clubSummary.kpis.whatsapp_clicks),
-        hint: deltaPlaceholder,
+        hint: renderDelta(clubSummary.kpis.whatsapp_clicks, clubSummaryPrev?.kpis.whatsapp_clicks),
         icon: iconWrap(<MessageCircle className="h-5 w-5" />),
       },
       {
         label: "Promociones vistas",
         value: formatNumber(clubSummary.kpis.promo_open_count),
-        hint: deltaPlaceholder,
+        hint: renderDelta(clubSummary.kpis.promo_open_count, clubSummaryPrev?.kpis.promo_open_count),
         icon: iconWrap(<Sparkles className="h-5 w-5" />),
       },
       {
         label: "Promo destacada",
         value: clubSummary.kpis.top_promo?.title ?? "Sin datos",
-        hint: deltaPlaceholder,
+        hint: "—",
         icon: iconWrap(<Star className="h-5 w-5" />),
       },
       {
         label: "Órdenes totales",
         value: formatNumber(clubSummary.kpis.orders_total),
-        hint: deltaPlaceholder,
+        hint: renderDelta(clubSummary.kpis.orders_total, clubSummaryPrev?.kpis.orders_total),
         icon: iconWrap(<ClipboardList className="h-5 w-5" />),
       },
       {
         label: "Entradas vendidas",
-        value: formatNumber(clubSummary.kpis_range.tickets_sold),
-        hint: deltaPlaceholder,
+        value: formatNumber(currentTicketsSold),
+        hint: renderDelta(currentTicketsSold, prevTicketsSold),
         icon: iconWrap(<Ticket className="h-5 w-5" />),
       },
       {
         label: "Entradas usadas",
-        value: formatNumber(clubSummary.kpis_range.tickets_used),
-        hint: deltaPlaceholder,
+        value: formatNumber(currentTicketsUsed),
+        hint: renderDelta(currentTicketsUsed, prevTicketsUsed),
         icon: iconWrap(<CheckCircle2 className="h-5 w-5" />),
       },
       {
         label: "Ingresos (pagados)",
         value: revenueValue,
-        hint: deltaPlaceholder,
+        hint: renderDelta(revenueRange, prevRevenueRange),
         icon: iconWrap(<DollarSign className="h-5 w-5" />),
       },
     ];
 
-    const entriesChartData = useMemo(
-      () =>
-        clubSummary.series.orders_sold_used.map((bucket) => ({
-          label: formatBucketLabel(bucket.bucket, clubSummary.series.bucket_mode),
-          vendidas: bucket.sold,
-          usadas: bucket.used,
-        })),
-      [clubSummary]
-    );
-
-    const revenueSeries =
-      (clubSummary.series as unknown as { revenue_paid?: RevenueBucket[] }).revenue_paid ??
-      [];
-
-    const revenueChartData = useMemo(
-      () =>
-        revenueSeries.map((bucket) => ({
-          label: formatBucketLabel(bucket.bucket, clubSummary.series.bucket_mode),
-          value: bucket.value,
-        })),
-      [clubSummary, revenueSeries]
-    );
-
-    const hasEntriesData = entriesChartData.some(
-      (item) => item.vendidas > 0 || item.usadas > 0
-    );
-    const hasRevenueData = revenueChartData.some((item) => item.value > 0);
-
     const breakdownTickets = clubBreakdown?.tickets_top ?? [];
     const breakdownTables = clubBreakdown?.tables_interest_top ?? [];
 
-    return (
-      <div className="space-y-6">
+  return (
+    <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
@@ -436,116 +403,16 @@ export default function MetricsPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-col gap-2">
-              <CardTitle>Entradas por tipo</CardTitle>
-              <p className={panelUi.pageSubtitle}>
-                Rango (breakdown): window {period} (server-side). Órdenes con check-in cuenta
-                órdenes, no qty.
-              </p>
-            </CardHeader>
-            <CardContent>
-              {breakdownTickets.length > 0 ? (
-                <div className="overflow-hidden rounded-2xl border border-neutral-100">
-                  <table className="min-w-full">
-                    <thead className={panelUi.tableHead}>
-                      <tr>
-                        <th className="px-4 py-3 text-left">Tipo</th>
-                        <th className="px-4 py-3 text-right">Vendidas (qty)</th>
-                        <th className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <span>Órdenes con check-in</span>
-                            <InfoTip text="Órdenes con check-in = cantidad de órdenes marcadas como usadas en el período (no suma quantity)." />
-                          </div>
-                        </th>
-                        <th className="px-4 py-3 text-right">Ingresos (PYG)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {breakdownTickets.map((ticket, index) => (
-                        <tr key={ticket.ticket_type_id ?? index} className={panelUi.tableRow}>
-                          <td className={panelUi.tableCell}>
-                            {ticket.ticket_type_id === null
-                              ? `${ticket.name} (legacy)`
-                              : ticket.name}
-                          </td>
-                          <td className={cn(panelUi.tableCell, "text-right")}>${""}{formatNumber(ticket.sold_qty)}</td>
-                          <td className={cn(panelUi.tableCell, "text-right text-neutral-600")}>${""}{formatNumber(ticket.used_orders)}</td>
-                          <td className={cn(panelUi.tableCell, "text-right font-medium text-neutral-900")}>${""}{formatCurrency(ticket.revenue)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className={panelUi.emptyWrap}>
-                  <p className="text-sm text-neutral-500">Aún no hay datos</p>
-                </div>
-              )}
-
-              <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-neutral-900">Tendencia en el tiempo</h4>
-                    <p className="text-xs text-neutral-500">
-                      {trendMode === "entries"
-                        ? "Suma de entradas vendidas (qty) en el período."
-                        : "Suma de pagos confirmados (PYG) en el período."}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-full bg-neutral-100 p-1 text-xs font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setTrendMode("entries")}
-                      className={cn(
-                        "rounded-full px-3 py-1 transition-colors",
-                        trendMode === "entries"
-                          ? "bg-white text-neutral-900 shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-900"
-                      )}
-                    >
-                      Entradas
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTrendMode("revenue")}
-                      className={cn(
-                        "rounded-full px-3 py-1 transition-colors",
-                        trendMode === "revenue"
-                          ? "bg-white text-neutral-900 shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-900"
-                      )}
-                    >
-                      Ingresos
-                    </button>
-                  </div>
-                </div>
-
-                {trendMode === "entries" ? (
-                  hasEntriesData ? (
-                    <BarChartGrouped
-                      data={entriesChartData}
-                      series={[
-                        { dataKey: "vendidas", name: "Vendidas", color: "#3b82f6" },
-                        { dataKey: "usadas", name: "Usadas", color: "#10b981" },
-                      ]}
-                      height={200}
-                    />
-                  ) : (
-                    <div className={panelUi.emptyWrap}>
-                      <p className="text-sm text-neutral-500">Aún no hay datos</p>
-                    </div>
-                  )
-                ) : hasRevenueData ? (
-                  <LineChartSimple data={revenueChartData} height={200} color="#8d1313" />
-                ) : (
-                  <div className={panelUi.emptyWrap}>
-                    <p className="text-sm text-neutral-500">Aún no hay ingresos</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <TicketsByTypeCard
+            periodLabel={periodLabels[period]}
+            tickets={breakdownTickets}
+            entriesSeries={clubSummary.series?.orders_sold_used ?? []}
+            revenueSeries={
+              (clubSummary.series as unknown as { revenue_paid?: { bucket: string; value: number }[] })
+                ?.revenue_paid ?? []
+            }
+            bucketMode={clubSummary.series?.bucket_mode ?? "day"}
+          />
 
           <Card>
             <CardHeader>
@@ -636,197 +503,51 @@ export default function MetricsPage() {
             )}
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  // ----- Bar layout (no tocar en este prompt) -----
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse" />
-          ))}
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-gray-900">Métricas</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={() => setPeriod(period)}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!metrics) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-gray-900">Métricas</h1>
-        <p className="text-gray-600">No hay datos disponibles</p>
-      </div>
-    );
-  }
-
-  const { kpis } = metrics;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Métricas</h1>
-          <p className="text-gray-600 mt-1">Período: {periodLabels[period]}</p>
-        </div>
-        <div className="flex gap-2">
-          {(["7d", "30d", "90d"] as Period[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                period === p
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {periodLabels[p]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Engagement</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricCard label="Visitas al Perfil" value={kpis.profile_views} icon="👁️" />
-          <MetricCard label="Clicks WhatsApp" value={kpis.whatsapp_clicks} icon="💬" />
-          <MetricCard label="Promos Vistas" value={kpis.promo_open_count} icon="🎯" />
-          <MetricCard
-            label="Promo Top"
-            value={kpis.top_promo?.title ?? "—"}
-            subtitle={kpis.top_promo ? `${kpis.top_promo.view_count} vistas` : undefined}
-            icon="🏆"
-          />
-        </div>
-      </div>
-
-      {isBar && (
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-800 mb-3">Reservas</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard label="Total Reservas" value={kpis.reservations_total} icon="📅" />
-            <MetricCard
-              label="En Revisión"
-              value={kpis.reservations_en_revision}
-              icon="⏳"
-              color="yellow"
-            />
-            <MetricCard
-              label="Confirmadas"
-              value={kpis.reservations_confirmed}
-              icon="✅"
-              color="green"
-            />
-            <MetricCard
-              label="Canceladas"
-              value={kpis.reservations_cancelled}
-              icon="❌"
-              color="red"
-            />
-          </div>
-        </div>
-      )}
-
-      <div>
-        <h2 className="text-lg font-semibold text-neutral-800 mb-3">
-          Actividad Reciente
-          <span className="text-sm font-normal text-neutral-500 ml-2">(últimos eventos)</span>
-        </h2>
-        {activity.length > 0 ? (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
-                    Tipo
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
-                    Descripción
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-neutral-500 uppercase">
-                    Hora
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {activity.map((item, index) => (
-                  <tr key={index}>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {activityLabels[item.type] ?? item.type}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{item.label}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {formatTime(item.timestamp)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-            <p className="text-sm text-neutral-500">No hay actividad reciente</p>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
-// ============================================================
-// Componentes auxiliares (Bar)
-// ============================================================
-
-interface MetricCardProps {
-  label: string;
-  value: string | number;
-  subtitle?: string;
-  icon: string;
-  color?: "default" | "green" | "yellow" | "red";
+function BarMetricsContent() {
+  return <LineupBarView />;
 }
 
-function MetricCard({ label, value, subtitle, icon, color = "default" }: MetricCardProps) {
-  const colorClasses = {
-    default: "bg-white",
-    green: "bg-green-50 border-green-200",
-    yellow: "bg-yellow-50 border-yellow-200",
-    red: "bg-red-50 border-red-200",
-  };
+export default function MetricsPage() {
+  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
+
+  if (contextLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-8 w-48 rounded bg-neutral-200/70 animate-pulse" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (contextError || !context) {
+    return (
+      <div className={panelUi.emptyWrap}>
+        <p className="text-sm text-neutral-600">
+          {contextError || "No se pudo cargar la información del panel."}
+        </p>
+      </div>
+    );
+  }
+
+  if (context.local.type === "club") {
+    return <ClubMetricsContent context={context} />;
+  }
+
+  if (context.local.type === "bar") {
+    return <BarMetricsContent />;
+  }
 
   return (
-    <div className={`${colorClasses[color]} border rounded-lg p-4 shadow-sm`}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl">{icon}</span>
-        <span className="text-xs font-medium text-gray-500 uppercase">{label}</span>
-      </div>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+    <div className={panelUi.emptyWrap}>
+      <p className="text-sm text-neutral-600">No hay datos disponibles</p>
     </div>
   );
 }

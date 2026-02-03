@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -35,6 +35,16 @@ import {
   cn,
   panelUi,
 } from "@/components/panel/ui";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 interface LineupKpiItem {
   label: ReactNode;
@@ -45,7 +55,6 @@ interface LineupKpiItem {
 
 type Period = "7d" | "30d" | "90d";
 type TrendMode = "entries" | "revenue";
-
 const periodLabels: Record<Period, string> = {
   "7d": "7 días",
   "30d": "30 días",
@@ -79,6 +88,41 @@ const getPeriodDates = (period: Period): { from: string; to: string } => {
   const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
   return { from: from.toISOString(), to: to.toISOString() };
+};
+
+const getPreviousRange = (range: { from: string; to: string }) => {
+  const fromMs = new Date(range.from).getTime();
+  const toMs = new Date(range.to).getTime();
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return null;
+  const durationMs = toMs - fromMs;
+  if (durationMs <= 0) return null;
+  return {
+    from: new Date(fromMs - durationMs).toISOString(),
+    to: new Date(fromMs).toISOString(),
+  };
+};
+
+type DeltaTone = "positive" | "negative" | "neutral";
+
+const deltaToneClass: Record<DeltaTone, string> = {
+  positive: "text-emerald-600",
+  negative: "text-rose-600",
+  neutral: "text-neutral-400",
+};
+
+const formatDelta = (current: number, previous?: number | null) => {
+  if (previous == null || previous <= 0) {
+    return { text: "Sin datos previos", tone: "neutral" as const };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  const sign = pct > 0 ? "+" : "";
+  const tone: DeltaTone = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  return { text: `${sign}${pct}% vs período anterior`, tone };
+};
+
+const renderDelta = (current: number, previous?: number | null) => {
+  const result = formatDelta(current, previous);
+  return <span className={deltaToneClass[result.tone]}>{result.text}</span>;
 };
 
 const formatNumber = (value: number) => new Intl.NumberFormat("es-PY").format(value);
@@ -139,6 +183,45 @@ function getTicketColor(key: string) {
   return ticketColorPalette[idx];
 }
 
+interface MultiLineSeries {
+  key: string;
+  name: string;
+  color: string;
+}
+
+interface MultiLineChartProps {
+  data: Array<Record<string, number | string>>;
+  series: MultiLineSeries[];
+  height?: number;
+}
+
+function MultiLineChart({ data, series, height = 200 }: MultiLineChartProps) {
+  return (
+    <div className="w-full" style={{ height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} />
+          <Tooltip />
+          <Legend />
+          {series.map((item) => (
+            <Line
+              key={item.key}
+              type="monotone"
+              dataKey={item.key}
+              name={item.name}
+              stroke={item.color}
+              strokeWidth={2}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function LineupKpiGrid({ items }: { items: LineupKpiItem[] }) {
   return (
     <div className="grid gap-4 md:grid-cols-4">
@@ -192,28 +275,62 @@ export function LineupClubView() {
   const [period, setPeriod] = useState<Period>("30d");
   const [trendMode, setTrendMode] = useState<TrendMode>("entries");
   const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
+  const [metricsPrev, setMetricsPrev] = useState<MetricsSummaryWithSeries | null>(null);
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [breakdown, setBreakdown] = useState<ClubBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (contextLoading || !context) return;
     if (context.local.type !== "club") return;
 
+    const range = getPeriodDates(period);
+    const prevRange = getPreviousRange(range);
+    const fetchKey = `${period}-${range.from}-${range.to}`;
+    if (fetchKeyRef.current === fetchKey) return;
+    fetchKeyRef.current = fetchKey;
+
     const loadData = async () => {
       setLoading(true);
       setError(null);
       try {
-        const { from, to } = getPeriodDates(period);
-        const [metricsData, activityData, breakdownData] = await Promise.all([
-          getPanelMetricsSummaryWithSeries({ from, to }),
-          getPanelActivity(),
-          getClubBreakdown(period),
-        ]);
-        setMetrics(metricsData);
-        setActivity(activityData);
-        setBreakdown(breakdownData);
+        const [currentResult, prevResult, activityResult, breakdownResult] =
+          await Promise.allSettled([
+            getPanelMetricsSummaryWithSeries(range),
+            prevRange ? getPanelMetricsSummaryWithSeries(prevRange) : Promise.resolve(null),
+            getPanelActivity(),
+            getClubBreakdown(period),
+          ]);
+
+        if (currentResult.status === "fulfilled") {
+          setMetrics(currentResult.value);
+        } else {
+          setError(
+            currentResult.reason instanceof Error
+              ? currentResult.reason.message
+              : "Error al cargar métricas"
+          );
+        }
+
+        if (prevResult.status === "fulfilled") {
+          setMetricsPrev(prevResult.value as MetricsSummaryWithSeries | null);
+        } else {
+          setMetricsPrev(null);
+        }
+
+        if (activityResult.status === "fulfilled") {
+          setActivity(activityResult.value);
+        } else {
+          setActivity(null);
+        }
+
+        if (breakdownResult.status === "fulfilled") {
+          setBreakdown(breakdownResult.value);
+        } else {
+          setBreakdown(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar datos");
       } finally {
@@ -223,6 +340,52 @@ export function LineupClubView() {
 
     loadData();
   }, [contextLoading, context, period]);
+
+  const activityItems = activity?.items ?? [];
+
+  const bucketMode = metrics?.series?.bucket_mode ?? "day";
+  const revenueSeries = metrics?.series?.revenue_paid ?? [];
+  const ticketsSoldByTypeSeries = metrics?.series?.tickets_sold_by_type ?? [];
+  const ticketTypesMeta = metrics?.series?.ticket_types_meta ?? [];
+
+  const ticketSeriesList = useMemo(
+    () =>
+      ticketTypesMeta.map((item) => ({
+        key: item.key,
+        name: item.name,
+        color: getTicketColor(item.key),
+      })),
+    [ticketTypesMeta]
+  );
+
+  const ticketSeriesData = useMemo(() => {
+    if (ticketsSoldByTypeSeries.length === 0 || ticketSeriesList.length === 0) {
+      return [];
+    }
+
+    return ticketsSoldByTypeSeries.map((bucket) => {
+      const row: Record<string, number | string> = {
+        label: formatBucketLabel(bucket.bucket, bucketMode),
+      };
+      for (const meta of ticketSeriesList) {
+        row[meta.key] = bucket.values?.[meta.key] ?? 0;
+      }
+      return row;
+    });
+  }, [bucketMode, ticketSeriesList, ticketsSoldByTypeSeries]);
+
+  const hasEntriesData =
+    ticketSeriesList.length > 0 &&
+    ticketSeriesData.some((row) =>
+      ticketSeriesList.some((serie) => Number(row[serie.key] ?? 0) > 0)
+    );
+
+  const hasRevenueSeries = revenueSeries.length > 0;
+  const hasRevenueData = revenueSeries.some((item) => item.value > 0);
+  const revenueLineData: LineChartDataPoint[] = revenueSeries.map((item) => ({
+    label: formatBucketLabel(item.bucket, bucketMode),
+    value: item.value,
+  }));
 
   if (contextLoading) {
     return (
@@ -251,55 +414,41 @@ export function LineupClubView() {
     return <DashboardSandboxView />;
   }
 
-  const activityItems = activity?.items ?? [];
-
-  // Chart: usar series reales del backend (orders_sold_used)
-  const bucketMode = metrics?.series?.bucket_mode ?? "day";
-  const ordersSeries = metrics?.series?.orders_sold_used ?? [];
-  const trendData = ordersSeries.map((p) => ({
-    label: formatBucketLabel(p.bucket, bucketMode),
-    vendidas: p.sold,
-    usadas: p.used,
-  }));
-  const hasEntriesData = trendData.some((item) => item.vendidas > 0 || item.usadas > 0);
-
-  // LineChart solo acepta value, así que mostramos "vendidas" como línea principal
-  const entriesLineData: LineChartDataPoint[] = trendData.map((item) => ({
-    label: item.label,
-    value: item.vendidas,
-  }));
-
-  // Chart: serie de ingresos (revenue_paid)
-  const revenueSeries = metrics?.series?.revenue_paid ?? [];
-  const hasRevenueSeries = revenueSeries.length > 0;
-  const hasRevenueData = revenueSeries.some((item) => item.value > 0);
-  const revenueLineData: LineChartDataPoint[] = revenueSeries.map((p) => ({
-    label: formatBucketLabel(p.bucket, bucketMode),
-    value: p.value,
-  }));
-
   const ticketsByType = breakdown?.tickets_top ?? [];
   const tablesInterest = breakdown?.tables_interest_top ?? [];
   const maxInterest = Math.max(0, ...tablesInterest.map((item) => item.interest_count ?? 0));
 
   const deltaPlaceholder = kpiDeltaPlaceholder;
+  const currentTicketsSold =
+    metrics?.kpis_range?.tickets_sold ?? metrics?.kpis.tickets_sold ?? 0;
+  const currentTicketsUsed =
+    metrics?.kpis_range?.tickets_used ?? metrics?.kpis.tickets_used ?? 0;
+  const currentRevenuePaid =
+    metrics?.kpis_range?.revenue_paid ?? metrics?.kpis.revenue_paid ?? 0;
+  const prevTicketsSold =
+    metricsPrev?.kpis_range?.tickets_sold ?? metricsPrev?.kpis.tickets_sold;
+  const prevTicketsUsed =
+    metricsPrev?.kpis_range?.tickets_used ?? metricsPrev?.kpis.tickets_used;
+  const prevRevenuePaid =
+    metricsPrev?.kpis_range?.revenue_paid ?? metricsPrev?.kpis.revenue_paid;
+
   const kpiItems: LineupKpiItem[] = [
     {
       label: "Visitas al perfil",
       value: formatNumber(metrics?.kpis.profile_views ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(metrics?.kpis.profile_views ?? 0, metricsPrev?.kpis.profile_views),
       icon: iconWrap(<Eye className="h-5 w-5" />),
     },
     {
       label: "Clicks a WhatsApp",
       value: formatNumber(metrics?.kpis.whatsapp_clicks ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(metrics?.kpis.whatsapp_clicks ?? 0, metricsPrev?.kpis.whatsapp_clicks),
       icon: iconWrap(<MessageCircle className="h-5 w-5" />),
     },
     {
       label: "Promociones vistas",
       value: formatNumber(metrics?.kpis.promo_open_count ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(metrics?.kpis.promo_open_count ?? 0, metricsPrev?.kpis.promo_open_count),
       icon: iconWrap(<Sparkles className="h-5 w-5" />),
     },
     {
@@ -316,25 +465,25 @@ export function LineupClubView() {
         </span>
       ),
       value: formatNumber(metrics?.kpis.orders_total ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(metrics?.kpis.orders_total ?? 0, metricsPrev?.kpis.orders_total),
       icon: iconWrap(<ClipboardList className="h-5 w-5" />),
     },
     {
       label: "Entradas vendidas",
-      value: formatNumber(metrics?.kpis.tickets_sold ?? 0),
-      hint: deltaPlaceholder,
+      value: formatNumber(currentTicketsSold),
+      hint: renderDelta(currentTicketsSold, prevTicketsSold),
       icon: iconWrap(<Ticket className="h-5 w-5" />),
     },
     {
       label: "Entradas usadas",
-      value: formatNumber(metrics?.kpis.tickets_used ?? 0),
-      hint: deltaPlaceholder,
+      value: formatNumber(currentTicketsUsed),
+      hint: renderDelta(currentTicketsUsed, prevTicketsUsed),
       icon: iconWrap(<CheckCircle2 className="h-5 w-5" />),
     },
     {
       label: "Ingresos pagados (PYG)",
-      value: formatCurrency(metrics?.kpis.revenue_paid ?? 0),
-      hint: deltaPlaceholder,
+      value: formatCurrency(currentRevenuePaid),
+      hint: renderDelta(currentRevenuePaid, prevRevenuePaid),
       icon: iconWrap(<DollarSign className="h-5 w-5" />),
     },
   ];
@@ -416,7 +565,10 @@ export function LineupClubView() {
                       const colorKey = ticket.ticket_type_id ?? ticket.name ?? "legacy";
                       const dotColor = getTicketColor(colorKey);
                       return (
-                        <tr key={`${ticket.ticket_type_id ?? "legacy"}-${index}`} className={panelUi.tableRow}>
+                        <tr
+                          key={`${ticket.ticket_type_id ?? "legacy"}-${index}`}
+                          className={panelUi.tableRow}
+                        >
                           <td className={panelUi.tableCell}>
                             <span className="inline-flex items-center gap-2">
                               <span
@@ -432,7 +584,12 @@ export function LineupClubView() {
                           <td className={cn(panelUi.tableCell, "text-right text-neutral-600")}>
                             {formatNumber(ticket.used_orders)}
                           </td>
-                          <td className={cn(panelUi.tableCell, "text-right font-medium text-neutral-900")}>
+                          <td
+                            className={cn(
+                              panelUi.tableCell,
+                              "text-right font-medium text-neutral-900"
+                            )}
+                          >
                             {formatCurrency(ticket.revenue)}
                           </td>
                         </tr>
@@ -499,7 +656,7 @@ export function LineupClubView() {
 
               {trendMode === "entries" ? (
                 hasEntriesData ? (
-                  <LineChartSimple data={entriesLineData} height={200} color="#8d1313" />
+                  <MultiLineChart data={ticketSeriesData} series={ticketSeriesList} height={200} />
                 ) : (
                   <div className={panelUi.emptyWrap}>
                     <p className="text-sm text-neutral-500">Aún no hay datos</p>
@@ -527,7 +684,10 @@ export function LineupClubView() {
                 {tablesInterest.map((table, index) => {
                   const percent = maxInterest > 0 ? (table.interest_count / maxInterest) * 100 : 0;
                   return (
-                    <Card key={`${table.table_type_id ?? "table"}-${index}`} className="border border-neutral-100">
+                    <Card
+                      key={`${table.table_type_id ?? "table"}-${index}`}
+                      className="border border-neutral-100"
+                    >
                       <CardContent className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-3">

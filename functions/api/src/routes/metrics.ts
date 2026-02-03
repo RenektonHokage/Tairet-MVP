@@ -93,7 +93,7 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       error: ordersError,
     } = await supabase
       .from("orders")
-      .select("id, status, quantity, total_amount, used_at, created_at")
+      .select("id, status, quantity, total_amount, used_at, created_at, items")
       .eq("local_id", localId)
       .gte("created_at", fromIso)
       .lte("created_at", toIso);
@@ -384,6 +384,57 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       used: ordersUsedBuckets.get(bucket) ?? 0,
     }));
 
+    // ----- Series: tickets_sold_by_type (por tipo de entrada) -----
+    const ticketsSoldByTypeBuckets = initBucketMap(
+      emptyBuckets,
+      () => new Map<string, number>()
+    );
+    const ticketTypesMetaMap = new Map<string, string>();
+    const ticketTypesTotals = new Map<string, number>();
+
+    for (const order of ordersData ?? []) {
+      if (order.status !== "paid") continue;
+      const items = Array.isArray(order.items) ? order.items : [];
+      if (items.length === 0) continue;
+      const bucket = dateToBucket(new Date(order.created_at), bucketMode);
+      const bucketMap = ticketsSoldByTypeBuckets.get(bucket);
+      if (!bucketMap) continue;
+
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        if (item.kind !== "ticket") continue;
+        const qty = Number(item.qty ?? 0);
+        if (Number.isNaN(qty) || qty === 0) continue;
+
+        const key = item.ticket_type_id ?? item.name ?? "unknown";
+        const name = item.name ?? "Entrada";
+
+        bucketMap.set(key, (bucketMap.get(key) ?? 0) + qty);
+        ticketTypesTotals.set(key, (ticketTypesTotals.get(key) ?? 0) + qty);
+        if (!ticketTypesMetaMap.has(key)) {
+          ticketTypesMetaMap.set(key, name);
+        }
+      }
+    }
+
+    const ticketsSoldByTypeSeries = emptyBuckets.map((bucket) => {
+      const bucketMap = ticketsSoldByTypeBuckets.get(bucket);
+      const values: Record<string, number> = {};
+      if (bucketMap) {
+        for (const [key, value] of bucketMap.entries()) {
+          if (value !== 0) values[key] = value;
+        }
+      }
+      return { bucket, values };
+    });
+
+    const ticketTypesMeta = Array.from(ticketTypesTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([key]) => ({
+        key,
+        name: ticketTypesMetaMap.get(key) ?? "Entrada",
+      }));
+
     // ----- Series: revenue_paid (ingresos pagados por bucket) -----
     // Misma definición que kpis.revenue_paid: SUM(total_amount) de orders status=paid
     const revenuePaidBuckets = initBucketMap(emptyBuckets, () => 0);
@@ -422,6 +473,8 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
           ...(reservationsBuckets.get(bucket) ?? { confirmed: 0, pending: 0, cancelled: 0 }),
         })),
         orders_sold_used: ordersSoldUsedSeries,
+        tickets_sold_by_type: ticketsSoldByTypeSeries,
+        ticket_types_meta: ticketTypesMeta,
         revenue_paid: revenuePaidSeries,
       },
     });
@@ -692,4 +745,3 @@ metricsRouter.get(
     }
   }
 );
-

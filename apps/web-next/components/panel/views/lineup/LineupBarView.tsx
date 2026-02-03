@@ -72,6 +72,41 @@ const getPeriodDates = (period: Period): { from: string; to: string } => {
   return { from: from.toISOString(), to: to.toISOString() };
 };
 
+const getPreviousRange = (range: { from: string; to: string }) => {
+  const fromMs = new Date(range.from).getTime();
+  const toMs = new Date(range.to).getTime();
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return null;
+  const durationMs = toMs - fromMs;
+  if (durationMs <= 0) return null;
+  return {
+    from: new Date(fromMs - durationMs).toISOString(),
+    to: new Date(fromMs).toISOString(),
+  };
+};
+
+type DeltaTone = "positive" | "negative" | "neutral";
+
+const deltaToneClass: Record<DeltaTone, string> = {
+  positive: "text-emerald-600",
+  negative: "text-rose-600",
+  neutral: "text-neutral-400",
+};
+
+const formatDelta = (current: number, previous?: number | null) => {
+  if (previous == null || previous <= 0) {
+    return { text: "Sin datos previos", tone: "neutral" as const };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  const sign = pct > 0 ? "+" : "";
+  const tone: DeltaTone = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  return { text: `${sign}${pct}% vs período anterior`, tone };
+};
+
+const renderDelta = (current: number, previous?: number | null) => {
+  const result = formatDelta(current, previous);
+  return <span className={deltaToneClass[result.tone]}>{result.text}</span>;
+};
+
 const formatNumber = (value: number) => new Intl.NumberFormat("es-PY").format(value);
 
 const iconWrap = (icon: ReactNode, tone: "neutral" | "blue" | "amber" | "emerald" | "rose") => {
@@ -114,7 +149,7 @@ function formatTime(isoString: string): string {
 interface BarKpiItem {
   label: string;
   value: ReactNode;
-  hint?: string;
+  hint?: ReactNode;
   icon?: ReactNode;
 }
 
@@ -174,23 +209,48 @@ export function LineupBarView() {
   const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
   const [period, setPeriod] = useState<Period>("30d");
   const [summary, setSummary] = useState<MetricsSummaryWithSeries | null>(null);
+  const [summaryPrev, setSummaryPrev] = useState<MetricsSummaryWithSeries | null>(null);
   const [activity, setActivity] = useState<ActivityResponse | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const activityGuardRef = useRef(false);
+  const summaryFetchKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (contextLoading || !context) return;
     if (context.local.type !== "bar") return;
 
+    const range = getPeriodDates(period);
+    const prevRange = getPreviousRange(range);
+    const fetchKey = `${period}-${range.from}-${range.to}`;
+    if (summaryFetchKeyRef.current === fetchKey) return;
+    summaryFetchKeyRef.current = fetchKey;
+
     const fetchSummary = async () => {
       setLoadingSummary(true);
       setError(null);
       try {
-        const { from, to } = getPeriodDates(period);
-        const data = await getPanelMetricsSummaryWithSeries({ from, to });
-        setSummary(data);
+        const [currentResult, prevResult] = await Promise.allSettled([
+          getPanelMetricsSummaryWithSeries(range),
+          prevRange ? getPanelMetricsSummaryWithSeries(prevRange) : Promise.resolve(null),
+        ]);
+
+        if (currentResult.status === "fulfilled") {
+          setSummary(currentResult.value);
+        } else {
+          setError(
+            currentResult.reason instanceof Error
+              ? currentResult.reason.message
+              : "Error al cargar métricas"
+          );
+        }
+
+        if (prevResult.status === "fulfilled") {
+          setSummaryPrev(prevResult.value as MetricsSummaryWithSeries | null);
+        } else {
+          setSummaryPrev(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Error al cargar métricas");
       } finally {
@@ -250,25 +310,26 @@ export function LineupBarView() {
   }
 
   const kpis = summary?.kpis;
+  const prevKpis = summaryPrev?.kpis;
   const deltaPlaceholder = kpiDeltaPlaceholder;
 
   const kpiItems: BarKpiItem[] = [
     {
       label: "Visitas al perfil",
       value: formatNumber(kpis?.profile_views ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(kpis?.profile_views ?? 0, prevKpis?.profile_views),
       icon: iconWrap(<Eye className="h-5 w-5" />, "blue"),
     },
     {
       label: "Clicks de WhatsApp",
       value: formatNumber(kpis?.whatsapp_clicks ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(kpis?.whatsapp_clicks ?? 0, prevKpis?.whatsapp_clicks),
       icon: iconWrap(<MessageCircle className="h-5 w-5" />, "blue"),
     },
     {
       label: "Promos vistas",
       value: formatNumber(kpis?.promo_open_count ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(kpis?.promo_open_count ?? 0, prevKpis?.promo_open_count),
       icon: iconWrap(<Megaphone className="h-5 w-5" />, "blue"),
     },
     {
@@ -280,7 +341,7 @@ export function LineupBarView() {
     {
       label: "Reservas totales",
       value: formatNumber(kpis?.reservations_total ?? 0),
-      hint: deltaPlaceholder,
+      hint: renderDelta(kpis?.reservations_total ?? 0, prevKpis?.reservations_total),
       icon: iconWrap(<CalendarCheck className="h-5 w-5" />, "neutral"),
     },
     {

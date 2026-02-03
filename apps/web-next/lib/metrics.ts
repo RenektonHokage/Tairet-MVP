@@ -52,6 +52,16 @@ export interface OrdersSoldUsedBucket {
   used: number;
 }
 
+export interface TicketsSoldByTypeBucket {
+  bucket: string;
+  values: Record<string, number>;
+}
+
+export interface TicketTypeMeta {
+  key: string;
+  name: string;
+}
+
 export interface RevenuePaidBucket {
   bucket: string;
   value: number;
@@ -69,6 +79,8 @@ export interface MetricsSeries {
   profile_views: ProfileViewBucket[];
   reservations_by_status: ReservationStatusBucket[];
   orders_sold_used: OrdersSoldUsedBucket[];
+  tickets_sold_by_type?: TicketsSoldByTypeBucket[];
+  ticket_types_meta?: TicketTypeMeta[];
   revenue_paid?: RevenuePaidBucket[];
 }
 
