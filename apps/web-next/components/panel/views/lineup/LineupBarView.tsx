@@ -215,25 +215,40 @@ export function LineupBarView() {
   const [loadingActivity, setLoadingActivity] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const activityGuardRef = useRef(false);
-  const summaryFetchKeyRef = useRef<string | null>(null);
+  const barPeriodRangeRef = useRef<{
+    period: Period;
+    range: { from: string; to: string };
+    prev: { from: string; to: string } | null;
+  } | null>(null);
+  const barFetchKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (contextLoading || !context) return;
     if (context.local.type !== "bar") return;
 
-    const range = getPeriodDates(period);
-    const prevRange = getPreviousRange(range);
-    const fetchKey = `${period}-${range.from}-${range.to}`;
-    if (summaryFetchKeyRef.current === fetchKey) return;
-    summaryFetchKeyRef.current = fetchKey;
+    if (!barPeriodRangeRef.current || barPeriodRangeRef.current.period !== period) {
+      const range = getPeriodDates(period);
+      barPeriodRangeRef.current = {
+        period,
+        range,
+        prev: getPreviousRange(range),
+      };
+    }
+
+    const rangeState = barPeriodRangeRef.current;
+    if (!rangeState) return;
+
+    const fetchKey = `${period}-${rangeState.range.from}-${rangeState.range.to}-${rangeState.prev?.from ?? "none"}-${rangeState.prev?.to ?? "none"}`;
+    if (barFetchKeyRef.current === fetchKey) return;
+    barFetchKeyRef.current = fetchKey;
 
     const fetchSummary = async () => {
       setLoadingSummary(true);
       setError(null);
       try {
         const [currentResult, prevResult] = await Promise.allSettled([
-          getPanelMetricsSummaryWithSeries(range),
-          prevRange ? getPanelMetricsSummaryWithSeries(prevRange) : Promise.resolve(null),
+          getPanelMetricsSummaryWithSeries(rangeState.range),
+          rangeState.prev ? getPanelMetricsSummaryWithSeries(rangeState.prev) : Promise.resolve(null),
         ]);
 
         if (currentResult.status === "fulfilled") {
@@ -335,7 +350,7 @@ export function LineupBarView() {
     {
       label: "Promo top",
       value: kpis?.top_promo?.title ?? "Sin datos",
-      hint: deltaPlaceholder,
+      hint: "—",
       icon: iconWrap(<Star className="h-5 w-5" />, "blue"),
     },
     {

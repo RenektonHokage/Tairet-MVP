@@ -454,7 +454,7 @@ export function LineupClubView() {
     {
       label: "Promo destacada",
       value: metrics?.kpis.top_promo?.title ?? "Sin datos",
-      hint: deltaPlaceholder,
+      hint: "—",
       icon: iconWrap(<Star className="h-5 w-5" />),
     },
     {
