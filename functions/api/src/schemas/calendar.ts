@@ -18,6 +18,18 @@ export const updateCalendarDaySchema = z.object({
     .int("club_manual_tables debe ser un entero")
     .nonnegative("club_manual_tables debe ser >= 0")
     .optional(),
+  // tables_whatsapp: solo para clubs, entero no negativo
+  tables_whatsapp: z
+    .number()
+    .int("tables_whatsapp debe ser un entero")
+    .nonnegative("tables_whatsapp debe ser >= 0")
+    .optional(),
+  // tables_tairet: solo para clubs, entero no negativo
+  tables_tairet: z
+    .number()
+    .int("tables_tairet debe ser un entero")
+    .nonnegative("tables_tairet debe ser >= 0")
+    .optional(),
 });
 
 export type UpdateCalendarDay = z.infer<typeof updateCalendarDaySchema>;

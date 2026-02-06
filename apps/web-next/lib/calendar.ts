@@ -10,6 +10,8 @@ export interface CalendarDay {
   promo_opens: number;
   is_open: boolean;
   note: string | null;
+  tables_whatsapp?: number;
+  tables_tairet?: number;
 }
 
 export interface CalendarMonthResponse {
@@ -38,6 +40,8 @@ export interface CalendarDayResponse {
     is_open: boolean;
     note: string | null;
     club_manual_tables: number;
+    tables_whatsapp?: number;
+    tables_tairet?: number;
   };
   // Bar-specific
   reservations: ReservationDetail[];
@@ -56,6 +60,8 @@ export interface UpdateCalendarDayInput {
   is_open?: boolean;
   note?: string | null;
   club_manual_tables?: number;
+  tables_whatsapp?: number;
+  tables_tairet?: number;
 }
 
 /**
@@ -77,8 +83,22 @@ export async function getCalendarDay(day: string): Promise<CalendarDayResponse> 
  */
 export async function updateCalendarDay(
   input: UpdateCalendarDayInput
-): Promise<{ day: string; is_open: boolean; note: string | null }> {
-  return apiPatchWithAuth<{ day: string; is_open: boolean; note: string | null }>(
+): Promise<{
+  day: string;
+  is_open: boolean;
+  note: string | null;
+  club_manual_tables: number;
+  tables_whatsapp?: number;
+  tables_tairet?: number;
+}> {
+  return apiPatchWithAuth<{
+    day: string;
+    is_open: boolean;
+    note: string | null;
+    club_manual_tables: number;
+    tables_whatsapp?: number;
+    tables_tairet?: number;
+  }>(
     "/panel/calendar/day",
     input
   );

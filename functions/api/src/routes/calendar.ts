@@ -38,7 +38,7 @@ calendarRouter.get("/month", panelAuth, async (req, res) => {
     // Obtener operaciones diarias del mes
     const { data: dailyOps, error: opsError } = await supabase
       .from("local_daily_ops")
-      .select("day, is_open, note")
+      .select("day, is_open, note, tables_whatsapp, tables_tairet")
       .eq("local_id", localId)
       .gte("day", firstDayStr)
       .lte("day", lastDayStr);
@@ -105,9 +105,17 @@ calendarRouter.get("/month", panelAuth, async (req, res) => {
     }
 
     // Crear mapa de operaciones diarias
-    const opsMap = new Map<string, { is_open: boolean; note: string | null }>();
+    const opsMap = new Map<
+      string,
+      { is_open: boolean; note: string | null; tables_whatsapp: number; tables_tairet: number }
+    >();
     for (const op of dailyOps ?? []) {
-      opsMap.set(op.day, { is_open: op.is_open, note: op.note });
+      opsMap.set(op.day, {
+        is_open: op.is_open,
+        note: op.note,
+        tables_whatsapp: op.tables_whatsapp ?? 0,
+        tables_tairet: op.tables_tairet ?? 0,
+      });
     }
 
     // Agrupar por día
@@ -122,6 +130,8 @@ calendarRouter.get("/month", panelAuth, async (req, res) => {
         promo_opens: number;
         is_open: boolean;
         note: string | null;
+        tables_whatsapp: number;
+        tables_tairet: number;
       }
     >();
 
@@ -139,6 +149,8 @@ calendarRouter.get("/month", panelAuth, async (req, res) => {
         promo_opens: 0,
         is_open: op?.is_open ?? true, // Default: abierto
         note: op?.note ?? null,
+        tables_whatsapp: op?.tables_whatsapp ?? 0,
+        tables_tairet: op?.tables_tairet ?? 0,
       });
     }
 
@@ -248,7 +260,7 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
     // Obtener operación del día (incluye club_manual_tables)
     const { data: dailyOp, error: opsError } = await supabase
       .from("local_daily_ops")
-      .select("is_open, note, club_manual_tables")
+      .select("is_open, note, club_manual_tables, tables_whatsapp, tables_tairet")
       .eq("local_id", localId)
       .eq("day", day)
       .single();
@@ -377,6 +389,8 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
         is_open: dailyOp?.is_open ?? true,
         note: dailyOp?.note ?? null,
         club_manual_tables: dailyOp?.club_manual_tables ?? 0,
+        tables_whatsapp: dailyOp?.tables_whatsapp ?? 0,
+        tables_tairet: dailyOp?.tables_tairet ?? 0,
       },
       // Bar-specific data
       reservations,
@@ -413,7 +427,8 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
     }
 
     const localId = req.panelUser.localId;
-    const { day, is_open, note, club_manual_tables } = parseResult.data;
+    const { day, is_open, note, club_manual_tables, tables_whatsapp, tables_tairet } =
+      parseResult.data;
 
     // Obtener tipo de local para validar club_manual_tables
     const { data: localData, error: localError } = await supabase
@@ -439,6 +454,8 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
       is_open?: boolean;
       note?: string | null;
       club_manual_tables?: number;
+      tables_whatsapp?: number;
+      tables_tairet?: number;
       updated_at: string;
     } = {
       local_id: localId,
@@ -459,12 +476,20 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
       updatePayload.club_manual_tables = club_manual_tables;
     }
 
+    if (tables_whatsapp !== undefined && localType === "club") {
+      updatePayload.tables_whatsapp = tables_whatsapp;
+    }
+
+    if (tables_tairet !== undefined && localType === "club") {
+      updatePayload.tables_tairet = tables_tairet;
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from("local_daily_ops")
       .upsert(updatePayload, {
         onConflict: "local_id,day",
       })
-      .select("day, is_open, note, club_manual_tables")
+      .select("day, is_open, note, club_manual_tables, tables_whatsapp, tables_tairet")
       .single();
 
     if (updateError) {
@@ -483,6 +508,8 @@ calendarRouter.patch("/day", panelAuth, async (req, res) => {
       is_open: updated.is_open,
       note: updated.note,
       club_manual_tables: updated.club_manual_tables ?? 0,
+      tables_whatsapp: updated.tables_whatsapp ?? 0,
+      tables_tairet: updated.tables_tairet ?? 0,
     });
   } catch (error) {
     if (error instanceof ZodError) {

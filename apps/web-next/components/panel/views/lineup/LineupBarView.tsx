@@ -350,7 +350,7 @@ export function LineupBarView() {
     {
       label: "Promo top",
       value: kpis?.top_promo?.title ?? "Sin datos",
-      hint: "—",
+      hint: undefined,
       icon: iconWrap(<Star className="h-5 w-5" />, "blue"),
     },
     {
@@ -362,19 +362,19 @@ export function LineupBarView() {
     {
       label: "En revisión",
       value: formatNumber(kpis?.reservations_en_revision ?? 0),
-      hint: deltaPlaceholder,
+      hint: undefined,
       icon: iconWrap(<Clock className="h-5 w-5" />, "amber"),
     },
     {
       label: "Confirmadas",
       value: formatNumber(kpis?.reservations_confirmed ?? 0),
-      hint: deltaPlaceholder,
+      hint: undefined,
       icon: iconWrap(<CheckCircle2 className="h-5 w-5" />, "emerald"),
     },
     {
       label: "Canceladas",
       value: formatNumber(kpis?.reservations_cancelled ?? 0),
-      hint: deltaPlaceholder,
+      hint: undefined,
       icon: iconWrap(<XCircle className="h-5 w-5" />, "rose"),
     },
   ];
