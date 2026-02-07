@@ -29,6 +29,10 @@ import {
 const MAX_TICKET_TYPES = 4;
 const MAX_ACTIVE_TICKETS = 2;
 import { getAttributesAllowlist, ZONES, MIN_AGES, CITIES } from "@/lib/constants/attributes";
+import { ProfileListingCardPreview } from "@/components/panel/views/profile/ProfileListingCardPreview";
+import { ProfilePublicPreviewBar } from "@/components/panel/views/profile/ProfilePublicPreviewBar";
+import { ProfilePublicPreviewClub } from "@/components/panel/views/profile/ProfilePublicPreviewClub";
+import { getPanelPromosByLocalId, type Promo } from "@/lib/promos";
 
 // Helpers para arrays (sin dependencias)
 const parseLines = (text: string): string[] =>
@@ -104,6 +108,11 @@ export default function ProfilePage() {
     hoursText: "",
     additionalInfoText: "",
   });
+  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+  const [previewPromos, setPreviewPromos] = useState<Promo[]>([]);
+  const [promosLoading, setPromosLoading] = useState(false);
+  const [promosError, setPromosError] = useState<string | null>(null);
+  const promosCacheRef = useRef<Map<string, Promo[]>>(new Map());
 
   // Estados del catálogo (solo clubs)
   const [catalogTickets, setCatalogTickets] = useState<CatalogTicket[]>([]);
@@ -135,6 +144,46 @@ export default function ProfilePage() {
       loadCatalog();
     }
   }, [contextLoading, context]);
+
+  useEffect(() => {
+    if (activeTab !== "preview") return;
+
+    const localId = context?.local?.id;
+    if (!localId) return;
+
+    const cachedPromos = promosCacheRef.current.get(localId);
+    if (cachedPromos) {
+      setPreviewPromos(cachedPromos);
+      setPromosLoading(false);
+      setPromosError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPromosLoading(true);
+    setPromosError(null);
+    setPreviewPromos([]);
+
+    getPanelPromosByLocalId(localId, false)
+      .then((items) => {
+        if (cancelled) return;
+        promosCacheRef.current.set(localId, items);
+        setPreviewPromos(items);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPromosError(err instanceof Error ? err.message : "Error al cargar promociones");
+        setPreviewPromos([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setPromosLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, context?.local?.id]);
 
   const loadProfile = async () => {
     setLoading(true);
@@ -685,6 +734,17 @@ export default function ProfilePage() {
   }
 
   const sortedGallery = [...profile.gallery].sort((a, b) => a.order - b.order);
+  const previewName = formData.name.trim() || profile.name;
+  const previewAddress = formData.address.trim();
+  const previewLocation = formData.location.trim();
+  const previewCity = formData.city.trim();
+  const previewPhone = formData.phone.trim();
+  const previewWhatsapp = formData.whatsapp.trim();
+  const previewHours = parseLines(formData.hoursText);
+  const previewAdditionalInfo = parseLines(formData.additionalInfoText);
+  const previewAttributes = selectedAttributes.slice(0, 3);
+  const previewCoverImage = sortedGallery.find((item) => item.kind === "cover")?.url ?? null;
+  const previewHeroImage = sortedGallery.find((item) => item.kind === "hero")?.url ?? null;
 
   return (
     <div className="space-y-8">
@@ -695,34 +755,61 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      {/* Mensaje de permisos */}
-      {!canEdit && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-sm text-yellow-800">
-            Solo el propietario (owner) puede editar el perfil del local.
-          </p>
-        </div>
-      )}
+      <div className="inline-flex w-full max-w-sm rounded-xl border border-neutral-200 bg-neutral-100 p-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("edit")}
+          className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
+            activeTab === "edit"
+              ? "bg-white text-neutral-900 shadow-sm"
+              : "text-neutral-600 hover:text-neutral-900"
+          }`}
+        >
+          Editar
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("preview")}
+          className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${
+            activeTab === "preview"
+              ? "bg-white text-neutral-900 shadow-sm"
+              : "text-neutral-600 hover:text-neutral-900"
+          }`}
+        >
+          Vista previa
+        </button>
+      </div>
 
-      {/* Success banner */}
-      {success && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <p className="text-sm text-green-800 font-medium">
-            Cambios guardados correctamente
-          </p>
-        </div>
-      )}
+      {activeTab === "edit" ? (
+        <>
+          {/* Mensaje de permisos */}
+          {!canEdit && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-sm text-yellow-800">
+                Solo el propietario (owner) puede editar el perfil del local.
+              </p>
+            </div>
+          )}
 
-      {/* Error banner */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
+          {/* Success banner */}
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-sm text-green-800 font-medium">
+                Cambios guardados correctamente
+              </p>
+            </div>
+          )}
 
-      {/* =================================================================== */}
-      {/* GALERÍA DEL LOCAL */}
-      {/* =================================================================== */}
+          {/* Error banner */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* GALERÍA DEL LOCAL */}
+          {/* =================================================================== */}
       <section className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Galería del Local
@@ -1821,6 +1908,57 @@ export default function ProfilePage() {
             </div>
           )}
         </section>
+      )}
+        </>
+      ) : (
+        <div className="space-y-6">
+          <ProfileListingCardPreview
+            localType={context.local.type}
+            name={previewName}
+            location={previewLocation}
+            city={previewCity}
+            attributes={previewAttributes}
+            minAge={minAge}
+            coverImageUrl={previewCoverImage ?? previewHeroImage}
+          />
+          {context.local.type === "bar" ? (
+            <ProfilePublicPreviewBar
+              name={previewName}
+              heroImageUrl={previewHeroImage ?? previewCoverImage}
+              gallery={sortedGallery}
+              address={previewAddress}
+              location={previewLocation}
+              city={previewCity}
+              hours={previewHours}
+              additionalInfo={previewAdditionalInfo}
+              phone={previewPhone}
+              whatsapp={previewWhatsapp}
+              promos={previewPromos}
+              promosLoading={promosLoading}
+              promosError={promosError}
+            />
+          ) : (
+            <ProfilePublicPreviewClub
+              name={previewName}
+              heroImageUrl={previewHeroImage ?? previewCoverImage}
+              gallery={sortedGallery}
+              address={previewAddress}
+              location={previewLocation}
+              city={previewCity}
+              hours={previewHours}
+              additionalInfo={previewAdditionalInfo}
+              minAge={minAge}
+              attributes={previewAttributes}
+              phone={previewPhone}
+              whatsapp={previewWhatsapp}
+              tickets={catalogTickets}
+              tables={catalogTables}
+              promos={previewPromos}
+              promosLoading={promosLoading}
+              promosError={promosError}
+            />
+          )}
+        </div>
       )}
     </div>
   );
