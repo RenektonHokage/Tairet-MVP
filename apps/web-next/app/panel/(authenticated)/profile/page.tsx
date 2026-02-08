@@ -29,10 +29,11 @@ import {
 const MAX_TICKET_TYPES = 4;
 const MAX_ACTIVE_TICKETS = 2;
 import { getAttributesAllowlist, ZONES, MIN_AGES, CITIES } from "@/lib/constants/attributes";
-import { ProfileListingCardPreview } from "@/components/panel/views/profile/ProfileListingCardPreview";
+import { ListingPreviewCard } from "@/components/panel/views/profile/ListingPreviewCard";
 import { ProfilePublicPreviewBar } from "@/components/panel/views/profile/ProfilePublicPreviewBar";
 import { ProfilePublicPreviewClub } from "@/components/panel/views/profile/ProfilePublicPreviewClub";
 import { getPanelPromosByLocalId, type Promo } from "@/lib/promos";
+import { ChevronDown } from "lucide-react";
 
 // Helpers para arrays (sin dependencias)
 const parseLines = (text: string): string[] =>
@@ -72,6 +73,34 @@ interface ImageValidationResult {
   error?: string;
   warning?: string;
   dimensions?: { width: number; height: number };
+}
+
+function FormatsDisclosure({ recommended, note }: { recommended: string; note?: string }) {
+  return (
+    <details className="group mb-4 rounded-lg border border-gray-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 [&::-webkit-details-marker]:hidden">
+        <span>Formatos y restricciones</span>
+        <ChevronDown className="h-4 w-4 text-gray-500 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-gray-200 px-4 py-3">
+        <ul className="space-y-1 text-xs text-gray-600">
+          <li>
+            <span className="font-medium">Formatos:</span> JPG, PNG, WebP
+          </li>
+          <li>
+            <span className="font-medium">Máximo:</span> {MAX_FILE_SIZE_MB}MB
+          </li>
+          <li>
+            <span className="font-medium">Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px
+          </li>
+          <li>
+            <span className="font-medium">Recomendado:</span> {recommended}
+          </li>
+          {note ? <li className="pt-1 text-gray-500">{note}</li> : null}
+        </ul>
+      </div>
+    </details>
+  );
 }
 
 export default function ProfilePage() {
@@ -845,30 +874,21 @@ export default function ProfilePage() {
         <div className="mb-8 p-4 border-2 border-blue-100 rounded-xl bg-blue-50/30">
           <h3 className="text-lg font-semibold text-gray-900 mb-1">📸 Foto de Perfil</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Esta imagen aparece en las <strong>cards del listado</strong> (inicio, búsqueda, explorar). 
-            Es lo primero que ven los usuarios al encontrar tu local.
+            Esta imagen aparecerá en la card del local. Es lo primero que ve el usuario antes de entrar al perfil.
           </p>
-          
-          {/* Restricciones de este tipo */}
-          <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200">
-            <p className="text-xs text-gray-600">
-              <span className="font-medium">Formatos:</span> JPG, PNG, WebP · 
-              <span className="font-medium"> Máximo:</span> {MAX_FILE_SIZE_MB}MB · 
-              <span className="font-medium"> Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px · 
-              <span className="font-medium"> Recomendado:</span> {RECOMMENDED_SIZES.cover.label}
-            </p>
-          </div>
+
+          <FormatsDisclosure recommended={RECOMMENDED_SIZES.cover.label} />
           
           {(() => {
             const coverImage = sortedGallery.find(g => g.kind === "cover");
             return (
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid min-w-0 grid-cols-1 gap-6 overflow-x-hidden xl:grid-cols-[minmax(0,420px)_minmax(0,360px)] xl:items-start xl:justify-center">
                 {/* Imagen actual o uploader */}
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Imagen actual</p>
                   {coverImage ? (
-                    <div className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
-                      <img src={coverImage.url} alt="Foto de perfil" className="w-full h-full object-cover" />
+                    <div className="relative w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-white">
+                      <img src={coverImage.url} alt="Foto de perfil" className="absolute inset-0 h-full w-full object-cover object-center" />
                       {canEdit && (
                         <button
                           onClick={() => handleDeleteImage(coverImage.id)}
@@ -880,7 +900,7 @@ export default function ProfilePage() {
                       )}
                     </div>
                   ) : canEdit ? (
-                    <label className="block w-full aspect-video rounded-lg border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white cursor-pointer flex flex-col items-center justify-center text-blue-500 hover:text-blue-600 transition-colors">
+                    <label className="block w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white cursor-pointer flex flex-col items-center justify-center text-blue-500 hover:text-blue-600 transition-colors">
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -893,39 +913,26 @@ export default function ProfilePage() {
                       <span className="text-xs text-gray-400 mt-1">Hacé click o arrastrá una imagen</span>
                     </label>
                   ) : (
-                    <div className="w-full aspect-video rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+                    <div className="w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
                       Sin foto de perfil
                     </div>
                   )}
                 </div>
-                
-                {/* Preview de cómo se ve en una card */}
-                <div>
+                <div className="min-w-0 w-full xl:max-w-[360px]">
                   <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Vista previa en listado</p>
-                  <div className="w-full max-w-xs bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                    {/* Header de card simulado */}
-                    <div className="h-36 relative overflow-hidden bg-gray-200">
-                      {coverImage ? (
-                        <img 
-                          src={coverImage.url} 
-                          alt="Preview" 
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
-                          Sin imagen
-                        </div>
-                      )}
-                    </div>
-                    {/* Contenido simulado de card */}
-                    <div className="p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-gray-900 text-sm truncate">{profile.name}</span>
-                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded flex items-center gap-1">
-                          ⭐ 4.6
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500">🕐 18:00 – 02:00</p>
+                  <div className="w-full max-w-full overflow-hidden px-1">
+                    <div className="flex w-full max-w-full justify-center">
+                      <ListingPreviewCard
+                        localType={context.local.type}
+                        name={previewName}
+                        imageUrl={coverImage?.url ?? previewHeroImage}
+                        location={previewLocation}
+                        city={previewCity}
+                        attributes={previewAttributes}
+                        minAge={minAge}
+                        hours={previewHours}
+                        className="w-full max-w-[360px]"
+                      />
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2 italic">
@@ -941,24 +948,22 @@ export default function ProfilePage() {
         <div className="mb-8 p-4 border-2 border-purple-100 rounded-xl bg-purple-50/30">
           <h3 className="text-lg font-semibold text-gray-900 mb-1">🖼️ Imagen Principal del Perfil (Hero)</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Esta imagen aparece <strong>dentro del perfil</strong> de tu local como imagen destacada. 
-            Es diferente a la Foto de Perfil que se ve en las cards del listado.
+            Esta imagen aparece dentro del perfil de tu local como imagen principal. Es diferente a la Foto de Perfil que se ve en la card del listado.
           </p>
-            
-            {/* Restricciones */}
-            <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200">
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Formatos:</span> JPG, PNG, WebP · 
-                <span className="font-medium"> Máximo:</span> {MAX_FILE_SIZE_MB}MB · 
-                <span className="font-medium"> Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px · 
-                <span className="font-medium"> Recomendado:</span> 1600×900 (16:9)
-              </p>
-            </div>
+
+            <FormatsDisclosure recommended={RECOMMENDED_SIZES.hero.label} />
             
             {(() => {
               const heroImage = sortedGallery.find(g => g.kind === "hero");
               const coverImage = sortedGallery.find(g => g.kind === "cover");
               const isDuplicate = heroImage && coverImage && heroImage.url === coverImage.url;
+              const isBarLocal = context.local.type === "bar";
+              const heroPreviewImage = heroImage ?? coverImage;
+              const barPreviewTiles = (["food", "menu", "drinks", "interior"] as const).map((kind) => ({
+                kind,
+                label: GALLERY_KIND_LABELS[kind],
+                image: sortedGallery.find((item) => item.kind === kind),
+              }));
               
               return (
                 <>
@@ -971,12 +976,18 @@ export default function ProfilePage() {
                     </div>
                   )}
                   
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div
+                    className={
+                      isBarLocal
+                        ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,560px)_minmax(0,1fr)]"
+                        : "grid grid-cols-1 gap-6"
+                    }
+                  >
                     {/* Imagen actual o uploader */}
                     <div>
                       <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Imagen actual</p>
                       {heroImage ? (
-                        <div className="relative w-full aspect-video rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
+                        <div className="relative w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
                           <img src={heroImage.url} alt="Imagen principal" className="w-full h-full object-cover" />
                           {canEdit && (
                             <button
@@ -989,7 +1000,7 @@ export default function ProfilePage() {
                           )}
                         </div>
                       ) : canEdit ? (
-                        <label className="block w-full aspect-video rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 bg-white cursor-pointer flex flex-col items-center justify-center text-purple-500 hover:text-purple-600 transition-colors">
+                        <label className="block w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 bg-white cursor-pointer flex flex-col items-center justify-center text-purple-500 hover:text-purple-600 transition-colors">
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp"
@@ -1002,54 +1013,47 @@ export default function ProfilePage() {
                           <span className="text-xs text-gray-400 mt-1">Esta se ve dentro del perfil</span>
                         </label>
                       ) : (
-                        <div className="w-full aspect-video rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
+                        <div className="w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
                           Sin imagen principal
                         </div>
                       )}
                     </div>
-                    
-                    {/* Preview de cómo se ve en perfil */}
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Vista previa en perfil</p>
-                      <div className="w-full max-w-sm bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
-                        <div className="h-32 relative overflow-hidden bg-gray-200">
-                          {heroImage ? (
-                            <img 
-                              src={heroImage.url} 
-                              alt="Preview hero" 
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
-                              Sin imagen
+                    {isBarLocal && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Vista previa pública (Bar)</p>
+                        <div className="rounded-lg border border-gray-200 bg-white p-3">
+                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:auto-rows-[118px]">
+                            <div className="relative col-span-2 aspect-video rounded-lg overflow-hidden border bg-gray-100 lg:row-span-2 lg:aspect-auto">
+                              {heroPreviewImage ? (
+                                <img
+                                  src={heroPreviewImage.url}
+                                  alt="Preview Hero Bar"
+                                  className="absolute inset-0 h-full w-full object-cover object-center"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+                                  Sin imagen
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        {context.local.type === "bar" ? (
-                          <div className="p-3 flex gap-2">
-                            {["Comida", "Carta", "Tragos", "Interior"].map((cat) => (
-                              <div key={cat} className="flex-1 aspect-square bg-gray-100 rounded text-xs flex items-center justify-center text-gray-400">
-                                {cat}
+                            {barPreviewTiles.map((tile) => (
+                              <div key={tile.kind} className="relative aspect-square rounded-lg overflow-hidden border bg-gray-100 lg:aspect-auto">
+                                {tile.image ? (
+                                  <img
+                                    src={tile.image.url}
+                                    alt={tile.label}
+                                    className="absolute inset-0 h-full w-full object-cover object-center"
+                                  />
+                                ) : null}
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-2 py-1.5">
+                                  <span className="text-xs font-medium text-white">{tile.label}</span>
+                                </div>
                               </div>
                             ))}
                           </div>
-                        ) : (
-                          <div className="p-3">
-                            <div className="flex gap-2 overflow-hidden">
-                              {[1, 2, 3].map((i) => (
-                                <div key={i} className="w-16 h-12 bg-gray-100 rounded text-xs flex items-center justify-center text-gray-400 flex-shrink-0">
-                                  Foto {i}
-                                </div>
-                              ))}
-                              <div className="w-8 h-12 flex items-center text-gray-300">...</div>
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400 mt-2 italic">
-                        Así se verá la imagen principal en tu perfil
-                      </p>
-                    </div>
+                    )}
                   </div>
                 </>
               );
@@ -1063,17 +1067,12 @@ export default function ProfilePage() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">🍽️ Galería por Categorías</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Subí varias imágenes por categoría. La <strong>primera</strong> de cada una se muestra en el tile del perfil.
-                Al hacer click, los usuarios ven la galería completa de esa categoría.
+                Subí varias imágenes por categoría. La primera de cada una se muestra como foto de su respectivo apartado. Al hacer clic, los usuarios ven la galería completa de esa categoría.
               </p>
-              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
-                <p className="text-xs text-gray-600">
-                  <span className="font-medium">Formatos:</span> JPG, PNG, WebP · 
-                  <span className="font-medium"> Máximo:</span> {MAX_FILE_SIZE_MB}MB · 
-                  <span className="font-medium"> Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px · 
-                  <span className="font-medium"> Recomendado:</span> {RECOMMENDED_SIZES.food.label} (se recorta al centro si difiere)
-                </p>
-              </div>
+              <FormatsDisclosure
+                recommended={RECOMMENDED_SIZES.food.label}
+                note="Si la proporción difiere, se recorta al centro."
+              />
             </div>
             {(["food", "menu", "drinks", "interior"] as const).map((kind) => {
               const kindImages = sortedGallery.filter(g => g.kind === kind);
@@ -1095,9 +1094,9 @@ export default function ProfilePage() {
                     )}
                   </div>
                   {kindImages.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                    <div className="flex flex-wrap gap-3">
                       {kindImages.map((item, idx) => (
-                        <div key={item.id} className="relative group">
+                        <div key={item.id} className="relative group w-[96px] sm:w-[112px] md:w-[128px]">
                           <div className="aspect-square rounded-lg overflow-hidden border">
                             <img src={item.url} alt={`${GALLERY_KIND_LABELS[kind]} ${idx + 1}`} className="w-full h-full object-cover" />
                           </div>
@@ -1152,17 +1151,9 @@ export default function ProfilePage() {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">🎠 Carrusel de Imágenes</h3>
             <p className="text-sm text-gray-600 mb-3">
-              Estas imágenes aparecen en el carrusel horizontal de tu perfil. 
-              Podés reordenarlas y agregar varias.
+              Estas imágenes se mostrarán dentro del botón «Ver galería». En celular, se verán como un carrusel horizontal (en mobile no hay botón «Ver galería»).
             </p>
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 mb-4">
-              <p className="text-xs text-gray-600">
-                <span className="font-medium">Formatos:</span> JPG, PNG, WebP · 
-                <span className="font-medium"> Máximo:</span> {MAX_FILE_SIZE_MB}MB · 
-                <span className="font-medium"> Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px · 
-                <span className="font-medium"> Recomendado:</span> {RECOMMENDED_SIZES.carousel.label}
-              </p>
-            </div>
+            <FormatsDisclosure recommended={RECOMMENDED_SIZES.carousel.label} />
             
             {/* Add carousel image */}
             {canEdit && (
@@ -1182,46 +1173,48 @@ export default function ProfilePage() {
             {(() => {
               const carouselImages = sortedGallery.filter(g => g.kind === "carousel");
               return carouselImages.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {carouselImages.map((item, idx) => (
-                    <div key={item.id} className="relative group">
-                      <div className="aspect-video rounded-lg overflow-hidden border">
-                        <img src={item.url} alt={`Carrusel ${idx + 1}`} className="w-full h-full object-cover" />
-                      </div>
-                      <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-black bg-opacity-60 text-white text-xs rounded">
-                        {idx + 1}
-                      </span>
-                      {canEdit && (
-                        <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {idx > 0 && (
-                            <button
-                              onClick={() => handleMoveImage(item.id, "up")}
-                              className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
-                              title="Mover arriba"
-                            >
-                              ↑
-                            </button>
-                          )}
-                          {idx < carouselImages.length - 1 && (
-                            <button
-                              onClick={() => handleMoveImage(item.id, "down")}
-                              className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
-                              title="Mover abajo"
-                            >
-                              ↓
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteImage(item.id)}
-                            className="p-1 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
-                            title="Eliminar"
-                          >
-                            🗑️
-                          </button>
+                <div className="w-full overflow-x-auto overflow-y-hidden pb-2">
+                  <div className="flex gap-3 min-w-max pr-2">
+                    {carouselImages.map((item, idx) => (
+                      <div key={item.id} className="relative group w-[220px] sm:w-[250px] md:w-[280px] flex-none">
+                        <div className="aspect-video rounded-lg overflow-hidden border bg-white">
+                          <img src={item.url} alt={`Carrusel ${idx + 1}`} className="w-full h-full object-cover" />
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-black bg-opacity-60 text-white text-xs rounded">
+                          {idx + 1}
+                        </span>
+                        {canEdit && (
+                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {idx > 0 && (
+                              <button
+                                onClick={() => handleMoveImage(item.id, "up")}
+                                className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
+                                title="Mover arriba"
+                              >
+                                ↑
+                              </button>
+                            )}
+                            {idx < carouselImages.length - 1 && (
+                              <button
+                                onClick={() => handleMoveImage(item.id, "down")}
+                                className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
+                                title="Mover abajo"
+                              >
+                                ↓
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteImage(item.id)}
+                              className="p-1 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
+                              title="Eliminar"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 bg-gray-50 rounded-lg text-gray-500 text-sm">
@@ -1912,15 +1905,21 @@ export default function ProfilePage() {
         </>
       ) : (
         <div className="space-y-6">
-          <ProfileListingCardPreview
-            localType={context.local.type}
-            name={previewName}
-            location={previewLocation}
-            city={previewCity}
-            attributes={previewAttributes}
-            minAge={minAge}
-            coverImageUrl={previewCoverImage ?? previewHeroImage}
-          />
+          <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-neutral-900">Preview de card del listado</h3>
+            <div className="mt-5 flex justify-center">
+              <ListingPreviewCard
+                localType={context.local.type}
+                name={previewName}
+                imageUrl={previewCoverImage ?? previewHeroImage}
+                location={previewLocation}
+                city={previewCity}
+                attributes={previewAttributes}
+                minAge={minAge}
+                hours={previewHours}
+              />
+            </div>
+          </section>
           {context.local.type === "bar" ? (
             <ProfilePublicPreviewBar
               name={previewName}
