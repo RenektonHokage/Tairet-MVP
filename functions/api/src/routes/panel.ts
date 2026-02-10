@@ -8,6 +8,7 @@ import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationConfirmedEmail } from "../services/emails";
+import { CheckinWindowValidationResult, getActiveNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
 
 // ============================================================================
 // Attributes/Tags Allowlists (sync with packages/types/src/attributes.ts)
@@ -144,6 +145,41 @@ function validateGalleryItems(gallery: unknown, localType?: "bar" | "club"): Loc
   });
 
   return validated;
+}
+
+function buildCheckinWindowErrorPayload(validation: Extract<CheckinWindowValidationResult, { allowed: false }>) {
+  if (validation.reason === "not_yet_valid") {
+    return {
+      status: 409,
+      body: {
+        error: "Aun no valida para check-in",
+        code: "not_yet_valid",
+        valid_from: validation.validFrom,
+        valid_to: validation.validTo,
+      },
+    };
+  }
+
+  if (validation.reason === "expired") {
+    return {
+      status: 409,
+      body: {
+        error: "Entrada caducada para check-in",
+        code: "expired",
+        valid_from: validation.validFrom,
+        valid_to: validation.validTo,
+      },
+    };
+  }
+
+  return {
+    status: 409,
+    body: {
+      error: "Orden legacy sin ventana valida no permitida para check-in",
+      code: "legacy_not_allowed",
+      cutoff_iso: validation.cutoffIso,
+    },
+  };
 }
 
 export const panelRouter = Router();
@@ -922,6 +958,29 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
       });
     }
 
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("type")
+      .eq("id", order.local_id)
+      .single();
+
+    if (localError || !local) {
+      logger.error("Local not found while validating check-in window", {
+        orderId: id,
+        localId: order.local_id,
+        error: localError?.message,
+      });
+      return res.status(404).json({ error: "Local not found for order" });
+    }
+
+    if (local.type === "club") {
+      const windowValidation = validateOrderWindowForCheckin(order, new Date());
+      if (!windowValidation.allowed) {
+        const payload = buildCheckinWindowErrorPayload(windowValidation);
+        return res.status(payload.status).json(payload.body);
+      }
+    }
+
     // Actualizar used_at
     const { data: updated, error: updateError } = await supabase
       .from("orders")
@@ -968,7 +1027,7 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
     // Buscar order por checkin_token
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("id, local_id, status, used_at, checkin_token")
+      .select("id, local_id, status, used_at, checkin_token, valid_from, valid_to, is_window_legacy, created_at")
       .eq("checkin_token", token)
       .single();
 
@@ -1002,6 +1061,29 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
         error: "Order already used",
         usedAt: order.used_at,
       });
+    }
+
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("type")
+      .eq("id", order.local_id)
+      .single();
+
+    if (localError || !local) {
+      logger.error("Local not found while validating token check-in window", {
+        token,
+        localId: order.local_id,
+        error: localError?.message,
+      });
+      return res.status(404).json({ error: "Local not found for order" });
+    }
+
+    if (local.type === "club") {
+      const windowValidation = validateOrderWindowForCheckin(order, new Date());
+      if (!windowValidation.allowed) {
+        const payload = buildCheckinWindowErrorPayload(windowValidation);
+        return res.status(payload.status).json(payload.body);
+      }
     }
 
     // Actualizar used_at y devolver datos del comprador para verificación
@@ -1043,6 +1125,26 @@ panelRouter.get("/checkins", panelAuth, requireRole(["owner", "staff"]), async (
 
     const limitParam = req.query.limit;
     const limit = typeof limitParam === "string" ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    let pendingCount = 0;
+    let unusedCount = 0;
+    let currentWindow: { intended_date: string; valid_from: string; valid_to: string; window_key: string } | null = null;
+
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("type")
+      .eq("id", req.panelUser.localId)
+      .single();
+
+    if (localError || !local) {
+      logger.error("Error fetching local type for /panel/checkins", {
+        error: localError?.message,
+        localId: req.panelUser.localId,
+      });
+      return res.status(404).json({ error: "Local not found" });
+    }
 
     const { data: checkins, error } = await supabase
       .from("orders")
@@ -1057,7 +1159,69 @@ panelRouter.get("/checkins", panelAuth, requireRole(["owner", "staff"]), async (
       return res.status(500).json({ error: "Failed to fetch checkins" });
     }
 
-    res.status(200).json({ items: checkins ?? [], count: checkins?.length ?? 0 });
+    if (local.type === "club") {
+      try {
+        const activeNightWindow = await getActiveNightWindow(now);
+        currentWindow = {
+          intended_date: activeNightWindow.intendedDate,
+          valid_from: activeNightWindow.validFrom,
+          valid_to: activeNightWindow.validTo,
+          window_key: activeNightWindow.windowKey,
+        };
+
+        const { count: pending, error: pendingError } = await supabase
+          .from("orders")
+          .select("id", { head: true, count: "exact" })
+          .eq("local_id", req.panelUser.localId)
+          .eq("status", "paid")
+          .is("used_at", null)
+          .not("valid_from", "is", null)
+          .not("valid_to", "is", null)
+          .lte("valid_from", nowIso)
+          .gt("valid_to", nowIso);
+
+        if (pendingError) {
+          logger.error("Error fetching pending_count in /panel/checkins", {
+            error: pendingError.message,
+            localId: req.panelUser.localId,
+          });
+        } else {
+          pendingCount = pending ?? 0;
+        }
+
+        const { count: unused, error: unusedError } = await supabase
+          .from("orders")
+          .select("id", { head: true, count: "exact" })
+          .eq("local_id", req.panelUser.localId)
+          .eq("status", "paid")
+          .is("used_at", null)
+          .not("valid_to", "is", null)
+          .gte("valid_to", new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString())
+          .lte("valid_to", nowIso);
+
+        if (unusedError) {
+          logger.error("Error fetching unused_count in /panel/checkins", {
+            error: unusedError.message,
+            localId: req.panelUser.localId,
+          });
+        } else {
+          unusedCount = unused ?? 0;
+        }
+      } catch (windowError) {
+        logger.error("Error calculating current weekend window in /panel/checkins", {
+          error: windowError instanceof Error ? windowError.message : String(windowError),
+          localId: req.panelUser.localId,
+        });
+      }
+    }
+
+    res.status(200).json({
+      items: checkins ?? [],
+      count: checkins?.length ?? 0,
+      pending_count: pendingCount,
+      unused_count: unusedCount,
+      current_window: currentWindow,
+    });
   } catch (error) {
     next(error);
   }
@@ -1843,4 +2007,3 @@ panelRouter.delete(
 
 // Rutas de calendario
 panelRouter.use("/calendar", calendarRouter);
-

@@ -4,6 +4,7 @@ import { createOrderSchema } from "../schemas/orders";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendOrderConfirmationEmail } from "../services/emails";
+import { getNightWindow, getWeekendWindow, shouldMarkLegacyOrder, validateIntendedDateRange } from "../services/weekendWindow";
 
 export const ordersRouter = Router();
 
@@ -20,6 +21,57 @@ interface OrderItemSnapshot {
 ordersRouter.post("/", async (req, res, next) => {
   try {
     const validated = createOrderSchema.parse(req.body);
+    const now = new Date();
+
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("id, type")
+      .eq("id", validated.local_id)
+      .single();
+
+    if (localError || !local) {
+      logger.warn("Local not found while creating order", {
+        localId: validated.local_id,
+        error: localError?.message,
+      });
+      return res.status(400).json({ error: "Local inválido" });
+    }
+
+    const isClubOrder = local.type === "club";
+    let validFrom: string | null = null;
+    let validTo: string | null = null;
+    let validWindowKey: string | null = null;
+    let intendedDate: string | null = null;
+    let isWindowLegacy = false;
+
+    if (isClubOrder && validated.intended_date) {
+      const dateValidation = validateIntendedDateRange(validated.intended_date, now, 30);
+      if (!dateValidation.ok) {
+        if (dateValidation.reason === "invalid_format") {
+          return res.status(400).json({
+            error: "intended_date debe tener formato YYYY-MM-DD",
+          });
+        }
+
+        return res.status(400).json({
+          error: `intended_date fuera de rango permitido (${dateValidation.minDate} a ${dateValidation.maxDate})`,
+        });
+      }
+
+      const nightWindow = await getNightWindow(validated.intended_date);
+      intendedDate = validated.intended_date;
+      validFrom = nightWindow.validFrom;
+      validTo = nightWindow.validTo;
+      validWindowKey = nightWindow.windowKey;
+    } else if (isClubOrder && validated.valid_window) {
+      const weekendWindow = await getWeekendWindow(validated.valid_window, now);
+      validFrom = weekendWindow.validFrom;
+      validTo = weekendWindow.validTo;
+      validWindowKey = weekendWindow.windowKey;
+    } else if (isClubOrder) {
+      // Compatibilidad temporal para órdenes de club sin ventana explícita.
+      isWindowLegacy = shouldMarkLegacyOrder(now);
+    }
 
     // Variables para el snapshot y total calculado
     let itemsSnapshot: OrderItemSnapshot[] = [];
@@ -127,6 +179,11 @@ ordersRouter.post("/", async (req, res, next) => {
         customer_phone: validated.customer_phone,
         customer_document: validated.customer_document,
         items: itemsSnapshot, // Siempre tiene al menos 1 item (fallback)
+        intended_date: intendedDate,
+        valid_from: validFrom,
+        valid_to: validTo,
+        valid_window_key: validWindowKey,
+        is_window_legacy: isWindowLegacy,
       })
       .select()
       .single();

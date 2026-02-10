@@ -18,6 +18,8 @@ export const createOrderSchema = z
     customer_last_name: z.string().optional(),
     customer_phone: z.string().optional(),
     customer_document: z.string().optional(),
+    intended_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    valid_window: z.enum(["this", "next"]).optional(),
     // Items para órdenes de clubs con tickets pagos (snapshot)
     items: z.array(orderItemSchema).max(10).optional(),
   })
