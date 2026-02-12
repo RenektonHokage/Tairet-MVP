@@ -269,7 +269,7 @@ export default function SupportPage() {
                     Check-in: si falla la cámara
                   </div>
                   <div className="text-sm text-purple-700 mt-1">
-                    Usar Órdenes (buscar por email o documento del cliente)
+                    Usar Entradas (buscar por email o documento del cliente)
                   </div>
                 </div>
               </div>
@@ -280,7 +280,7 @@ export default function SupportPage() {
                 <div className="space-y-2 text-sm text-purple-700">
                   <div className="flex items-start gap-2">
                     <span className="font-medium text-purple-800">a)</span>
-                    <span>Ir a <strong>Órdenes</strong> en el menú</span>
+                    <span>Ir a <strong>Entradas</strong> en el menú</span>
                   </div>
                   <div className="flex items-start gap-2">
                     <span className="font-medium text-purple-800">b)</span>

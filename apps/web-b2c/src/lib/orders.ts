@@ -54,6 +54,7 @@ export interface CreateOrderPayload {
   total_amount: number;
   currency?: string;
   payment_method: "free_pass";
+  intended_date?: string;
   customer_email: string;
   customer_name: string;
   customer_last_name: string;

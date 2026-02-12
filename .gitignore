@@ -44,4 +44,5 @@ Thumbs.db
 *.log
 .cache/
 .turbo/
+**/*.tsbuildinfo
 

@@ -460,8 +460,8 @@ export function LineupClubView() {
     {
       label: (
         <span className="inline-flex items-center gap-1">
-          Órdenes totales
-          <InfoTip text="Cuenta órdenes, no suma quantity (qty)." />
+          Entradas totales
+          <InfoTip text="Cuenta entradas, no suma quantity (qty)." />
         </span>
       ),
       value: formatNumber(metrics?.kpis.orders_total ?? 0),
@@ -553,7 +553,7 @@ export function LineupClubView() {
                     <tr>
                       <th className="px-4 py-3 text-left">Tipo</th>
                       <th className="px-4 py-3 text-right">Vendidas (qty)</th>
-                      <th className="px-4 py-3 text-right">Órdenes con check-in</th>
+                      <th className="px-4 py-3 text-right">Entradas con check-in</th>
                       <th className="px-4 py-3 text-right">Ingresos (PYG)</th>
                     </tr>
                   </thead>

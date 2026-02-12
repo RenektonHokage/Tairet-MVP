@@ -8,7 +8,7 @@ import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationConfirmedEmail } from "../services/emails";
-import { CheckinWindowValidationResult, getActiveNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
+import { CheckinWindowValidationResult, getActiveNightWindow, getNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
 
 // ============================================================================
 // Attributes/Tags Allowlists (sync with packages/types/src/attributes.ts)
@@ -180,6 +180,92 @@ function buildCheckinWindowErrorPayload(validation: Extract<CheckinWindowValidat
       cutoff_iso: validation.cutoffIso,
     },
   };
+}
+
+type OrderStateFilter = "all" | "used" | "pending" | "unused";
+const ORDER_STATE_FILTERS: readonly OrderStateFilter[] = ["all", "used", "pending", "unused"];
+
+function isValidDateOnly(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function applyClubOrderStateFilter(query: any, state: OrderStateFilter, nowIso: string, thirtyDaysAgoIso: string) {
+  if (state === "used") {
+    return query.not("used_at", "is", null);
+  }
+
+  if (state === "pending") {
+    return query
+      .eq("status", "paid")
+      .is("used_at", null)
+      .not("valid_from", "is", null)
+      .not("valid_to", "is", null)
+      .lte("valid_from", nowIso)
+      .gt("valid_to", nowIso);
+  }
+
+  if (state === "unused") {
+    return query
+      .eq("status", "paid")
+      .is("used_at", null)
+      .not("valid_to", "is", null)
+      .gte("valid_to", thirtyDaysAgoIso)
+      .lte("valid_to", nowIso);
+  }
+
+  return query;
+}
+
+function resolveOrderState(order: {
+  status: string;
+  used_at: string | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+}, now: Date): "used" | "pending" | "unused" | "other" {
+  if (order.used_at) {
+    return "used";
+  }
+
+  const nowMs = now.getTime();
+  const validFromMs = order.valid_from ? Date.parse(order.valid_from) : NaN;
+  const validToMs = order.valid_to ? Date.parse(order.valid_to) : NaN;
+  const thirtyDaysAgoMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+
+  if (
+    order.status === "paid" &&
+    Number.isFinite(validFromMs) &&
+    Number.isFinite(validToMs) &&
+    validFromMs <= nowMs &&
+    validToMs > nowMs
+  ) {
+    return "pending";
+  }
+
+  if (
+    order.status === "paid" &&
+    Number.isFinite(validToMs) &&
+    validToMs >= thirtyDaysAgoMs &&
+    validToMs <= nowMs
+  ) {
+    return "unused";
+  }
+
+  return "other";
+}
+
+function sumOrderQuantity(rows: Array<{ quantity: number | null }> | null | undefined): number {
+  if (!rows) {
+    return 0;
+  }
+
+  return rows.reduce((total, row) => {
+    const quantity = typeof row.quantity === "number" && Number.isFinite(row.quantity) ? row.quantity : 0;
+    return total + quantity;
+  }, 0);
 }
 
 export const panelRouter = Router();
@@ -1235,16 +1321,26 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+    const localId = req.panelUser.localId;
 
     const { email, document } = req.query;
+    const intendedDateRaw =
+      typeof req.query.intended_date === "string" ? req.query.intended_date.trim() : "";
+    const hasIntendedDate = intendedDateRaw.length > 0;
+    const stateRaw =
+      typeof req.query.state === "string" ? req.query.state.trim().toLowerCase() : "all";
+    const selectedState: OrderStateFilter = ORDER_STATE_FILTERS.includes(stateRaw as OrderStateFilter)
+      ? (stateRaw as OrderStateFilter)
+      : "all";
+    const stateProvided = typeof req.query.state === "string" && req.query.state.trim().length > 0;
 
-    // Validar que venga exactamente uno
+    if (stateProvided && !ORDER_STATE_FILTERS.includes(stateRaw as OrderStateFilter)) {
+      return res.status(400).json({ error: "Invalid state. Expected all|used|pending|unused" });
+    }
+
+    // Si vienen ambos filtros de búsqueda, es inválido.
     const hasEmail = typeof email === "string" && email.trim().length > 0;
     const hasDocument = typeof document === "string" && document.trim().length > 0;
-
-    if (!hasEmail && !hasDocument) {
-      return res.status(400).json({ error: "Missing required parameter: email or document" });
-    }
 
     if (hasEmail && hasDocument) {
       return res.status(400).json({ error: "Provide only one parameter: email or document" });
@@ -1252,17 +1348,35 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
 
     const limitParam = req.query.limit;
     const limit = typeof limitParam === "string" ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     let query = supabase
       .from("orders")
-      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_document, created_at")
-      .eq("local_id", req.panelUser.localId);
+      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+      .eq("local_id", localId);
 
     if (hasEmail) {
       const emailLower = email.trim().toLowerCase();
       query = query.eq("customer_email_lower", emailLower);
     } else if (hasDocument) {
       query = query.eq("customer_document", document.trim());
+    }
+
+    if (hasIntendedDate || selectedState !== "all") {
+      const clubCheck = await verifyClubOnly(localId);
+      if (clubCheck.isClub) {
+        if (hasIntendedDate && !isValidDateOnly(intendedDateRaw)) {
+          return res.status(400).json({ error: "Invalid intended_date. Expected YYYY-MM-DD" });
+        }
+
+        if (hasIntendedDate) {
+          query = query.eq("intended_date", intendedDateRaw);
+        }
+
+        query = applyClubOrderStateFilter(query, selectedState, nowIso, thirtyDaysAgoIso);
+      }
     }
 
     const { data: orders, error } = await query
@@ -1274,7 +1388,120 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
       return res.status(500).json({ error: "Failed to search orders" });
     }
 
-    res.status(200).json({ items: orders ?? [], count: orders?.length ?? 0 });
+    const items = (orders ?? []).map((order) => ({
+      ...order,
+      checkin_state: resolveOrderState(order, now),
+    }));
+
+    res.status(200).json({ items, count: items.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /panel/orders/summary
+// Resumen de entradas por estado para clubs (SUM(quantity)).
+// Roles permitidos: owner, staff
+panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const localId = req.panelUser.localId;
+
+    const clubCheck = await verifyClubOnly(localId);
+    if (!clubCheck.isClub) {
+      return res.status(200).json({
+        total_qty: 0,
+        used_qty: 0,
+        pending_qty: 0,
+        unused_qty: 0,
+        total_count: 0,
+        used_count: 0,
+        pending_count: 0,
+        unused_count: 0,
+        current_window: null,
+      });
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const intendedDateRaw =
+      typeof req.query.intended_date === "string" ? req.query.intended_date.trim() : "";
+    const hasIntendedDate = intendedDateRaw.length > 0;
+
+    if (hasIntendedDate && !isValidDateOnly(intendedDateRaw)) {
+      return res.status(400).json({ error: "Invalid intended_date. Expected YYYY-MM-DD" });
+    }
+
+    let selectedIntendedDate = intendedDateRaw;
+    let currentWindow: { intended_date: string; valid_from: string; valid_to: string; window_key: string } | null = null;
+
+    if (!selectedIntendedDate) {
+      const activeNightWindow = await getActiveNightWindow(now);
+      selectedIntendedDate = activeNightWindow.intendedDate;
+      currentWindow = {
+        intended_date: activeNightWindow.intendedDate,
+        valid_from: activeNightWindow.validFrom,
+        valid_to: activeNightWindow.validTo,
+        window_key: activeNightWindow.windowKey,
+      };
+    } else {
+      const nightWindow = await getNightWindow(selectedIntendedDate);
+      currentWindow = {
+        intended_date: selectedIntendedDate,
+        valid_from: nightWindow.validFrom,
+        valid_to: nightWindow.validTo,
+        window_key: nightWindow.windowKey,
+      };
+    }
+
+    const buildSummaryQuery = () =>
+      supabase
+        .from("orders")
+        .select("id, quantity, status, used_at, valid_from, valid_to")
+        .eq("local_id", localId)
+        .eq("intended_date", selectedIntendedDate);
+
+    const [
+      { data: usedRows, error: usedError },
+      { data: pendingRows, error: pendingError },
+      { data: unusedRows, error: unusedError },
+    ] = await Promise.all([
+      applyClubOrderStateFilter(buildSummaryQuery(), "used", nowIso, thirtyDaysAgoIso),
+      applyClubOrderStateFilter(buildSummaryQuery(), "pending", nowIso, thirtyDaysAgoIso),
+      applyClubOrderStateFilter(buildSummaryQuery(), "unused", nowIso, thirtyDaysAgoIso),
+    ]);
+
+    if (usedError || pendingError || unusedError) {
+      logger.error("Error fetching /panel/orders/summary", {
+        usedError: usedError?.message,
+        pendingError: pendingError?.message,
+        unusedError: unusedError?.message,
+        localId,
+        intendedDate: selectedIntendedDate,
+      });
+      return res.status(500).json({ error: "Failed to calculate orders summary" });
+    }
+
+    const usedQty = sumOrderQuantity(usedRows);
+    const pendingQty = sumOrderQuantity(pendingRows);
+    const unusedQty = sumOrderQuantity(unusedRows);
+    const totalQty = usedQty + pendingQty + unusedQty;
+
+    res.status(200).json({
+      total_qty: totalQty,
+      used_qty: usedQty,
+      pending_qty: pendingQty,
+      unused_qty: unusedQty,
+      total_count: (usedRows?.length ?? 0) + (pendingRows?.length ?? 0) + (unusedRows?.length ?? 0),
+      used_count: usedRows?.length ?? 0,
+      pending_count: pendingRows?.length ?? 0,
+      unused_count: unusedRows?.length ?? 0,
+      current_window: currentWindow,
+    });
   } catch (error) {
     next(error);
   }

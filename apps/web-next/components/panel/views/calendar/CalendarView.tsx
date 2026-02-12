@@ -189,7 +189,7 @@ const ClubDetailSection = ({
       className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 hover:underline"
       href="/panel/orders"
     >
-      Ir a Órdenes
+      Ir a Entradas
       <ExternalLink className="h-4 w-4" />
     </a>
 

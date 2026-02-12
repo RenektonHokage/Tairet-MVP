@@ -51,7 +51,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
             title: "Operación",
             items: [
               { href: "/panel/checkin", label: "Check-in", icon: "✓" },
-              { href: "/panel/orders", label: "Órdenes", icon: "📋" },
+              { href: "/panel/orders", label: "Entradas", icon: "📋" },
             ],
           },
           {
