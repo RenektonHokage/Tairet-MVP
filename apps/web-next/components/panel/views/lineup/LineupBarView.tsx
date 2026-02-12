@@ -158,12 +158,12 @@ function BarKpiGrid({ items }: { items: BarKpiItem[] }) {
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
       {items.map((item, index) => (
         <Card key={index} className="h-full">
-          <CardContent className="flex min-h-[96px] flex-col justify-center gap-3">
-            <div className="flex flex-col justify-center gap-1">
+          <CardContent className="flex min-h-[112px] flex-col justify-between gap-3 px-4 py-4 md:px-5 md:py-5">
+            <div className="space-y-1.5">
               <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">
                 {item.label}
               </div>
-              <div className="text-3xl font-semibold leading-none text-neutral-950">
+              <div className="text-3xl font-semibold leading-tight text-neutral-950">
                 {item.icon ? (
                   <div className="flex items-center justify-between gap-3">
                     <span>{item.value}</span>
@@ -303,7 +303,7 @@ export function LineupBarView() {
         <div className="h-8 w-48 rounded bg-neutral-200/70 animate-pulse" />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
+            <div key={i} className="h-[112px] rounded-2xl bg-neutral-200/70 animate-pulse" />
           ))}
         </div>
       </div>
@@ -424,7 +424,7 @@ export function LineupBarView() {
       {loadingSummary ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
+            <div key={i} className="h-[112px] rounded-2xl bg-neutral-200/70 animate-pulse" />
           ))}
         </div>
       ) : (

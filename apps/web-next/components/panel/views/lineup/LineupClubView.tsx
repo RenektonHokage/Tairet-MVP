@@ -227,12 +227,12 @@ function LineupKpiGrid({ items }: { items: LineupKpiItem[] }) {
     <div className="grid gap-4 md:grid-cols-4">
       {items.map((item, index) => (
         <Card key={index} className="h-full">
-          <CardContent className="flex min-h-[96px] flex-col justify-center gap-3">
-            <div className="flex flex-col justify-center gap-1">
+          <CardContent className="flex min-h-[112px] flex-col justify-between gap-3 px-4 py-4 md:px-5 md:py-5">
+            <div className="space-y-1.5">
               <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">
                 {item.label}
               </div>
-              <div className="text-3xl font-semibold leading-none text-neutral-950">
+              <div className="text-3xl font-semibold leading-tight text-neutral-950">
                 {item.icon ? (
                   <div className="flex items-center justify-between gap-3">
                     <span>{item.value}</span>
@@ -393,7 +393,7 @@ export function LineupClubView() {
         <div className="h-8 w-48 rounded bg-neutral-200/70 animate-pulse" />
         <div className="grid gap-4 md:grid-cols-4">
           {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
+            <div key={i} className="h-[112px] rounded-2xl bg-neutral-200/70 animate-pulse" />
           ))}
         </div>
       </div>
@@ -460,8 +460,8 @@ export function LineupClubView() {
     {
       label: (
         <span className="inline-flex items-center gap-1">
-          Entradas totales
-          <InfoTip text="Cuenta entradas, no suma quantity (qty)." />
+          Compras de entradas
+          <InfoTip text="Cuenta la cantidad de compras realizadas. Una compra puede incluir varias entradas (ej.: 1 compra = 10 entradas)." />
         </span>
       ),
       value: formatNumber(metrics?.kpis.orders_total ?? 0),
@@ -522,7 +522,7 @@ export function LineupClubView() {
       {loading ? (
         <div className="grid gap-4 md:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-[96px] rounded-2xl bg-neutral-200/70 animate-pulse" />
+            <div key={i} className="h-[112px] rounded-2xl bg-neutral-200/70 animate-pulse" />
           ))}
         </div>
       ) : (
@@ -674,7 +674,7 @@ export function LineupClubView() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="space-y-1">
             <CardTitle>Mesas con más interés</CardTitle>
             <p className={panelUi.pageSubtitle}>Clicks / Interacciones</p>
           </CardHeader>
@@ -686,33 +686,31 @@ export function LineupClubView() {
                   return (
                     <Card
                       key={`${table.table_type_id ?? "table"}-${index}`}
-                      className="border border-neutral-100"
+                      className="h-full border border-neutral-100"
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-700">
-                              {index + 1}
-                            </span>
-                            <div>
-                              <p className="text-sm font-semibold text-neutral-900">{table.name}</p>
-                              <p className="text-xs text-neutral-500">Precio</p>
-                            </div>
+                      <div className="grid min-h-[156px] gap-4 px-4 py-4 md:px-5 md:py-5">
+                        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-700">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-neutral-900">{table.name}</p>
+                            <p className="text-xs text-neutral-500">Precio</p>
                           </div>
-                          <p className="text-sm font-semibold text-neutral-900">
+                          <p className="text-right text-sm font-semibold text-neutral-900">
                             {table.price != null ? formatCurrency(table.price) : "—"}
                           </p>
                         </div>
 
-                        <div className="mt-4 space-y-2">
-                          <div className="flex items-center justify-between text-xs text-neutral-500">
-                            <span>Clicks</span>
-                            <span className="font-medium text-neutral-800">
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-500">Clicks</span>
+                            <span className="text-sm font-semibold text-neutral-900">
                               {formatNumber(table.interest_count)}
                             </span>
                           </div>
-                          <div>
-                            <p className="text-[11px] text-neutral-400">Interacciones</p>
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-neutral-400">Interacciones</p>
                             <div className="mt-1 h-2 w-full rounded-full bg-neutral-100">
                               <div
                                 className="h-2 rounded-full bg-[#8d1313]"
@@ -721,7 +719,7 @@ export function LineupClubView() {
                             </div>
                           </div>
                         </div>
-                      </CardContent>
+                      </div>
                     </Card>
                   );
                 })}

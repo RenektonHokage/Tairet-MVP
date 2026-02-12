@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Clock, Mail, Phone, Users } from "lucide-react";
+import { formatTimePy } from "@/lib/time";
 
 import { Badge, Card, CardContent, CardFooter, CardHeader, CardTitle, cn, panelUi } from "../ui";
 
@@ -35,43 +36,6 @@ const statusMap: Record<
   cancelled: { label: "Cancelada", variant: "danger" },
 };
 
-function parseReservationDate(value: string): Date | null {
-  const [datePart, timePartRaw] = value.split(",").map((part) => part.trim());
-  if (!datePart) return null;
-  const [dayStr, monthStr, yearStr] = datePart.split("/");
-  const day = Number(dayStr);
-  const month = Number(monthStr) - 1;
-  const year = Number(yearStr);
-  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
-
-  let hours = 0;
-  let minutes = 0;
-  let seconds = 0;
-
-  if (timePartRaw) {
-    const isPm = /p\.?\s?m\.?/i.test(timePartRaw);
-    const timePart = timePartRaw
-      .replace(/a\.?\s?m\.?|p\.?\s?m\.?/i, "")
-      .trim();
-    const [hourStr, minuteStr, secondStr] = timePart.split(":");
-    hours = Number(hourStr || 0);
-    minutes = Number(minuteStr || 0);
-    seconds = Number(secondStr || 0);
-    if (isPm && hours < 12) hours += 12;
-    if (!isPm && hours === 12) hours = 0;
-  }
-
-  return new Date(year, month, day, hours, minutes, seconds);
-}
-
-function formatTime(value: string) {
-  const date = parseReservationDate(value);
-  if (!date) return value;
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
 function formatDateLabel(value: string) {
   const [datePart] = value.split(",");
   return datePart?.trim() ?? value;
@@ -79,7 +43,7 @@ function formatDateLabel(value: string) {
 
 export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: ReservationCardProps) {
   const status = statusMap[reservation.status];
-  const timeLabel = formatTime(reservation.date);
+  const timeLabel = formatTimePy(reservation.date);
   const dateLabel = formatDateLabel(reservation.date);
   const fullName = [reservation.name, reservation.last_name].filter(Boolean).join(" ");
 

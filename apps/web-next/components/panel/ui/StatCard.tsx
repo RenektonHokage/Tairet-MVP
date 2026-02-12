@@ -24,10 +24,10 @@ export function StatCard({ label, value, hint, trend }: StatCardProps) {
 
   return (
     <Card className="h-full">
-      <CardContent className="flex min-h-[96px] flex-col justify-center gap-3">
-        <div className="flex flex-col justify-center gap-1">
+      <CardContent className="flex min-h-[112px] flex-col justify-between gap-3 px-4 py-4 md:px-5 md:py-5">
+        <div className="space-y-1.5">
           <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</div>
-          <div className="text-3xl font-semibold leading-none text-neutral-950">{value}</div>
+          <div className="text-3xl font-semibold leading-tight text-neutral-950">{value}</div>
         </div>
         {(hint || trend) ? (
           <div className="flex items-center justify-between gap-3 text-xs">
