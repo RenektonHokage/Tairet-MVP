@@ -1917,6 +1917,7 @@ export default function ProfilePage() {
                 attributes={previewAttributes}
                 minAge={minAge}
                 hours={previewHours}
+                className="w-full max-w-[360px]"
               />
             </div>
           </section>

@@ -46,13 +46,14 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
   const timeLabel = formatTimePy(reservation.date);
   const dateLabel = formatDateLabel(reservation.date);
   const fullName = [reservation.name, reservation.last_name].filter(Boolean).join(" ");
+  const emailLabel = reservation.email || "-";
 
   const notes = reservation.notes?.trim() || "Sin notas del cliente";
   const tableNote = reservation.table_note?.trim() || "Sin nota interna";
 
   return (
-    <Card className="h-full">
-      <CardHeader className="gap-3">
+    <Card>
+      <CardHeader className="gap-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-lg">{fullName}</CardTitle>
@@ -61,52 +62,52 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
           <Badge variant={status.variant}>{status.label}</Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex items-start gap-2 text-sm">
+      <CardContent className="space-y-3">
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          <div className="flex min-w-0 items-start gap-2 text-sm">
             <span className="mt-0.5 text-neutral-500">
               <Clock className="h-4 w-4" />
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-neutral-500">Horario</div>
               <div className="font-semibold text-neutral-900">{timeLabel}</div>
             </div>
           </div>
-          <div className="flex items-start gap-2 text-sm">
+          <div className="flex min-w-0 items-start gap-2 text-sm">
             <span className="mt-0.5 text-neutral-500">
               <Users className="h-4 w-4" />
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-neutral-500">Personas</div>
               <div className="font-semibold text-neutral-900">{reservation.guests}</div>
             </div>
           </div>
-          <div className="flex items-start gap-2 text-sm">
+          <div className="flex min-w-0 items-start gap-2 text-sm">
             <span className="mt-0.5 text-neutral-500">
               <Phone className="h-4 w-4" />
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-neutral-500">Telefono</div>
               <div className="font-semibold text-neutral-900">
                 {reservation.phone || "-"}
               </div>
             </div>
           </div>
-          <div className="flex items-start gap-2 text-sm">
+          <div className="flex min-w-0 items-start gap-2 text-sm">
             <span className="mt-0.5 text-neutral-500">
               <Mail className="h-4 w-4" />
             </span>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-neutral-500">Email</div>
-              <div className="font-semibold text-neutral-900">
-                {reservation.email || "-"}
+              <div className="truncate font-semibold text-neutral-900" title={emailLabel}>
+                {emailLabel}
               </div>
             </div>
           </div>
         </div>
 
         <div className="space-y-2">
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50 px-4 py-3">
+          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50 px-4 py-2.5">
             <div className="text-xs font-medium text-neutral-500">Notas del cliente</div>
             <div
               className="text-sm text-neutral-800 break-words whitespace-pre-wrap"
@@ -120,7 +121,7 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
               {notes}
             </div>
           </div>
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/80 px-4 py-3">
+          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/80 px-4 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-medium text-neutral-500">Nota de operacion</div>
               <button
