@@ -30,6 +30,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  InfoTip,
   cn,
   panelUi,
 } from "@/components/panel/ui";
@@ -102,9 +103,21 @@ const formatDelta = (current: number, previous?: number | null) => {
   return { text: `${sign}${pct}% vs período anterior`, tone };
 };
 
+const deltaComparisonTooltip =
+  "Período anterior = el período inmediatamente anterior de la misma duración (7 días vs 7 anteriores, 30 días vs 30 anteriores). El porcentaje muestra la variación relativa: (actual - anterior) / anterior.";
+
+const deltaNoDataTooltip =
+  "Período anterior = el período inmediatamente anterior de la misma duración. Si no hay datos previos suficientes, no se calcula la variación porcentual.";
+
 const renderDelta = (current: number, previous?: number | null) => {
   const result = formatDelta(current, previous);
-  return <span className={deltaToneClass[result.tone]}>{result.text}</span>;
+  const tooltipText = previous == null || previous <= 0 ? deltaNoDataTooltip : deltaComparisonTooltip;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={deltaToneClass[result.tone]}>{result.text}</span>
+      <InfoTip text={tooltipText} className="shrink-0" />
+    </span>
+  );
 };
 
 const formatNumber = (value: number) => new Intl.NumberFormat("es-PY").format(value);
