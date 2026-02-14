@@ -4,24 +4,24 @@ import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { BaseCarousel } from '@/components/BaseCarousel';
 import VenueCard from '@/components/shared/VenueCard';
-import { barsSectionVenues } from '@/lib/data/venues';
 import type { Bar } from '@/lib/types';
 import { slugify } from '@/lib/slug';
-import { MVP_BAR_SLUGS } from '@/lib/mvpSlugs';
+import { selectBarVenues } from '@/lib/venueSelectors';
 
 const BarsSection: React.FC<{
   typeFilter?: string;
 }> = ({
   typeFilter
 }) => {
-  // Filter venues by type if typeFilter is provided
-  let bars = typeFilter ? barsSectionVenues.filter(v => v.type === typeFilter) : barsSectionVenues;
-  
-  // Filtrar solo bares MVP (que tienen perfil real)
-  bars = bars.filter((bar) => {
-    const slug = slugify(bar.name);
-    return MVP_BAR_SLUGS.includes(slug as any);
-  });
+  let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
+
+  // Mantener compatibilidad si se llega a usar el filtro por tipo.
+  if (typeFilter) {
+    bars = bars.filter((bar) => {
+      if (typeFilter === "bar") return true;
+      return bar.type === typeFilter;
+    });
+  }
 
   // Dynamic title based on type filter
   const sectionTitle = typeFilter === 'bar' ? 'BARES' : typeFilter === 'boliche' ? 'BOLICHES' : typeFilter === 'evento' ? 'EVENTOS' : 'Bares';

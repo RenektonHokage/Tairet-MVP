@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
@@ -72,6 +72,8 @@ export default function OrdersPageClient() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const summaryRequestIdRef = useRef(0);
+  const entriesRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!isClub) {
@@ -105,6 +107,7 @@ export default function OrdersPageClient() {
       return null;
     }
 
+    const requestId = ++summaryRequestIdRef.current;
     setSummaryLoading(true);
     setSummaryError(null);
 
@@ -129,13 +132,21 @@ export default function OrdersPageClient() {
       }
 
       const data: OrdersSummaryResponse = await response.json();
+      if (requestId !== summaryRequestIdRef.current) {
+        return null;
+      }
       setSummary(data);
       return data;
     } catch (error) {
+      if (requestId !== summaryRequestIdRef.current) {
+        return null;
+      }
       setSummaryError(error instanceof Error ? error.message : "Error al cargar resumen");
       return null;
     } finally {
-      setSummaryLoading(false);
+      if (requestId === summaryRequestIdRef.current) {
+        setSummaryLoading(false);
+      }
     }
   }, [isClub]);
 
@@ -148,6 +159,7 @@ export default function OrdersPageClient() {
       return;
     }
 
+    const requestId = ++entriesRequestIdRef.current;
     setEntriesLoading(true);
     setEntriesError(null);
 
@@ -178,12 +190,20 @@ export default function OrdersPageClient() {
       }
 
       const data: OrdersResponse = await response.json();
+      if (requestId !== entriesRequestIdRef.current) {
+        return;
+      }
       setEntries(data.items ?? []);
       setEntriesCount(data.count ?? 0);
     } catch (error) {
+      if (requestId !== entriesRequestIdRef.current) {
+        return;
+      }
       setEntriesError(error instanceof Error ? error.message : "Error al cargar entradas");
     } finally {
-      setEntriesLoading(false);
+      if (requestId === entriesRequestIdRef.current) {
+        setEntriesLoading(false);
+      }
     }
   }, [appliedSearchValue, context, contextLoading, intendedDate, isClub, searchType, stateFilter]);
 
@@ -202,7 +222,7 @@ export default function OrdersPageClient() {
 
       if (!intendedDate && data.current_window?.intended_date) {
         const nextDate = data.current_window.intended_date;
-        if (nextDate !== searchParams.get("intended_date")) {
+        if (nextDate !== intendedDate) {
           updateIntendedDateInUrl(nextDate);
         }
       }
@@ -213,7 +233,7 @@ export default function OrdersPageClient() {
     return () => {
       active = false;
     };
-  }, [context, contextLoading, intendedDate, isClub, loadSummary, searchParams]);
+  }, [context, contextLoading, intendedDate, isClub, loadSummary]);
 
   useEffect(() => {
     void loadEntries();
@@ -479,7 +499,11 @@ export default function OrdersPageClient() {
               <input
                 type="date"
                 value={intendedDate}
-                onChange={(e) => updateIntendedDateInUrl(e.target.value)}
+                onChange={(e) => {
+                  const nextDate = e.target.value;
+                  setIntendedDate(nextDate);
+                  updateIntendedDateInUrl(nextDate);
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               />
             </div>

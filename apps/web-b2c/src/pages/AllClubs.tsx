@@ -10,11 +10,10 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
-import { allClubs } from "@/lib/data/venues";
 import type { Club } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
 import { getLocalsList } from "@/lib/locals";
+import { selectClubVenues } from "@/lib/venueSelectors";
 
 // Music genres for filtering
 const musicGenres = [
@@ -102,7 +101,6 @@ export default function AllClubs() {
     sortBy: "relevance"
   });
 
-  const [showMoreClubs, setShowMoreClubs] = useState(8);
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   
@@ -154,15 +152,10 @@ export default function AllClubs() {
       });
   }, []);
 
-  // Filtrar solo clubs MVP (que tienen perfil real)
-  const mvpClubs = allClubs.filter((club) => {
-    const slug = slugify(club.name);
-    return MVP_CLUB_SLUGS.includes(slug as any);
-  });
+  const mvpClubs = selectClubVenues({ city: "asuncion", scope: "all" });
 
   const filteredClubs = filterAndSortClubs(mvpClubs, filters);
-  const displayedClubs = filteredClubs.slice(0, showMoreClubs);
-  const hasMoreClubs = filteredClubs.length > showMoreClubs;
+  const displayedClubs = filteredClubs;
 
   const activeFiltersCount = [
     filters.musicGenres.length > 0,
@@ -379,18 +372,6 @@ export default function AllClubs() {
               })}
             </div>
 
-            {/* Load More */}
-            {hasMoreClubs && (
-              <div className="text-center">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowMoreClubs(prev => prev + 8)}
-                  className="px-8"
-                >
-                  Cargar más discotecas
-                </Button>
-              </div>
-            )}
           </>
         )}
       </main>

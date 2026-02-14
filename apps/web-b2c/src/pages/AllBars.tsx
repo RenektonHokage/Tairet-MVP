@@ -10,11 +10,10 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
-import { allBars } from "@/lib/data/venues";
 import type { Bar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { MVP_BAR_SLUGS } from "@/lib/mvpSlugs";
 import { getLocalsList, type LocalListItem } from "@/lib/locals";
+import { selectBarVenues } from "@/lib/venueSelectors";
 
 // Bar specialties for filtering
 const barSpecialties = [
@@ -106,7 +105,6 @@ export default function AllBars() {
     sortBy: "relevance"
   });
 
-  const [showMoreBars, setShowMoreBars] = useState(8);
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   
@@ -158,15 +156,10 @@ export default function AllBars() {
       });
   }, []);
 
-  // Filtrar solo bares MVP (que tienen perfil real)
-  const mvpBars = allBars.filter((bar) => {
-    const slug = slugify(bar.name);
-    return MVP_BAR_SLUGS.includes(slug as any);
-  });
+  const mvpBars = selectBarVenues({ city: "asuncion", scope: "all" });
 
   const filteredBars = filterAndSortBars(mvpBars, filters);
-  const displayedBars = filteredBars.slice(0, showMoreBars);
-  const hasMoreBars = filteredBars.length > showMoreBars;
+  const displayedBars = filteredBars;
 
   const activeFiltersCount = [
     filters.specialties.length > 0,
@@ -382,18 +375,6 @@ export default function AllBars() {
               })}
             </div>
 
-            {/* Load More */}
-            {hasMoreBars && (
-              <div className="text-center">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowMoreBars(prev => prev + 8)}
-                  className="px-8"
-                >
-                  Cargar más bares
-                </Button>
-              </div>
-            )}
           </>
         )}
       </main>

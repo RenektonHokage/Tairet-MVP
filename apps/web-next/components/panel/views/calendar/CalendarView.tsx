@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   CheckCircle2,
@@ -185,13 +186,13 @@ const ClubDetailSection = ({
     </div>
     {checkinsError ? <p className="text-xs text-rose-600">{checkinsError}</p> : null}
 
-    <a
+    <Link
       className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 hover:underline"
       href="/panel/orders"
     >
       Ir a Entradas
       <ExternalLink className="h-4 w-4" />
-    </a>
+    </Link>
 
     <div className="space-y-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
@@ -245,13 +246,13 @@ const BarDetailSection = ({
       <p className="text-sm font-semibold text-neutral-900">
         Reservas del día ({reservations.length})
       </p>
-      <a
+      <Link
         className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 hover:underline"
         href="/panel/reservations"
       >
         Ver todas las reservas
         <ExternalLink className="h-4 w-4" />
-      </a>
+      </Link>
     </div>
     {error ? (
       <p className="text-sm text-rose-600">{error}</p>

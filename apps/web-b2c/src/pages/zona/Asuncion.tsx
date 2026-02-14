@@ -13,18 +13,13 @@ import asuncionCityscape from "@/assets/asuncion-cityscape.jpg";
 import afterOffice from "@/assets/after-office.jpg";
 import promotionsImg from "@/assets/promotions.jpg";
 import BarsSection from "@/components/BarsSection";
-import { discotecasAsuncion, createZoneBars } from "@/lib/data/venues";
+import { createZoneBars } from "@/lib/data/venues";
 import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
+import { selectClubVenues } from "@/lib/venueSelectors";
 
-// Local aliases for compatibility
-// Filtrar solo clubs MVP (que tienen perfil real)
-const discotecas = discotecasAsuncion.filter((club) => {
-  const slug = slugify(club.name);
-  return MVP_CLUB_SLUGS.includes(slug as any);
-});
+const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
 const promos = promosAsuncion;
 
 // Generate bares with local images
