@@ -56,6 +56,7 @@ const VenueCard: React.FC<VenueCardProps> = ({
   const displayAge = typeof minAge === 'number' ? minAge : null;
   const Icon = type === 'bar' ? Wine : Music;
   const hasDateHeader = dateTop && dateBottom;
+  const headerImage = typeof image === "string" && image.trim().length > 0 ? image : undefined;
 
   return (
     <Link to={href} className={`block ${className}`}>
@@ -66,11 +67,13 @@ const VenueCard: React.FC<VenueCardProps> = ({
             type === 'bar' 
               ? 'venue-card-header-bar'
               : 'venue-card-header-club'
-          }`}>
-            <div className="text-white font-bold text-2xl sm:text-3xl tracking-wide">
+          } relative overflow-hidden bg-cover bg-center`}
+          style={headerImage ? { backgroundImage: `url(${headerImage})` } : undefined}>
+            {headerImage && <div className="absolute inset-0 bg-black/35 pointer-events-none" />}
+            <div className="relative z-10 text-white font-bold text-2xl sm:text-3xl tracking-wide">
               {dateTop}
             </div>
-            <div className="text-white/90 text-sm uppercase tracking-wider">
+            <div className="relative z-10 text-white/90 text-sm uppercase tracking-wider">
               {dateBottom}
             </div>
           </div>

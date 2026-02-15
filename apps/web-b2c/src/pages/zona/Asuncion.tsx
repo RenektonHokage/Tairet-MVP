@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { selectClubVenues } from "@/lib/venueSelectors";
+import { getZoneCoverMaps, type CoverBySlugMap } from "@/lib/localCoverMaps";
 
 const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
 const promos = promosAsuncion;
@@ -65,8 +66,26 @@ function BarCard({
     </Card>;
 }
 export default function ZonaAsuncion() {
+  const [clubCoverBySlug, setClubCoverBySlug] = useState<CoverBySlugMap>(new Map());
+  const [barCoverBySlug, setBarCoverBySlug] = useState<CoverBySlugMap>(new Map());
+
   useEffect(() => {
+    let active = true;
     document.title = "Descubrí Asunción | Zonas - Tairet";
+
+    getZoneCoverMaps(100)
+      .then(({ clubCovers, barCovers }) => {
+        if (!active) return;
+        setClubCoverBySlug(clubCovers);
+        setBarCoverBySlug(barCovers);
+      })
+      .catch(() => {
+        // Silently fail - current mock images/placeholders remain
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
   return <>
       {/* Navbar */}
@@ -97,22 +116,23 @@ export default function ZonaAsuncion() {
                 containerClassName="gap-4"
                 options={{ dragFree: true, align: "start" }}
               >
-                {discotecas.map(item => (
-                <VenueCard 
-                  key={item.id}
-                  id={item.id}
-                  name={item.name}
-                  dateTop={item.dateTop}
-                  dateBottom={item.dateBottom}
-                  schedule={item.schedule}
-                  rating={item.rating}
-                  genres={item.genres}
-                  image={item.customImage}
-                  href={`/club/${slugify(item.name)}`}
-                  type="club"
-                  className="w-[280px] sm:w-[300px] lg:w-auto"
-                />
-                ))}
+                {discotecas.map((item) => {
+                  const clubSlug = slugify(item.name);
+                  return (
+                    <VenueCard 
+                      key={item.id}
+                      id={item.id}
+                      name={item.name}
+                      schedule={item.schedule}
+                      rating={item.rating}
+                      genres={item.genres}
+                      image={clubCoverBySlug.get(clubSlug) || item.customImage}
+                      href={`/club/${clubSlug}`}
+                      type="club"
+                      className="w-[280px] sm:w-[300px] lg:w-auto"
+                    />
+                  );
+                })}
               </BaseCarousel>
             </div>
           )}
@@ -125,22 +145,23 @@ export default function ZonaAsuncion() {
               loop: false
             }}>
               <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
-                {discotecas.map(item => (
-                  <CarouselItem key={item.id} className="basis-1/4">
-                    <VenueCard 
-                      id={item.id}
-                      name={item.name}
-                      dateTop={item.dateTop}
-                      dateBottom={item.dateBottom}
-                      schedule={item.schedule}
-                      rating={item.rating}
-                      genres={item.genres}
-                      image={item.customImage}
-                      href={`/club/${slugify(item.name)}`}
-                      type="club"
-                    />
-                  </CarouselItem>
-                ))}
+                {discotecas.map((item) => {
+                  const clubSlug = slugify(item.name);
+                  return (
+                    <CarouselItem key={item.id} className="basis-1/4">
+                      <VenueCard 
+                        id={item.id}
+                        name={item.name}
+                        schedule={item.schedule}
+                        rating={item.rating}
+                        genres={item.genres}
+                        image={clubCoverBySlug.get(clubSlug) || item.customImage}
+                        href={`/club/${clubSlug}`}
+                        type="club"
+                      />
+                    </CarouselItem>
+                  );
+                })}
               </CarouselContent>
               <CarouselPrevious className="hidden lg:flex" />
               <CarouselNext className="hidden lg:flex" />
@@ -152,7 +173,7 @@ export default function ZonaAsuncion() {
 
       
 
-      <BarsSection />
+      <BarsSection coverBySlug={barCoverBySlug} />
     </main>
     </>;
 }

@@ -88,7 +88,7 @@ const Explorar = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-4 left-4">
                     <h3 className="text-white text-xl font-bold mb-1">Asunción</h3>
-                    <div className="flex items-center text-white/80 text-sm">
+                    <div className="hidden md:flex items-center text-white/80 text-sm">
                       <MapPin className="h-4 w-4 mr-1" />
                       <span>Centro y alrededores</span>
                     </div>
@@ -108,7 +108,7 @@ const Explorar = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-4 left-4">
                     <h3 className="text-white text-xl font-bold mb-1">San Bernardino</h3>
-                    <div className="flex items-center text-white/80 text-sm">
+                    <div className="hidden md:flex items-center text-white/80 text-sm">
                       <MapPin className="h-4 w-4 mr-1" />
                       <span>Distrito turístico</span>
                     </div>
@@ -128,7 +128,7 @@ const Explorar = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute bottom-4 left-4">
                     <h3 className="text-white text-xl font-bold mb-1">Ciudad del Este</h3>
-                    <div className="flex items-center text-white/80 text-sm">
+                    <div className="hidden md:flex items-center text-white/80 text-sm">
                       <MapPin className="h-4 w-4 mr-1" />
                       <span>Zona comercial</span>
                     </div>

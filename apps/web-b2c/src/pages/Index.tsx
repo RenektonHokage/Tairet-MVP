@@ -73,17 +73,14 @@ const Index = () => {
               <ExperiencesCarousel aspectRatio="square" items={[{
               src: asuncionCityscape,
               title: "Asunción",
-              description: "Descubre la vida nocturna de la capital",
               href: "/zona/asuncion"
             }, {
               src: sanberDistrict,
               title: "San Bernardino",
-              description: "Diversión junto al lago",
               href: "/zona/san-bernardino"
             }, {
               src: ciudadDelEste,
               title: "Ciudad del Este",
-              description: "Entretenimiento fronterizo",
               href: "/zona/ciudad-del-este"
             }]} />
             </div>

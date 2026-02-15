@@ -71,10 +71,10 @@ const Zonas = () => {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
                     <div className="absolute bottom-6 left-6 right-6">
-                      <h2 className="text-white text-2xl font-bold mb-2">{zone.name}</h2>
-                      <p className="text-white/90 text-sm mb-3">{zone.highlight}</p>
-                      
-                      <div className="flex items-center justify-between text-white/80 text-sm">
+                      <h2 className="text-white text-2xl font-bold md:mb-2">{zone.name}</h2>
+                      <p className="hidden md:block text-white/90 text-sm mb-3">{zone.highlight}</p>
+                       
+                      <div className="hidden md:flex items-center justify-between text-white/80 text-sm">
                         <div className="flex items-center">
                           <Users className="h-4 w-4 mr-1" />
                           <span>{zone.venues}</span>
@@ -87,7 +87,7 @@ const Zonas = () => {
                     </div>
                   </div>
                   
-                  <CardContent className="p-6">
+                  <CardContent className="hidden md:block p-6">
                     <p className="text-muted-foreground mb-4">{zone.description}</p>
                     <Button className="w-full group-hover:bg-primary/90">
                       Ver locales en {zone.name}

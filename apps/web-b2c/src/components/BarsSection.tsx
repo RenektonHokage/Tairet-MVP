@@ -10,8 +10,10 @@ import { selectBarVenues } from '@/lib/venueSelectors';
 
 const BarsSection: React.FC<{
   typeFilter?: string;
+  coverBySlug?: Map<string, string>;
 }> = ({
-  typeFilter
+  typeFilter,
+  coverBySlug
 }) => {
   let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
 
@@ -57,20 +59,23 @@ const BarsSection: React.FC<{
             containerClassName="gap-4"
             options={{ dragFree: true, align: "start" }}
           >
-            {bars.map(item => (
-              <VenueCard 
-                key={item.id}
-                id={item.id}
-                name={item.name}
-                schedule={item.schedule}
-                rating={item.rating}
-                specialties={item.specialties}
-                image={item.image}
-                href={`/bar/${slugify(item.name)}`}
-                type="bar"
-                className="w-[280px] sm:w-[300px] lg:w-auto"
-              />
-            ))}
+            {bars.map((item) => {
+              const barSlug = slugify(item.name);
+              return (
+                <VenueCard 
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  schedule={item.schedule}
+                  rating={item.rating}
+                  specialties={item.specialties}
+                  image={coverBySlug?.get(barSlug) || item.image}
+                  href={`/bar/${barSlug}`}
+                  type="bar"
+                  className="w-[280px] sm:w-[300px] lg:w-auto"
+                />
+              );
+            })}
           </BaseCarousel>
         </div>
 
@@ -81,20 +86,23 @@ const BarsSection: React.FC<{
           loop: false
         }}>
             <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
-              {bars.map(item => (
-                <CarouselItem key={item.id} className="basis-1/4">
-                  <VenueCard 
-                    id={item.id}
-                    name={item.name}
-                    schedule={item.schedule}
-                    rating={item.rating}
-                    specialties={item.specialties}
-                    image={item.image}
-                    href={`/bar/${slugify(item.name)}`}
-                    type="bar"
-                  />
-                </CarouselItem>
-              ))}
+              {bars.map((item) => {
+                const barSlug = slugify(item.name);
+                return (
+                  <CarouselItem key={item.id} className="basis-1/4">
+                    <VenueCard 
+                      id={item.id}
+                      name={item.name}
+                      schedule={item.schedule}
+                      rating={item.rating}
+                      specialties={item.specialties}
+                      image={coverBySlug?.get(barSlug) || item.image}
+                      href={`/bar/${barSlug}`}
+                      type="bar"
+                    />
+                  </CarouselItem>
+                );
+              })}
             </CarouselContent>
             <CarouselPrevious className="hidden lg:flex" />
             <CarouselNext className="hidden lg:flex" />
