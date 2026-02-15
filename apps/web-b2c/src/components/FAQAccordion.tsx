@@ -13,11 +13,11 @@ const FAQAccordion = () => {
     },
     {
       question: "¿Cómo reservo una mesa?",
-      answer: "Entrá a Tairet, elegí tu lugar, seleccioná la mesa disponible y confirmá tu reserva. Vas a recibir un correo con un código QR para mostrar en el ingreso."
+      answer: "El local debe confirmar la reserva. Una vez confirmada, te enviaremos un correo electrónico y ya estarás dentro de la lista."
     },
     {
       question: "¿Es gratis usar Tairet?",
-      answer: "Sí, la plataforma es totalmente gratuita para los usuarios. Solo pagás el valor de la reserva según el local que elijas."
+      answer: "Sí, usar Tairet es gratis. Solo pagás el valor de la entrada cuando la compra de entradas esté habilitada."
     },
     {
       question: "¿Qué es el código QR y para qué sirve?",
@@ -29,7 +29,7 @@ const FAQAccordion = () => {
     },
     {
       question: "¿Puedo cancelar mi reserva?",
-      answer: "Sí, podés hacerlo desde tu perfil antes del horario de inicio de la reserva. El reembolso se hará según la política de cada local."
+      answer: "Sí. Podés solicitar la cancelación desde el correo de confirmación que te enviamos cuando el local aprueba tu reserva (respondiendo a ese email). La reserva no tiene costo, por lo que no hay reembolsos."
     },
     {
       question: "¿Qué pasa si llego tarde a mi reserva?",
@@ -40,12 +40,12 @@ const FAQAccordion = () => {
       answer: "No, la plataforma está destinada exclusivamente a personas mayores de 18 años."
     },
     {
-      question: "¿Puedo modificar mi reserva después de pagar?",
-      answer: "No, una vez confirmada y pagada la reserva no es posible modificarla. Si necesitás cambiar algo, podés cancelar desde tu perfil antes del horario de inicio de la reserva y se te realizará el reembolso correspondiente según la política de cada local."
+      question: "¿Puedo modificar mi entrada después de pagarla?",
+      answer: "No. Una vez confirmada la compra, la entrada no se puede modificar. Esto ayuda a prevenir errores y fraudes. Si detectás un problema con tu compra, contactanos para revisar el caso."
     },
     {
       question: "¿Qué métodos de pago están disponibles?",
-      answer: "Todas las reservas se pagan directamente en Tairet a través de nuestras pasarelas oficiales: Bancard y Dinelco, compatibles con tarjetas de crédito y débito. De esta forma garantizamos pagos seguros y confirmación inmediata de tu mesa."
+      answer: "Próximamente: Bancard."
     },
     {
       question: "¿Qué pasa si mi pago falla?",
@@ -57,7 +57,7 @@ const FAQAccordion = () => {
     },
     {
       question: "¿Qué pasa si el local cancela mi reserva?",
-      answer: "En caso de que un local cancele mi reserva, recibirás un reembolso completo y una notificación por correo electrónico."
+      answer: "Si el local cancela tu reserva, te avisaremos por correo electrónico."
     },
     {
       question: "¿Cómo contacto al soporte de Tairet?",

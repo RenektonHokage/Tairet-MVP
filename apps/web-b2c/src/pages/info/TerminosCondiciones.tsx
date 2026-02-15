@@ -70,7 +70,8 @@ const TerminosCondiciones = () => {
             local pueda comunicarse con vos.
           </p>
           <p className="text-muted-foreground leading-relaxed">
-            En caso de inconvenientes con tu reserva, deberás contactar directamente con el bar.
+            En caso de inconvenientes con tu reserva, deberás contactar directamente con el local. 
+            Si el inconveniente es técnico de la plataforma, podrás contactar a Tairet.
           </p>
         </section>
 
@@ -80,17 +81,15 @@ const TerminosCondiciones = () => {
             4. Compra de entradas
           </h2>
           <p className="text-muted-foreground leading-relaxed mb-3">
-            La compra de entradas se realiza a través de una pasarela de pago externa segura. 
+            La compra de entradas próximamente se realizará a través de una pasarela de pago externa segura. 
             Tairet no almacena datos completos de tu tarjeta de crédito o débito.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-3">
-            Las condiciones de cambios, cancelaciones y reembolsos de entradas dependen 
-            exclusivamente de las políticas del organizador del evento o del local. Te 
-            recomendamos revisar estas condiciones antes de realizar tu compra.
+            Las condiciones de cancelación dependen exclusivamente del local. 
+            Una vez confirmada la compra, no se permiten cambios ni reembolsos.
           </p>
           <p className="text-muted-foreground leading-relaxed">
-            Una vez confirmada la compra, recibirás tu entrada por correo electrónico o 
-            WhatsApp según el método seleccionado.
+            Una vez confirmada la compra, recibirás tu entrada por correo electrónico.
           </p>
         </section>
 

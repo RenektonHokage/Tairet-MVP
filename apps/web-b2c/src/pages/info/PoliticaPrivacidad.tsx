@@ -38,7 +38,7 @@ const PoliticaPrivacidad = () => {
           </ul>
           <p className="text-muted-foreground leading-relaxed mt-3">
             <strong>Importante:</strong> No almacenamos los datos completos de tu tarjeta de 
-            crédito o débito. Los pagos se procesan a través de una pasarela de pago externa 
+            crédito o débito. Los pagos se procesarán a través de una pasarela de pago externa 
             segura que se encarga de gestionar esa información.
           </p>
         </section>
@@ -53,7 +53,7 @@ const PoliticaPrivacidad = () => {
           </p>
           <ul className="list-disc list-inside space-y-2 text-muted-foreground ml-4">
             <li>Gestionar tus reservas en bares y enviar tu solicitud al establecimiento</li>
-            <li>Procesar tus compras de entradas y enviarte la información de tu compra por email o WhatsApp</li>
+            <li>Procesar tus compras de entradas y enviarte la información de tu compra por email</li>
             <li>Responder tus consultas o brindarte soporte si lo necesitás</li>
             <li>Mejorar la plataforma a través de analítica básica del uso del sitio (sin intentar identificarte personalmente)</li>
           </ul>
@@ -75,7 +75,7 @@ const PoliticaPrivacidad = () => {
               con el bar, boliche u organizador del evento para que puedan gestionar tu solicitud.
             </li>
             <li>
-              <strong>Con proveedores externos:</strong> usamos servicios de pasarelas de pago 
+              <strong>Con proveedores externos:</strong> usaremos servicios de pasarelas de pago 
               para procesar compras de forma segura. Estos proveedores tienen sus propias políticas 
               de privacidad y cumplen estándares de seguridad.
             </li>
@@ -138,8 +138,7 @@ const PoliticaPrivacidad = () => {
           </ul>
           <p className="text-muted-foreground leading-relaxed mt-3">
             Para ejercer cualquiera de estos derechos, podés contactarnos a través de nuestro 
-            equipo de soporte. Haremos nuestro mejor esfuerzo para responder a tu solicitud en 
-            un plazo razonable.
+            equipo de soporte.
           </p>
         </section>
 

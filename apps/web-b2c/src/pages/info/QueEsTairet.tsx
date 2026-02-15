@@ -18,8 +18,8 @@ const QueEsTairet = () => {
     description: "Completá un formulario simple y asegurá tu lugar sin llamadas ni esperas."
   }, {
     icon: Ticket,
-    title: "Comprar entradas para eventos",
-    description: "Adquirí tus tickets de forma rápida con un checkout sencillo y una pasarela de pago segura."
+    title: "Compra entradas",
+    description: "Próximamente vas a poder comprar entradas con un checkout. Pagos integrados con Bancard: próximamente."
   }];
   return <div className="min-h-screen flex flex-col bg-background">
       <Navbar />
@@ -119,9 +119,7 @@ const QueEsTairet = () => {
               Para locales y organizadores
             </h2>
             <p className="text-lg md:text-xl text-foreground/80 leading-relaxed">
-              Los bares, boliches y organizadores de eventos cuentan con un panel exclusivo donde pueden ver métricas 
-              básicas como vistas de perfil, reservas recibidas, clics a WhatsApp y entradas vendidas. 
-              Esto les permite gestionar su presencia en Tairet y entender mejor a su público.
+              Los bares, boliches y organizadores de eventos cuentan con un panel exclusivo donde pueden ver información y resultados de su presencia en Tairet —por ejemplo: vistas de perfil, reservas recibidas, entradas vendidas, promoción más vista y clics a WhatsApp—. Esto les permite entender mejor a su público y operar de forma más eficiente.
             </p>
           </div>
         </div>

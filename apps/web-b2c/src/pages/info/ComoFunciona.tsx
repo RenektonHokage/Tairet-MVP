@@ -1,4 +1,4 @@
-import { Search, UserPlus, Calendar, CreditCard, QrCode, Star } from 'lucide-react';
+import { Search, Calendar, CreditCard, QrCode, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/Footer';
@@ -12,19 +12,14 @@ const ComoFunciona = () => {
       description: "Buscá bares y boliches por zona, estilo de música o ambiente. Mirá fotos reales, horarios y promociones."
     },
     {
-      icon: UserPlus,
-      title: "Creá tu cuenta",
-      description: "Registrate en segundos con tu email. Así podés reservar mesas y comprar entradas de forma rápida."
-    },
-    {
       icon: Calendar,
       title: "Reservá tu mesa",
       description: "Seleccioná el día, horario y cantidad de personas. Completá el formulario y listo."
     },
     {
       icon: CreditCard,
-      title: "Pagá de forma segura",
-      description: "Usamos Bancard y Dinelco para procesar tu pago con total seguridad y confirmación inmediata."
+      title: "Pagos integrados (próximamente)",
+      description: "Próximamente vas a poder confirmar tus compras con pagos integrados mediante Bancard."
     },
     {
       icon: QrCode,
@@ -138,12 +133,10 @@ const ComoFunciona = () => {
                 </h2>
                 <div className="space-y-4">
                   <p className="text-lg md:text-xl text-foreground/80 leading-relaxed">
-                    Todos los pagos son procesados a través de Bancard y Dinelco, pasarelas de pago oficiales y seguras. 
-                    Tu información está protegida y tu reserva se confirma de forma inmediata.
+                    Todos los pagos serán procesados a través de Bancard, pasarela de pago oficial y segura. Tu información está protegida y tu compra de la entrada se confirma de forma inmediata.
                   </p>
                   <p className="text-lg md:text-xl text-foreground/80 leading-relaxed">
-                    Las fotos y reseñas que ves en Tairet son verificadas. Solo mostramos contenido real de usuarios 
-                    que reservaron a través de nuestra plataforma.
+                    Las fotos y reseñas que ves en Tairet son verificadas. Solo mostramos contenido real de usuarios que reservaron a través de nuestra plataforma.
                   </p>
                 </div>
               </div>
