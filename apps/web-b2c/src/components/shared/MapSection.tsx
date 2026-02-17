@@ -1,12 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapPin, Navigation, Clock, Phone, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatEventDate } from "@/lib/format";
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
 
-interface MapSectionProps {
+let mapboxGlPromise: Promise<typeof import("mapbox-gl")> | null = null;
+let mapboxCssPromise: Promise<unknown> | null = null;
+
+const loadMapboxGl = async () => {
+  if (!mapboxGlPromise) {
+    mapboxGlPromise = import("mapbox-gl");
+  }
+  return mapboxGlPromise;
+};
+
+const ensureMapboxCss = async () => {
+  if (!mapboxCssPromise) {
+    mapboxCssPromise = import("mapbox-gl/dist/mapbox-gl.css");
+  }
+  return mapboxCssPromise;
+};
+
+export interface MapSectionProps {
   venue: string;
   location: string;
   address?: string;
@@ -32,7 +47,8 @@ const MapSection: React.FC<MapSectionProps> = ({
   time
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const map = useRef<import("mapbox-gl").Map | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const defaultAddress = address || `${venue}, ${location}, Paraguay`;
   const displayLocation = `${location}, Paraguay`;
@@ -44,35 +60,53 @@ const MapSection: React.FC<MapSectionProps> = ({
 
   useEffect(() => {
     if (!mapContainer.current || !MAPBOX_TOKEN) return;
+    let cancelled = false;
 
-    try {
-      mapboxgl.accessToken = MAPBOX_TOKEN;
-      
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/streets-v12',
-        center: defaultCoords,
-        zoom: 15,
-      });
+    const initializeMap = async () => {
+      try {
+        await ensureMapboxCss();
+        const mapboxglModule = await loadMapboxGl();
+        const mapboxgl = mapboxglModule.default;
+        if (cancelled || !mapContainer.current) return;
+        mapboxgl.accessToken = MAPBOX_TOKEN;
 
-      // Agregar controles de navegación
-      map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        const mapInstance = new mapboxgl.Map({
+          container: mapContainer.current,
+          style: 'mapbox://styles/mapbox/streets-v12',
+          center: defaultCoords,
+          zoom: 15,
+        });
 
-      // Agregar marcador
-      new mapboxgl.Marker({ color: '#8B5CF6' })
-        .setLngLat(defaultCoords)
-        .setPopup(new mapboxgl.Popup().setHTML(`<strong>${venue}</strong><br/>${displayLocation}`))
-        .addTo(map.current);
+        if (cancelled) {
+          mapInstance.remove();
+          return;
+        }
 
-    } catch (error) {
-      console.error('Error initializing map:', error);
-    }
+        map.current = mapInstance;
+        mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+        new mapboxgl.Marker({ color: '#8B5CF6' })
+          .setLngLat(defaultCoords)
+          .setPopup(new mapboxgl.Popup().setHTML(`<strong>${venue}</strong><br/>${displayLocation}`))
+          .addTo(mapInstance);
+
+        setMapError(null);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error initializing map:', error);
+          setMapError('No se pudo cargar el mapa');
+        }
+      }
+    };
+
+    initializeMap();
 
     return () => {
+      cancelled = true;
       map.current?.remove();
       map.current = null;
     };
-  }, [venue, displayLocation]);
+  }, [venue, displayLocation, MAPBOX_TOKEN]);
 
   /**
    * Construye destination string para Google Maps Directions.
@@ -127,14 +161,16 @@ const MapSection: React.FC<MapSectionProps> = ({
         {/* Map */}
         <div className="lg:col-span-2">
           <Card className="overflow-hidden h-full">
-            {MAPBOX_TOKEN ? (
+            {MAPBOX_TOKEN && !mapError ? (
               <div 
                 ref={mapContainer} 
                 className="h-full min-h-[400px]"
               />
             ) : (
               <div className="h-full min-h-[400px] flex items-center justify-center bg-muted">
-                <p className="text-muted-foreground text-sm">Mapa no disponible</p>
+                <p className="text-muted-foreground text-sm">
+                  {mapError ?? "Mapa no disponible"}
+                </p>
               </div>
             )}
           </Card>

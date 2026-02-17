@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { TicketType, TableType, PurchaseSelectorProps, SelectedItem, CartItem, isUuidLike } from "@/lib/types";
+import { isUuidLike, type TicketType, type TableType, type PurchaseSelectorProps, type SelectedItem, type CartItem } from "@/lib/types";
 import CheckoutBase from "@/components/shared/CheckoutBase";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";

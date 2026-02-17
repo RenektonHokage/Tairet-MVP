@@ -4,7 +4,7 @@ import { ArrowLeft, Ticket, Copy, Check } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import BottomNavbar from "@/components/layout/BottomNavbar";
 import Navbar from "@/components/layout/Navbar";
-import { getOrdersByEmail, Order } from "@/lib/orders";
+import { getOrdersByEmail, type Order } from "@/lib/orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

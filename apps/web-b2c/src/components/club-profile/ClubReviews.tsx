@@ -1,6 +1,6 @@
 import React from 'react';
 import ReviewsSection from '@/components/shared/ReviewsSection';
-import { Review } from '@/hooks/useReviews';
+import type { Review } from '@/hooks/useReviews';
 
 /**
  * Club-specific reviews component - now uses generic ReviewsSection

@@ -4,7 +4,7 @@ import { Calendar, MessageCircle } from 'lucide-react';
 import { trackWhatsappClick } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ContactInfo, hasContactChannel, openContactChannel } from '@/lib/contact';
+import { hasContactChannel, openContactChannel, type ContactInfo } from '@/lib/contact';
 
 interface BarReservationProps {
   localId: string;

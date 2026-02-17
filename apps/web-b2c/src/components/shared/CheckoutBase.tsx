@@ -25,7 +25,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
-import { createOrder, Order, type OrderItemPayload } from "@/lib/orders";
+import { createOrder, type Order, type OrderItemPayload } from "@/lib/orders";
 import { isUuidLike } from "@/lib/types";
 import { es } from "date-fns/locale";
 

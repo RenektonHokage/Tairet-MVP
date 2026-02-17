@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import { CartItem, isUuidLike } from '@/lib/types';
+import { isUuidLike, type CartItem } from '@/lib/types';
 
 // Cart actions
 type CartAction = 

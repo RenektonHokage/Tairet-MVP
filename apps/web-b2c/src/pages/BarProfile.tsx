@@ -12,12 +12,12 @@ import TouchSlideGallery from "@/components/TouchSlideGallery";
 import BarPromotions from "@/components/bar-profile/BarPromotions";
 import BarReviews from "@/components/bar-profile/BarReviews";
 import BarReservation from "@/components/bar-profile/BarReservation";
-import MapSection from "@/components/shared/MapSection";
+import LazyMapSection from "@/components/shared/LazyMapSection";
 import { getLocalBySlug, type LocalGalleryItem, type GalleryKind } from "@/lib/locals";
 import { getCover, getHero, getBarGalleryImages, getBarCategory } from "@/lib/gallery";
 import { useNavigate } from "react-router-dom";
 import { mockBarData } from "@/lib/mocks/bars";
-import { ContactInfo } from "@/lib/contact";
+import type { ContactInfo } from "@/lib/contact";
 
 const BarProfile = () => {
   const isMobile = useIsMobile();
@@ -316,7 +316,7 @@ const BarProfile = () => {
         )}
 
         {/* Map - DB-first con fallback */}
-        <MapSection
+        <LazyMapSection
           venue={barData.name}
           location={localLocation || "Centro, Asuncion"}
           address={localAddress || "Palma 123 esq. Chile"}

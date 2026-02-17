@@ -3,29 +3,20 @@ import BottomNavbar from "@/components/layout/BottomNavbar";
 import TairetInfoSection from "@/components/TairetInfoSection";
 import FeaturedVenuesSection from "@/components/TestimonialsSection";
 import Footer from "@/components/Footer";
-import asuncionCityscape from "@/assets/asuncion-cityscape.jpg";
-import sanberDistrict from "@/assets/sanber-district.jpg";
-import ciudadDelEste from "@/assets/ciudad-del-este.jpg";
-import comingSoonCard from "@/assets/coming-soon-card.jpg";
-import afterOffice from "@/assets/after-office.jpg";
-import reggaeton from "@/assets/bar-scene.jpg";
-import techno from "@/assets/boliche-club.jpg";
-import djGuests from "@/assets/dj-guests.jpg";
-import promotions from "@/assets/spring-break-promo.jpg";
-import carouselEventos from "@/assets/carousel_eventos.png";
-import heroNightlife from "@/assets/hero-nightlife.jpg";
-import featuredVenueHeader from "@/assets/featured-venue-header.png";
 import rooftopCard from "@/assets/rooftop-card.png";
 import afterOfficeCard from "@/assets/after-office-card.png";
-import nightclubLights from "@/assets/hero-nightlife-main.webp";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Search } from "lucide-react";
-import CoverflowCarousel from "@/components/CoverflowCarousel";
+import tairetLockup from "@/assets/tairet/tairet-lockup.png";
+import heroOverlayTarget from "@/assets/tairet/hero-overlay-target.png";
+import { images } from "@/lib/images";
 import ExperiencesCarousel from "@/components/ExperiencesCarousel";
 import { Link } from "react-router-dom";
+
 const Index = () => {
+  const showHeroOverlay =
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("heroOverlay") === "1";
+
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
       <Navbar />
@@ -34,25 +25,46 @@ const Index = () => {
       <section className="min-h-[50vh] sm:min-h-[60vh] md:min-h-[69vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
         {/* Background Image */}
         <div className="absolute inset-0 bg-cover bg-center" style={{
-        backgroundImage: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.6)), url(${nightclubLights})`
+        backgroundImage: `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.6)), url(${images.landing.hero})`
       }} />
         
         {/* Background pattern/texture */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent_50%)]" />
+
+        {showHeroOverlay && (
+          <img
+            src={heroOverlayTarget}
+            alt=""
+            aria-hidden="true"
+            className="pointer-events-none select-none absolute inset-0 z-[999] h-full w-full object-cover object-center opacity-40"
+          />
+        )}
         
         {/* Hero Content */}
-        <div className="relative z-10 flex flex-col items-center justify-center lg:px-12 sm:py-6 md:py-8 max-w-4xl mx-auto text-center min-h-0 flex-1 px-[24px] py-[75px] lg:py-[139px]">
-          {/* Main Title */}
-          <h1 className="text-3xl sm:text-4xl lg:text-6xl xl:text-7xl font-bold text-white mb-4 lg:mb-8 leading-tight">
-            Explorá la noche
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-              con Tairet
-            </span>
-          </h1>
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="mx-auto w-full max-w-[1180px] px-6 text-center">
+            <div className="flex flex-col items-center gap-5 -translate-y-4 sm:gap-6 md:gap-7 md:-translate-y-6 lg:gap-8 lg:-translate-y-8">
+              <div className="flex items-center justify-center">
+                <img
+                  src={tairetLockup}
+                  alt="Tairet"
+                  className="pointer-events-none select-none h-[28px] w-auto object-contain drop-shadow-[0_10px_22px_rgba(0,0,0,0.55)] sm:h-[34px] md:h-[42px] lg:h-[52px] xl:h-[58px]"
+                />
+              </div>
 
-          {/* Subtitle */}
-          <p className="text-base sm:text-lg lg:text-xl text-white/80 mb-6 lg:mb-12 max-w-2xl leading-relaxed">Descubrí los mejores bares y discotecas en tu ciudad. Reservá tu mesa y viví experiencias únicas.</p>
+              <h1 className="mx-auto text-[40px] font-extrabold leading-[0.96] tracking-[-0.02em] text-white sm:text-[52px] md:text-[60px] lg:text-[74px] xl:text-[82px]">
+                <span className="block">Explorá la noche</span>
+                <span className="mt-1 block sm:mt-1.5 md:mt-2">
+                  con <span className="text-[#8d1313]">Tairet</span>
+                </span>
+              </h1>
+
+              <p className="mx-auto max-w-[980px] text-[15px] leading-[1.32] text-white/80 sm:text-[18px] md:text-[20px] lg:text-[22px]">
+                Descubrí los mejores bares y discotecas en tu ciudad. Reservá tu mesa y
+                <br className="hidden md:block" /> viví experiencias únicas.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
       
@@ -71,15 +83,15 @@ const Index = () => {
           <div className="lg:hidden overflow-hidden -mx-6 md:-mx-12">
             <div className="px-6 md:px-12">
               <ExperiencesCarousel aspectRatio="square" items={[{
-              src: asuncionCityscape,
+              src: images.zones.asuncion,
               title: "Asunción",
               href: "/zona/asuncion"
             }, {
-              src: sanberDistrict,
+              src: images.zones.sanBernardino,
               title: "San Bernardino",
               href: "/zona/san-bernardino"
             }, {
-              src: ciudadDelEste,
+              src: images.zones.ciudadDelEste,
               title: "Ciudad del Este",
               href: "/zona/ciudad-del-este"
             }]} />
@@ -91,7 +103,7 @@ const Index = () => {
           <div className="grid grid-cols-3 gap-6">
             <Link to="/zona/asuncion" className="group block">
               <div className="relative aspect-square w-auto overflow-hidden rounded-2xl ring-1 ring-border/50 bg-muted/5 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105 cursor-pointer">
-                <img src={asuncionCityscape} alt="Asunción - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
+                <img src={images.zones.asuncion} alt="Asunción - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute inset-x-0 bottom-6 flex justify-center px-4">
                   <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white drop-shadow-lg text-center">
@@ -103,7 +115,7 @@ const Index = () => {
 
             <Link to="/zona/san-bernardino" className="group block">
               <div className="relative aspect-square w-auto overflow-hidden rounded-2xl ring-1 ring-border/50 bg-muted/5 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105 cursor-pointer">
-                <img src={sanberDistrict} alt="San Bernardino - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
+                <img src={images.zones.sanBernardino} alt="San Bernardino - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute inset-x-0 bottom-6 flex justify-center px-4">
                   <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white drop-shadow-lg text-center">
@@ -115,7 +127,7 @@ const Index = () => {
 
             <Link to="/zona/ciudad-del-este" className="group block">
               <div className="relative aspect-square w-auto overflow-hidden rounded-2xl ring-1 ring-border/50 bg-muted/5 shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-105 cursor-pointer">
-                <img src={ciudadDelEste} alt="Ciudad del Este - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
+                <img src={images.zones.ciudadDelEste} alt="Ciudad del Este - zona nocturna" loading="lazy" decoding="async" fetchPriority="low" draggable={false} className="h-full w-full object-cover select-none" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute inset-x-0 bottom-6 flex justify-center px-4">
                   <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-white drop-shadow-lg text-center">
@@ -143,11 +155,11 @@ const Index = () => {
         title: "After Office",
         href: "/experiencias/after-office"
       }, {
-        src: featuredVenueHeader,
+        src: images.landing.experiences.promotions,
         title: "Promociones",
         href: "/experiencias/promociones"
       }, {
-        src: featuredVenueHeader,
+        src: images.landing.experiences.events,
         title: "Eventos",
         href: "/eventos"
       }]} />

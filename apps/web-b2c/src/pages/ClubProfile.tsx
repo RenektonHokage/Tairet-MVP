@@ -11,13 +11,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import PurchaseSelector from "@/components/shared/PurchaseSelector";
 import ClubPromotions from "@/components/club-profile/ClubPromotions";
 import ClubReviews from "@/components/club-profile/ClubReviews";
-import MapSection from "@/components/shared/MapSection";
+import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
 import { getLocalBySlug, getClubCatalog, type LocalGalleryItem, type CatalogTicket, type CatalogTable } from "@/lib/locals";
 import { parseBenefits } from "@/lib/parseBenefits";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
-import { ContactInfo } from "@/lib/contact";
+import type { ContactInfo } from "@/lib/contact";
 
 const ClubProfile = () => {
   const isMobile = useIsMobile();
@@ -391,7 +391,7 @@ const ClubProfile = () => {
         )}
 
         {/* Map - DB-first con fallback */}
-        <MapSection
+        <LazyMapSection
           venue={clubData.name}
           location={localLocation || "Villa Morra, Asuncion"}
           address={localAddress || "Av. Mariscal Lopez 1234"}

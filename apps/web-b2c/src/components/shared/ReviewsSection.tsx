@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { useReviews, Review } from '@/hooks/useReviews';
+import { useReviews, type Review } from '@/hooks/useReviews';
 import { useToast } from '@/hooks/use-toast';
 
 interface ReviewsSectionProps {

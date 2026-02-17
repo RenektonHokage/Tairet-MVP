@@ -4,7 +4,7 @@ import Navbar from "@/components/layout/Navbar";
 import BottomNavbar from "@/components/layout/BottomNavbar";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import MapSection from "@/components/shared/MapSection";
+import LazyMapSection from "@/components/shared/LazyMapSection";
 import EventHeroCompact from "@/components/event-profile/EventHeroCompact";
 
 // Importar imágenes
@@ -242,7 +242,7 @@ const EventProfile = () => {
             </section>
           )}
           {activeSection === 'ubicacion' && (
-            <MapSection
+            <LazyMapSection
               venue={eventData.venue}
               location={eventData.location}
               address={`${eventData.venue}, ${eventData.location}`}

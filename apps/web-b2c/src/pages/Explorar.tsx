@@ -8,9 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Search, MapPin, Star } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
-import asuncionCityscape from "@/assets/asuncion-cityscape.jpg";
-import sanberDistrict from "@/assets/sanber-district.jpg";
-import ciudadDelEste from "@/assets/ciudad-del-este.jpg";
+import { images } from "@/lib/images";
 
 const Explorar = () => {
   const [searchParams] = useSearchParams();
@@ -81,7 +79,7 @@ const Explorar = () => {
               <Card className="overflow-hidden border-0 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <div className="relative h-48">
                   <img 
-                    src={asuncionCityscape} 
+                    src={images.zones.asuncion} 
                     alt="Asunción"
                     className="w-full h-full object-cover"
                   />
@@ -101,7 +99,7 @@ const Explorar = () => {
               <Card className="overflow-hidden border-0 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <div className="relative h-48">
                   <img 
-                    src={sanberDistrict} 
+                    src={images.zones.sanBernardino} 
                     alt="San Bernardino"
                     className="w-full h-full object-cover"
                   />
@@ -121,7 +119,7 @@ const Explorar = () => {
               <Card className="overflow-hidden border-0 shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <div className="relative h-48">
                   <img 
-                    src={ciudadDelEste} 
+                    src={images.zones.ciudadDelEste} 
                     alt="Ciudad del Este"
                     className="w-full h-full object-cover"
                   />

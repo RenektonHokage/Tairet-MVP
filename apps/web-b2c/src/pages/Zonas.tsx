@@ -5,16 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Users, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
-import asuncionCityscape from "@/assets/asuncion-cityscape.jpg";
-import sanberDistrict from "@/assets/sanber-district.jpg";
-import ciudadDelEste from "@/assets/ciudad-del-este.jpg";
+import { images } from "@/lib/images";
 
 const Zonas = () => {
   const zones = [
     {
       name: "Asunción",
       path: "/zona/asuncion",
-      image: asuncionCityscape,
+      image: images.zones.asuncion,
       description: "La capital vibrante con la mejor vida nocturna del país",
       venues: "15+ locales",
       hours: "Hasta 4:00 AM",
@@ -23,7 +21,7 @@ const Zonas = () => {
     {
       name: "San Bernardino",
       path: "/zona/san-bernardino", 
-      image: sanberDistrict,
+      image: images.zones.sanBernardino,
       description: "Distrito turístico con ambiente relajado junto al lago",
       venues: "8+ locales",
       hours: "Hasta 3:00 AM",
@@ -32,7 +30,7 @@ const Zonas = () => {
     {
       name: "Ciudad del Este",
       path: "/zona/ciudad-del-este",
-      image: ciudadDelEste,
+      image: images.zones.ciudadDelEste,
       description: "Zona comercial fronteriza con propuestas diversas",
       venues: "10+ locales",
       hours: "Hasta 4:00 AM", 
