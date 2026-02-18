@@ -10,7 +10,12 @@ import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { trackWhatsappClick, type WhatsappClickMetadata } from "@/lib/api";
-import { hasContactChannel, openContactChannel } from "@/lib/contact";
+import {
+  buildWhatsAppReservationMessage,
+  buildWhatsAppUrl,
+  hasWhatsAppNumber,
+  resolveWhatsAppNumber,
+} from "@/lib/whatsapp";
 
 const PurchaseSelector = ({
   tickets = [],
@@ -20,7 +25,8 @@ const PurchaseSelector = ({
   subtitle = "Selecciona las opciones que deseas",
   mode = "both",
   contactInfo,
-  localId
+  localId,
+  venueName,
 }: PurchaseSelectorProps) => {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [openCollapsibles, setOpenCollapsibles] = useState<Record<string, boolean>>({});
@@ -225,8 +231,11 @@ const PurchaseSelector = ({
                         )}
                         <Button 
                           size="lg" 
-                          disabled={!hasContactChannel(contactInfo)}
+                          disabled={!hasWhatsAppNumber(contactInfo)}
                           onClick={() => {
+                            const destinationPhone = resolveWhatsAppNumber(contactInfo);
+                            if (!destinationPhone) return;
+
                             // Tracking fire-and-forget: no bloquear navegación
                             if (localId && contactInfo) {
                               // Construir metadata de mesa para analytics
@@ -244,15 +253,19 @@ const PurchaseSelector = ({
 
                               void trackWhatsappClick(
                                 localId, 
-                                contactInfo.whatsapp || contactInfo.phone || undefined, 
+                                destinationPhone,
                                 "club_table_reservation",
                                 tableMetadata
                               );
                             }
-                            if (contactInfo) {
-                              const message = `Hola! Me gustaría reservar una ${table.name} para ${table.capacity} personas.`;
-                              openContactChannel(contactInfo, message);
-                            }
+                            const message = buildWhatsAppReservationMessage({
+                              venueType: "club",
+                              venueName: venueName || "el club",
+                              tableType: table.name,
+                            });
+                            const url = buildWhatsAppUrl(destinationPhone, message);
+                            if (!url) return;
+                            window.open(url, "_blank", "noopener,noreferrer");
                           }} 
                           className="w-full md:w-auto mt-2"
                         >

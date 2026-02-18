@@ -40,9 +40,9 @@ function Calendar({
         ),
         day_range_end: "day-range-end",
         day_selected:
-          "border border-foreground/25 bg-foreground/10 text-foreground hover:bg-foreground/15 hover:text-foreground focus:bg-foreground/15 focus:text-foreground",
+          "relative border border-foreground/25 bg-foreground/10 text-foreground hover:bg-foreground/15 hover:text-foreground focus:bg-foreground/15 focus:text-foreground after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:h-1 after:w-1 after:-translate-x-1/2 after:rounded-full after:bg-current after:opacity-70",
         day_today:
-          "relative border-0 bg-transparent text-foreground/75 font-medium ring-0 hover:bg-transparent focus:bg-transparent focus-visible:ring-0 before:pointer-events-none before:absolute before:bottom-1 before:left-1/2 before:h-1 before:w-1 before:-translate-x-1/2 before:rounded-full before:bg-foreground/45 aria-selected:before:hidden",
+          "border border-foreground/25 bg-transparent text-foreground/75 font-medium ring-0 hover:bg-transparent focus:bg-transparent focus-visible:ring-0",
         day_outside:
           "day-outside text-foreground/35 opacity-50 aria-selected:bg-foreground/10 aria-selected:text-foreground/35 aria-selected:opacity-30",
         day_disabled: "text-foreground/30 opacity-50",

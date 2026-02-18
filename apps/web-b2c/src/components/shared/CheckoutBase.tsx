@@ -564,9 +564,6 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                           row: "mt-2 flex justify-between",
                           cell: "relative p-0 text-center",
                           day: "h-9 w-9 rounded-md text-sm font-medium text-white/90 transition-colors hover:bg-white/10 sm:h-10 sm:w-10",
-                          day_selected:
-                            "border border-white/30 bg-white/10 text-white hover:bg-white/15 focus:bg-white/15",
-                          day_today: "border border-white/20 bg-white/5 text-white",
                           day_outside: "text-white/25 opacity-60",
                           day_disabled: "cursor-not-allowed text-white/20 opacity-50",
                           day_hidden: "invisible",

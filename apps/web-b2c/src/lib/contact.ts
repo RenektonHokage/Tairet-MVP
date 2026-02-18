@@ -3,6 +3,8 @@
  * Incluye sanitización de números y fallbacks.
  */
 
+import { buildWhatsAppUrl, normalizeWhatsAppNumber } from "./whatsapp";
+
 export interface ContactInfo {
   phone: string | null;
   whatsapp: string | null;
@@ -14,22 +16,7 @@ export interface ContactInfo {
  * wa.me espera el número sin el signo +.
  */
 export function sanitizeWhatsAppNumber(input: string): string {
-  // Remover todo excepto dígitos y +
-  const cleaned = input.replace(/[^\d+]/g, "");
-  // wa.me no usa el +, así que lo removemos si está al inicio
-  if (cleaned.startsWith("+")) {
-    return cleaned.slice(1);
-  }
-  return cleaned;
-}
-
-/**
- * Construye la URL de WhatsApp con mensaje opcional.
- */
-export function buildWhatsAppUrl(number: string, message?: string): string {
-  const sanitized = sanitizeWhatsAppNumber(number);
-  const base = `https://wa.me/${sanitized}`;
-  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
+  return normalizeWhatsAppNumber(input);
 }
 
 /**
@@ -45,8 +32,11 @@ export function openContactChannel(
   message?: string
 ): boolean {
   if (contact.whatsapp) {
-    window.open(buildWhatsAppUrl(contact.whatsapp, message), "_blank");
-    return true;
+    const whatsappUrl = buildWhatsAppUrl(contact.whatsapp, message ?? "");
+    if (whatsappUrl) {
+      window.open(whatsappUrl, "_blank");
+      return true;
+    }
   }
   if (contact.phone) {
     window.open(`tel:${contact.phone}`, "_blank");

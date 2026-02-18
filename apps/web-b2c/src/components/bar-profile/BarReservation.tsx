@@ -4,14 +4,21 @@ import { Calendar, MessageCircle } from 'lucide-react';
 import { trackWhatsappClick } from '@/lib/api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { hasContactChannel, openContactChannel, type ContactInfo } from '@/lib/contact';
+import { type ContactInfo } from '@/lib/contact';
+import {
+  buildWhatsAppReservationMessage,
+  buildWhatsAppUrl,
+  hasWhatsAppNumber,
+  resolveWhatsAppNumber,
+} from '@/lib/whatsapp';
 
 interface BarReservationProps {
   localId: string;
+  venueName: string;
   contactInfo?: ContactInfo | null;
 }
 
-const BarReservation: React.FC<BarReservationProps> = ({ localId, contactInfo }) => {
+const BarReservation: React.FC<BarReservationProps> = ({ localId, venueName, contactInfo }) => {
   const navigate = useNavigate();
   const { barId } = useParams();
 
@@ -55,19 +62,26 @@ const BarReservation: React.FC<BarReservationProps> = ({ localId, contactInfo })
                 variant="outline"
                 size="lg"
                 className="h-12 px-8 border-border/50 hover:border-primary/50"
-                disabled={!hasContactChannel(contactInfo)}
+                disabled={!hasWhatsAppNumber(contactInfo)}
                 onClick={() => {
+                  const destinationPhone = resolveWhatsAppNumber(contactInfo);
+                  if (!destinationPhone) return;
+
                   if (localId && contactInfo) {
                     // Fire-and-forget: no bloquear window.open
                     void trackWhatsappClick(
                       localId, 
-                      contactInfo.whatsapp || contactInfo.phone || undefined, 
+                      destinationPhone,
                       "bar_reservation"
                     );
                   }
-                  if (contactInfo) {
-                    openContactChannel(contactInfo, "Hola! Me gustaría hacer una consulta sobre reservas.");
-                  }
+                  const message = buildWhatsAppReservationMessage({
+                    venueType: "bar",
+                    venueName,
+                  });
+                  const url = buildWhatsAppUrl(destinationPhone, message);
+                  if (!url) return;
+                  window.open(url, "_blank", "noopener,noreferrer");
                 }}
               >
                 <MessageCircle className="w-4 h-4 mr-2" />

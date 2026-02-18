@@ -286,6 +286,7 @@ export interface PurchaseSelectorProps {
   mode?: 'tickets' | 'tables' | 'both';
   contactInfo?: import("./contact").ContactInfo | null;
   localId?: string; // Para tracking de whatsapp_click
+  venueName?: string;
 }
 
 // Map section props

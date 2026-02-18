@@ -364,6 +364,7 @@ const ClubProfile = () => {
             onCheckout={() => {}} 
             contactInfo={contactInfo} 
             localId={localId} 
+            venueName={clubData.name}
           />
         )}
         

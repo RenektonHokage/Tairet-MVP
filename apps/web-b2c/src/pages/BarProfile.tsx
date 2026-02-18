@@ -305,7 +305,7 @@ const BarProfile = () => {
         </section>
 
         {/* Reservation Section */}
-        {localId && <BarReservation localId={localId} contactInfo={contactInfo} />}
+        {localId && <BarReservation localId={localId} venueName={barData.name} contactInfo={contactInfo} />}
 
         {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
         {localId && (
