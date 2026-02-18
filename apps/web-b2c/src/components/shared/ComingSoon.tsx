@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
-import { Instagram, Youtube } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import tiktokIcon from "@/assets/tiktok.svg";
+import { InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/shared/BrandIcons";
 
 type SocialLinks = {
   instagram?: string;
@@ -102,13 +101,13 @@ export default function ComingSoon({
             </p>
             <div className="mt-5 flex items-center justify-center gap-4">
               <SocialItem href={links.instagram} label="Instagram de Tairet">
-                <Instagram className="h-5 w-5" />
+                <InstagramIcon className="h-5 w-5" />
               </SocialItem>
               <SocialItem href={links.tiktok} label="TikTok de Tairet">
-                <img src={tiktokIcon} alt="" className="h-5 w-5 opacity-80" />
+                <TikTokIcon className="h-5 w-5" />
               </SocialItem>
               <SocialItem href={links.youtube} label="YouTube de Tairet">
-                <Youtube className="h-5 w-5" />
+                <YouTubeIcon className="h-5 w-5" />
               </SocialItem>
             </div>
           </div>

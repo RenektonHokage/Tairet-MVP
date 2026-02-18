@@ -12,6 +12,7 @@ import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
 import { applySearchFilters, parseSearchParams, patchSearchParams } from "@/lib/search";
 import VenueCard from "@/components/shared/VenueCard";
 import { slugify } from "@/lib/slug";
+import { prefetchImages } from "@/lib/imagePrefetch";
 
 const Explorar = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -90,6 +91,22 @@ const Explorar = () => {
     meta.setAttribute("content", desc);
   }, [typeFilter, pageSubtitle]);
 
+  useEffect(() => {
+    if (!hasActiveQuery || totalResults === 0) return;
+
+    const candidateImages: Array<string | undefined> = [];
+
+    if (showBars) {
+      candidateImages.push(...bars.map((bar) => bar.image));
+    }
+
+    if (showClubs) {
+      candidateImages.push(...clubs.map((club) => club.customImage));
+    }
+
+    prefetchImages(candidateImages, 8);
+  }, [bars, clubs, hasActiveQuery, showBars, showClubs, totalResults]);
+
   const clearSearch = () => {
     const nextParams = patchSearchParams(
       searchParams,
@@ -144,7 +161,7 @@ const Explorar = () => {
                       </Button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {bars.map((bar) => (
+                      {bars.map((bar, index) => (
                         <VenueCard
                           key={`bar-${bar.id}`}
                           id={bar.id}
@@ -156,6 +173,7 @@ const Explorar = () => {
                           image={bar.image}
                           href={`/bar/${slugify(bar.name)}`}
                           type="bar"
+                          imagePriority={index < 6}
                         />
                       ))}
                     </div>
@@ -168,7 +186,7 @@ const Explorar = () => {
                       Discotecas ({clubs.length})
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {clubs.map((club) => (
+                      {clubs.map((club, index) => (
                         <VenueCard
                           key={`club-${club.id}`}
                           id={club.id}
@@ -179,6 +197,7 @@ const Explorar = () => {
                           image={club.customImage}
                           href={`/club/${slugify(club.name)}`}
                           type="club"
+                          imagePriority={index < 6}
                         />
                       ))}
                     </div>

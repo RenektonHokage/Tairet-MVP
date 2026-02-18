@@ -1,6 +1,5 @@
-import { Instagram, Youtube } from "lucide-react";
 import { Link } from "react-router-dom";
-import tiktokIcon from "@/assets/tiktok.svg";
+import { InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/shared/BrandIcons";
 const Footer = () => {
   const currentYear = new Date().getFullYear();
   return <footer className="bg-zinc-950 text-zinc-200 hidden md:block">
@@ -16,15 +15,13 @@ const Footer = () => {
             </p>
             <div className="flex items-center gap-4 pt-2">
               <a href="https://www.instagram.com/tairetpy/" target="_blank" rel="noopener noreferrer" aria-label="Instagram de Tairet" className="text-zinc-400 hover:text-white transition-colors duration-200">
-                <Instagram className="w-5 h-5" />
+                <InstagramIcon className="w-5 h-5" />
               </a>
               <a href="https://www.tiktok.com/@tairetpy" target="_blank" rel="noopener noreferrer" aria-label="TikTok de Tairet" className="text-zinc-400 hover:text-white transition-colors duration-200">
-                <img src={tiktokIcon} alt="TikTok Tairet" className="w-5 h-5" style={{
-                filter: 'brightness(0) saturate(100%) invert(60%) sepia(0%) saturate(0%) hue-rotate(0deg) brightness(90%) contrast(90%)'
-              }} />
+                <TikTokIcon className="w-5 h-5" />
               </a>
               <a href="https://www.youtube.com/@tairetpy" target="_blank" rel="noopener noreferrer" aria-label="YouTube de Tairet" className="text-zinc-400 hover:text-white transition-colors duration-200">
-                <Youtube className="w-5 h-5" />
+                <YouTubeIcon className="w-5 h-5" />
               </a>
             </div>
           </div>

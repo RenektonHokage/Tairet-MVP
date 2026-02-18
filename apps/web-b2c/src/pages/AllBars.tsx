@@ -10,9 +10,11 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
+import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
 import { slugify } from "@/lib/slug";
 import { getLocalsList } from "@/lib/locals";
 import { selectBarVenues } from "@/lib/venueSelectors";
+import { prefetchImages } from "@/lib/imagePrefetch";
 import { useSearchParams } from "react-router-dom";
 import {
   applySearchFilters,
@@ -72,6 +74,7 @@ export default function AllBars() {
 
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [isLoadingBars, setIsLoadingBars] = useState(true);
   
   // DB data for enriching mocks (covers, location, city, attributes, minAge)
   const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
@@ -82,10 +85,13 @@ export default function AllBars() {
 
   useEffect(() => {
     document.title = "Todos los Bares | Tairet";
-    
+    let active = true;
+
     // Cargar data desde DB para enriquecer cards
     getLocalsList("bar", 100)
       .then((locals) => {
+        if (!active) return;
+
         const coverMap = new Map<string, string>();
         const locationMap = new Map<string, string>();
         const cityMap = new Map<string, string>();
@@ -118,7 +124,16 @@ export default function AllBars() {
       })
       .catch(() => {
         // Silently fail - mocks will be used
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingBars(false);
+        }
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const mvpBars = selectBarVenues({ city: "asuncion", scope: "all" });
@@ -145,6 +160,15 @@ export default function AllBars() {
     [dbAttributes, dbCities, dbLocations, mvpBars, searchState],
   );
   const displayedBars = filteredBars;
+
+  useEffect(() => {
+    const topImages = displayedBars.map((bar) => {
+      const barSlug = slugify(bar.name);
+      return dbCovers.get(barSlug) || bar.image;
+    });
+
+    prefetchImages(topImages, 8);
+  }, [dbCovers, displayedBars]);
 
   const activeFiltersCount = [
     filters.specialties.length > 0,
@@ -322,7 +346,13 @@ export default function AllBars() {
         />
 
         {/* Bars Grid */}
-        {filteredBars.length === 0 ? (
+        {isLoadingBars ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <VenueCardSkeleton key={`bar-skeleton-${index}`} />
+            ))}
+          </div>
+        ) : filteredBars.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-lg text-muted-foreground mb-4">No encontramos bares con esos filtros</p>
             <Button variant="outline" onClick={clearAllFilters}>
@@ -332,7 +362,7 @@ export default function AllBars() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-              {displayedBars.map(bar => {
+              {displayedBars.map((bar, index) => {
                 const barSlug = slugify(bar.name);
                 // DB-first: usar cover, location, city, attributes, minAge de DB si existen, fallback a mock
                 const coverUrl = dbCovers.get(barSlug) || bar.image;
@@ -357,6 +387,7 @@ export default function AllBars() {
                     href={`/bar/${barSlug}`}
                     type="bar"
                     minAge={minAge}
+                    imagePriority={index < 6}
                   />
                 );
               })}

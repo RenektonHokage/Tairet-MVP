@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import BackButton from "@/components/shared/BackButton";
+import ProfileSkeleton from "@/components/shared/ProfileSkeleton";
 import { useProfileViewOnce } from "@/hooks/useProfileViewOnce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Play, Grid3X3 } from "lucide-react";
@@ -124,10 +125,9 @@ const BarProfile = () => {
   // Si está cargando o no se encontró, mostrar loading o nada (redirige a 404)
   if (isLoading || notFound || !barId) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground">Cargando...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <ProfileSkeleton />
       </div>
     );
   }

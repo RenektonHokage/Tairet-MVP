@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cardStyles, ratingStyles, textStyles, buttonStyles } from '@/lib/design-tokens';
 import cardHeaderPlaceholder from '@/assets/card-header-placeholder.png';
+import ProgressiveImage from '@/components/shared/ProgressiveImage';
 
 export interface VenueCardProps {
   id: number | string;
@@ -18,6 +19,7 @@ export interface VenueCardProps {
   href: string;
   type: 'bar' | 'club';
   className?: string;
+  imagePriority?: boolean;
   // Date header mode (optional - if not provided, uses image header)
   dateTop?: string;
   dateBottom?: string;
@@ -47,6 +49,7 @@ const VenueCard: React.FC<VenueCardProps> = ({
   href,
   type,
   className = '',
+  imagePriority = false,
   minAge,
   showAgeRestriction = true
 }) => {
@@ -68,7 +71,17 @@ const VenueCard: React.FC<VenueCardProps> = ({
               ? 'venue-card-header-bar'
               : 'venue-card-header-club'
           } relative overflow-hidden bg-cover bg-center`}
-          style={headerImage ? { backgroundImage: `url(${headerImage})` } : undefined}>
+          >
+            {headerImage ? (
+              <ProgressiveImage
+                src={headerImage}
+                alt={name}
+                className="absolute inset-0"
+                imgClassName="h-full w-full object-cover"
+                skeletonClassName="bg-black/30"
+                priority={imagePriority}
+              />
+            ) : null}
             {headerImage && <div className="absolute inset-0 bg-black/35 pointer-events-none" />}
             <div className="relative z-10 text-white font-bold text-2xl sm:text-3xl tracking-wide">
               {dateTop}
@@ -79,10 +92,13 @@ const VenueCard: React.FC<VenueCardProps> = ({
           </div>
         ) : (
           <div className="h-40 sm:h-44 relative overflow-hidden">
-            <img 
-              src={image || cardHeaderPlaceholder} 
+            <ProgressiveImage
+              src={image}
+              fallbackSrc={cardHeaderPlaceholder}
               alt={name}
-              className="w-full h-full object-cover"
+              className="h-full w-full"
+              imgClassName="h-full w-full object-cover"
+              priority={imagePriority}
             />
           </div>
         )}

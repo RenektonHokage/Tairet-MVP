@@ -10,9 +10,11 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
+import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
 import { slugify } from "@/lib/slug";
 import { getLocalsList } from "@/lib/locals";
 import { selectClubVenues } from "@/lib/venueSelectors";
+import { prefetchImages } from "@/lib/imagePrefetch";
 import { useSearchParams } from "react-router-dom";
 import {
   applySearchFilters,
@@ -69,6 +71,7 @@ export default function AllClubs() {
 
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [isLoadingClubs, setIsLoadingClubs] = useState(true);
   
   // DB data for enriching mocks (covers, location, city, attributes, minAge)
   const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
@@ -79,10 +82,13 @@ export default function AllClubs() {
 
   useEffect(() => {
     document.title = "Todas las Discotecas | Tairet";
+    let active = true;
     
     // Cargar data desde DB para enriquecer cards
     getLocalsList("club", 100)
       .then((locals) => {
+        if (!active) return;
+
         const coverMap = new Map<string, string>();
         const locationMap = new Map<string, string>();
         const cityMap = new Map<string, string>();
@@ -115,7 +121,16 @@ export default function AllClubs() {
       })
       .catch(() => {
         // Silently fail - mocks will be used
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingClubs(false);
+        }
       });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const mvpClubs = selectClubVenues({ city: "asuncion", scope: "all" });
@@ -137,6 +152,16 @@ export default function AllClubs() {
     [dbCities, dbGenres, dbLocations, mvpClubs, searchState],
   );
   const displayedClubs = filteredClubs;
+
+  useEffect(() => {
+    const topImages = displayedClubs
+      .map((club) => {
+        const clubSlug = slugify(club.name);
+        return dbCovers.get(clubSlug) || club.customImage;
+      });
+
+    prefetchImages(topImages, 8);
+  }, [dbCovers, displayedClubs]);
 
   const activeFiltersCount = [
     filters.musicGenres.length > 0,
@@ -314,7 +339,13 @@ export default function AllClubs() {
         />
 
         {/* Clubs Grid */}
-        {filteredClubs.length === 0 ? (
+        {isLoadingClubs ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <VenueCardSkeleton key={`club-skeleton-${index}`} />
+            ))}
+          </div>
+        ) : filteredClubs.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-lg text-muted-foreground mb-4">No encontramos discotecas con esos filtros</p>
             <Button variant="outline" onClick={clearAllFilters}>
@@ -324,7 +355,7 @@ export default function AllClubs() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-              {displayedClubs.map(club => {
+              {displayedClubs.map((club, index) => {
                 const clubSlug = slugify(club.name);
                 // DB-first: usar cover, location, city, genres, minAge de DB si existen, fallback a mock
                 const coverUrl = dbCovers.get(clubSlug) || club.customImage;
@@ -349,6 +380,7 @@ export default function AllClubs() {
                     href={`/club/${clubSlug}`}
                     type="club"
                     minAge={minAge}
+                    imagePriority={index < 6}
                   />
                 );
               })}

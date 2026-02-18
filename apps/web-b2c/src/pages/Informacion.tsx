@@ -1,8 +1,7 @@
-import { Instagram, Youtube } from "lucide-react";
 import { Link } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import BottomNavbar from "@/components/layout/BottomNavbar";
-import tiktokIcon from "@/assets/tiktok.svg";
+import { InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/shared/BrandIcons";
 
 const Informacion = () => {
   const currentYear = new Date().getFullYear();
@@ -27,7 +26,7 @@ const Informacion = () => {
                 aria-label="Instagram de Tairet" 
                 className="text-muted-foreground hover:text-foreground transition-colors duration-200"
               >
-                <Instagram className="w-5 h-5" />
+                <InstagramIcon className="w-5 h-5" />
               </a>
               <a 
                 href="https://www.tiktok.com/@tairetpy" 
@@ -36,11 +35,7 @@ const Informacion = () => {
                 aria-label="TikTok de Tairet" 
                 className="text-muted-foreground hover:text-foreground transition-colors duration-200"
               >
-                <img 
-                  src={tiktokIcon} 
-                  alt="TikTok Tairet" 
-                  className="w-5 h-5 opacity-60 hover:opacity-100 transition-opacity"
-                />
+                <TikTokIcon className="w-5 h-5" />
               </a>
               <a 
                 href="https://www.youtube.com/@tairetpy" 
@@ -49,7 +44,7 @@ const Informacion = () => {
                 aria-label="YouTube de Tairet" 
                 className="text-muted-foreground hover:text-foreground transition-colors duration-200"
               >
-                <Youtube className="w-5 h-5" />
+                <YouTubeIcon className="w-5 h-5" />
               </a>
             </div>
           </div>

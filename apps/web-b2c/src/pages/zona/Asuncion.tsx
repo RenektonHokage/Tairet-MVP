@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { BaseCarousel } from "@/components/BaseCarousel";
 import Navbar from "@/components/layout/Navbar";
 import VenueCard from "@/components/shared/VenueCard";
+import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
 import BackButton from "@/components/shared/BackButton";
 import asuncionCity from "@/assets/asuncion-city.jpg";
 import asuncionCityscape from "@/assets/asuncion-cityscape.jpg";
@@ -17,8 +18,9 @@ import { createZoneBars } from "@/lib/data/venues";
 import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { selectClubVenues } from "@/lib/venueSelectors";
+import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
 import { getZoneCoverMaps, type CoverBySlugMap } from "@/lib/localCoverMaps";
+import { prefetchImages } from "@/lib/imagePrefetch";
 
 const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
 const promos = promosAsuncion;
@@ -68,6 +70,8 @@ function BarCard({
 export default function ZonaAsuncion() {
   const [clubCoverBySlug, setClubCoverBySlug] = useState<CoverBySlugMap>(new Map());
   const [barCoverBySlug, setBarCoverBySlug] = useState<CoverBySlugMap>(new Map());
+  const [isLoadingCovers, setIsLoadingCovers] = useState(true);
+  const bars = useMemo(() => selectBarVenues({ city: "asuncion", scope: "zone" }), []);
 
   useEffect(() => {
     let active = true;
@@ -81,12 +85,33 @@ export default function ZonaAsuncion() {
       })
       .catch(() => {
         // Silently fail - current mock images/placeholders remain
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoadingCovers(false);
+        }
       });
 
     return () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (isLoadingCovers) return;
+
+    const topClubImages = discotecas.map((item) => {
+      const clubSlug = slugify(item.name);
+      return clubCoverBySlug.get(clubSlug) || item.customImage;
+    });
+
+    const topBarImages = bars.map((item) => {
+      const barSlug = slugify(item.name);
+      return barCoverBySlug.get(barSlug) || item.image;
+    });
+
+    prefetchImages([...topClubImages, ...topBarImages], 8);
+  }, [barCoverBySlug, bars, clubCoverBySlug, isLoadingCovers]);
   return <>
       {/* Navbar */}
       <Navbar />
@@ -105,7 +130,21 @@ export default function ZonaAsuncion() {
             </Link>
           </div>
           {/* Mobile/Tablet: Embla carousel with touch support */}
-          {discotecas.length === 0 ? (
+          {isLoadingCovers ? (
+            <div className="lg:hidden">
+              <BaseCarousel
+                className="scrollbar-hide"
+                containerClassName="gap-4"
+                options={{ dragFree: true, align: "start" }}
+              >
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`club-mobile-skeleton-${index}`} className="w-[280px] sm:w-[300px] lg:w-auto">
+                    <VenueCardSkeleton />
+                  </div>
+                ))}
+              </BaseCarousel>
+            </div>
+          ) : discotecas.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No hay discotecas disponibles en este momento.</p>
             </div>
@@ -116,7 +155,7 @@ export default function ZonaAsuncion() {
                 containerClassName="gap-4"
                 options={{ dragFree: true, align: "start" }}
               >
-                {discotecas.map((item) => {
+                {discotecas.map((item, index) => {
                   const clubSlug = slugify(item.name);
                   return (
                     <VenueCard 
@@ -130,6 +169,7 @@ export default function ZonaAsuncion() {
                       href={`/club/${clubSlug}`}
                       type="club"
                       className="w-[280px] sm:w-[300px] lg:w-auto"
+                      imagePriority={index < 6}
                     />
                   );
                 })}
@@ -138,14 +178,33 @@ export default function ZonaAsuncion() {
           )}
 
           {/* Desktop: Embla carousel with 4 visible and arrows */}
-          {discotecas.length > 0 && (
+          {isLoadingCovers ? (
+            <div className="hidden lg:block relative">
+              <Carousel
+                opts={{
+                  align: "start",
+                  loop: false,
+                }}
+              >
+                <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <CarouselItem key={`club-desktop-skeleton-${index}`} className="basis-1/4">
+                      <VenueCardSkeleton />
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="hidden lg:flex" />
+                <CarouselNext className="hidden lg:flex" />
+              </Carousel>
+            </div>
+          ) : discotecas.length > 0 && (
             <div className="hidden lg:block relative">
             <Carousel opts={{
               align: "start",
               loop: false
             }}>
               <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
-                {discotecas.map((item) => {
+                {discotecas.map((item, index) => {
                   const clubSlug = slugify(item.name);
                   return (
                     <CarouselItem key={item.id} className="basis-1/4">
@@ -158,6 +217,7 @@ export default function ZonaAsuncion() {
                         image={clubCoverBySlug.get(clubSlug) || item.customImage}
                         href={`/club/${clubSlug}`}
                         type="club"
+                        imagePriority={index < 6}
                       />
                     </CarouselItem>
                   );
@@ -172,8 +232,7 @@ export default function ZonaAsuncion() {
       </section>
 
       
-
-      <BarsSection coverBySlug={barCoverBySlug} />
+      <BarsSection coverBySlug={barCoverBySlug} isLoading={isLoadingCovers} />
     </main>
     </>;
 }
