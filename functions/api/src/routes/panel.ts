@@ -7,7 +7,7 @@ import { calendarRouter } from "./calendar";
 import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
-import { sendReservationConfirmedEmail } from "../services/emails";
+import { sendReservationCancelledEmail, sendReservationConfirmedEmail } from "../services/emails";
 import { CheckinWindowValidationResult, getActiveNightWindow, getNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
 
 // ============================================================================
@@ -970,16 +970,48 @@ panelRouter.patch("/reservations/:id", panelAuth, async (req, res, next) => {
       return res.status(500).json({ error: updateError.message });
     }
 
-    // Enviar email de confirmación si el nuevo estado es 'confirmed'
-    if (validated.status === "confirmed") {
-      sendReservationConfirmedEmail({
-        email: reservation.email,
-        name: reservation.name,
-        date: reservation.date,
-        people: reservation.guests,
-      }).catch((err) => {
-        logger.error("Error sending reservation confirmation email", { error: err });
-      });
+    const statusChanged =
+      validated.status !== undefined && validated.status !== reservation.status;
+
+    if (statusChanged && (updated.status === "confirmed" || updated.status === "cancelled")) {
+      let localName: string | undefined;
+      const { data: localData, error: localError } = await supabase
+        .from("locals")
+        .select("name")
+        .eq("id", reservation.local_id)
+        .maybeSingle();
+
+      if (localError) {
+        logger.warn("Error fetching local name for reservation status email", {
+          error: localError.message,
+          localId: reservation.local_id,
+        });
+      } else {
+        localName = localData?.name ?? undefined;
+      }
+
+      if (updated.status === "confirmed") {
+        sendReservationConfirmedEmail({
+          email: reservation.email,
+          name: reservation.name,
+          localName,
+          date: reservation.date,
+          people: reservation.guests,
+        }).catch((err) => {
+          logger.error("Error sending reservation confirmation email", { error: err });
+        });
+      } else if (updated.status === "cancelled") {
+        sendReservationCancelledEmail({
+          email: reservation.email,
+          name: reservation.name,
+          localName,
+          date: reservation.date,
+          people: reservation.guests,
+          cancelReason: validated.cancel_reason || validated.table_note || undefined,
+        }).catch((err) => {
+          logger.error("Error sending reservation cancellation email", { error: err });
+        });
+      }
     }
 
     res.status(200).json(updated);

@@ -17,6 +17,7 @@ export type ReservationCreate = z.infer<typeof createReservationSchema>;
 export const updateReservationStatusSchema = z.object({
   status: z.enum(["confirmed", "cancelled"]).optional(),
   table_note: z.string().nullable().optional(), // Permite actualizar table_note independientemente del status
+  cancel_reason: z.string().trim().min(1).max(160).optional(),
 });
 
 export type UpdateReservationStatus = z.infer<typeof updateReservationStatusSchema>;

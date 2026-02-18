@@ -34,10 +34,27 @@ reservationsRouter.post("/", async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
+    let localName: string | undefined;
+    const { data: localData, error: localError } = await supabase
+      .from("locals")
+      .select("name")
+      .eq("id", validated.local_id)
+      .maybeSingle();
+
+    if (localError) {
+      logger.warn("Error fetching local name for reservation email", {
+        error: localError.message,
+        localId: validated.local_id,
+      });
+    } else {
+      localName = localData?.name ?? undefined;
+    }
+
     // Enviar email de forma fire-and-forget
     sendReservationReceivedEmail({
       email: validated.email,
       name: validated.name,
+      localName,
       date: validated.date,
       people: validated.guests,
     }).catch((err) => {
@@ -102,4 +119,3 @@ localsReservationsRouter.get("/:id/reservations", panelAuth, async (req, res, ne
     next(error);
   }
 });
-
