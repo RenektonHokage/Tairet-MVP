@@ -1,24 +1,59 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, User, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useAuth } from "@/context/AuthContext";
+import {
+  normalizeQueryInput,
+  parseSearchParams,
+  setSearchParams,
+} from "@/lib/search";
+
+const SEARCH_DESTINATIONS = new Set(["/explorar", "/discotecas", "/bares"]);
 
 const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const { isAuthenticated, login, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, logout } = useAuth();
+  const searchState = parseSearchParams(location.search);
+
+  useEffect(() => {
+    setSearchQuery(searchState.q);
+  }, [searchState.q]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
   };
 
+  const resolveDestinationPath = () => {
+    if (SEARCH_DESTINATIONS.has(location.pathname)) {
+      return location.pathname;
+    }
+    return "/explorar";
+  };
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Search functionality will be implemented when backend is ready
+    const destinationPath = resolveDestinationPath();
+    const fixedType =
+      destinationPath === "/discotecas"
+        ? { type: "club" as const }
+        : destinationPath === "/bares"
+          ? { type: "bar" as const }
+          : {};
+
+    setSearchParams(
+      navigate,
+      destinationPath,
+      location.search,
+      { q: normalizeQueryInput(searchQuery) },
+      { fixed: fixedType },
+    );
   };
 
   return (
@@ -39,10 +74,13 @@ const Navbar = () => {
         <div className="hidden lg:flex flex-1 justify-center items-center w-full">
           <form onSubmit={handleSearchSubmit} className="w-full max-w-[720px] mx-auto">
             <div className="relative">
-              <Search 
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" 
-                aria-hidden="true"
-              />
+              <button
+                type="submit"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Buscar"
+              >
+                <Search className="h-4 w-4" />
+              </button>
               <Input
                 type="text"
                 placeholder="Buscar por zona, local o música…"
@@ -59,10 +97,13 @@ const Navbar = () => {
         <div className="lg:hidden flex-1 flex justify-center items-center w-full px-4">
           <form onSubmit={handleSearchSubmit} className="w-full">
             <div className="relative">
-              <Search 
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" 
-                aria-hidden="true"
-              />
+              <button
+                type="submit"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label="Buscar"
+              >
+                <Search className="h-4 w-4" />
+              </button>
               <Input
                 type="text"
                 placeholder="Buscar…"

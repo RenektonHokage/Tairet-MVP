@@ -45,7 +45,7 @@ export const corsMiddleware: RequestHandler = (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tairet-Fp");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
   // Preflight OPTIONS: responder 204 inmediatamente

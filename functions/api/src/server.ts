@@ -23,6 +23,7 @@ import { activityRouter } from "./routes/activity";
 import { panelRouter } from "./routes/panel";
 import { publicRouter } from "./routes/public";
 import { supportRouter } from "./routes/support";
+import { reviewsRouter } from "./routes/reviews";
 
 export const app = express();
 
@@ -60,6 +61,7 @@ app.use("/locals", promosRouter);
 app.use("/metrics", metricsRouter);
 app.use("/events", eventsMinuteLimiter, eventsDayLimiter, eventsRouter);
 app.use("/activity", activityRouter);
+app.use("/reviews", reviewsRouter);
 
 // Panel: rate limit opcional (RATE_LIMIT_PANEL=true)
 if (isPanelRateLimitEnabled()) {
@@ -74,4 +76,3 @@ if (isPanelRateLimitEnabled()) {
 app.use(errorHandler);
 
 export const server = app;
-

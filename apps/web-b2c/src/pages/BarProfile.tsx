@@ -327,7 +327,7 @@ const BarProfile = () => {
         />
 
         {/* Reviews */}
-        <BarReviews />
+        <BarReviews venueId={localId} />
       </div>
 
       {/* Mobile Gallery Menu Dialog */}

@@ -402,7 +402,7 @@ const ClubProfile = () => {
         />
 
         {/* Reviews */}
-        <ClubReviews />
+        <ClubReviews venueId={localId} />
       </div>
     </div>;
 };

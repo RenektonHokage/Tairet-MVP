@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import BackButton from "@/components/shared/BackButton";
@@ -10,10 +10,17 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
-import type { Bar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { getLocalsList, type LocalListItem } from "@/lib/locals";
+import { getLocalsList } from "@/lib/locals";
 import { selectBarVenues } from "@/lib/venueSelectors";
+import { useSearchParams } from "react-router-dom";
+import {
+  applySearchFilters,
+  getZoneFromLocation,
+  parseSearchParams,
+  patchSearchParams,
+  type SearchState,
+} from "@/lib/search";
 
 // Bar specialties for filtering
 const barSpecialties = [
@@ -46,64 +53,22 @@ const sortOptions = [
 ];
 
 
-// Filters interface
-interface Filters {
-  search: string;
-  specialties: string[];
-  openToday: boolean;
-  activePromos: boolean;
-  zones: string[];
-  sortBy: string;
-}
-
-// Filter and sort bars
-function filterAndSortBars(bars: Bar[], filters: Filters) {
-  let filtered = [...bars];
-
-  // Search filter
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase();
-    filtered = filtered.filter(bar => 
-      bar.name.toLowerCase().includes(searchTerm) ||
-      (bar.location && bar.location.toLowerCase().includes(searchTerm))
-    );
-  }
-
-  // Specialty filter
-  if (filters.specialties.length > 0) {
-    filtered = filtered.filter(bar => {
-      return filters.specialties.some(selectedSpecialty => 
-        bar.specialties.includes(selectedSpecialty)
-      );
-    });
-  }
-
-  // Sort bars
-  switch (filters.sortBy) {
-    case "rating":
-      filtered.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
-      break;
-    case "popular":
-      // For demo, shuffle array to simulate popularity
-      filtered = filtered.sort(() => Math.random() - 0.5);
-      break;
-    default:
-      // Keep original order for relevance
-      break;
-  }
-
-  return filtered;
-}
-
 export default function AllBars() {
-  const [filters, setFilters] = useState<Filters>({
-    search: "",
-    specialties: [],
-    openToday: false,
-    activePromos: false,
-    zones: [],
-    sortBy: "relevance"
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
+  const filters = useMemo(
+    () => ({
+      search: searchState.q,
+      specialties: searchState.tags,
+      openToday: searchState.openToday,
+      activePromos: searchState.promos,
+      zones: searchState.zones,
+      sortBy: sortOptions.some((option) => option.value === searchState.sort)
+        ? searchState.sort
+        : "relevance",
+    }),
+    [searchState],
+  );
 
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
@@ -158,42 +123,64 @@ export default function AllBars() {
 
   const mvpBars = selectBarVenues({ city: "asuncion", scope: "all" });
 
-  const filteredBars = filterAndSortBars(mvpBars, filters);
+  const filteredBars = useMemo(
+    () =>
+      applySearchFilters(mvpBars, { ...searchState, type: "bar" }, {
+        getName: (bar) => bar.name,
+        getLocation: (bar) => {
+          const slug = slugify(bar.name);
+          const dbLocation = dbLocations.get(slug);
+          const dbCity = dbCities.get(slug);
+          const parts = [dbLocation, dbCity].filter(Boolean);
+          return parts.length > 0 ? parts.join(" ") : bar.location;
+        },
+        getTags: (bar) => dbAttributes.get(slugify(bar.name)) || bar.specialties,
+        getZone: (bar) =>
+          getZoneFromLocation(dbLocations.get(slugify(bar.name)) || bar.location),
+        getRating: (bar) => Number.parseFloat(bar.rating),
+        customSortComparators: {
+          popular: () => Math.random() - 0.5,
+        },
+      }),
+    [dbAttributes, dbCities, dbLocations, mvpBars, searchState],
+  );
   const displayedBars = filteredBars;
 
   const activeFiltersCount = [
     filters.specialties.length > 0,
     filters.openToday,
-    filters.activePromos
+    filters.activePromos,
+    filters.zones.length > 0,
   ].filter(Boolean).length;
 
+  const updateFilters = (patch: Partial<SearchState>) => {
+    const nextParams = patchSearchParams(searchParams, patch, { type: "bar" });
+    setSearchParams(nextParams);
+  };
+
   const clearAllFilters = () => {
-    setFilters({
-      search: "",
-      specialties: [],
+    updateFilters({
+      q: "",
+      tags: [],
       openToday: false,
-      activePromos: false,
+      promos: false,
       zones: [],
-      sortBy: "relevance"
+      sort: "relevance",
     });
   };
 
   const toggleSpecialty = (specialty: string) => {
-    setFilters(prev => ({
-      ...prev,
-      specialties: prev.specialties.includes(specialty)
-        ? prev.specialties.filter(s => s !== specialty)
-        : [...prev.specialties, specialty]
-    }));
+    const nextTags = filters.specialties.includes(specialty)
+      ? filters.specialties.filter((value) => value !== specialty)
+      : [...filters.specialties, specialty];
+    updateFilters({ tags: nextTags });
   };
 
   const toggleZone = (zone: string) => {
-    setFilters(prev => ({
-      ...prev,
-      zones: prev.zones.includes(zone)
-        ? prev.zones.filter(z => z !== zone)
-        : [...prev.zones, zone]
-    }));
+    const nextZones = filters.zones.includes(zone)
+      ? filters.zones.filter((value) => value !== zone)
+      : [...filters.zones, zone];
+    updateFilters({ zones: nextZones });
   };
 
   return (
@@ -226,7 +213,7 @@ export default function AllBars() {
               {/* Row 2: Dropdowns and Checkboxes */}
               <div className="flex flex-wrap items-center gap-4">
                 {/* Sort Selector */}
-                <Select value={filters.sortBy} onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}>
+                <Select value={filters.sortBy} onValueChange={(value) => updateFilters({ sort: value })}>
                   <SelectTrigger className="w-40 h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -242,9 +229,9 @@ export default function AllBars() {
                   value={filters.zones.length === 1 ? filters.zones[0] : filters.zones.length > 1 ? "multiple" : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
-                      setFilters(prev => ({ ...prev, zones: [] }));
+                      updateFilters({ zones: [] });
                     } else if (value !== "multiple") {
-                      setFilters(prev => ({ ...prev, zones: [value] }));
+                      updateFilters({ zones: [value] });
                     }
                   }}
                 >
@@ -268,7 +255,7 @@ export default function AllBars() {
                   <Checkbox
                     id="openToday"
                     checked={filters.openToday}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, openToday: !!checked }))}
+                    onCheckedChange={(checked) => updateFilters({ openToday: !!checked })}
                   />
                   <label htmlFor="openToday" className="text-sm text-foreground cursor-pointer">Abierto hoy</label>
                 </div>
@@ -277,7 +264,7 @@ export default function AllBars() {
                   <Checkbox
                     id="activePromos"
                     checked={filters.activePromos}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, activePromos: !!checked }))}
+                    onCheckedChange={(checked) => updateFilters({ promos: !!checked })}
                   />
                   <label htmlFor="activePromos" className="text-sm text-foreground cursor-pointer">Promociones</label>
                 </div>
@@ -299,13 +286,13 @@ export default function AllBars() {
           title="Bares"
           sortBy={filters.sortBy}
           sortOptions={sortOptions}
-          onSortChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
+          onSortChange={(value) => updateFilters({ sort: value })}
           selectedZones={filters.zones}
           onOpenZones={() => setIsZonesSheetOpen(true)}
           openToday={filters.openToday}
-          onToggleOpenToday={() => setFilters(prev => ({ ...prev, openToday: !prev.openToday }))}
+          onToggleOpenToday={() => updateFilters({ openToday: !filters.openToday })}
           hasPromos={filters.activePromos}
-          onTogglePromos={() => setFilters(prev => ({ ...prev, activePromos: !prev.activePromos }))}
+          onTogglePromos={() => updateFilters({ promos: !filters.activePromos })}
           onOpenAdvancedFilters={() => setIsAdvancedFiltersOpen(true)}
           advancedFiltersCount={filters.specialties.length}
         />
@@ -318,7 +305,7 @@ export default function AllBars() {
           options={zones}
           selectedOptions={filters.zones}
           onToggleOption={toggleZone}
-          onClear={() => setFilters(prev => ({ ...prev, zones: [] }))}
+          onClear={() => updateFilters({ zones: [] })}
           onApply={() => {}}
         />
 
@@ -330,7 +317,7 @@ export default function AllBars() {
           options={barSpecialties}
           selectedOptions={filters.specialties}
           onToggleOption={toggleSpecialty}
-          onClear={() => setFilters(prev => ({ ...prev, specialties: [] }))}
+          onClear={() => updateFilters({ tags: [] })}
           onApply={() => {}}
         />
 

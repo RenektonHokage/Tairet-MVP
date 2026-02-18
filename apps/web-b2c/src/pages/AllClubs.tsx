@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import BackButton from "@/components/shared/BackButton";
@@ -10,10 +10,17 @@ import Footer from "@/components/Footer";
 import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
-import type { Club } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { getLocalsList } from "@/lib/locals";
 import { selectClubVenues } from "@/lib/venueSelectors";
+import { useSearchParams } from "react-router-dom";
+import {
+  applySearchFilters,
+  getZoneFromLocation,
+  parseSearchParams,
+  patchSearchParams,
+  type SearchState,
+} from "@/lib/search";
 
 // Music genres for filtering
 const musicGenres = [
@@ -43,63 +50,22 @@ const sortOptions = [
 ];
 
 
-// Filters interface
-interface Filters {
-  search: string;
-  musicGenres: string[];
-  openToday: boolean;
-  activePromos: boolean;
-  zones: string[];
-  sortBy: string;
-}
-
-// Filter and sort clubs
-function filterAndSortClubs(clubs: Club[], filters: Filters) {
-  let filtered = [...clubs];
-
-  // Search filter
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase();
-    filtered = filtered.filter(club => 
-      club.name.toLowerCase().includes(searchTerm)
-    );
-  }
-
-  // Music genre filter
-  if (filters.musicGenres.length > 0) {
-    filtered = filtered.filter(club => {
-      return filters.musicGenres.some(selectedGenre => 
-        club.genres.includes(selectedGenre)
-      );
-    });
-  }
-
-  // Sort clubs
-  switch (filters.sortBy) {
-    case "rating":
-      filtered.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
-      break;
-    case "popular":
-      // For demo, shuffle array to simulate popularity
-      filtered = filtered.sort(() => Math.random() - 0.5);
-      break;
-    default:
-      // Keep original order for relevance
-      break;
-  }
-
-  return filtered;
-}
-
 export default function AllClubs() {
-  const [filters, setFilters] = useState<Filters>({
-    search: "",
-    musicGenres: [],
-    openToday: false,
-    activePromos: false,
-    zones: [],
-    sortBy: "relevance"
-  });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
+  const filters = useMemo(
+    () => ({
+      search: searchState.q,
+      musicGenres: searchState.tags,
+      openToday: searchState.openToday,
+      activePromos: searchState.promos,
+      zones: searchState.zones,
+      sortBy: sortOptions.some((option) => option.value === searchState.sort)
+        ? searchState.sort
+        : "relevance",
+    }),
+    [searchState],
+  );
 
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
@@ -154,7 +120,22 @@ export default function AllClubs() {
 
   const mvpClubs = selectClubVenues({ city: "asuncion", scope: "all" });
 
-  const filteredClubs = filterAndSortClubs(mvpClubs, filters);
+  const filteredClubs = useMemo(
+    () =>
+      applySearchFilters(mvpClubs, { ...searchState, type: "club" }, {
+        getName: (club) => club.name,
+        getLocation: (club) => {
+          const slug = slugify(club.name);
+          const dbLocation = dbLocations.get(slug);
+          const dbCity = dbCities.get(slug);
+          return [dbLocation, dbCity].filter(Boolean).join(" ");
+        },
+        getTags: (club) => dbGenres.get(slugify(club.name)) || club.genres,
+        getZone: (club) => getZoneFromLocation(dbLocations.get(slugify(club.name))),
+        getRating: (club) => Number.parseFloat(club.rating),
+      }),
+    [dbCities, dbGenres, dbLocations, mvpClubs, searchState],
+  );
   const displayedClubs = filteredClubs;
 
   const activeFiltersCount = [
@@ -164,33 +145,34 @@ export default function AllClubs() {
     filters.zones.length > 0
   ].filter(Boolean).length;
 
+  const updateFilters = (patch: Partial<SearchState>) => {
+    const nextParams = patchSearchParams(searchParams, patch, { type: "club" });
+    setSearchParams(nextParams);
+  };
+
   const clearAllFilters = () => {
-    setFilters({
-      search: "",
-      musicGenres: [],
+    updateFilters({
+      q: "",
+      tags: [],
       openToday: false,
-      activePromos: false,
+      promos: false,
       zones: [],
-      sortBy: "relevance"
+      sort: "relevance",
     });
   };
 
   const toggleMusicGenre = (genre: string) => {
-    setFilters(prev => ({
-      ...prev,
-      musicGenres: prev.musicGenres.includes(genre)
-        ? prev.musicGenres.filter(g => g !== genre)
-        : [...prev.musicGenres, genre]
-    }));
+    const nextTags = filters.musicGenres.includes(genre)
+      ? filters.musicGenres.filter((value) => value !== genre)
+      : [...filters.musicGenres, genre];
+    updateFilters({ tags: nextTags });
   };
 
   const toggleZone = (zone: string) => {
-    setFilters(prev => ({
-      ...prev,
-      zones: prev.zones.includes(zone)
-        ? prev.zones.filter(z => z !== zone)
-        : [...prev.zones, zone]
-    }));
+    const nextZones = filters.zones.includes(zone)
+      ? filters.zones.filter((value) => value !== zone)
+      : [...filters.zones, zone];
+    updateFilters({ zones: nextZones });
   };
 
   return (
@@ -223,7 +205,7 @@ export default function AllClubs() {
               {/* Row 2: Dropdowns and Checkboxes */}
               <div className="flex flex-wrap items-center gap-4">
                 {/* Sort Selector */}
-                <Select value={filters.sortBy} onValueChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}>
+                <Select value={filters.sortBy} onValueChange={(value) => updateFilters({ sort: value })}>
                   <SelectTrigger className="w-40 h-9">
                     <SelectValue />
                   </SelectTrigger>
@@ -239,9 +221,9 @@ export default function AllClubs() {
                   value={filters.zones.length === 1 ? filters.zones[0] : filters.zones.length > 1 ? "multiple" : "all"}
                   onValueChange={(value) => {
                     if (value === "all") {
-                      setFilters(prev => ({ ...prev, zones: [] }));
+                      updateFilters({ zones: [] });
                     } else if (value !== "multiple") {
-                      setFilters(prev => ({ ...prev, zones: [value] }));
+                      updateFilters({ zones: [value] });
                     }
                   }}
                 >
@@ -265,7 +247,7 @@ export default function AllClubs() {
                   <Checkbox
                     id="openToday"
                     checked={filters.openToday}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, openToday: !!checked }))}
+                    onCheckedChange={(checked) => updateFilters({ openToday: !!checked })}
                   />
                   <label htmlFor="openToday" className="text-sm text-foreground cursor-pointer">Abierto hoy</label>
                 </div>
@@ -274,7 +256,7 @@ export default function AllClubs() {
                   <Checkbox
                     id="activePromos"
                     checked={filters.activePromos}
-                    onCheckedChange={(checked) => setFilters(prev => ({ ...prev, activePromos: !!checked }))}
+                    onCheckedChange={(checked) => updateFilters({ promos: !!checked })}
                   />
                   <label htmlFor="activePromos" className="text-sm text-foreground cursor-pointer">Promociones</label>
                 </div>
@@ -296,13 +278,13 @@ export default function AllClubs() {
           title="Discotecas"
           sortBy={filters.sortBy}
           sortOptions={sortOptions}
-          onSortChange={(value) => setFilters(prev => ({ ...prev, sortBy: value }))}
+          onSortChange={(value) => updateFilters({ sort: value })}
           selectedZones={filters.zones}
           onOpenZones={() => setIsZonesSheetOpen(true)}
           openToday={filters.openToday}
-          onToggleOpenToday={() => setFilters(prev => ({ ...prev, openToday: !prev.openToday }))}
+          onToggleOpenToday={() => updateFilters({ openToday: !filters.openToday })}
           hasPromos={filters.activePromos}
-          onTogglePromos={() => setFilters(prev => ({ ...prev, activePromos: !prev.activePromos }))}
+          onTogglePromos={() => updateFilters({ promos: !filters.activePromos })}
           onOpenAdvancedFilters={() => setIsAdvancedFiltersOpen(true)}
           advancedFiltersCount={filters.musicGenres.length}
         />
@@ -315,7 +297,7 @@ export default function AllClubs() {
           options={zones}
           selectedOptions={filters.zones}
           onToggleOption={toggleZone}
-          onClear={() => setFilters(prev => ({ ...prev, zones: [] }))}
+          onClear={() => updateFilters({ zones: [] })}
           onApply={() => {}}
         />
 
@@ -327,7 +309,7 @@ export default function AllClubs() {
           options={musicGenres}
           selectedOptions={filters.musicGenres}
           onToggleOption={toggleMusicGenre}
-          onClear={() => setFilters(prev => ({ ...prev, musicGenres: [] }))}
+          onClear={() => updateFilters({ tags: [] })}
           onApply={() => {}}
         />
 
@@ -351,7 +333,7 @@ export default function AllClubs() {
                 // Build "Zona • Ciudad" display string
                 const locationDisplay = dbLocation && dbCity
                   ? `${dbLocation} • ${dbCity}`
-                  : dbLocation || dbCity || club.location;
+                  : dbLocation || dbCity || "";
                 const genres = dbGenres.get(clubSlug) || club.genres;
                 const minAge = dbMinAges.get(clubSlug) ?? null; // null = no badge, DB-first sin fallback
                 return (
