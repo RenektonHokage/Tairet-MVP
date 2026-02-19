@@ -3,7 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 export default defineConfig(() => ({
-  envDir: path.resolve(__dirname, "../.."), // lee .env de la raíz
+  // Source of truth de envs para B2C: apps/web-b2c/.env*
+  envDir: path.resolve(__dirname),
 
   server: {
     host: true,
