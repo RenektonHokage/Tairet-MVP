@@ -37,6 +37,7 @@ interface CheckoutBaseProps {
 }
 
 const ASUNCION_TZ = "America/Asuncion";
+const NIGHT_CUTOFF_HOUR = 6;
 
 const pad2 = (value: number): string => value.toString().padStart(2, "0");
 
@@ -69,19 +70,28 @@ const addDaysToIso = (iso: string, days: number): string => {
   return isoFromUtcDate(parsed);
 };
 
-const getAsuncionTodayIso = (): string => {
+const getAsuncionDateParts = (date: Date): { iso: string; hour: number } => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: ASUNCION_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
 
   const year = parts.find((part) => part.type === "year")?.value ?? "1970";
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
 
-  return `${year}-${month}-${day}`;
+  return { iso: `${year}-${month}-${day}`, hour };
+};
+
+const getAsuncionOperationalDayIso = (): string => {
+  const { iso, hour } = getAsuncionDateParts(new Date());
+  if (!Number.isFinite(hour) || hour >= NIGHT_CUTOFF_HOUR) return iso;
+  return addDaysToIso(iso, -1);
 };
 
 const isIsoWithinRange = (iso: string, minIso: string, maxIso: string): boolean =>
@@ -103,12 +113,18 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const [orderCreated, setOrderCreated] = useState<Order | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const todayIso = useMemo(() => getAsuncionTodayIso(), []);
-  const maxSelectableIso = useMemo(() => addDaysToIso(todayIso, 30), [todayIso]);
-  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const operationalDayIso = useMemo(() => getAsuncionOperationalDayIso(), []);
+  const maxSelectableIso = useMemo(
+    () => addDaysToIso(operationalDayIso, 30),
+    [operationalDayIso]
+  );
+  const [selectedDate, setSelectedDate] = useState(operationalDayIso);
 
   const selectedDateAsDate = useMemo(() => parseIsoDate(selectedDate), [selectedDate]);
-  const minSelectableDate = useMemo(() => parseIsoDate(todayIso), [todayIso]);
+  const minSelectableDate = useMemo(
+    () => parseIsoDate(operationalDayIso),
+    [operationalDayIso]
+  );
   const maxSelectableDate = useMemo(() => parseIsoDate(maxSelectableIso), [maxSelectableIso]);
 
   const selectedDateDisplay = useMemo(() => {
@@ -214,7 +230,10 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       }
 
       const parsedSelectedDate = parseIsoDate(selectedDate);
-      if (!parsedSelectedDate || !isIsoWithinRange(selectedDate, todayIso, maxSelectableIso)) {
+      if (
+        !parsedSelectedDate ||
+        !isIsoWithinRange(selectedDate, operationalDayIso, maxSelectableIso)
+      ) {
         toast({
           title: "Error",
           description: "La fecha seleccionada está fuera del rango permitido.",
@@ -535,13 +554,13 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                             return;
                           }
                           const nextIso = dateToIsoFromLocal(date);
-                          if (isIsoWithinRange(nextIso, todayIso, maxSelectableIso)) {
+                          if (isIsoWithinRange(nextIso, operationalDayIso, maxSelectableIso)) {
                             setSelectedDate(nextIso);
                           }
                         }}
                         disabled={(date) => {
                           const iso = dateToIsoFromLocal(date);
-                          return !isIsoWithinRange(iso, todayIso, maxSelectableIso);
+                          return !isIsoWithinRange(iso, operationalDayIso, maxSelectableIso);
                         }}
                         className="mx-auto w-full bg-transparent p-0"
                         components={{

@@ -42,6 +42,44 @@ const parseLines = (text: string): string[] =>
 const toLines = (arr?: string[] | null): string =>
   (arr ?? []).join("\n");
 
+type ParsedCoordinate = number | null | "invalid";
+
+const PARAGUAY_BOUNDS = {
+  minLat: -27.7,
+  maxLat: -19.0,
+  minLng: -62.9,
+  maxLng: -54.2,
+};
+
+const parseCoordinateInput = (value: string): ParsedCoordinate => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const cleaned = trimmed
+    .replace(/latitud|latitude|lat|longitud|longitude|lng/gi, "")
+    .replace(/[:=]/g, " ")
+    .trim();
+
+  const matches = cleaned.match(/-?\d+(?:[.,]\d+)?/g);
+  if (!matches || matches.length === 0) return "invalid";
+
+  const normalized = matches[0].replace(",", ".");
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return "invalid";
+  return parsed;
+};
+
+const isInRange = (value: number, min: number, max: number): boolean =>
+  value >= min && value <= max;
+
+const isWithinParaguay = (lat: number, lng: number): boolean =>
+  isInRange(lat, PARAGUAY_BOUNDS.minLat, PARAGUAY_BOUNDS.maxLat) &&
+  isInRange(lng, PARAGUAY_BOUNDS.minLng, PARAGUAY_BOUNDS.maxLng);
+
+const isLikelySwappedCoordinates = (lat: number, lng: number): boolean =>
+  isInRange(lat, PARAGUAY_BOUNDS.minLng, PARAGUAY_BOUNDS.maxLng) &&
+  isInRange(lng, PARAGUAY_BOUNDS.minLat, PARAGUAY_BOUNDS.maxLat);
+
 // Constantes de validación de imagen
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -132,6 +170,8 @@ export default function ProfilePage() {
     address: "",
     location: "",
     city: "",
+    latitude: "",
+    longitude: "",
     phone: "",
     whatsapp: "",
     hoursText: "",
@@ -226,6 +266,8 @@ export default function ProfilePage() {
         address: data.address || "",
         location: data.location || "",
         city: data.city || "",
+        latitude: data.latitude != null ? String(data.latitude) : "",
+        longitude: data.longitude != null ? String(data.longitude) : "",
         phone: data.phone || "",
         whatsapp: data.whatsapp || "",
         hoursText: toLines(data.hours),
@@ -458,6 +500,18 @@ export default function ProfilePage() {
       return;
     }
 
+    const parsedLatitude = parseCoordinateInput(formData.latitude);
+    if (parsedLatitude === "invalid" || (parsedLatitude !== null && (parsedLatitude < -90 || parsedLatitude > 90))) {
+      setError("Latitud inválida. Debe estar entre -90 y 90.");
+      return;
+    }
+
+    const parsedLongitude = parseCoordinateInput(formData.longitude);
+    if (parsedLongitude === "invalid" || (parsedLongitude !== null && (parsedLongitude < -180 || parsedLongitude > 180))) {
+      setError("Longitud inválida. Debe estar entre -180 y 180.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(false);
@@ -471,6 +525,8 @@ export default function ProfilePage() {
         address: formData.address.trim(),
         location: formData.location.trim(),
         city: formData.city.trim() || null,
+        latitude: parsedLatitude,
+        longitude: parsedLongitude,
         phone: formData.phone.trim(),
         whatsapp: formData.whatsapp.trim(),
         hours,
@@ -489,6 +545,15 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSwapCoordinates = () => {
+    if (typeof parsedLatitudeInput !== "number" || typeof parsedLongitudeInput !== "number") return;
+    setFormData((prev) => ({
+      ...prev,
+      latitude: String(parsedLongitudeInput),
+      longitude: String(parsedLatitudeInput),
+    }));
   };
 
   // ==========================================================================
@@ -767,6 +832,33 @@ export default function ProfilePage() {
   const previewAddress = formData.address.trim();
   const previewLocation = formData.location.trim();
   const previewCity = formData.city.trim();
+  const parsedLatitudeInput = parseCoordinateInput(formData.latitude);
+  const parsedLongitudeInput = parseCoordinateInput(formData.longitude);
+  const latitudeInlineError =
+    parsedLatitudeInput === "invalid"
+      ? "Latitud inválida."
+      : typeof parsedLatitudeInput === "number" && !isInRange(parsedLatitudeInput, -90, 90)
+        ? "Latitud fuera de rango (-90 a 90)."
+        : null;
+  const longitudeInlineError =
+    parsedLongitudeInput === "invalid"
+      ? "Longitud inválida."
+      : typeof parsedLongitudeInput === "number" && !isInRange(parsedLongitudeInput, -180, 180)
+        ? "Longitud fuera de rango (-180 a 180)."
+        : null;
+  const hasValidCoordinatePair =
+    typeof parsedLatitudeInput === "number" &&
+    typeof parsedLongitudeInput === "number" &&
+    !latitudeInlineError &&
+    !longitudeInlineError;
+  const likelySwappedCoordinates =
+    hasValidCoordinatePair && isLikelySwappedCoordinates(parsedLatitudeInput, parsedLongitudeInput);
+  const outsideParaguayBounds =
+    hasValidCoordinatePair &&
+    !isWithinParaguay(parsedLatitudeInput, parsedLongitudeInput);
+  const mapsPreviewUrl = hasValidCoordinatePair
+    ? `https://www.google.com/maps?q=${parsedLatitudeInput},${parsedLongitudeInput}`
+    : null;
   const previewPhone = formData.phone.trim();
   const previewWhatsapp = formData.whatsapp.trim();
   const previewHours = parseLines(formData.hoursText);
@@ -1296,7 +1388,7 @@ export default function ProfilePage() {
               placeholder="Ej: Av. Mariscal López 1234"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Dirección completa que aparece en la sección Ubicación.
+              Dirección completa para geolocalizar el pin y para &quot;Cómo llegar&quot;.
             </p>
           </div>
 
@@ -1353,6 +1445,91 @@ export default function ProfilePage() {
               Se usa para mostrar &quot;Zona • Ciudad&quot; y para que &quot;Cómo llegar&quot; sea exacto.
             </p>
           </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="latitude"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Latitud (ej: -25.280046)
+              </label>
+              <input
+                type="text"
+                id="latitude"
+                value={formData.latitude}
+                onChange={(e) =>
+                  setFormData({ ...formData, latitude: e.target.value })
+                }
+                disabled={!canEdit || saving}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="-25.280046"
+              />
+              {latitudeInlineError ? (
+                <p className="mt-1 text-xs text-red-600">{latitudeInlineError}</p>
+              ) : null}
+            </div>
+
+            <div>
+              <label
+                htmlFor="longitude"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Longitud (ej: -57.634381)
+              </label>
+              <input
+                type="text"
+                id="longitude"
+                value={formData.longitude}
+                onChange={(e) =>
+                  setFormData({ ...formData, longitude: e.target.value })
+                }
+                disabled={!canEdit || saving}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="-57.634381"
+              />
+              {longitudeInlineError ? (
+                <p className="mt-1 text-xs text-red-600">{longitudeInlineError}</p>
+              ) : null}
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Ubicación exacta (recomendado). Si no la cargás, el mapa puede quedar aproximado.
+          </p>
+          <p className="text-xs text-gray-500">
+            Google Maps devuelve: lat, lng.
+          </p>
+          <p className="text-xs text-gray-500">
+            Mapbox &quot;center&quot; devuelve: lng, lat (si pegás eso, invertí).
+          </p>
+          {mapsPreviewUrl ? (
+            <a
+              href={mapsPreviewUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Ver en Google Maps
+            </a>
+          ) : null}
+          {outsideParaguayBounds ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p>
+                {likelySwappedCoordinates
+                  ? "Las coordenadas parecen invertidas (lat/lng)."
+                  : "Las coordenadas están fuera de Paraguay y podrían generar un pin incorrecto."}
+              </p>
+              {likelySwappedCoordinates ? (
+                <button
+                  type="button"
+                  onClick={handleSwapCoordinates}
+                  className="mt-2 inline-flex rounded-md border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  Intercambiar
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Edad Mínima */}
           <div>

@@ -29,6 +29,8 @@ const BarProfile = () => {
   const [localAddress, setLocalAddress] = useState<string | null>(null);
   const [localLocation, setLocalLocation] = useState<string | null>(null);
   const [localCity, setLocalCity] = useState<string | null>(null);
+  const [localLatitude, setLocalLatitude] = useState<number | null>(null);
+  const [localLongitude, setLocalLongitude] = useState<number | null>(null);
   const [localHours, setLocalHours] = useState<string[]>([]);
   const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
   const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
@@ -78,6 +80,8 @@ const BarProfile = () => {
         setLocalAddress(local.address);
         setLocalLocation(local.location);
         setLocalCity(local.city);
+        setLocalLatitude(local.latitude);
+        setLocalLongitude(local.longitude);
         setLocalHours(local.hours || []);
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
@@ -317,10 +321,13 @@ const BarProfile = () => {
 
         {/* Map - DB-first con fallback */}
         <LazyMapSection
+          venueId={localId || undefined}
           venue={barData.name}
           location={localLocation || "Centro, Asuncion"}
           address={localAddress || "Palma 123 esq. Chile"}
           city={localCity}
+          latitude={localLatitude}
+          longitude={localLongitude}
           hours={localHours.length > 0 ? localHours : ["Lun - Jue: 18:00 - 02:00", "Vie - Sab: 18:00 - 03:00", "Dom: Cerrado"]}
           phone={contactInfo?.phone || "(021) 123-456"}
           additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento disponible", "Acceso para personas con discapacidad", "WiFi gratuito", "Aceptamos tarjetas de credito", "Ambiente climatizado"]}

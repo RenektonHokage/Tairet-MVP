@@ -61,6 +61,8 @@ export interface LocalProfile {
   address: string | null;
   location: string | null;
   city: string | null;
+  latitude: number | null;
+  longitude: number | null;
   hours: string[];
   additional_info: string[];
   phone: string | null;
@@ -75,6 +77,8 @@ export interface UpdateLocalProfileInput {
   address?: string;
   location?: string;
   city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   hours?: string[];
   additional_info?: string[];
   phone?: string;

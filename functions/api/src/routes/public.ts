@@ -34,7 +34,7 @@ publicRouter.get("/locals", async (req, res) => {
     // Query base
     let query = supabase
       .from("locals")
-      .select("id, slug, name, type, location, city, gallery, attributes, min_age")
+      .select("id, slug, name, type, location, city, latitude, longitude, gallery, attributes, min_age")
       .order("name", { ascending: true })
       .limit(limit);
 
@@ -65,6 +65,8 @@ publicRouter.get("/locals", async (req, res) => {
         type: local.type,
         location: local.location || null,
         city: local.city || null,
+        latitude: typeof local.latitude === "number" ? local.latitude : null,
+        longitude: typeof local.longitude === "number" ? local.longitude : null,
         cover_url: coverItem?.url || null,
         attributes: Array.isArray(local.attributes) ? local.attributes : [],
         min_age: typeof local.min_age === "number" ? local.min_age : null,
@@ -109,7 +111,7 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
     // Buscar local por slug
     const { data: local, error } = await supabase
       .from("locals")
-      .select("id, slug, name, address, location, city, hours, additional_info, phone, whatsapp, ticket_price, type, gallery")
+      .select("id, slug, name, address, location, city, latitude, longitude, hours, additional_info, phone, whatsapp, ticket_price, type, gallery")
       .eq("slug", validSlug)
       .single();
 
@@ -169,6 +171,8 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       address: local.address || null,
       location: local.location || null,
       city: local.city || null,
+      latitude: typeof local.latitude === "number" ? local.latitude : null,
+      longitude: typeof local.longitude === "number" ? local.longitude : null,
       hours: Array.isArray(local.hours) ? local.hours : [],
       additional_info: Array.isArray(local.additional_info) ? local.additional_info : [],
       phone: local.phone || null,

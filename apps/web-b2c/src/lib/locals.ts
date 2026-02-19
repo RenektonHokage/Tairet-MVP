@@ -30,6 +30,8 @@ export interface LocalInfo {
   address: string | null;
   location: string | null;
   city: string | null;
+  latitude: number | null;
+  longitude: number | null;
   hours: string[];
   additional_info: string[];
   phone: string | null;
@@ -49,6 +51,8 @@ export interface LocalListItem {
   type: "bar" | "club";
   location: string | null;
   city: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   cover_url: string | null;
   attributes: string[];
   min_age: number | null;

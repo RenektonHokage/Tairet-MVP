@@ -29,6 +29,8 @@ const ClubProfile = () => {
   const [localAddress, setLocalAddress] = useState<string | null>(null);
   const [localLocation, setLocalLocation] = useState<string | null>(null);
   const [localCity, setLocalCity] = useState<string | null>(null);
+  const [localLatitude, setLocalLatitude] = useState<number | null>(null);
+  const [localLongitude, setLocalLongitude] = useState<number | null>(null);
   const [localHours, setLocalHours] = useState<string[]>([]);
   const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
   const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
@@ -79,6 +81,8 @@ const ClubProfile = () => {
         setLocalAddress(local.address);
         setLocalLocation(local.location);
         setLocalCity(local.city);
+        setLocalLatitude(local.latitude);
+        setLocalLongitude(local.longitude);
         setLocalHours(local.hours || []);
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
@@ -393,10 +397,13 @@ const ClubProfile = () => {
 
         {/* Map - DB-first con fallback */}
         <LazyMapSection
+          venueId={localId || undefined}
           venue={clubData.name}
           location={localLocation || "Villa Morra, Asuncion"}
           address={localAddress || "Av. Mariscal Lopez 1234"}
           city={localCity}
+          latitude={localLatitude}
+          longitude={localLongitude}
           hours={localHours.length > 0 ? localHours : ["Jue - Sab: 23:00 - 06:00", "Dom - Mie: Cerrado", "Abierto hoy"]}
           phone={contactInfo?.phone || "(021) 555-123"}
           additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]}

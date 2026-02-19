@@ -45,6 +45,7 @@ interface OrderWindowShape {
 let cachedCutoffValue: string | null = null;
 let cachedCutoffDate: Date | null | undefined;
 const ASUNCION_TIMEZONE = "America/Asuncion";
+const NIGHT_CUTOFF_HOUR = 6;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -106,21 +107,61 @@ export function getAsuncionDateString(baseNow: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+function getAsuncionDateParts(baseNow: Date = new Date()): { isoDate: string; hour: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: ASUNCION_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(baseNow);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  const hourText = parts.find((part) => part.type === "hour")?.value ?? "0";
+  const hour = Number(hourText);
+
+  if (!year || !month || !day) {
+    throw new Error("Failed to format Asuncion date parts");
+  }
+
+  return { isoDate: `${year}-${month}-${day}`, hour: Number.isFinite(hour) ? hour : 0 };
+}
+
+export function getAsuncionOperationalDateString(
+  baseNow: Date = new Date(),
+  cutoffHour: number = NIGHT_CUTOFF_HOUR
+): string {
+  const { isoDate, hour } = getAsuncionDateParts(baseNow);
+  if (hour >= cutoffHour) {
+    return isoDate;
+  }
+
+  const epochDay = parseDateOnlyToEpochDay(isoDate);
+  if (epochDay === null) {
+    return isoDate;
+  }
+
+  return epochDayToDateString(epochDay - 1);
+}
+
 export function validateIntendedDateRange(
   intendedDate: string,
   baseNow: Date = new Date(),
   maxDaysAhead = 30
 ): { ok: true } | { ok: false; reason: "invalid_format" | "out_of_range"; minDate: string; maxDate: string } {
   const intendedEpochDay = parseDateOnlyToEpochDay(intendedDate);
-  const todayAsuncion = getAsuncionDateString(baseNow);
-  const minEpochDay = parseDateOnlyToEpochDay(todayAsuncion);
+  const operationalDateAsuncion = getAsuncionOperationalDateString(baseNow);
+  const minEpochDay = parseDateOnlyToEpochDay(operationalDateAsuncion);
 
   if (intendedEpochDay === null || minEpochDay === null) {
     return {
       ok: false,
       reason: "invalid_format",
-      minDate: todayAsuncion,
-      maxDate: todayAsuncion,
+      minDate: operationalDateAsuncion,
+      maxDate: operationalDateAsuncion,
     };
   }
 
@@ -129,7 +170,7 @@ export function validateIntendedDateRange(
     return {
       ok: false,
       reason: "out_of_range",
-      minDate: todayAsuncion,
+      minDate: operationalDateAsuncion,
       maxDate: epochDayToDateString(maxEpochDay),
     };
   }
