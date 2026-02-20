@@ -127,8 +127,7 @@ const BarsSection: React.FC<{
                   key={item.id}
                   id={item.id}
                   name={item.name}
-                  // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                  schedule={scheduleBySlug?.get(barSlug) || item.schedule}
+                  schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                   rating={item.rating}
                   specialties={item.specialties}
                   image={coverBySlug?.get(barSlug) || item.image}
@@ -156,8 +155,7 @@ const BarsSection: React.FC<{
                     <VenueCard 
                       id={item.id}
                       name={item.name}
-                      // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                      schedule={scheduleBySlug?.get(barSlug) || item.schedule}
+                      schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                       rating={item.rating}
                       specialties={item.specialties}
                       image={coverBySlug?.get(barSlug) || item.image}

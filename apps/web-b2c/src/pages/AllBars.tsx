@@ -382,8 +382,7 @@ export default function AllBars() {
                     key={bar.id}
                     id={bar.id}
                     name={bar.name}
-                    // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                    schedule={dbTodaySchedules.get(barSlug) || bar.schedule}
+                    schedule={dbTodaySchedules.get(barSlug) ?? "Horario no disponible"}
                     rating={bar.rating}
                     specialties={specialties}
                     location={locationDisplay}

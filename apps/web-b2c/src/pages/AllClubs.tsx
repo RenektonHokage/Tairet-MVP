@@ -375,8 +375,7 @@ export default function AllClubs() {
                     key={club.id}
                     id={club.id}
                     name={club.name}
-                    // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                    schedule={dbTodaySchedules.get(clubSlug) || club.schedule}
+                    schedule={dbTodaySchedules.get(clubSlug) ?? "Horario no disponible"}
                     rating={club.rating}
                     genres={genres}
                     location={locationDisplay}

@@ -170,8 +170,7 @@ export default function ZonaAsuncion() {
                       key={item.id}
                       id={item.id}
                       name={item.name}
-                      // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                      schedule={clubScheduleBySlug.get(clubSlug) || item.schedule}
+                      schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                       rating={item.rating}
                       genres={item.genres}
                       image={clubCoverBySlug.get(clubSlug) || item.customImage}
@@ -220,8 +219,7 @@ export default function ZonaAsuncion() {
                       <VenueCard 
                         id={item.id}
                         name={item.name}
-                        // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                        schedule={clubScheduleBySlug.get(clubSlug) || item.schedule}
+                        schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                         rating={item.rating}
                         genres={item.genres}
                         image={clubCoverBySlug.get(clubSlug) || item.customImage}

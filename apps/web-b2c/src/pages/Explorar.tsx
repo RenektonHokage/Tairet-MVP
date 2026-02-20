@@ -192,8 +192,7 @@ const Explorar = () => {
                           key={`bar-${bar.id}`}
                           id={bar.id}
                           name={bar.name}
-                          // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                          schedule={todaySchedulesBySlug.get(slugify(bar.name)) || bar.schedule}
+                          schedule={todaySchedulesBySlug.get(slugify(bar.name)) ?? "Horario no disponible"}
                           rating={bar.rating}
                           specialties={bar.specialties}
                           location={bar.location}
@@ -218,8 +217,7 @@ const Explorar = () => {
                           key={`club-${club.id}`}
                           id={club.id}
                           name={club.name}
-                          // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
-                          schedule={todaySchedulesBySlug.get(slugify(club.name)) || club.schedule}
+                          schedule={todaySchedulesBySlug.get(slugify(club.name)) ?? "Horario no disponible"}
                           rating={club.rating}
                           genres={club.genres}
                           image={club.customImage}
