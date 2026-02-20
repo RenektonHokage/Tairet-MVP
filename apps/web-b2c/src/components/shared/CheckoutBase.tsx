@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   CalendarDays,
@@ -27,6 +27,11 @@ import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder, type Order, type OrderItemPayload } from "@/lib/orders";
 import { isUuidLike } from "@/lib/types";
+import {
+  getLocalBySlug,
+  isOpenOnWeekdayFromOpeningHours,
+  type OpeningHoursV1,
+} from "@/lib/locals";
 import { es } from "date-fns/locale";
 
 interface CheckoutBaseProps {
@@ -98,8 +103,10 @@ const isIsoWithinRange = (iso: string, minIso: string, maxIso: string): boolean 
   iso >= minIso && iso <= maxIso;
 
 const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: CheckoutBaseProps) => {
+  const location = useLocation();
   const { state: cartState, clearCart, removeFromCart } = useCart();
   const { toast } = useToast();
+  const openingHoursCacheRef = useRef<Map<string, OpeningHoursV1 | null>>(new Map());
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -112,6 +119,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [orderCreated, setOrderCreated] = useState<Order | null>(null);
   const [copied, setCopied] = useState(false);
+  const [localOpeningHours, setLocalOpeningHours] = useState<OpeningHoursV1 | null | undefined>(undefined);
 
   const operationalDayIso = useMemo(() => getAsuncionOperationalDayIso(), []);
   const maxSelectableIso = useMemo(
@@ -126,6 +134,23 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     [operationalDayIso]
   );
   const maxSelectableDate = useMemo(() => parseIsoDate(maxSelectableIso), [maxSelectableIso]);
+  const hasTicketItems = useMemo(
+    () => cartState.items.some((item) => item.kind === "ticket" || item.type === "ticket"),
+    [cartState.items]
+  );
+  const localSlug = useMemo(() => {
+    const segments = location.pathname.split("/").filter(Boolean);
+    if (segments.length < 2) return null;
+    const [entity, slug] = segments;
+    if ((entity === "club" || entity === "bar") && slug) return slug;
+    return null;
+  }, [location.pathname]);
+  const disabledByOpeningHours = useMemo(() => {
+    if (!hasTicketItems || localOpeningHours == null) {
+      return (date: Date) => false;
+    }
+    return (date: Date) => isOpenOnWeekdayFromOpeningHours(localOpeningHours, date) === false;
+  }, [hasTicketItems, localOpeningHours]);
 
   const selectedDateDisplay = useMemo(() => {
     const parsed = parseIsoDate(selectedDate);
@@ -137,6 +162,39 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       year: "numeric",
     }).format(parsed);
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (!isOpen || !hasTicketItems) return;
+
+    if (!localSlug) {
+      setLocalOpeningHours(null);
+      return;
+    }
+
+    const cachedOpeningHours = openingHoursCacheRef.current.get(localSlug);
+    if (cachedOpeningHours !== undefined) {
+      setLocalOpeningHours(cachedOpeningHours);
+      return;
+    }
+
+    let active = true;
+    getLocalBySlug(localSlug)
+      .then((local) => {
+        if (!active) return;
+        const openingHours = local?.opening_hours ?? null;
+        openingHoursCacheRef.current.set(localSlug, openingHours);
+        setLocalOpeningHours(openingHours);
+      })
+      .catch(() => {
+        if (!active) return;
+        openingHoursCacheRef.current.set(localSlug, null);
+        setLocalOpeningHours(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, hasTicketItems, localSlug]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -560,7 +618,10 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                         }}
                         disabled={(date) => {
                           const iso = dateToIsoFromLocal(date);
-                          return !isIsoWithinRange(iso, operationalDayIso, maxSelectableIso);
+                          if (!isIsoWithinRange(iso, operationalDayIso, maxSelectableIso)) {
+                            return true;
+                          }
+                          return disabledByOpeningHours(date);
                         }}
                         className="mx-auto w-full bg-transparent p-0"
                         components={{

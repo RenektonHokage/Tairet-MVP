@@ -305,6 +305,41 @@ export function buildDetailHoursLines(openingHours: unknown, legacyHours: unknow
   return normalizeLegacyHoursLines(legacyHours);
 }
 
+function getOpeningDayKeyFromDate(date: Date): OpeningHoursDayKey | null {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const utcDate = new Date(Date.UTC(year, month, day));
+  const dayMap: OpeningHoursDayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return dayMap[utcDate.getUTCDay()] ?? null;
+}
+
+export function isOpenOnWeekdayFromOpeningHours(openingHours: unknown, date: Date): boolean | null {
+  if (!isOpeningHoursV1(openingHours)) return null;
+
+  const dayKey = getOpeningDayKeyFromDate(date);
+  if (!dayKey) return null;
+
+  const dayConfig = openingHours.days[dayKey];
+  if (!dayConfig) return null;
+
+  if (dayConfig.closed || !Array.isArray(dayConfig.ranges) || dayConfig.ranges.length === 0) {
+    return false;
+  }
+
+  const hasValidRange = dayConfig.ranges.some((range) => {
+    const start = normalizeHHmm(range.start);
+    const end = normalizeHHmm(range.end);
+    return Boolean(start && end && start !== end);
+  });
+
+  return hasValidRange;
+}
+
 export function getDetailTodayScheduleLabel(
   openingHours: unknown,
   legacyHours: unknown,
