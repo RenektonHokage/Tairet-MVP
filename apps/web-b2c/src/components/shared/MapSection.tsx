@@ -98,6 +98,22 @@ const parseMapboxRuntimeError = (event: unknown): MapboxRuntimeError => {
   return { message, status, resource, isStyleOrTilesFailure };
 };
 
+function formatHoursLine(hourLine: string): string | null {
+  const trimmed = hourLine.trim();
+  if (!trimmed) return null;
+
+  if (/horario no disponible/i.test(trimmed)) {
+    return "Horario no disponible";
+  }
+
+  // Weekly opening_hours lines may include multiple ranges joined by " / ".
+  if (trimmed.includes(" / ") && /\d{2}:\d{2}/.test(trimmed) && /hs\b/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return formatHoursDisplay(trimmed) ?? trimmed;
+}
+
 export interface MapSectionProps {
   venueId?: string;
   venue: string;
@@ -156,9 +172,7 @@ const MapSection: React.FC<MapSectionProps> = ({
   const displayAddress = address?.trim() || null;
   const providedCoords: Coordinates | null =
     Number.isFinite(longitude) && Number.isFinite(latitude) ? [Number(longitude), Number(latitude)] : null;
-  const formattedHours = hours
-    .map((hour) => formatHoursDisplay(hour))
-    .filter((value): value is string => Boolean(value));
+  const formattedHours = hours.map(formatHoursLine).filter((value): value is string => Boolean(value));
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -494,11 +508,7 @@ const MapSection: React.FC<MapSectionProps> = ({
                           <p key={index}>{hour}</p>
                         ))
                       ) : (
-                        <>
-                          <p>Lun - Jue: 18:00–02:00 hs</p>
-                          <p>Vie - Sáb: 18:00–03:00 hs</p>
-                          <p>Dom: Cerrado</p>
-                        </>
+                        <p>Horario no disponible</p>
                       )}
                     </div>
                   </div>

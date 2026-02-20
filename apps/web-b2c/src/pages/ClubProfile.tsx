@@ -14,9 +14,16 @@ import ClubPromotions from "@/components/club-profile/ClubPromotions";
 import ClubReviews from "@/components/club-profile/ClubReviews";
 import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
-import { getLocalBySlug, getClubCatalog, type LocalGalleryItem, type CatalogTicket, type CatalogTable } from "@/lib/locals";
+import {
+  buildDetailHoursLines,
+  getLocalBySlug,
+  getClubCatalog,
+  getPrimaryHoursLine,
+  type CatalogTable,
+  type CatalogTicket,
+  type LocalGalleryItem,
+} from "@/lib/locals";
 import { parseBenefits } from "@/lib/parseBenefits";
-import { formatHoursDisplay } from "@/lib/hours";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
 import type { ContactInfo } from "@/lib/contact";
@@ -33,6 +40,7 @@ const ClubProfile = () => {
   const [localLatitude, setLocalLatitude] = useState<number | null>(null);
   const [localLongitude, setLocalLongitude] = useState<number | null>(null);
   const [localHours, setLocalHours] = useState<string[]>([]);
+  const [localScheduleSummary, setLocalScheduleSummary] = useState("Horario no disponible");
   const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
   const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
@@ -84,7 +92,9 @@ const ClubProfile = () => {
         setLocalCity(local.city);
         setLocalLatitude(local.latitude);
         setLocalLongitude(local.longitude);
-        setLocalHours(local.hours || []);
+        const resolvedHours = buildDetailHoursLines(local.opening_hours, local.hours || []);
+        setLocalHours(resolvedHours);
+        setLocalScheduleSummary(getPrimaryHoursLine(resolvedHours));
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
         setContactInfo({
@@ -155,7 +165,7 @@ const ClubProfile = () => {
   if (!clubData) {
     return null; // Se redirige a 404
   }
-  const formattedClubSchedule = formatHoursDisplay(clubData.schedule) ?? "Horario no disponible";
+
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -250,7 +260,7 @@ const ClubProfile = () => {
                   </div>
                   <p className="text-white/90 text-sm mb-1 flex items-center gap-2">
                     <Clock size={16} />
-                    {formattedClubSchedule}
+                    {localScheduleSummary}
                   </p>
                   <p className="text-white/90 text-sm flex items-center gap-2">
                     <Music size={16} />
@@ -271,7 +281,7 @@ const ClubProfile = () => {
                 </div>
                 <p className="text-white/90 text-sm sm:text-base mb-1 flex items-center gap-2">
                   <Clock size={16} />
-                  {formattedClubSchedule}
+                  {localScheduleSummary}
                 </p>
                 <p className="text-white/90 text-sm sm:text-base flex items-center gap-2">
                   <Music size={16} />
@@ -406,7 +416,7 @@ const ClubProfile = () => {
           city={localCity}
           latitude={localLatitude}
           longitude={localLongitude}
-          hours={localHours.length > 0 ? localHours : ["Jue - Sab: 23:00 - 06:00", "Dom - Mie: Cerrado", "Abierto hoy"]}
+          hours={localHours}
           phone={contactInfo?.phone || "(021) 555-123"}
           additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]}
         />

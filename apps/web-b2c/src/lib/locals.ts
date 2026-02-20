@@ -6,6 +6,7 @@
 import { API_URL } from "@/constants";
 import type { ApiPromotion } from "./types";
 import { slugify } from "./slug";
+import { formatHoursDisplay } from "./hours";
 
 function getApiBase(): string {
   return import.meta.env?.VITE_API_URL || API_URL || "http://localhost:4000";
@@ -34,6 +35,7 @@ export interface LocalInfo {
   latitude: number | null;
   longitude: number | null;
   hours: string[];
+  opening_hours: OpeningHoursV1 | null;
   additional_info: string[];
   phone: string | null;
   whatsapp: string | null;
@@ -60,6 +62,127 @@ export interface LocalListItem {
   is_open_today?: boolean | null;
   today_hours?: string | null;
   operational_date?: string;
+}
+
+type OpeningHoursDayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+interface OpeningHoursRange {
+  start: string;
+  end: string;
+}
+
+interface OpeningHoursDay {
+  closed: boolean;
+  ranges: OpeningHoursRange[];
+}
+
+export interface OpeningHoursV1 {
+  version: 1;
+  timezone: "America/Asuncion";
+  days: Record<OpeningHoursDayKey, OpeningHoursDay>;
+}
+
+const OPENING_DAY_ORDER: OpeningHoursDayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+const OPENING_DAY_LABELS: Record<OpeningHoursDayKey, string> = {
+  mon: "Lun",
+  tue: "Mar",
+  wed: "Mie",
+  thu: "Jue",
+  fri: "Vie",
+  sat: "Sab",
+  sun: "Dom",
+};
+
+const STRICT_HHMM_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function normalizeHHmm(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (STRICT_HHMM_REGEX.test(trimmed)) {
+    return trimmed;
+  }
+
+  const tolerantMatch = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!tolerantMatch) return null;
+
+  const hour = Number.parseInt(tolerantMatch[1], 10);
+  const minute = Number.parseInt(tolerantMatch[2] ?? "0", 10);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function formatOpeningRange(range: OpeningHoursRange): string | null {
+  const start = normalizeHHmm(range.start);
+  const end = normalizeHHmm(range.end);
+  if (!start || !end || start === end) return null;
+
+  return `${start}–${end} hs`;
+}
+
+function normalizeLegacyHoursLines(rawHours: unknown): string[] {
+  if (!Array.isArray(rawHours)) return [];
+
+  return rawHours
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map((item) => formatHoursDisplay(item) ?? item);
+}
+
+function isOpeningHoursV1(input: unknown): input is OpeningHoursV1 {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+  const source = input as Record<string, unknown>;
+  if (source.version !== 1 || source.timezone !== "America/Asuncion") return false;
+  if (!source.days || typeof source.days !== "object" || Array.isArray(source.days)) return false;
+
+  const days = source.days as Record<string, unknown>;
+  return OPENING_DAY_ORDER.every((dayKey) => {
+    const dayConfig = days[dayKey];
+    if (!dayConfig || typeof dayConfig !== "object" || Array.isArray(dayConfig)) return false;
+    const dayRecord = dayConfig as Record<string, unknown>;
+    return typeof dayRecord.closed === "boolean" && Array.isArray(dayRecord.ranges);
+  });
+}
+
+export function buildOpeningHoursWeekLines(openingHours: unknown): string[] {
+  if (!isOpeningHoursV1(openingHours)) return [];
+
+  return OPENING_DAY_ORDER.map((dayKey) => {
+    const dayConfig = openingHours.days[dayKey];
+    if (dayConfig.closed || !Array.isArray(dayConfig.ranges) || dayConfig.ranges.length === 0) {
+      return `${OPENING_DAY_LABELS[dayKey]}: Cerrado`;
+    }
+
+    const formattedRanges = dayConfig.ranges
+      .map((range) => formatOpeningRange(range))
+      .filter((range): range is string => Boolean(range));
+
+    if (formattedRanges.length === 0) {
+      return `${OPENING_DAY_LABELS[dayKey]}: Cerrado`;
+    }
+
+    return `${OPENING_DAY_LABELS[dayKey]}: ${formattedRanges.join(" / ")}`;
+  });
+}
+
+export function buildDetailHoursLines(openingHours: unknown, legacyHours: unknown): string[] {
+  const openingHoursLines = buildOpeningHoursWeekLines(openingHours);
+  if (openingHoursLines.length > 0) return openingHoursLines;
+  return normalizeLegacyHoursLines(legacyHours);
+}
+
+export function getPrimaryHoursLine(hours: string[]): string {
+  if (!Array.isArray(hours) || hours.length === 0) {
+    return "Horario no disponible";
+  }
+
+  const firstOpenLine = hours.find((line) => !/cerrad[oa]s?/i.test(line));
+  return firstOpenLine ?? hours[0] ?? "Horario no disponible";
 }
 
 /**
