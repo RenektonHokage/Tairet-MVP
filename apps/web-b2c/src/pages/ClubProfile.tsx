@@ -16,9 +16,9 @@ import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
 import {
   buildDetailHoursLines,
+  getDetailTodayScheduleLabel,
   getLocalBySlug,
   getClubCatalog,
-  getPrimaryHoursLine,
   type CatalogTable,
   type CatalogTicket,
   type LocalGalleryItem,
@@ -40,7 +40,7 @@ const ClubProfile = () => {
   const [localLatitude, setLocalLatitude] = useState<number | null>(null);
   const [localLongitude, setLocalLongitude] = useState<number | null>(null);
   const [localHours, setLocalHours] = useState<string[]>([]);
-  const [localScheduleSummary, setLocalScheduleSummary] = useState("Horario no disponible");
+  const [localTodayScheduleLabel, setLocalTodayScheduleLabel] = useState("Horario no disponible");
   const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
   const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
@@ -94,7 +94,7 @@ const ClubProfile = () => {
         setLocalLongitude(local.longitude);
         const resolvedHours = buildDetailHoursLines(local.opening_hours, local.hours || []);
         setLocalHours(resolvedHours);
-        setLocalScheduleSummary(getPrimaryHoursLine(resolvedHours));
+        setLocalTodayScheduleLabel(getDetailTodayScheduleLabel(local.opening_hours, local.hours || []));
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
         setContactInfo({
@@ -260,7 +260,7 @@ const ClubProfile = () => {
                   </div>
                   <p className="text-white/90 text-sm mb-1 flex items-center gap-2">
                     <Clock size={16} />
-                    {localScheduleSummary}
+                    {localTodayScheduleLabel}
                   </p>
                   <p className="text-white/90 text-sm flex items-center gap-2">
                     <Music size={16} />
@@ -281,7 +281,7 @@ const ClubProfile = () => {
                 </div>
                 <p className="text-white/90 text-sm sm:text-base mb-1 flex items-center gap-2">
                   <Clock size={16} />
-                  {localScheduleSummary}
+                  {localTodayScheduleLabel}
                 </p>
                 <p className="text-white/90 text-sm sm:text-base flex items-center gap-2">
                   <Music size={16} />

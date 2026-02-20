@@ -7,6 +7,7 @@ import { API_URL } from "@/constants";
 import type { ApiPromotion } from "./types";
 import { slugify } from "./slug";
 import { formatHoursDisplay } from "./hours";
+import { getAsuncionOperationalDayIso } from "./operationalDay";
 
 function getApiBase(): string {
   return import.meta.env?.VITE_API_URL || API_URL || "http://localhost:4000";
@@ -94,6 +95,16 @@ const OPENING_DAY_LABELS: Record<OpeningHoursDayKey, string> = {
   sun: "Dom",
 };
 
+const OPENING_DAY_INDEX: Record<OpeningHoursDayKey, number> = {
+  mon: 0,
+  tue: 1,
+  wed: 2,
+  thu: 3,
+  fri: 4,
+  sat: 5,
+  sun: 6,
+};
+
 const STRICT_HHMM_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 function normalizeHHmm(value: unknown): string | null {
@@ -132,6 +143,124 @@ function normalizeLegacyHoursLines(rawHours: unknown): string[] {
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
     .map((item) => formatHoursDisplay(item) ?? item);
+}
+
+function normalizeDayText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function getDayKeyFromOperationalIso(isoDate: string): OpeningHoursDayKey | null {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  const utcDate = new Date(Date.UTC(year, month - 1, day));
+  const dayMap: OpeningHoursDayKey[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  return dayMap[utcDate.getUTCDay()] ?? null;
+}
+
+function mapLegacyTokenToDay(token: string): OpeningHoursDayKey | null {
+  const normalizedToken = normalizeDayText(token);
+  if (normalizedToken.startsWith("lun")) return "mon";
+  if (normalizedToken.startsWith("mar")) return "tue";
+  if (normalizedToken.startsWith("mie")) return "wed";
+  if (normalizedToken.startsWith("jue")) return "thu";
+  if (normalizedToken.startsWith("vie")) return "fri";
+  if (normalizedToken.startsWith("sab")) return "sat";
+  if (normalizedToken.startsWith("dom")) return "sun";
+  return null;
+}
+
+function isDayInRange(target: OpeningHoursDayKey, start: OpeningHoursDayKey, end: OpeningHoursDayKey): boolean {
+  const targetIndex = OPENING_DAY_INDEX[target];
+  const startIndex = OPENING_DAY_INDEX[start];
+  const endIndex = OPENING_DAY_INDEX[end];
+
+  if (startIndex <= endIndex) {
+    return targetIndex >= startIndex && targetIndex <= endIndex;
+  }
+
+  return targetIndex >= startIndex || targetIndex <= endIndex;
+}
+
+function lineMatchesOperationalDay(prefix: string, operationalDay: OpeningHoursDayKey): boolean {
+  const rawMatches = prefix.match(/(lun(?:es)?|mar(?:tes)?|mi[eé](?:rcoles)?|jue(?:ves)?|vie(?:rnes)?|s[aá]b(?:ado)?|dom(?:ingo)?)/gi) ?? [];
+  const dayTokens = rawMatches
+    .map((token) => mapLegacyTokenToDay(token))
+    .filter((token): token is OpeningHoursDayKey => token !== null);
+
+  if (dayTokens.length === 0) return false;
+
+  const normalizedPrefix = normalizeDayText(prefix);
+  const hasRangeSeparator = /[-–—]|\ba\b|\bal\b/.test(normalizedPrefix);
+
+  if (hasRangeSeparator && dayTokens.length >= 2) {
+    return isDayInRange(operationalDay, dayTokens[0], dayTokens[dayTokens.length - 1]);
+  }
+
+  return dayTokens.includes(operationalDay);
+}
+
+function formatLegacyTodayBody(body: string): string | null {
+  const trimmedBody = body.trim();
+  if (!trimmedBody) return null;
+
+  if (/cerrad[oa]s?/i.test(trimmedBody)) {
+    return "Hoy: Cerrado";
+  }
+
+  const normalizedSegments = trimmedBody
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .map((segment) => formatHoursDisplay(segment) ?? segment);
+
+  if (normalizedSegments.length === 0) {
+    return null;
+  }
+
+  return `Hoy: ${normalizedSegments.join(" / ")}`;
+}
+
+function getLegacyTodayScheduleLabel(
+  legacyHours: unknown,
+  operationalDay: OpeningHoursDayKey | null,
+): string | null {
+  if (!operationalDay) return null;
+
+  const legacyLines = normalizeLegacyHoursLines(legacyHours);
+  if (legacyLines.length === 0) return null;
+
+  for (const line of legacyLines) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) continue;
+
+    const prefix = line.slice(0, separatorIndex).trim();
+    if (!lineMatchesOperationalDay(prefix, operationalDay)) continue;
+
+    const formattedBody = formatLegacyTodayBody(line.slice(separatorIndex + 1));
+    if (formattedBody) {
+      return formattedBody;
+    }
+  }
+
+  const explicitToday = legacyLines.find((line) => /^hoy\s*:/i.test(line));
+  if (explicitToday) {
+    const formattedExplicit = formatLegacyTodayBody(explicitToday.replace(/^hoy\s*:/i, ""));
+    if (formattedExplicit) return formattedExplicit;
+  }
+
+  return null;
 }
 
 function isOpeningHoursV1(input: unknown): input is OpeningHoursV1 {
@@ -174,6 +303,33 @@ export function buildDetailHoursLines(openingHours: unknown, legacyHours: unknow
   const openingHoursLines = buildOpeningHoursWeekLines(openingHours);
   if (openingHoursLines.length > 0) return openingHoursLines;
   return normalizeLegacyHoursLines(legacyHours);
+}
+
+export function getDetailTodayScheduleLabel(
+  openingHours: unknown,
+  legacyHours: unknown,
+  now: Date = new Date(),
+): string {
+  const operationalIso = getAsuncionOperationalDayIso(now);
+  const operationalDay = getDayKeyFromOperationalIso(operationalIso);
+
+  if (isOpeningHoursV1(openingHours) && operationalDay) {
+    const dayConfig = openingHours.days[operationalDay];
+    if (dayConfig.closed || !Array.isArray(dayConfig.ranges) || dayConfig.ranges.length === 0) {
+      return "Hoy: Cerrado";
+    }
+
+    const ranges = dayConfig.ranges
+      .map((range) => formatOpeningRange(range))
+      .filter((range): range is string => Boolean(range));
+
+    if (ranges.length > 0) {
+      return `Hoy: ${ranges.join(" / ")}`;
+    }
+    return "Hoy: Cerrado";
+  }
+
+  return getLegacyTodayScheduleLabel(legacyHours, operationalDay) ?? "Horario no disponible";
 }
 
 export function getPrimaryHoursLine(hours: string[]): string {
