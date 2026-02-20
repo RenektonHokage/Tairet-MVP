@@ -5,6 +5,7 @@
 
 import { API_URL } from "@/constants";
 import type { ApiPromotion } from "./types";
+import { slugify } from "./slug";
 
 function getApiBase(): string {
   return import.meta.env?.VITE_API_URL || API_URL || "http://localhost:4000";
@@ -56,6 +57,9 @@ export interface LocalListItem {
   cover_url: string | null;
   attributes: string[];
   min_age: number | null;
+  is_open_today?: boolean | null;
+  today_hours?: string | null;
+  operational_date?: string;
 }
 
 /**
@@ -96,6 +100,47 @@ export async function getLocalsList(
     }
     throw error;
   }
+}
+
+export function getTodayScheduleLabel(local: LocalListItem): string | null {
+  const hasIsOpenToday = Object.prototype.hasOwnProperty.call(local, "is_open_today");
+  const hasTodayHours = Object.prototype.hasOwnProperty.call(local, "today_hours");
+
+  // Old backend payloads may not expose the new fields yet.
+  if (!hasIsOpenToday && !hasTodayHours) {
+    return null;
+  }
+
+  if (local.is_open_today === false) {
+    return "Hoy: Cerrado";
+  }
+
+  const todayHours = typeof local.today_hours === "string" ? local.today_hours.trim() : "";
+  if (local.is_open_today === true && todayHours.length > 0) {
+    return `Hoy: ${todayHours}`;
+  }
+
+  return "Horario no disponible";
+}
+
+export function buildTodayScheduleBySlug(locals: LocalListItem[]): Map<string, string> {
+  const scheduleMap = new Map<string, string>();
+
+  locals.forEach((local) => {
+    const scheduleLabel = getTodayScheduleLabel(local);
+    if (!scheduleLabel) return;
+
+    if (local.slug) {
+      scheduleMap.set(local.slug, scheduleLabel);
+    }
+
+    const normalizedSlug = slugify(local.name);
+    if (normalizedSlug) {
+      scheduleMap.set(normalizedSlug, scheduleLabel);
+    }
+  });
+
+  return scheduleMap;
 }
 
 /**

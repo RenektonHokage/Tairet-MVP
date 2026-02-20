@@ -13,10 +13,12 @@ import { prefetchImages } from '@/lib/imagePrefetch';
 const BarsSection: React.FC<{
   typeFilter?: string;
   coverBySlug?: Map<string, string>;
+  scheduleBySlug?: Map<string, string>;
   isLoading?: boolean;
 }> = ({
   typeFilter,
   coverBySlug,
+  scheduleBySlug,
   isLoading = false,
 }) => {
   let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
@@ -125,7 +127,8 @@ const BarsSection: React.FC<{
                   key={item.id}
                   id={item.id}
                   name={item.name}
-                  schedule={item.schedule}
+                  // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
+                  schedule={scheduleBySlug?.get(barSlug) || item.schedule}
                   rating={item.rating}
                   specialties={item.specialties}
                   image={coverBySlug?.get(barSlug) || item.image}
@@ -153,7 +156,8 @@ const BarsSection: React.FC<{
                     <VenueCard 
                       id={item.id}
                       name={item.name}
-                      schedule={item.schedule}
+                      // TODO(local-opening-hours.md Etapa 3B): remove fixture fallback once all envs expose today_hours/is_open_today.
+                      schedule={scheduleBySlug?.get(barSlug) || item.schedule}
                       rating={item.rating}
                       specialties={item.specialties}
                       image={coverBySlug?.get(barSlug) || item.image}
