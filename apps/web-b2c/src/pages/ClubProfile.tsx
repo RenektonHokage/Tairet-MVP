@@ -16,6 +16,7 @@ import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
 import { getLocalBySlug, getClubCatalog, type LocalGalleryItem, type CatalogTicket, type CatalogTable } from "@/lib/locals";
 import { parseBenefits } from "@/lib/parseBenefits";
+import { formatHoursDisplay } from "@/lib/hours";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
 import type { ContactInfo } from "@/lib/contact";
@@ -154,6 +155,7 @@ const ClubProfile = () => {
   if (!clubData) {
     return null; // Se redirige a 404
   }
+  const formattedClubSchedule = formatHoursDisplay(clubData.schedule) ?? "Horario no disponible";
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -248,7 +250,7 @@ const ClubProfile = () => {
                   </div>
                   <p className="text-white/90 text-sm mb-1 flex items-center gap-2">
                     <Clock size={16} />
-                    {clubData.schedule}
+                    {formattedClubSchedule}
                   </p>
                   <p className="text-white/90 text-sm flex items-center gap-2">
                     <Music size={16} />
@@ -269,7 +271,7 @@ const ClubProfile = () => {
                 </div>
                 <p className="text-white/90 text-sm sm:text-base mb-1 flex items-center gap-2">
                   <Clock size={16} />
-                  {clubData.schedule}
+                  {formattedClubSchedule}
                 </p>
                 <p className="text-white/90 text-sm sm:text-base flex items-center gap-2">
                   <Music size={16} />

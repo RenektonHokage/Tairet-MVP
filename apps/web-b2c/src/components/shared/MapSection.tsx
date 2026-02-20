@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatEventDate } from "@/lib/format";
 import { buildGoogleMapsDirectionsUrl, geocodeAddressWithCache, type Coordinates } from '@/lib/geocode';
+import { formatHoursDisplay } from '@/lib/hours';
 
 let mapboxGlPromise: Promise<typeof import("mapbox-gl")> | null = null;
 let mapboxCssPromise: Promise<unknown> | null = null;
@@ -155,6 +156,9 @@ const MapSection: React.FC<MapSectionProps> = ({
   const displayAddress = address?.trim() || null;
   const providedCoords: Coordinates | null =
     Number.isFinite(longitude) && Number.isFinite(latitude) ? [Number(longitude), Number(latitude)] : null;
+  const formattedHours = hours
+    .map((hour) => formatHoursDisplay(hour))
+    .filter((value): value is string => Boolean(value));
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -485,14 +489,14 @@ const MapSection: React.FC<MapSectionProps> = ({
                     <div className="text-sm text-muted-foreground space-y-1">
                       {isEvent && time ? (
                         <p>Inicio: {time}hs</p>
-                      ) : hours.length > 0 ? (
-                        hours.map((hour, index) => (
+                      ) : formattedHours.length > 0 ? (
+                        formattedHours.map((hour, index) => (
                           <p key={index}>{hour}</p>
                         ))
                       ) : (
                         <>
-                          <p>Lun - Jue: 18:00 - 02:00</p>
-                          <p>Vie - Sáb: 18:00 - 03:00</p>
+                          <p>Lun - Jue: 18:00–02:00 hs</p>
+                          <p>Vie - Sáb: 18:00–03:00 hs</p>
                           <p>Dom: Cerrado</p>
                         </>
                       )}
