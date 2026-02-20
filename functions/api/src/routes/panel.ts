@@ -6,6 +6,11 @@ import { requireRole } from "../middlewares/requireRole";
 import { calendarRouter } from "./calendar";
 import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
+import {
+  normalizeLegacyHours,
+  validateOpeningHoursV1,
+  type OpeningHoursV1,
+} from "../services/openingHours";
 import { logger } from "../utils/logger";
 import { sendReservationCancelledEmail, sendReservationConfirmedEmail } from "../services/emails";
 import { CheckinWindowValidationResult, getActiveNightWindow, getNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
@@ -329,7 +334,7 @@ panelRouter.get(
 
       const { data: local, error } = await supabase
         .from("locals")
-        .select("id, name, slug, type, address, location, city, latitude, longitude, hours, additional_info, phone, whatsapp, gallery, attributes, min_age")
+        .select("id, name, slug, type, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, gallery, attributes, min_age")
         .eq("id", req.panelUser.localId)
         .single();
 
@@ -341,10 +346,16 @@ panelRouter.get(
         return res.status(404).json({ error: "Local not found" });
       }
 
+      const openingHoursValidation =
+        local.opening_hours && typeof local.opening_hours === "object"
+          ? validateOpeningHoursV1(local.opening_hours)
+          : null;
+
       // Normalizar arrays JSONB y campos opcionales
       const normalizedLocal = {
         ...local,
-        hours: Array.isArray(local.hours) ? local.hours : [],
+        hours: normalizeLegacyHours(local.hours),
+        opening_hours: openingHoursValidation?.ok ? openingHoursValidation.value : null,
         additional_info: Array.isArray(local.additional_info) ? local.additional_info : [],
         gallery: Array.isArray(local.gallery) ? local.gallery : [],
         attributes: Array.isArray(local.attributes) ? local.attributes : [],
@@ -387,6 +398,7 @@ panelRouter.patch(
         latitude,
         longitude,
         hours,
+        opening_hours,
         additional_info,
         phone,
         whatsapp,
@@ -404,6 +416,7 @@ panelRouter.patch(
         latitude?: number | null;
         longitude?: number | null;
         hours?: string[];
+        opening_hours?: OpeningHoursV1 | null;
         additional_info?: string[];
         phone?: string | null;
         whatsapp?: string | null;
@@ -514,17 +527,30 @@ panelRouter.patch(
 
       // Procesar hours (array de strings, max 14 items, item max 120 chars)
       if (hours !== undefined) {
-        const arr = Array.isArray(hours)
-          ? hours
-              .filter((h): h is string => typeof h === "string" && h.trim().length > 0)
-              .map((h) => h.trim())
-              .slice(0, 14)
-          : [];
+        const arr = normalizeLegacyHours(hours).slice(0, 14);
         if (arr.some((h) => h.length > 120)) {
           return res.status(400).json({ error: "Cada horario max 120 caracteres" });
         }
         updateData.hours = arr;
         hasFieldsToUpdate = true;
+      }
+
+      // opening_hours (JSON estructurado v1)
+      if (opening_hours !== undefined) {
+        if (opening_hours === null || opening_hours === "") {
+          updateData.opening_hours = null;
+          hasFieldsToUpdate = true;
+        } else {
+          const openingHoursValidation = validateOpeningHoursV1(opening_hours);
+          if (!openingHoursValidation.ok) {
+            return res.status(400).json({
+              error: "opening_hours inválido",
+              details: openingHoursValidation.errors,
+            });
+          }
+          updateData.opening_hours = openingHoursValidation.value;
+          hasFieldsToUpdate = true;
+        }
       }
 
       // Procesar additional_info (array de strings, max 20 items, item max 120 chars)
@@ -629,7 +655,7 @@ panelRouter.patch(
         .from("locals")
         .update(updateData)
         .eq("id", req.panelUser.localId)
-        .select("id, name, slug, type, address, location, city, latitude, longitude, hours, additional_info, phone, whatsapp, gallery, attributes, min_age")
+        .select("id, name, slug, type, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, gallery, attributes, min_age")
         .single();
 
       if (error) {
@@ -640,10 +666,16 @@ panelRouter.patch(
         return res.status(500).json({ error: "Error al actualizar el perfil" });
       }
 
+      const updatedOpeningHoursValidation =
+        updated.opening_hours && typeof updated.opening_hours === "object"
+          ? validateOpeningHoursV1(updated.opening_hours)
+          : null;
+
       // Normalizar arrays en response
       const normalizedUpdated = {
         ...updated,
-        hours: Array.isArray(updated.hours) ? updated.hours : [],
+        hours: normalizeLegacyHours(updated.hours),
+        opening_hours: updatedOpeningHoursValidation?.ok ? updatedOpeningHoursValidation.value : null,
         additional_info: Array.isArray(updated.additional_info) ? updated.additional_info : [],
         gallery: Array.isArray(updated.gallery) ? updated.gallery : [],
         latitude: typeof updated.latitude === "number" ? updated.latitude : null,
