@@ -1206,7 +1206,7 @@ export default function ProfilePage() {
   const mapsPreviewUrl = hasValidCoordinatePair
     ? `https://www.google.com/maps?q=${parsedLatitudeInput},${parsedLongitudeInput}`
     : null;
-  const hasPersistedOpeningHours = Boolean(profile.opening_hours);
+  const hasPersistedOpeningHours = Boolean(profile?.opening_hours);
   const derivedLegacyHours = deriveLegacyHours(openingHoursDraft);
   const effectiveHoursText = useStructuredHours ? toLines(derivedLegacyHours) : formData.hoursText;
   const previewPhone = formData.phone.trim();
@@ -2611,3 +2611,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+
