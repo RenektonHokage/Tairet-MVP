@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createReservation } from '@/lib/api';
-import { getLocalBySlug } from '@/lib/locals';
+import { isOpenOnWeekdayFromOpeningHours } from '@/lib/locals';
+import { useLocalOpeningHoursBySlug } from '@/hooks/useLocalOpeningHoursBySlug';
 import { Calendar as CalendarIcon, Users, Clock, User, Mail, Phone, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,24 +36,8 @@ const ReservaForm = () => {
   const navigate = useNavigate();
   const { barId } = useParams();
   const [loading, setLoading] = useState(false);
-  const [localId, setLocalId] = useState<string | null>(null);
-
-  // Resolver local_id real desde slug
-  useEffect(() => {
-    if (!barId) return;
-
-    getLocalBySlug(barId)
-      .then((local) => {
-        if (local) {
-          setLocalId(local.id);
-        } else {
-          console.warn(`No se encontró local con slug: ${barId}`);
-        }
-      })
-      .catch((error) => {
-        console.error("Error al obtener local por slug:", error);
-      });
-  }, [barId]);
+  const { local, openingHours } = useLocalOpeningHoursBySlug(barId, Boolean(barId));
+  const localId = local?.id ?? null;
 
   const form = useForm<z.infer<typeof reservationSchema>>({
     resolver: zodResolver(reservationSchema),
@@ -81,6 +66,12 @@ const ReservaForm = () => {
     const phone = data.phone.trim();
     const guests = Number(data.people);
     const notes = data.comments?.trim() || undefined;
+    const isOpenOnSelectedDate = isOpenOnWeekdayFromOpeningHours(openingHours, data.date);
+
+    if (isOpenOnSelectedDate === false) {
+      toast.error("El local está cerrado en la fecha seleccionada.");
+      return;
+    }
 
     // Combinar fecha y hora en ISO-8601
     const dateISO = (() => {
@@ -274,7 +265,10 @@ const ReservaForm = () => {
                               mode="single"
                               selected={field.value}
                               onSelect={field.onChange}
-                              disabled={(date) => date < new Date()}
+                              disabled={(date) => {
+                                if (date < new Date()) return true;
+                                return isOpenOnWeekdayFromOpeningHours(openingHours, date) === false;
+                              }}
                               initialFocus
                               className="pointer-events-auto"
                             />

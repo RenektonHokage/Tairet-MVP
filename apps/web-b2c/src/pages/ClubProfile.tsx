@@ -16,7 +16,7 @@ import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
 import {
   buildDetailHoursLines,
-  getDetailTodayScheduleLabel,
+  getDetailTodayScheduleLabelApiFirst,
   getLocalBySlug,
   getClubCatalog,
   type CatalogTable,
@@ -94,7 +94,7 @@ const ClubProfile = () => {
         setLocalLongitude(local.longitude);
         const resolvedHours = buildDetailHoursLines(local.opening_hours, local.hours || []);
         setLocalHours(resolvedHours);
-        setLocalTodayScheduleLabel(getDetailTodayScheduleLabel(local.opening_hours, local.hours || []));
+        setLocalTodayScheduleLabel(getDetailTodayScheduleLabelApiFirst(local));
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
         setContactInfo({
@@ -417,6 +417,7 @@ const ClubProfile = () => {
           latitude={localLatitude}
           longitude={localLongitude}
           hours={localHours}
+          todayScheduleLabel={localTodayScheduleLabel}
           phone={contactInfo?.phone || "(021) 555-123"}
           additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]}
         />

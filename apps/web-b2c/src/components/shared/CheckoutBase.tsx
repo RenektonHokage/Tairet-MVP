@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -27,11 +27,8 @@ import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder, type Order, type OrderItemPayload } from "@/lib/orders";
 import { isUuidLike } from "@/lib/types";
-import {
-  getLocalBySlug,
-  isOpenOnWeekdayFromOpeningHours,
-  type OpeningHoursV1,
-} from "@/lib/locals";
+import { isOpenOnWeekdayFromOpeningHours } from "@/lib/locals";
+import { useLocalOpeningHoursBySlug } from "@/hooks/useLocalOpeningHoursBySlug";
 import { es } from "date-fns/locale";
 
 interface CheckoutBaseProps {
@@ -106,7 +103,6 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const location = useLocation();
   const { state: cartState, clearCart, removeFromCart } = useCart();
   const { toast } = useToast();
-  const openingHoursCacheRef = useRef<Map<string, OpeningHoursV1 | null>>(new Map());
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -119,7 +115,6 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [orderCreated, setOrderCreated] = useState<Order | null>(null);
   const [copied, setCopied] = useState(false);
-  const [localOpeningHours, setLocalOpeningHours] = useState<OpeningHoursV1 | null | undefined>(undefined);
 
   const operationalDayIso = useMemo(() => getAsuncionOperationalDayIso(), []);
   const maxSelectableIso = useMemo(
@@ -145,6 +140,10 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     if ((entity === "club" || entity === "bar") && slug) return slug;
     return null;
   }, [location.pathname]);
+  const { openingHours: localOpeningHours } = useLocalOpeningHoursBySlug(
+    localSlug,
+    isOpen && hasTicketItems
+  );
   const disabledByOpeningHours = useMemo(() => {
     if (!hasTicketItems || localOpeningHours == null) {
       return (date: Date) => false;
@@ -162,39 +161,6 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       year: "numeric",
     }).format(parsed);
   }, [selectedDate]);
-
-  useEffect(() => {
-    if (!isOpen || !hasTicketItems) return;
-
-    if (!localSlug) {
-      setLocalOpeningHours(null);
-      return;
-    }
-
-    const cachedOpeningHours = openingHoursCacheRef.current.get(localSlug);
-    if (cachedOpeningHours !== undefined) {
-      setLocalOpeningHours(cachedOpeningHours);
-      return;
-    }
-
-    let active = true;
-    getLocalBySlug(localSlug)
-      .then((local) => {
-        if (!active) return;
-        const openingHours = local?.opening_hours ?? null;
-        openingHoursCacheRef.current.set(localSlug, openingHours);
-        setLocalOpeningHours(openingHours);
-      })
-      .catch(() => {
-        if (!active) return;
-        openingHoursCacheRef.current.set(localSlug, null);
-        setLocalOpeningHours(null);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [isOpen, hasTicketItems, localSlug]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({

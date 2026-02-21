@@ -125,6 +125,7 @@ export interface MapSectionProps {
   hours?: string[];
   phone?: string;
   additionalInfo?: string[];
+  todayScheduleLabel?: string | null;
   isEvent?: boolean;
   date?: string;
   time?: string;
@@ -141,6 +142,7 @@ const MapSection: React.FC<MapSectionProps> = ({
   hours = [],
   phone = "(021) 555-123",
   additionalInfo = [],
+  todayScheduleLabel,
   isEvent = false,
   date,
   time
@@ -501,6 +503,9 @@ const MapSection: React.FC<MapSectionProps> = ({
                       {isEvent ? 'Horario' : 'Horarios'}
                     </p>
                     <div className="text-sm text-muted-foreground space-y-1">
+                      {!isEvent && todayScheduleLabel && (
+                        <p className="font-medium text-foreground">{todayScheduleLabel}</p>
+                      )}
                       {isEvent && time ? (
                         <p>Inicio: {time}hs</p>
                       ) : formattedHours.length > 0 ? (

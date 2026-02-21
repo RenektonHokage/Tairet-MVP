@@ -14,7 +14,13 @@ import BarPromotions from "@/components/bar-profile/BarPromotions";
 import BarReviews from "@/components/bar-profile/BarReviews";
 import BarReservation from "@/components/bar-profile/BarReservation";
 import LazyMapSection from "@/components/shared/LazyMapSection";
-import { buildDetailHoursLines, getLocalBySlug, type GalleryKind, type LocalGalleryItem } from "@/lib/locals";
+import {
+  buildDetailHoursLines,
+  getDetailTodayScheduleLabelApiFirst,
+  getLocalBySlug,
+  type GalleryKind,
+  type LocalGalleryItem,
+} from "@/lib/locals";
 import { getCover, getHero, getBarGalleryImages, getBarCategory } from "@/lib/gallery";
 import { useNavigate } from "react-router-dom";
 import { mockBarData } from "@/lib/mocks/bars";
@@ -32,6 +38,7 @@ const BarProfile = () => {
   const [localLatitude, setLocalLatitude] = useState<number | null>(null);
   const [localLongitude, setLocalLongitude] = useState<number | null>(null);
   const [localHours, setLocalHours] = useState<string[]>([]);
+  const [localTodayScheduleLabel, setLocalTodayScheduleLabel] = useState("Horario no disponible");
   const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
   const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
@@ -83,6 +90,7 @@ const BarProfile = () => {
         setLocalLatitude(local.latitude);
         setLocalLongitude(local.longitude);
         setLocalHours(buildDetailHoursLines(local.opening_hours, local.hours || []));
+        setLocalTodayScheduleLabel(getDetailTodayScheduleLabelApiFirst(local));
         setLocalAdditionalInfo(local.additional_info || []);
         setLocalGallery(local.gallery || []);
         setContactInfo({
@@ -329,6 +337,7 @@ const BarProfile = () => {
           latitude={localLatitude}
           longitude={localLongitude}
           hours={localHours}
+          todayScheduleLabel={localTodayScheduleLabel}
           phone={contactInfo?.phone || "(021) 123-456"}
           additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento disponible", "Acceso para personas con discapacidad", "WiFi gratuito", "Aceptamos tarjetas de credito", "Ambiente climatizado"]}
         />

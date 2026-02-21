@@ -37,6 +37,9 @@ export interface LocalInfo {
   longitude: number | null;
   hours: string[];
   opening_hours: OpeningHoursV1 | null;
+  is_open_today?: boolean | null;
+  today_hours?: string | null;
+  operational_date?: string;
   additional_info: string[];
   phone: string | null;
   whatsapp: string | null;
@@ -63,6 +66,11 @@ export interface LocalListItem {
   is_open_today?: boolean | null;
   today_hours?: string | null;
   operational_date?: string;
+}
+
+interface TodayScheduleSource {
+  is_open_today?: boolean | null;
+  today_hours?: string | null;
 }
 
 type OpeningHoursDayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -367,6 +375,23 @@ export function getDetailTodayScheduleLabel(
   return getLegacyTodayScheduleLabel(legacyHours, operationalDay) ?? "Horario no disponible";
 }
 
+export function getDetailTodayScheduleLabelApiFirst(
+  source: {
+    is_open_today?: boolean | null;
+    today_hours?: string | null;
+    opening_hours?: unknown;
+    hours?: unknown;
+  },
+  now: Date = new Date(),
+): string {
+  const apiTodayLabel = getTodayScheduleLabel(source);
+  if (apiTodayLabel) {
+    return apiTodayLabel;
+  }
+
+  return getDetailTodayScheduleLabel(source.opening_hours, source.hours, now);
+}
+
 export function getPrimaryHoursLine(hours: string[]): string {
   if (!Array.isArray(hours) || hours.length === 0) {
     return "Horario no disponible";
@@ -416,7 +441,7 @@ export async function getLocalsList(
   }
 }
 
-export function getTodayScheduleLabel(local: LocalListItem): string | null {
+export function getTodayScheduleLabel(local: TodayScheduleSource): string | null {
   const hasIsOpenToday = Object.prototype.hasOwnProperty.call(local, "is_open_today");
   const hasTodayHours = Object.prototype.hasOwnProperty.call(local, "today_hours");
 
