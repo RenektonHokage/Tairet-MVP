@@ -5,6 +5,13 @@ import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendOrderConfirmationEmail } from "../services/emails";
 import { getNightWindow, getWeekendWindow, shouldMarkLegacyOrder, validateIntendedDateRange } from "../services/weekendWindow";
+import {
+  applyDailyOverride,
+  computeOperationalDate,
+  getTodayHoursDisplay,
+  isOpenOnOperationalDate,
+  validateOpeningHoursV1,
+} from "../services/openingHours";
 
 export const ordersRouter = Router();
 
@@ -25,7 +32,7 @@ ordersRouter.post("/", async (req, res, next) => {
 
     const { data: local, error: localError } = await supabase
       .from("locals")
-      .select("id, type")
+      .select("id, type, opening_hours")
       .eq("id", validated.local_id)
       .single();
 
@@ -71,6 +78,49 @@ ordersRouter.post("/", async (req, res, next) => {
     } else if (isClubOrder) {
       // Compatibilidad temporal para órdenes de club sin ventana explícita.
       isWindowLegacy = shouldMarkLegacyOrder(now);
+    }
+
+    const operationalDateForSchedule = intendedDate ?? computeOperationalDate(now);
+    const { data: dailyOverrideRow, error: dailyOverrideError } = await supabase
+      .from("local_daily_ops")
+      .select("is_open")
+      .eq("local_id", validated.local_id)
+      .eq("day", operationalDateForSchedule)
+      .maybeSingle();
+
+    if (dailyOverrideError) {
+      logger.warn("Error fetching local_daily_ops for order validation", {
+        error: dailyOverrideError.message,
+        localId: validated.local_id,
+        operationalDate: operationalDateForSchedule,
+      });
+    }
+
+    const dailyIsOpen = typeof dailyOverrideRow?.is_open === "boolean" ? dailyOverrideRow.is_open : undefined;
+
+    let openingHours = null;
+    if (local.opening_hours && typeof local.opening_hours === "object") {
+      const openingHoursValidation = validateOpeningHoursV1(local.opening_hours);
+      if (openingHoursValidation.ok) {
+        openingHours = openingHoursValidation.value;
+      } else {
+        logger.warn("Invalid opening_hours in order validation (compat mode, not blocking by schedule)", {
+          localId: validated.local_id,
+          errors: openingHoursValidation.errors,
+        });
+      }
+    }
+
+    const baseIsOpenToday = isOpenOnOperationalDate(openingHours, operationalDateForSchedule);
+    const baseTodayHours = getTodayHoursDisplay(openingHours, operationalDateForSchedule);
+    const { isOpenToday } = applyDailyOverride(baseIsOpenToday, baseTodayHours, dailyIsOpen);
+
+    if (isOpenToday === false) {
+      return res.status(409).json({
+        error: "El local está cerrado en la fecha seleccionada",
+        code: "LOCAL_CLOSED_DAY",
+        operational_date: operationalDateForSchedule,
+      });
     }
 
     // Variables para el snapshot y total calculado
