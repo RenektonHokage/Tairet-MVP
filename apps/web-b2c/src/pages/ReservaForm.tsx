@@ -4,7 +4,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createReservation } from '@/lib/api';
-import { isOpenOnWeekdayFromOpeningHours, isTimeAllowedOnDateFromOpeningHours } from '@/lib/locals';
+import {
+  getReservationTimeSlotsForDate,
+  isPastCalendarDateInAsuncion,
+  isOpenOnWeekdayFromOpeningHours,
+  isTimeAllowedOnDateFromOpeningHours,
+} from '@/lib/locals';
 import { useLocalOpeningHoursBySlug } from '@/hooks/useLocalOpeningHoursBySlug';
 import { Calendar as CalendarIcon, Users, Clock, User, Mail, Phone, FileText } from 'lucide-react';
 import { format } from 'date-fns';
@@ -35,7 +40,7 @@ const reservationSchema = z.object({
   comments: z.string().max(200).optional(),
 });
 
-const BASE_TIME_SLOTS = [
+const LEGACY_TIME_SLOTS = [
   "18:00", "18:30", "19:00", "19:30", "20:00", "20:30",
   "21:00", "21:30", "22:00", "22:30", "23:00", "23:30",
   "00:00", "00:30", "01:00", "01:30", "02:00",
@@ -73,12 +78,12 @@ const ReservaForm = () => {
       return [];
     }
 
-    const hasStructuredOpeningHours = isOpenOnWeekdayFromOpeningHours(openingHours, selectedDate) !== null;
-    if (!hasStructuredOpeningHours) {
-      return BASE_TIME_SLOTS;
+    const dynamicSlots = getReservationTimeSlotsForDate(openingHours, selectedDate, { stepMinutes: 30 });
+    if (dynamicSlots === null) {
+      return LEGACY_TIME_SLOTS;
     }
 
-    return BASE_TIME_SLOTS.filter((slot) => isTimeAllowedOnDateFromOpeningHours(openingHours, selectedDate, slot) === true);
+    return dynamicSlots;
   }, [openingHours, selectedDate]);
 
   useEffect(() => {
@@ -316,7 +321,7 @@ const ReservaForm = () => {
                               selected={field.value}
                               onSelect={field.onChange}
                               disabled={(date) => {
-                                if (date < new Date()) return true;
+                                if (isPastCalendarDateInAsuncion(date)) return true;
                                 return isOpenOnWeekdayFromOpeningHours(openingHours, date) === false;
                               }}
                               initialFocus

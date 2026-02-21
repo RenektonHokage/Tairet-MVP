@@ -353,6 +353,50 @@ function hhmmToMinutes(value: string): number {
   return hour * 60 + minute;
 }
 
+function minutesToHHmm(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function getAsuncionNowParts(now: Date): { iso: string; minutes: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Asuncion",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const hour = Number.parseInt(parts.find((part) => part.type === "hour")?.value ?? "0", 10);
+  const minute = Number.parseInt(parts.find((part) => part.type === "minute")?.value ?? "0", 10);
+
+  return {
+    iso: `${year}-${month}-${day}`,
+    minutes: (Number.isFinite(hour) ? hour : 0) * 60 + (Number.isFinite(minute) ? minute : 0),
+  };
+}
+
+function getDateIsoKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+export function isPastCalendarDateInAsuncion(date: Date, now: Date = new Date()): boolean {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  const selectedDateIso = getDateIsoKey(date);
+  const todayIso = getAsuncionNowParts(now).iso;
+  return selectedDateIso < todayIso;
+}
+
 export function isTimeAllowedOnDateFromOpeningHours(
   openingHours: unknown,
   date: Date,
@@ -403,6 +447,49 @@ export function isTimeAllowedOnDateFromOpeningHours(
   }
 
   return false;
+}
+
+interface ReservationSlotsOptions {
+  now?: Date;
+  stepMinutes?: number;
+}
+
+export function getReservationTimeSlotsForDate(
+  openingHours: unknown,
+  date: Date,
+  options: ReservationSlotsOptions = {},
+): string[] | null {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return [];
+  }
+
+  if (!isOpeningHoursV1(openingHours)) {
+    return null;
+  }
+
+  const requestedStep = options.stepMinutes;
+  const stepMinutes =
+    typeof requestedStep === "number" && Number.isFinite(requestedStep) && requestedStep > 0
+      ? Math.floor(requestedStep)
+      : 30;
+
+  const allDaySlots: string[] = [];
+  for (let minute = 0; minute < 24 * 60; minute += stepMinutes) {
+    allDaySlots.push(minutesToHHmm(minute));
+  }
+
+  let slots = allDaySlots.filter((slot) => isTimeAllowedOnDateFromOpeningHours(openingHours, date, slot) === true);
+  if (slots.length === 0) {
+    return [];
+  }
+
+  const nowParts = getAsuncionNowParts(options.now ?? new Date());
+  if (getDateIsoKey(date) === nowParts.iso) {
+    const minFutureMinute = Math.ceil(nowParts.minutes / stepMinutes) * stepMinutes;
+    slots = slots.filter((slot) => hhmmToMinutes(slot) >= minFutureMinute);
+  }
+
+  return slots;
 }
 
 export function getDetailTodayScheduleLabel(
