@@ -1,3 +1,5 @@
+“Implementación validada: ver docs/checkpoints/HORARIOS_ROLLOUT_CHECKPOINT_2026-02-21.md”.
+
 # Local Opening Hours Contract (Mediano Plazo)
 
 Status: Draft (FASE 1 ASK)  
