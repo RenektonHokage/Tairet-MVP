@@ -348,6 +348,63 @@ export function isOpenOnWeekdayFromOpeningHours(openingHours: unknown, date: Dat
   return hasValidRange;
 }
 
+function hhmmToMinutes(value: string): number {
+  const [hour, minute] = value.split(":").map((part) => Number.parseInt(part, 10));
+  return hour * 60 + minute;
+}
+
+export function isTimeAllowedOnDateFromOpeningHours(
+  openingHours: unknown,
+  date: Date,
+  timeValue: string,
+): boolean | null {
+  if (!isOpeningHoursV1(openingHours)) return null;
+
+  const dayKey = getOpeningDayKeyFromDate(date);
+  if (!dayKey) return null;
+
+  const normalizedTime = normalizeHHmm(timeValue);
+  if (!normalizedTime) return null;
+
+  const dayConfig = openingHours.days[dayKey];
+  if (!dayConfig) return null;
+
+  if (dayConfig.closed || !Array.isArray(dayConfig.ranges) || dayConfig.ranges.length === 0) {
+    return false;
+  }
+
+  const selectedMinutes = hhmmToMinutes(normalizedTime);
+  let hasValidRange = false;
+
+  for (const range of dayConfig.ranges) {
+    const start = normalizeHHmm(range.start);
+    const end = normalizeHHmm(range.end);
+    if (!start || !end || start === end) continue;
+
+    hasValidRange = true;
+    const startMinutes = hhmmToMinutes(start);
+    const endMinutes = hhmmToMinutes(end);
+
+    if (startMinutes < endMinutes) {
+      if (selectedMinutes >= startMinutes && selectedMinutes <= endMinutes) {
+        return true;
+      }
+      continue;
+    }
+
+    // Overnight (end < start): valid from start..23:59 OR 00:00..end.
+    if (selectedMinutes >= startMinutes || selectedMinutes <= endMinutes) {
+      return true;
+    }
+  }
+
+  if (!hasValidRange) {
+    return false;
+  }
+
+  return false;
+}
+
 export function getDetailTodayScheduleLabel(
   openingHours: unknown,
   legacyHours: unknown,
