@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
+import { getCalendarClassNames } from "@/components/shared/calendarClassNames";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
@@ -122,6 +123,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     [operationalDayIso]
   );
   const [selectedDate, setSelectedDate] = useState(operationalDayIso);
+  const [hasCalendarInteraction, setHasCalendarInteraction] = useState(false);
 
   const selectedDateAsDate = useMemo(() => parseIsoDate(selectedDate), [selectedDate]);
   const minSelectableDate = useMemo(
@@ -577,6 +579,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                             setSelectedDate("");
                             return;
                           }
+                          setHasCalendarInteraction(true);
                           const nextIso = dateToIsoFromLocal(date);
                           if (isIsoWithinRange(nextIso, operationalDayIso, maxSelectableIso)) {
                             setSelectedDate(nextIso);
@@ -594,26 +597,9 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                           IconLeft: () => <ChevronLeft className="h-4 w-4" />,
                           IconRight: () => <ChevronRight className="h-4 w-4" />,
                         }}
-                        classNames={{
-                          months: "flex flex-col",
-                          month: "space-y-4",
-                          caption: "relative flex items-center justify-center pb-1",
-                          caption_label: "text-base sm:text-lg font-semibold text-white",
-                          nav: "absolute inset-x-0 top-0 flex items-center justify-between px-1",
-                          nav_button:
-                            "h-7 w-7 rounded-md bg-transparent p-0 text-white/60 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/25",
-                          nav_button_previous: "relative left-0",
-                          nav_button_next: "relative right-0",
-                          table: "w-full border-collapse",
-                          head_row: "flex justify-between",
-                          head_cell: "w-9 text-center text-xs font-medium lowercase text-white/55 sm:w-10 sm:text-sm",
-                          row: "mt-2 flex justify-between",
-                          cell: "relative p-0 text-center",
-                          day: "h-9 w-9 rounded-md text-sm font-medium text-white/90 transition-colors hover:bg-white/10 sm:h-10 sm:w-10",
-                          day_outside: "text-white/25 opacity-60",
-                          day_disabled: "cursor-not-allowed text-white/20 opacity-50",
-                          day_hidden: "invisible",
-                        }}
+                        classNames={getCalendarClassNames({
+                          hideInitialSelectedVisual: !hasCalendarInteraction,
+                        })}
                       />
                     </div>
 
