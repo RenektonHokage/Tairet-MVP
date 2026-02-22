@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InstagramIcon, TikTokIcon, YouTubeIcon } from "@/components/shared/BrandIcons";
+import ComingSoonBadge from "@/components/shared/ComingSoonBadge";
 
 type SocialLinks = {
   instagram?: string;
@@ -77,9 +78,9 @@ export default function ComingSoon({
   return (
     <section className={cn("py-8 md:py-12", className)}>
       <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card px-6 py-10 text-center shadow-sm md:px-10 md:py-12">
-        <span className="inline-flex rounded-full bg-muted px-4 py-2 text-sm font-medium text-muted-foreground">
+        <ComingSoonBadge className="px-4 py-2 text-sm">
           {badgeText}
-        </span>
+        </ComingSoonBadge>
 
         <h1 className="mt-6 text-4xl font-bold leading-tight text-foreground md:text-6xl">{title}</h1>
         <p className="mt-8 text-lg text-muted-foreground md:text-[1.75rem]">{subtitle}</p>
