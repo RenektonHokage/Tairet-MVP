@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Users, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { isUuidLike, type TicketType, type TableType, type PurchaseSelectorProps, type SelectedItem, type CartItem } from "@/lib/types";
 import CheckoutBase from "@/components/shared/CheckoutBase";
+import ComingSoonBadge from "@/components/shared/ComingSoonBadge";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
@@ -175,9 +175,9 @@ const PurchaseSelector = ({
                             <span className="text-base md:text-lg font-bold text-foreground">
                               {formatPYG(ticket.price)}
                             </span>
-                            <Badge variant="secondary" className="text-xs">
+                            <ComingSoonBadge className="text-xs md:text-[13px] px-3.5 py-1.5">
                               Próximamente (Pagos)
-                            </Badge>
+                            </ComingSoonBadge>
                           </>
                         )}
                       </div>

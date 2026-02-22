@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, MapPin, Wine } from "lucide-react";
 import heroNightlife from "@/assets/hero-nightlife.jpg";
 import VenueExperienceCard from "@/components/shared/VenueExperienceCard";
+import ComingSoonBadge from "@/components/shared/ComingSoonBadge";
 import { rooftopVenues } from "@/lib/data/venues";
 
 const Rooftop = () => {
@@ -43,6 +44,11 @@ const Rooftop = () => {
           <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto leading-relaxed animate-fade-in">
             Disfrutá de tragos y música con las mejores vistas panorámicas de la ciudad
           </p>
+          <div className="flex justify-center">
+            <ComingSoonBadge className="px-4 py-1.5 text-xs sm:text-sm">
+              Próximamente
+            </ComingSoonBadge>
+          </div>
         </div>
 
         {/* Bottom gradient fade */}
@@ -56,7 +62,6 @@ const Rooftop = () => {
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center mb-16">
-            
             <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
               Mejores rooftops
             </h2>
