@@ -142,13 +142,11 @@ const buildDayHoursDisplay = (dayConfig: OpeningHoursV1["days"][OpeningHoursDayK
 const clampLegacyLine = (line: string): string =>
   line.length <= 120 ? line : `${line.slice(0, 119)}…`;
 
-const deriveLegacyHours = (openingHours: OpeningHoursV1): string[] => {
-  const normalized = normalizeOpeningHoursForEditor(openingHours);
-  const dayDisplays = OPENING_HOURS_DAY_KEYS.map((dayKey) => ({
-    dayKey,
-    display: buildDayHoursDisplay(normalized.days[dayKey]),
-  }));
+type LegacyHoursFormatMode = "compact" | "expanded";
 
+const deriveLegacyHoursCompact = (
+  dayDisplays: Array<{ dayKey: OpeningHoursDayKey; display: string }>
+): string[] => {
   const grouped: Array<{ startIndex: number; endIndex: number; display: string }> = [];
   for (let index = 0; index < dayDisplays.length; index += 1) {
     const currentDisplay = dayDisplays[index].display;
@@ -190,6 +188,28 @@ const deriveLegacyHours = (openingHours: OpeningHoursV1): string[] => {
   });
 
   return lines.slice(0, 14).map(clampLegacyLine);
+};
+
+const deriveLegacyHoursExpanded = (
+  dayDisplays: Array<{ dayKey: OpeningHoursDayKey; display: string }>
+): string[] =>
+  dayDisplays
+    .map(({ dayKey, display }) => clampLegacyLine(`${OPENING_HOURS_DAY_LABELS[dayKey].full}: ${display}`))
+    .slice(0, 14);
+
+const deriveLegacyHours = (
+  openingHours: OpeningHoursV1,
+  mode: LegacyHoursFormatMode = "compact"
+): string[] => {
+  const normalized = normalizeOpeningHoursForEditor(openingHours);
+  const dayDisplays = OPENING_HOURS_DAY_KEYS.map((dayKey) => ({
+    dayKey,
+    display: buildDayHoursDisplay(normalized.days[dayKey]),
+  }));
+
+  return mode === "expanded"
+    ? deriveLegacyHoursExpanded(dayDisplays)
+    : deriveLegacyHoursCompact(dayDisplays);
 };
 
 interface OpeningHoursValidationResult {
@@ -852,7 +872,7 @@ export default function ProfilePage() {
           return;
         }
         openingHoursPayload = validation.normalized;
-        hours = deriveLegacyHours(validation.normalized);
+        hours = deriveLegacyHours(validation.normalized, "expanded");
       } else {
         hours = parseLines(formData.hoursText);
       }
@@ -1207,11 +1227,12 @@ export default function ProfilePage() {
     ? `https://www.google.com/maps?q=${parsedLatitudeInput},${parsedLongitudeInput}`
     : null;
   const hasPersistedOpeningHours = Boolean(profile?.opening_hours);
-  const derivedLegacyHours = deriveLegacyHours(openingHoursDraft);
-  const effectiveHoursText = useStructuredHours ? toLines(derivedLegacyHours) : formData.hoursText;
+  const derivedLegacyHoursExpanded = deriveLegacyHours(openingHoursDraft, "expanded");
   const previewPhone = formData.phone.trim();
   const previewWhatsapp = formData.whatsapp.trim();
-  const previewHours = parseLines(effectiveHoursText);
+  const previewHours = useStructuredHours
+    ? derivedLegacyHoursExpanded
+    : parseLines(formData.hoursText);
   const previewAdditionalInfo = parseLines(formData.additionalInfoText);
   const previewAttributes = selectedAttributes.slice(0, 3);
   const previewCoverImage = sortedGallery.find((item) => item.kind === "cover")?.url ?? null;
@@ -2000,11 +2021,11 @@ export default function ProfilePage() {
 
           {/* Opening hours v1 + legacy compatibility */}
           <div className="space-y-4">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Horarios (nuevo)</p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-sm font-semibold text-gray-900">Horarios (nuevo)</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
                     Editor semanal v1 (America/Asuncion). Soporta rangos overnight.
                   </p>
                 </div>
@@ -2025,16 +2046,35 @@ export default function ProfilePage() {
                   {OPENING_HOURS_DAY_KEYS.map((dayKey) => {
                     const dayConfig = openingHoursDraft.days[dayKey];
                     const dayLabel = OPENING_HOURS_DAY_LABELS[dayKey];
+                    const isClosed = dayConfig.closed;
+
                     return (
-                      <div key={dayKey} className="rounded-md border border-gray-200 bg-white p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-gray-900">
-                            {dayLabel.short} ({dayLabel.full})
-                          </p>
-                          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <div
+                        key={dayKey}
+                        className={`rounded-lg border p-3 sm:p-4 ${
+                          isClosed ? "border-gray-200 bg-white" : "border-blue-100 bg-blue-50/30"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700">
+                              {dayLabel.short}
+                            </span>
+                            <p className="text-sm font-medium text-gray-900">{dayLabel.full}</p>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                isClosed
+                                  ? "bg-gray-100 text-gray-600"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {isClosed ? "Cerrado" : "Abierto"}
+                            </span>
+                          </div>
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
                             <input
                               type="checkbox"
-                              checked={dayConfig.closed}
+                              checked={isClosed}
                               onChange={(event) => handleDayClosedToggle(dayKey, event.target.checked)}
                               disabled={!canEdit || saving}
                               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -2043,37 +2083,56 @@ export default function ProfilePage() {
                           </label>
                         </div>
 
-                        {!dayConfig.closed && (
-                          <div className="mt-3 space-y-2">
+                        {!isClosed && (
+                          <div className="mt-3 space-y-2.5">
+                            {dayConfig.ranges.length === 0 && (
+                              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                Este día está abierto pero sin rangos. Agregá al menos un rango horario.
+                              </p>
+                            )}
                             {dayConfig.ranges.map((range, index) => (
-                              <div key={`${dayKey}-${index}`} className="flex flex-wrap items-center gap-2">
-                                <input
-                                  type="time"
-                                  value={range.start}
-                                  onChange={(event) =>
-                                    handleRangeChange(dayKey, index, "start", event.target.value)
-                                  }
-                                  disabled={!canEdit || saving}
-                                  className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
-                                <span className="text-sm text-gray-500">a</span>
-                                <input
-                                  type="time"
-                                  value={range.end}
-                                  onChange={(event) =>
-                                    handleRangeChange(dayKey, index, "end", event.target.value)
-                                  }
-                                  disabled={!canEdit || saving}
-                                  className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveRange(dayKey, index)}
-                                  disabled={!canEdit || saving}
-                                  className="px-2.5 py-1.5 text-xs rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  Eliminar
-                                </button>
+                              <div
+                                key={`${dayKey}-${index}`}
+                                className="rounded-md border border-gray-200 bg-white p-2.5"
+                              >
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                                  <div>
+                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                      Desde
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={range.start}
+                                      onChange={(event) =>
+                                        handleRangeChange(dayKey, index, "start", event.target.value)
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                      Hasta
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={range.end}
+                                      onChange={(event) =>
+                                        handleRangeChange(dayKey, index, "end", event.target.value)
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveRange(dayKey, index)}
+                                    disabled={!canEdit || saving}
+                                    className="h-10 px-3 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
                               </div>
                             ))}
 
@@ -2081,7 +2140,7 @@ export default function ProfilePage() {
                               type="button"
                               onClick={() => handleAddRange(dayKey)}
                               disabled={!canEdit || saving}
-                              className="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="inline-flex items-center rounded-md border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               + Agregar rango
                             </button>
@@ -2102,12 +2161,6 @@ export default function ProfilePage() {
                     </div>
                   )}
 
-                  <div>
-                    <p className="text-xs font-medium text-gray-700 mb-1">Legacy (hours derivado)</p>
-                    <pre className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs font-mono text-gray-700 whitespace-pre-wrap break-words">
-                      {derivedLegacyHours.length > 0 ? derivedLegacyHours.join("\n") : "Sin horarios derivados"}
-                    </pre>
-                  </div>
                 </div>
               ) : (
                 <p className="mt-3 text-xs text-gray-600">
@@ -2116,31 +2169,30 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="hours"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                {useStructuredHours ? "Horarios legacy (derivado)" : "Horarios"}
-              </label>
-              <textarea
-                id="hours"
-                rows={5}
-                value={effectiveHoursText}
-                onChange={(e) =>
-                  setFormData({ ...formData, hoursText: e.target.value })
-                }
-                readOnly={useStructuredHours}
-                disabled={!canEdit || saving || useStructuredHours}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
-                placeholder={`Lun - Jue: 18:00 - 02:00\nVie - Sab: 18:00 - 03:00\nDom: Cerrado`}
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                {useStructuredHours
-                  ? "Campo legacy derivado automaticamente desde opening_hours (max 14 lineas)."
-                  : "Una linea por cada horario (max 14 lineas)."}
-              </p>
-            </div>
+            {!useStructuredHours && (
+              <div>
+                <label
+                  htmlFor="hours"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Horarios
+                </label>
+                <textarea
+                  id="hours"
+                  rows={5}
+                  value={formData.hoursText}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hoursText: e.target.value })
+                  }
+                  disabled={!canEdit || saving}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
+                  placeholder={`Lun - Jue: 18:00 - 02:00\nVie - Sab: 18:00 - 03:00\nDom: Cerrado`}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Una linea por cada horario (max 14 lineas).
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Additional Info (textarea, 1 linea = 1 bullet) */}
