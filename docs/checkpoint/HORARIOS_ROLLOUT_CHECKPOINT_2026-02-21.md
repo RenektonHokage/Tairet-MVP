@@ -238,7 +238,7 @@ Hard-stop activo:
 
 ## 7) Pendientes priorizados (siguiente roadmap)
 
-## Punto-5A-FreePass-CartLimit (BUG funcional)
+## Punto-5A-FreePass-CartLimit (BUG funcional) ✅
 **Objetivo**
 - Free Pass no debe permitir cantidad > 1 (ni en UI ni en estado persistido)
 
@@ -253,7 +253,7 @@ Hard-stop activo:
 
 --- 5A — Free Pass máx 1 en carrito ✅ (regla centralizada en CartContext, saneo de localStorage, smoke OK)
 
-## Punto-5B-Panel-Horarios-UI-Polish
+## Punto-5B-Panel-Horarios-UI-Polish  ✅
 **Objetivo**
 - Mejorar visual del editor nuevo de horarios en panel (sin tocar lógica/contratos)
 
@@ -268,7 +268,7 @@ Hard-stop activo:
 
 ---
 
-## Punto-5C-ReservaForm-Calendar-UI-Polish
+## Punto-5C-ReservaForm-Calendar-UI-Polish  ✅
 **Objetivo**
 - Mejorar UX visual del calendario (selección/estados), manteniendo la lógica actual
 
@@ -282,7 +282,7 @@ Hard-stop activo:
 
 ---
 
-## Punto-5D-B2C-Badges-Proximamente (UI)
+## Punto-5D-B2C-Badges-Proximamente (UI) ✅
 **Objetivo**
 - Unificar y mejorar badges “Próximamente”
 
@@ -296,7 +296,7 @@ Hard-stop activo:
 
 ---
 
-## Punto-5E-B2C-Promociones-Images-MVP (FEATURE real)
+## Punto-5E-B2C-Promociones-Images-MVP (FEATURE real) ✅
 **Objetivo**
 - Mostrar cards de promociones con imagen y click al perfil del local
 

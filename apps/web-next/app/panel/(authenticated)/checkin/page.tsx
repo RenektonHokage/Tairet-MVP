@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 
-// Tipos para la respuesta del endpoint
 interface CheckinSuccess {
   id: string;
   local_id: string;
@@ -24,6 +24,8 @@ interface CheckinAlreadyUsed {
 type CheckinResult =
   | { type: "success"; data: CheckinSuccess }
   | { type: "already_used"; usedAt: string }
+  | { type: "window_invalid"; code: string | null; message: string; validFrom: string | null; validTo: string | null; cutoffIso: string | null }
+  | { type: "invalid_token"; message: string }
   | { type: "forbidden" }
   | { type: "error"; status: number; message: string };
 
@@ -35,12 +37,60 @@ type CameraStatus =
   | "permission_denied"
   | "error";
 
+type OverlayTone = "success" | "warning" | "error";
+
+interface OverlayState {
+  tone: OverlayTone;
+  title: string;
+  message: string;
+}
+
+const TOKEN_DEDUPE_MS = 1400;
+// Tuning operativo en puerta para evitar spam de lecturas consecutivas.
+const GLOBAL_SCAN_COOLDOWN_MS = 1200;
+const SAME_TOKEN_COOLDOWN_MS = 5000;
+
+function normalizeToken(rawToken: string): string {
+  return rawToken.trim();
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function getWindowMessage(code: string | null, fallback: string): string {
+  if (code === "not_yet_valid") {
+    return "Entrada todavía no válida para check-in.";
+  }
+  if (code === "expired") {
+    return "Entrada expirada para check-in.";
+  }
+  if (code === "legacy_not_allowed") {
+    return "Entrada fuera de la ventana válida de check-in.";
+  }
+  return fallback || "Entrada fuera de ventana de check-in.";
+}
+
 export default function CheckinPage() {
   const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
+
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const scanningRef = useRef(false);
-  const readerRef = useRef<import("@zxing/browser").BrowserQRCodeReader | null>(null);
+  const readerRef = useRef<BrowserQRCodeReader | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+
+  const inFlightTokenRef = useRef<string | null>(null);
+  const autoScanInFlightRef = useRef(false);
+  const lastProcessedTokenRef = useRef<string | null>(null);
+  const lastProcessedAtRef = useRef<number>(0);
+  const globalScanCooldownUntilRef = useRef<number>(0);
+  const lastCompletedAutoTokenRef = useRef<string | null>(null);
+  const sameTokenCooldownUntilRef = useRef<number>(0);
+
+  const overlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,42 +98,290 @@ export default function CheckinPage() {
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<OverlayState | null>(null);
 
-  // ==================================================
-  // GATING TEMPRANO: Determinar si página está bloqueada
-  // ==================================================
   const isBlocked = context?.local.type === "bar";
 
-  // Limpiar cámara al desmontar
+  const clearOverlayTimeout = useCallback(() => {
+    if (overlayTimeoutRef.current) {
+      clearTimeout(overlayTimeoutRef.current);
+      overlayTimeoutRef.current = null;
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    scanningRef.current = false;
+    autoScanInFlightRef.current = false;
+    inFlightTokenRef.current = null;
+
+    if (scannerControlsRef.current) {
+      try {
+        scannerControlsRef.current.stop();
+      } catch {
+        // noop
+      }
+      scannerControlsRef.current = null;
+    }
+
+    if (readerRef.current) {
+      try {
+        const maybeReset = (readerRef.current as unknown as { reset?: () => void }).reset;
+        if (typeof maybeReset === "function") {
+          maybeReset();
+        }
+      } catch {
+        // noop
+      }
+      readerRef.current = null;
+    }
+
+    if (videoRef.current?.srcObject) {
+      const mediaStream = videoRef.current.srcObject as MediaStream;
+      mediaStream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+
+    setCameraStatus("idle");
+  }, []);
+
   useEffect(() => {
-    // GUARD: No ejecutar si contexto aún cargando o bloqueado
     if (contextLoading || isBlocked) return;
 
     return () => {
-      scanningRef.current = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
+      stopCamera();
+      clearOverlayTimeout();
     };
-  }, [contextLoading, isBlocked]);
+  }, [clearOverlayTimeout, contextLoading, isBlocked, stopCamera]);
 
-  // Conectar stream al video cuando esté disponible
   useEffect(() => {
-    // GUARD: No ejecutar si contexto aún cargando o bloqueado
-    if (contextLoading || isBlocked) return;
-
-    if (cameraStatus === "active" && streamRef.current && videoRef.current) {
-      videoRef.current.srcObject = streamRef.current;
-      videoRef.current.play().catch(() => {
-        // Ignorar errores de autoplay
-      });
-      startScanning();
+    if (isBlocked) {
+      stopCamera();
     }
-  }, [cameraStatus, contextLoading, isBlocked]);
+  }, [isBlocked, stopCamera]);
+
+  const showOverlay = useCallback(
+    (next: OverlayState, durationMs: number) => {
+      clearOverlayTimeout();
+      setOverlay(next);
+      overlayTimeoutRef.current = setTimeout(() => {
+        setOverlay(null);
+        overlayTimeoutRef.current = null;
+      }, durationMs);
+    },
+    [clearOverlayTimeout]
+  );
+
+  const pushResultFeedback = useCallback(
+    (nextResult: CheckinResult) => {
+      if (nextResult.type === "success") {
+        showOverlay(
+          {
+            tone: "success",
+            title: "Check-in realizado",
+            message: "Entrada válida",
+          },
+          900
+        );
+        return;
+      }
+
+      if (nextResult.type === "already_used") {
+        showOverlay(
+          {
+            tone: "warning",
+            title: "Entrada ya utilizada",
+            message: `Usada: ${formatDateTime(nextResult.usedAt)}`,
+          },
+          1200
+        );
+        return;
+      }
+
+      if (nextResult.type === "window_invalid") {
+        showOverlay(
+          {
+            tone: "warning",
+            title: "Check-in no disponible",
+            message: nextResult.message,
+          },
+          1400
+        );
+        return;
+      }
+
+      if (nextResult.type === "invalid_token") {
+        showOverlay(
+          {
+            tone: "error",
+            title: "QR inválido",
+            message: nextResult.message,
+          },
+          1200
+        );
+        return;
+      }
+
+      if (nextResult.type === "forbidden") {
+        showOverlay(
+          {
+            tone: "error",
+            title: "Token de otro local",
+            message: "Este QR pertenece a otro establecimiento.",
+          },
+          1300
+        );
+        return;
+      }
+
+      showOverlay(
+        {
+          tone: "error",
+          title: "Error de check-in",
+          message: nextResult.message,
+        },
+        1500
+      );
+    },
+    [showOverlay]
+  );
+
+  const performCheckin = useCallback(
+    async (rawToken: string, source: "manual" | "auto") => {
+      const normalizedToken = normalizeToken(rawToken);
+      if (!normalizedToken || isBlocked) return;
+
+      if (source === "manual") {
+        setLoading(true);
+      }
+
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(`${getApiBase()}/panel/checkin/${encodeURIComponent(normalizedToken)}`, {
+          method: "PATCH",
+          credentials: "include",
+          headers,
+        });
+
+        const payload = await response.json().catch(() => ({} as Record<string, unknown>));
+        let nextResult: CheckinResult;
+
+        if (response.ok) {
+          nextResult = { type: "success", data: payload as CheckinSuccess };
+        } else if (response.status === 409) {
+          const code = typeof payload.code === "string" ? payload.code : null;
+          const errorText = typeof payload.error === "string" ? payload.error : "";
+          const usedAt = typeof payload.usedAt === "string" ? payload.usedAt : null;
+
+          if (usedAt || errorText.toLowerCase().includes("already used")) {
+            nextResult = {
+              type: "already_used",
+              usedAt: usedAt ?? "",
+            };
+          } else {
+            const validFrom = typeof payload.valid_from === "string" ? payload.valid_from : null;
+            const validTo = typeof payload.valid_to === "string" ? payload.valid_to : null;
+            const cutoffIso = typeof payload.cutoff_iso === "string" ? payload.cutoff_iso : null;
+            nextResult = {
+              type: "window_invalid",
+              code,
+              message: getWindowMessage(code, errorText),
+              validFrom,
+              validTo,
+              cutoffIso,
+            };
+          }
+        } else if (response.status === 404) {
+          nextResult = {
+            type: "invalid_token",
+            message: "No se encontró una entrada válida para ese QR.",
+          };
+        } else if (response.status === 403) {
+          nextResult = { type: "forbidden" };
+        } else {
+          const errorText = typeof payload.error === "string" ? payload.error : `Error ${response.status}`;
+          nextResult = {
+            type: "error",
+            status: response.status,
+            message: errorText,
+          };
+        }
+
+        setResult(nextResult);
+        pushResultFeedback(nextResult);
+      } catch (err) {
+        const nextResult: CheckinResult = {
+          type: "error",
+          status: 0,
+          message: err instanceof Error ? err.message : "Error de conexión",
+        };
+        setResult(nextResult);
+        pushResultFeedback(nextResult);
+      } finally {
+        if (source === "manual") {
+          setLoading(false);
+        }
+      }
+    },
+    [isBlocked, pushResultFeedback]
+  );
+
+  const handleScannedToken = useCallback(
+    (rawToken: string) => {
+      const normalizedToken = normalizeToken(rawToken);
+      if (!normalizedToken) return;
+
+      const now = Date.now();
+      if (now < globalScanCooldownUntilRef.current) return;
+      if (autoScanInFlightRef.current || inFlightTokenRef.current) return;
+      if (
+        lastCompletedAutoTokenRef.current === normalizedToken &&
+        now < sameTokenCooldownUntilRef.current
+      ) {
+        return;
+      }
+      if (
+        lastProcessedTokenRef.current === normalizedToken &&
+        now - lastProcessedAtRef.current < TOKEN_DEDUPE_MS
+      ) {
+        return;
+      }
+
+      setToken(normalizedToken);
+
+      autoScanInFlightRef.current = true;
+      inFlightTokenRef.current = normalizedToken;
+      lastProcessedTokenRef.current = normalizedToken;
+      lastProcessedAtRef.current = now;
+
+      void performCheckin(normalizedToken, "auto").finally(() => {
+        autoScanInFlightRef.current = false;
+        if (inFlightTokenRef.current === normalizedToken) {
+          inFlightTokenRef.current = null;
+        }
+        const completedAt = Date.now();
+        globalScanCooldownUntilRef.current = completedAt + GLOBAL_SCAN_COOLDOWN_MS;
+        lastCompletedAutoTokenRef.current = normalizedToken;
+        sameTokenCooldownUntilRef.current = completedAt + SAME_TOKEN_COOLDOWN_MS;
+      });
+    },
+    [performCheckin]
+  );
+
+  const waitForVideoElement = useCallback(async (): Promise<HTMLVideoElement> => {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      if (videoRef.current) {
+        return videoRef.current;
+      }
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    }
+
+    throw new Error("Video preview element not ready");
+  }, []);
 
   const startCamera = useCallback(async () => {
-    // GUARD extra (aunque no debería llegar aquí si está bloqueado)
-    if (isBlocked) return;
+    if (isBlocked || scanningRef.current || scannerControlsRef.current) return;
 
     setCameraError(null);
     setCameraStatus("requesting");
@@ -97,131 +395,78 @@ export default function CheckinPage() {
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-      });
-      streamRef.current = stream;
-      setCameraStatus("active");
-    } catch (err) {
-      const error = err as Error;
-      if (error.name === "NotAllowedError") {
-        setCameraStatus("permission_denied");
-        setCameraError("Permiso de cámara denegado. Usa el input manual.");
-      } else {
-        setCameraStatus("error");
-        setCameraError(
-          "No se pudo acceder a la cámara. Usa el input manual para pegar el token."
-        );
-      }
-    }
-  }, [isBlocked]);
+      const { BrowserQRCodeReader } = await import("@zxing/browser");
+      const codeReader = new BrowserQRCodeReader();
+      readerRef.current = codeReader;
+      scanningRef.current = true;
+      const videoElement = await waitForVideoElement();
 
-  const stopCamera = useCallback(() => {
-    scanningRef.current = false;
+      const controls = await codeReader.decodeFromVideoDevice(
+        undefined,
+        videoElement,
+        (scanResult, scanError) => {
+          if (!scanningRef.current) return;
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+          if (scanResult) {
+            handleScannedToken(scanResult.getText());
+            return;
+          }
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    readerRef.current = null;
-    setCameraStatus("idle");
-  }, []);
-
-  const startScanning = useCallback(async () => {
-    if (!videoRef.current || isBlocked) return;
-
-    scanningRef.current = true;
-
-    const { BrowserQRCodeReader } = await import("@zxing/browser");
-    const codeReader = new BrowserQRCodeReader();
-    readerRef.current = codeReader;
-
-    const scanLoop = async () => {
-      if (!videoRef.current || !scanningRef.current) return;
-
-      try {
-        const result = await codeReader.decodeOnceFromVideoElement(
-          videoRef.current
-        );
-        if (result && scanningRef.current) {
-          const scannedText = result.getText();
-          setToken(scannedText);
-          stopCamera();
-          return;
-        }
-      } catch {
-        // No QR found, continue scanning
-      }
-
-      if (scanningRef.current) {
-        setTimeout(scanLoop, 300);
-      }
-    };
-
-    setTimeout(scanLoop, 500);
-  }, [stopCamera, isBlocked]);
-
-  const handleCheckin = async () => {
-    if (!token.trim() || isBlocked) return;
-
-    setLoading(true);
-    setResult(null);
-
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(
-        `${getApiBase()}/panel/checkin/${encodeURIComponent(token.trim())}`,
-        {
-          method: "PATCH",
-          credentials: "include",
-          headers,
+          if (scanError) {
+            const scanErrorName = (scanError as { name?: string }).name;
+            if (
+              scanErrorName === "NotFoundException" ||
+              scanErrorName === "ChecksumException" ||
+              scanErrorName === "FormatException"
+            ) {
+              return;
+            }
+          }
         }
       );
 
-      if (response.ok) {
-        const data: CheckinSuccess = await response.json();
-        setResult({ type: "success", data });
-      } else if (response.status === 409) {
-        const data: CheckinAlreadyUsed = await response.json();
-        setResult({ type: "already_used", usedAt: data.usedAt });
-      } else if (response.status === 403) {
-        setResult({ type: "forbidden" });
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        setResult({
-          type: "error",
-          status: response.status,
-          message: errorData.error || `Error ${response.status}`,
-        });
+      scannerControlsRef.current = controls;
+      setCameraStatus("active");
+      } catch (err) {
+        scanningRef.current = false;
+        scannerControlsRef.current = null;
+        readerRef.current = null;
+
+        const error = err as Error;
+        console.error("[checkin] camera/scanner startup failed", err);
+        if (error.name === "NotAllowedError") {
+          setCameraStatus("permission_denied");
+          setCameraError("Permiso de cámara denegado. Usa el input manual.");
+        } else {
+          setCameraStatus("error");
+          const detail = error.message ? ` (${error.message})` : "";
+          setCameraError(`No se pudo acceder a la cámara. Usa el input manual para pegar el token.${detail}`);
+        }
       }
-    } catch (err) {
-      setResult({
-        type: "error",
-        status: 0,
-        message: err instanceof Error ? err.message : "Error de conexión",
-      });
-    } finally {
-      setLoading(false);
-    }
+    }, [handleScannedToken, isBlocked, waitForVideoElement]);
+
+  const handleCheckin = async () => {
+    const normalizedToken = normalizeToken(token);
+    if (!normalizedToken || isBlocked) return;
+    await performCheckin(normalizedToken, "manual");
   };
 
   const handleReset = () => {
     stopCamera();
+    clearOverlayTimeout();
+    setOverlay(null);
     setToken("");
     setResult(null);
     setCameraError(null);
+    autoScanInFlightRef.current = false;
+    inFlightTokenRef.current = null;
+    lastProcessedTokenRef.current = null;
+    lastProcessedAtRef.current = 0;
+    globalScanCooldownUntilRef.current = 0;
+    lastCompletedAutoTokenRef.current = null;
+    sameTokenCooldownUntilRef.current = 0;
   };
 
-  // ==================================================
-  // RENDERS TEMPRANOS (antes de cualquier UI compleja)
-  // ==================================================
-
-  // GATING 1: Loading del contexto
   if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -232,7 +477,6 @@ export default function CheckinPage() {
     );
   }
 
-  // GATING 2: Error en contexto
   if (contextError || !context) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -243,7 +487,6 @@ export default function CheckinPage() {
     );
   }
 
-  // GATING 3: Tipo de local bloqueado (ANTES de cualquier render complejo)
   if (context.local.type === "bar") {
     return (
       <NotAvailable
@@ -254,17 +497,12 @@ export default function CheckinPage() {
     );
   }
 
-  // ==================================================
-  // RENDER PRINCIPAL (solo para clubs)
-  // ==================================================
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Check-in en Puerta</h2>
       </div>
 
-      {/* Scanner de QR */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Escanear QR</h3>
 
@@ -278,9 +516,7 @@ export default function CheckinPage() {
           {cameraStatus === "error" && "error"}
         </p>
 
-        {cameraStatus === "requesting" ? (
-          <p className="text-sm text-gray-600">Solicitando acceso a la cámara...</p>
-        ) : cameraStatus === "active" ? (
+        {cameraStatus === "requesting" || cameraStatus === "active" ? (
           <div className="space-y-4">
             <div className="relative max-w-md mx-auto">
               <video
@@ -290,16 +526,64 @@ export default function CheckinPage() {
                 playsInline
                 className="w-full aspect-video bg-black rounded-lg border-2 border-blue-500"
               />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-48 border-4 border-blue-500 rounded-lg animate-pulse" />
-              </div>
+
+              {cameraStatus === "requesting" ? (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/60 rounded-lg">
+                  <p className="text-sm font-medium text-white">Solicitando acceso a la cámara...</p>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-48 h-48 border-4 border-blue-500 rounded-lg animate-pulse" />
+                </div>
+              )}
+
+              {overlay && (
+                <div
+                  className={[
+                    "absolute left-3 right-3 top-3 rounded-md border px-3 py-2 shadow-sm",
+                    overlay.tone === "success" && "border-green-300 bg-green-50",
+                    overlay.tone === "warning" && "border-amber-300 bg-amber-50",
+                    overlay.tone === "error" && "border-red-300 bg-red-50",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <p
+                    className={[
+                      "text-sm font-semibold",
+                      overlay.tone === "success" && "text-green-800",
+                      overlay.tone === "warning" && "text-amber-800",
+                      overlay.tone === "error" && "text-red-800",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {overlay.title}
+                  </p>
+                  <p
+                    className={[
+                      "text-xs mt-0.5",
+                      overlay.tone === "success" && "text-green-700",
+                      overlay.tone === "warning" && "text-amber-700",
+                      overlay.tone === "error" && "text-red-700",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {overlay.message}
+                  </p>
+                </div>
+              )}
             </div>
-            <button
-              onClick={stopCamera}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-            >
-              Detener Cámara
-            </button>
+
+            {cameraStatus === "active" && (
+              <button
+                onClick={stopCamera}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              >
+                Detener Cámara
+              </button>
+            )}
           </div>
         ) : (
           <button
@@ -317,12 +601,9 @@ export default function CheckinPage() {
         )}
       </div>
 
-      {/* Input Manual */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Token Manual</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Pega el token del QR si la cámara no funciona:
-        </p>
+        <p className="text-sm text-gray-500 mb-4">Pega el token del QR si la cámara no funciona:</p>
 
         <div className="space-y-4">
           <input
@@ -351,7 +632,6 @@ export default function CheckinPage() {
         </div>
       </div>
 
-      {/* Resultado */}
       {result && (
         <div className="bg-white p-6 rounded-lg shadow">
           <h3 className="text-lg font-semibold mb-4">Resultado</h3>
@@ -360,14 +640,11 @@ export default function CheckinPage() {
             <div className="p-4 bg-green-50 border border-green-200 rounded-md">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl">✅</span>
-                <span className="text-lg font-semibold text-green-800">
-                  Check-in Exitoso
-                </span>
+                <span className="text-lg font-semibold text-green-800">Check-in Exitoso</span>
               </div>
               <div className="space-y-1 text-sm text-green-900">
                 <p>
-                  <strong>Usado:</strong>{" "}
-                  {new Date(result.data.used_at).toLocaleString()}
+                  <strong>Usado:</strong> {formatDateTime(result.data.used_at)}
                 </p>
                 {result.data.customer_name && (
                   <p>
@@ -392,14 +669,43 @@ export default function CheckinPage() {
             <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-md">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl">⚠️</span>
-                <span className="text-lg font-semibold text-yellow-800">
-                  Ya Usado
-                </span>
+                <span className="text-lg font-semibold text-yellow-800">Ya Usado</span>
               </div>
               <p className="text-sm text-yellow-900">
-                Este ticket ya fue utilizado el{" "}
-                <strong>{new Date(result.usedAt).toLocaleString()}</strong>
+                Este ticket ya fue utilizado el <strong>{formatDateTime(result.usedAt)}</strong>
               </p>
+            </div>
+          )}
+
+          {result.type === "window_invalid" && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-md">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">🕒</span>
+                <span className="text-lg font-semibold text-amber-800">Fuera de ventana</span>
+              </div>
+              <div className="space-y-1 text-sm text-amber-900">
+                <p>{result.message}</p>
+                {result.validFrom && (
+                  <p>
+                    <strong>Desde:</strong> {formatDateTime(result.validFrom)}
+                  </p>
+                )}
+                {result.validTo && (
+                  <p>
+                    <strong>Hasta:</strong> {formatDateTime(result.validTo)}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {result.type === "invalid_token" && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">❌</span>
+                <span className="text-lg font-semibold text-red-800">QR inválido</span>
+              </div>
+              <p className="text-sm text-red-900">{result.message}</p>
             </div>
           )}
 
@@ -407,13 +713,9 @@ export default function CheckinPage() {
             <div className="p-4 bg-red-50 border border-red-200 rounded-md">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-2xl">🚫</span>
-                <span className="text-lg font-semibold text-red-800">
-                  Token de Otro Local
-                </span>
+                <span className="text-lg font-semibold text-red-800">Token de Otro Local</span>
               </div>
-              <p className="text-sm text-red-900">
-                Este token pertenece a otro establecimiento.
-              </p>
+              <p className="text-sm text-red-900">Este token pertenece a otro establecimiento.</p>
             </div>
           )}
 
