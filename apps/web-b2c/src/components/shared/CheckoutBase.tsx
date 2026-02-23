@@ -163,6 +163,17 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       year: "numeric",
     }).format(parsed);
   }, [selectedDate]);
+  const cutoffDateDisplay = useMemo(() => {
+    const cutoffIso = addDaysToIso(selectedDate, 1);
+    const parsed = parseIsoDate(cutoffIso);
+    if (!parsed) return selectedDateDisplay;
+    return new Intl.DateTimeFormat("es-PY", {
+      timeZone: ASUNCION_TZ,
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(parsed);
+  }, [selectedDate, selectedDateDisplay]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -603,10 +614,18 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                       />
                     </div>
 
-                    <div className="flex justify-center">
-                      <p className="text-center text-xs text-white/55 sm:text-sm">
-                        Fecha seleccionada:{" "}
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs leading-tight text-white/70 sm:text-sm">
+                      <p>
+                        Fecha de tu compra:{" "}
                         <span className="font-semibold text-white">{selectedDateDisplay}</span>
+                      </p>
+                      <p className="mt-1">
+                        Esta fecha cuenta hasta:{" "}
+                        <span className="font-semibold text-white">06:00 AM del {cutoffDateDisplay}</span>
+                        {" "}(hora Asunción)
+                      </p>
+                      <p className="mt-1 text-[11px] text-white/55 sm:text-xs">
+                        Después de esa hora, la entrada ya no es válida para el check-in.
                       </p>
                     </div>
                   </CardContent>
