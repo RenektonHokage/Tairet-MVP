@@ -920,7 +920,7 @@ export default function CheckinPage() {
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-[62%] h-[62%] min-w-[132px] min-h-[132px] max-w-[216px] max-h-[216px] border-[3px] sm:border-4 border-blue-500 rounded-xl animate-pulse" />
+                  <div className="w-[52%] sm:w-[48%] min-w-[112px] max-w-[216px] aspect-square border-[3px] sm:border-4 border-blue-500 rounded-xl animate-pulse" />
                 </div>
               )}
 

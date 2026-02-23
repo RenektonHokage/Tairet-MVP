@@ -55,6 +55,21 @@ const TOOLS_CONTENT_BY_VENUE_TYPE: Record<VenueType, ToolCard[]> = {
   }]
 };
 
+const WHATSAPP_APPLY_MESSAGE =
+  "Hola, quiero publicar mi local en Tairet y recibir información para aplicar como socio.";
+const WHATSAPP_APPLY_URL = `https://wa.me/595981628109?text=${encodeURIComponent(WHATSAPP_APPLY_MESSAGE)}`;
+const EMAIL_APPLY_SUBJECT = "Quiero publicar mi local en Tairet";
+const EMAIL_APPLY_BODY = [
+  "Hola equipo de Tairet, quiero recibir información para publicar mi local en la plataforma.",
+  "",
+  "Nombre del local:",
+  "Ciudad:",
+  "Nombre y cargo:",
+  "Teléfono:",
+  "Instagram (opcional):",
+].join("\n");
+const EMAIL_APPLY_URL = `mailto:tairet.contacto@gmail.com?subject=${encodeURIComponent(EMAIL_APPLY_SUBJECT)}&body=${encodeURIComponent(EMAIL_APPLY_BODY)}`;
+
 const PublicaTuLocal = () => {
   const [venueType, setVenueType] = useState<VenueType>("bar");
   useEffect(() => {
@@ -101,10 +116,19 @@ const PublicaTuLocal = () => {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/para-locales/solicitud">Aplicar como socio</Link>
+                  <a href={EMAIL_APPLY_URL} aria-label="Enviar correo">
+                    Enviar correo
+                  </a>
                 </Button>
                 <Button variant="secondary" size="lg" asChild>
-                  <a href="#" aria-label="Hablar por WhatsApp">Hablar por WhatsApp</a>
+                  <a
+                    href={WHATSAPP_APPLY_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Hablar por WhatsApp"
+                  >
+                    Hablar por WhatsApp
+                  </a>
                 </Button>
               </div>
               <ul className="mt-8 flex flex-wrap gap-6 text-sm text-muted-foreground">
@@ -258,20 +282,6 @@ const PublicaTuLocal = () => {
           </div>
         </section>
 
-        {/* CTA FINAL */}
-        <section>
-          <div className="mx-auto max-w-7xl px-6 py-16">
-            <div className="flex flex-col items-center justify-between gap-4 rounded-lg border bg-card p-6 text-center md:flex-row md:text-left">
-              <div>
-                <h3 className="text-xl font-semibold">¿Listo para publicar tu local?</h3>
-                <p className="text-muted-foreground">Aplicá ahora y sumá tu local a Tairet.</p>
-              </div>
-              <Button asChild size="lg">
-                <Link to="/para-locales/solicitud">Aplicar como socio</Link>
-              </Button>
-            </div>
-          </div>
-        </section>
       </main>
     </div>;
 };
