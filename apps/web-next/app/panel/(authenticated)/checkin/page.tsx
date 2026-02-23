@@ -68,6 +68,8 @@ const EMPTY_CAMERA_CAPABILITIES: CameraCapabilityState = {
   exposure: false,
 };
 
+type CameraPermissionState = "granted" | "denied" | "prompt" | "unknown";
+
 function normalizeToken(rawToken: string): string {
   return rawToken.trim();
 }
@@ -132,6 +134,22 @@ export default function CheckinPage() {
     }
   }, []);
 
+  const readCameraPermissionState = useCallback(async (): Promise<CameraPermissionState> => {
+    if (!("permissions" in navigator) || !navigator.permissions?.query) {
+      return "unknown";
+    }
+
+    try {
+      const permission = await navigator.permissions.query({ name: "camera" as PermissionName });
+      if (permission.state === "granted" || permission.state === "denied" || permission.state === "prompt") {
+        return permission.state;
+      }
+      return "unknown";
+    } catch {
+      return "unknown";
+    }
+  }, []);
+
   const resetCameraEnhancements = useCallback(() => {
     setTorchSupported(false);
     setTorchEnabled(false);
@@ -141,28 +159,53 @@ export default function CheckinPage() {
   }, []);
 
   const detectCameraCapabilities = useCallback((controls: IScannerControls | null) => {
-    if (!controls?.streamVideoCapabilitiesGet) {
-      resetCameraEnhancements();
-      return;
+    let capabilities: Record<string, unknown> = {};
+    try {
+      if (controls?.streamVideoCapabilitiesGet) {
+        const capabilitiesGetter = controls.streamVideoCapabilitiesGet as unknown as (
+          trackFilter: (track: MediaStreamTrack) => boolean
+        ) => MediaTrackCapabilities;
+        const rawCapabilities =
+          capabilitiesGetter((track) => track.kind === "video") ??
+          ({} as MediaTrackCapabilities);
+        capabilities = rawCapabilities as Record<string, unknown>;
+      }
+    } catch (error) {
+      console.warn("[checkin] unable to inspect camera capabilities via controls", error);
+    }
+
+    if (Object.keys(capabilities).length === 0 && videoRef.current?.srcObject) {
+      try {
+        const mediaStream = videoRef.current.srcObject as MediaStream;
+        const track = mediaStream.getVideoTracks()[0];
+        if (track && "getCapabilities" in track) {
+          capabilities = (track.getCapabilities?.() ?? {}) as Record<string, unknown>;
+        }
+      } catch (error) {
+        console.warn("[checkin] unable to inspect camera capabilities via media track", error);
+      }
     }
 
     try {
-      const rawCapabilities =
-        controls.streamVideoCapabilitiesGet((track) => [track]) ??
-        ({} as MediaTrackCapabilities);
-      const capabilities = rawCapabilities as Record<string, unknown>;
-
-      const hasTorch = Boolean(
-        controls.switchTorch &&
-          Object.prototype.hasOwnProperty.call(capabilities, "torch") &&
-          capabilities.torch === true
-      );
+      const torchCapability = capabilities.torch;
+      const hasTorchCapability = torchCapability === true || (Array.isArray(torchCapability) && torchCapability.includes(true));
+      const hasTorchControl = Boolean(controls?.switchTorch || controls?.streamVideoConstraintsApply);
+      const hasTorch = hasTorchCapability && hasTorchControl;
       const hasFocusMode = Object.prototype.hasOwnProperty.call(capabilities, "focusMode");
       const hasZoom = Object.prototype.hasOwnProperty.call(capabilities, "zoom");
       const hasExposure =
         Object.prototype.hasOwnProperty.call(capabilities, "brightness") ||
         Object.prototype.hasOwnProperty.call(capabilities, "exposureCompensation") ||
         Object.prototype.hasOwnProperty.call(capabilities, "exposureTime");
+
+      console.info("[checkin] camera capabilities", {
+        torchCapability,
+        hasTorchControl,
+        hasTorch,
+        hasFocusMode,
+        hasZoom,
+        hasExposure,
+      });
 
       setTorchSupported(hasTorch);
       setTorchEnabled(false);
@@ -188,7 +231,24 @@ export default function CheckinPage() {
     const nextTorchState = !torchEnabled;
 
     try {
-      await controls.switchTorch(nextTorchState);
+      if (controls.switchTorch) {
+        await controls.switchTorch(nextTorchState);
+      } else if (controls.streamVideoConstraintsApply) {
+        const torchConstraints = {
+          advanced: [{ torch: nextTorchState }],
+        } as unknown as MediaTrackConstraints;
+        const maybePromise = (
+          controls.streamVideoConstraintsApply as unknown as (
+            constraints: MediaTrackConstraints,
+            trackFilter?: (track: MediaStreamTrack) => boolean
+          ) => Promise<void> | void
+        )(torchConstraints, (track) => track.kind === "video");
+        if (maybePromise && typeof (maybePromise as Promise<void>).then === "function") {
+          await maybePromise;
+        }
+      } else {
+        throw new Error("Torch controls unavailable");
+      }
       setTorchEnabled(nextTorchState);
     } catch (error) {
       console.error("[checkin] torch toggle failed", error);
@@ -475,6 +535,12 @@ export default function CheckinPage() {
 
     setCameraError(null);
     setTorchError(null);
+    const permissionState = await readCameraPermissionState();
+    if (permissionState === "denied") {
+      setCameraStatus("permission_denied");
+      setCameraError("Permiso de cámara bloqueado. Habilitalo en la configuración del sitio y reintentá.");
+      return;
+    }
     setCameraStatus("requesting");
 
     try {
@@ -542,7 +608,7 @@ export default function CheckinPage() {
         setCameraError(`No se pudo acceder a la cámara. Usa el input manual para pegar el token.${detail}`);
       }
     }
-  }, [detectCameraCapabilities, handleScannedToken, isBlocked, resetCameraEnhancements, waitForVideoElement]);
+  }, [detectCameraCapabilities, handleScannedToken, isBlocked, readCameraPermissionState, resetCameraEnhancements, waitForVideoElement]);
 
   const handleCheckin = async () => {
     const normalizedToken = normalizeToken(token);
@@ -623,7 +689,7 @@ export default function CheckinPage() {
                 autoPlay
                 muted
                 playsInline
-                className="w-full aspect-video bg-black rounded-lg border-2 border-blue-500"
+                className="w-full aspect-[4/3] sm:aspect-video object-cover bg-black rounded-lg border-2 border-blue-500"
               />
 
               {cameraStatus === "requesting" ? (
@@ -632,7 +698,7 @@ export default function CheckinPage() {
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-48 border-4 border-blue-500 rounded-lg animate-pulse" />
+                  <div className="w-[62%] h-[62%] min-w-[132px] min-h-[132px] max-w-[216px] max-h-[216px] border-[3px] sm:border-4 border-blue-500 rounded-xl animate-pulse" />
                 </div>
               )}
 
@@ -733,13 +799,18 @@ export default function CheckinPage() {
             onClick={startCamera}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
-            📷 Activar Cámara
+            {cameraStatus === "permission_denied" ? "🔁 Reintentar Cámara" : "📷 Activar Cámara"}
           </button>
         )}
 
         {cameraError && (
           <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <p className="text-sm text-yellow-800">{cameraError}</p>
+            {cameraStatus === "permission_denied" && (
+              <p className="text-xs text-yellow-700 mt-1">
+                Android/Chrome: tocá el candado en la barra del navegador y habilitá el acceso a Cámara.
+              </p>
+            )}
           </div>
         )}
       </div>
