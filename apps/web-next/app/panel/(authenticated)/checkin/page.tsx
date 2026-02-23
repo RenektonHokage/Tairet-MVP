@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
@@ -49,6 +50,23 @@ const TOKEN_DEDUPE_MS = 1400;
 // Tuning operativo en puerta para evitar spam de lecturas consecutivas.
 const GLOBAL_SCAN_COOLDOWN_MS = 1200;
 const SAME_TOKEN_COOLDOWN_MS = 5000;
+// Tuning operativo ZXing para lectura más estable en baja luz/movimiento moderado.
+const ZXING_SUCCESS_DELAY_MS = 380;
+const ZXING_SCAN_ATTEMPT_DELAY_MS = 110;
+
+interface CameraCapabilityState {
+  torch: boolean;
+  focusMode: boolean;
+  zoom: boolean;
+  exposure: boolean;
+}
+
+const EMPTY_CAMERA_CAPABILITIES: CameraCapabilityState = {
+  torch: false,
+  focusMode: false,
+  zoom: false,
+  exposure: false,
+};
 
 function normalizeToken(rawToken: string): string {
   return rawToken.trim();
@@ -99,6 +117,11 @@ export default function CheckinPage() {
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<OverlayState | null>(null);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [torchLoading, setTorchLoading] = useState(false);
+  const [torchError, setTorchError] = useState<string | null>(null);
+  const [cameraCapabilities, setCameraCapabilities] = useState<CameraCapabilityState>(EMPTY_CAMERA_CAPABILITIES);
 
   const isBlocked = context?.local.type === "bar";
 
@@ -108,6 +131,72 @@ export default function CheckinPage() {
       overlayTimeoutRef.current = null;
     }
   }, []);
+
+  const resetCameraEnhancements = useCallback(() => {
+    setTorchSupported(false);
+    setTorchEnabled(false);
+    setTorchLoading(false);
+    setTorchError(null);
+    setCameraCapabilities(EMPTY_CAMERA_CAPABILITIES);
+  }, []);
+
+  const detectCameraCapabilities = useCallback((controls: IScannerControls | null) => {
+    if (!controls?.streamVideoCapabilitiesGet) {
+      resetCameraEnhancements();
+      return;
+    }
+
+    try {
+      const rawCapabilities =
+        controls.streamVideoCapabilitiesGet((track) => [track]) ??
+        ({} as MediaTrackCapabilities);
+      const capabilities = rawCapabilities as Record<string, unknown>;
+
+      const hasTorch = Boolean(
+        controls.switchTorch &&
+          Object.prototype.hasOwnProperty.call(capabilities, "torch") &&
+          capabilities.torch === true
+      );
+      const hasFocusMode = Object.prototype.hasOwnProperty.call(capabilities, "focusMode");
+      const hasZoom = Object.prototype.hasOwnProperty.call(capabilities, "zoom");
+      const hasExposure =
+        Object.prototype.hasOwnProperty.call(capabilities, "brightness") ||
+        Object.prototype.hasOwnProperty.call(capabilities, "exposureCompensation") ||
+        Object.prototype.hasOwnProperty.call(capabilities, "exposureTime");
+
+      setTorchSupported(hasTorch);
+      setTorchEnabled(false);
+      setTorchError(null);
+      setCameraCapabilities({
+        torch: hasTorch,
+        focusMode: hasFocusMode,
+        zoom: hasZoom,
+        exposure: hasExposure,
+      });
+    } catch (error) {
+      console.warn("[checkin] unable to inspect camera capabilities", error);
+      resetCameraEnhancements();
+    }
+  }, [resetCameraEnhancements]);
+
+  const toggleTorch = useCallback(async () => {
+    const controls = scannerControlsRef.current;
+    if (!controls?.switchTorch || !torchSupported) return;
+
+    setTorchLoading(true);
+    setTorchError(null);
+    const nextTorchState = !torchEnabled;
+
+    try {
+      await controls.switchTorch(nextTorchState);
+      setTorchEnabled(nextTorchState);
+    } catch (error) {
+      console.error("[checkin] torch toggle failed", error);
+      setTorchError("No se pudo cambiar la linterna en este dispositivo.");
+    } finally {
+      setTorchLoading(false);
+    }
+  }, [torchEnabled, torchSupported]);
 
   const stopCamera = useCallback(() => {
     scanningRef.current = false;
@@ -142,7 +231,8 @@ export default function CheckinPage() {
     }
 
     setCameraStatus("idle");
-  }, []);
+    resetCameraEnhancements();
+  }, [resetCameraEnhancements]);
 
   useEffect(() => {
     if (contextLoading || isBlocked) return;
@@ -384,6 +474,7 @@ export default function CheckinPage() {
     if (isBlocked || scanningRef.current || scannerControlsRef.current) return;
 
     setCameraError(null);
+    setTorchError(null);
     setCameraStatus("requesting");
 
     try {
@@ -396,7 +487,13 @@ export default function CheckinPage() {
       }
 
       const { BrowserQRCodeReader } = await import("@zxing/browser");
-      const codeReader = new BrowserQRCodeReader();
+      const readerHints = new Map<DecodeHintType, unknown>();
+      readerHints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]);
+      readerHints.set(DecodeHintType.TRY_HARDER, true);
+      const codeReader = new BrowserQRCodeReader(readerHints, {
+        delayBetweenScanSuccess: ZXING_SUCCESS_DELAY_MS,
+        delayBetweenScanAttempts: ZXING_SCAN_ATTEMPT_DELAY_MS,
+      });
       readerRef.current = codeReader;
       scanningRef.current = true;
       const videoElement = await waitForVideoElement();
@@ -426,24 +523,26 @@ export default function CheckinPage() {
       );
 
       scannerControlsRef.current = controls;
+      detectCameraCapabilities(controls);
       setCameraStatus("active");
-      } catch (err) {
-        scanningRef.current = false;
-        scannerControlsRef.current = null;
-        readerRef.current = null;
+    } catch (err) {
+      scanningRef.current = false;
+      scannerControlsRef.current = null;
+      readerRef.current = null;
+      resetCameraEnhancements();
 
-        const error = err as Error;
-        console.error("[checkin] camera/scanner startup failed", err);
-        if (error.name === "NotAllowedError") {
-          setCameraStatus("permission_denied");
-          setCameraError("Permiso de cámara denegado. Usa el input manual.");
-        } else {
-          setCameraStatus("error");
-          const detail = error.message ? ` (${error.message})` : "";
-          setCameraError(`No se pudo acceder a la cámara. Usa el input manual para pegar el token.${detail}`);
-        }
+      const error = err as Error;
+      console.error("[checkin] camera/scanner startup failed", err);
+      if (error.name === "NotAllowedError") {
+        setCameraStatus("permission_denied");
+        setCameraError("Permiso de cámara denegado. Usa el input manual.");
+      } else {
+        setCameraStatus("error");
+        const detail = error.message ? ` (${error.message})` : "";
+        setCameraError(`No se pudo acceder a la cámara. Usa el input manual para pegar el token.${detail}`);
       }
-    }, [handleScannedToken, isBlocked, waitForVideoElement]);
+    }
+  }, [detectCameraCapabilities, handleScannedToken, isBlocked, resetCameraEnhancements, waitForVideoElement]);
 
   const handleCheckin = async () => {
     const normalizedToken = normalizeToken(token);
@@ -576,13 +675,57 @@ export default function CheckinPage() {
               )}
             </div>
 
+            <div className="max-w-md mx-auto space-y-1.5">
+              <p className="text-xs text-gray-600">Centrá el QR dentro del recuadro y mantenelo estable un instante.</p>
+              {cameraStatus === "active" &&
+                (torchSupported ? (
+                  <p className="text-xs text-gray-600">
+                    Baja luz detectada: podés activar la linterna para mejorar la lectura.
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-600">
+                    Si hay poca luz, subí el brillo del QR en el celular o acercá la pantalla.
+                  </p>
+                ))}
+              {cameraStatus === "active" &&
+                (cameraCapabilities.focusMode || cameraCapabilities.zoom || cameraCapabilities.exposure) && (
+                  <p className="text-[11px] text-gray-500">
+                    Cámara compatible con ajuste
+                    {cameraCapabilities.focusMode ? " de enfoque" : ""}
+                    {cameraCapabilities.focusMode && cameraCapabilities.zoom ? " y" : ""}
+                    {cameraCapabilities.zoom ? " de zoom" : ""}
+                    {(cameraCapabilities.focusMode || cameraCapabilities.zoom) && cameraCapabilities.exposure
+                      ? " y"
+                      : ""}
+                    {cameraCapabilities.exposure ? " de exposición" : ""}.
+                  </p>
+                )}
+            </div>
+
             {cameraStatus === "active" && (
-              <button
-                onClick={stopCamera}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-              >
-                Detener Cámara
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {torchSupported && (
+                  <button
+                    onClick={toggleTorch}
+                    disabled={torchLoading}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-md hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {torchLoading ? "Aplicando..." : torchEnabled ? "🔦 Apagar Linterna" : "🔦 Activar Linterna"}
+                  </button>
+                )}
+                <button
+                  onClick={stopCamera}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Detener Cámara
+                </button>
+              </div>
+            )}
+
+            {cameraStatus === "active" && torchError && (
+              <div className="max-w-md mx-auto p-2 bg-amber-50 border border-amber-200 rounded-md">
+                <p className="text-xs text-amber-800">{torchError}</p>
+              </div>
             )}
           </div>
         ) : (
