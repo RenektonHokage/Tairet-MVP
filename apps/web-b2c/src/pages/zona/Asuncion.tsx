@@ -19,7 +19,11 @@ import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
-import { getZoneCoverMaps, type CoverBySlugMap } from "@/lib/localCoverMaps";
+import {
+  getZoneCoverMaps,
+  type CoverBySlugMap,
+  type TodayScheduleBySlugMap,
+} from "@/lib/localCoverMaps";
 import { prefetchImages } from "@/lib/imagePrefetch";
 
 const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
@@ -70,6 +74,8 @@ function BarCard({
 export default function ZonaAsuncion() {
   const [clubCoverBySlug, setClubCoverBySlug] = useState<CoverBySlugMap>(new Map());
   const [barCoverBySlug, setBarCoverBySlug] = useState<CoverBySlugMap>(new Map());
+  const [clubScheduleBySlug, setClubScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
+  const [barScheduleBySlug, setBarScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
   const [isLoadingCovers, setIsLoadingCovers] = useState(true);
   const bars = useMemo(() => selectBarVenues({ city: "asuncion", scope: "zone" }), []);
 
@@ -78,10 +84,12 @@ export default function ZonaAsuncion() {
     document.title = "Descubrí Asunción | Zonas - Tairet";
 
     getZoneCoverMaps(100)
-      .then(({ clubCovers, barCovers }) => {
+      .then(({ clubCovers, barCovers, clubSchedules, barSchedules }) => {
         if (!active) return;
         setClubCoverBySlug(clubCovers);
         setBarCoverBySlug(barCovers);
+        setClubScheduleBySlug(clubSchedules);
+        setBarScheduleBySlug(barSchedules);
       })
       .catch(() => {
         // Silently fail - current mock images/placeholders remain
@@ -162,7 +170,7 @@ export default function ZonaAsuncion() {
                       key={item.id}
                       id={item.id}
                       name={item.name}
-                      schedule={item.schedule}
+                      schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                       rating={item.rating}
                       genres={item.genres}
                       image={clubCoverBySlug.get(clubSlug) || item.customImage}
@@ -211,7 +219,7 @@ export default function ZonaAsuncion() {
                       <VenueCard 
                         id={item.id}
                         name={item.name}
-                        schedule={item.schedule}
+                        schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                         rating={item.rating}
                         genres={item.genres}
                         image={clubCoverBySlug.get(clubSlug) || item.customImage}
@@ -232,7 +240,11 @@ export default function ZonaAsuncion() {
       </section>
 
       
-      <BarsSection coverBySlug={barCoverBySlug} isLoading={isLoadingCovers} />
+      <BarsSection
+        coverBySlug={barCoverBySlug}
+        scheduleBySlug={barScheduleBySlug}
+        isLoading={isLoadingCovers}
+      />
     </main>
     </>;
 }

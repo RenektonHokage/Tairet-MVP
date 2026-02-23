@@ -1,6 +1,15 @@
 import { Router } from "express";
 import { z, ZodError } from "zod";
 import { supabase } from "../services/supabase";
+import {
+  applyDailyOverride,
+  computeOperationalDate,
+  getTodayHoursDisplay,
+  isOpenOnOperationalDate,
+  normalizeLegacyHours,
+  type OpeningHoursV1,
+  validateOpeningHoursV1,
+} from "../services/openingHours";
 import { logger } from "../utils/logger";
 
 export const publicRouter = Router();
@@ -13,6 +22,57 @@ const listLocalsQuerySchema = z.object({
   type: z.enum(["bar", "club"]).optional(),
   limit: z.coerce.number().min(1).max(100).default(50),
 });
+
+function resolveTodayScheduleState(
+  rawOpeningHours: unknown,
+  operationalDate: string,
+  dailyIsOpen: boolean | undefined,
+): { openingHours: OpeningHoursV1 | null; isOpenToday: boolean | null; todayHours: string | null } {
+  const openingHoursValidation =
+    rawOpeningHours && typeof rawOpeningHours === "object"
+      ? validateOpeningHoursV1(rawOpeningHours)
+      : null;
+  const openingHours = openingHoursValidation?.ok ? openingHoursValidation.value : null;
+  const baseIsOpenToday = isOpenOnOperationalDate(openingHours, operationalDate);
+  const baseTodayHours = getTodayHoursDisplay(openingHours, operationalDate);
+  const { isOpenToday, todayHours } = applyDailyOverride(baseIsOpenToday, baseTodayHours, dailyIsOpen);
+
+  return { openingHours, isOpenToday, todayHours };
+}
+
+async function fetchDailyOverrides(
+  localIds: string[],
+  operationalDate: string,
+  context: string,
+): Promise<Map<string, boolean>> {
+  const overrides = new Map<string, boolean>();
+
+  if (localIds.length === 0) {
+    return overrides;
+  }
+
+  const { data: dailyOps, error } = await supabase
+    .from("local_daily_ops")
+    .select("local_id, is_open")
+    .eq("day", operationalDate)
+    .in("local_id", localIds);
+
+  if (error) {
+    logger.warn(`Error fetching local_daily_ops for ${context}`, {
+      error: error.message,
+      operationalDate,
+    });
+    return overrides;
+  }
+
+  for (const op of dailyOps ?? []) {
+    if (typeof op.local_id === "string" && typeof op.is_open === "boolean") {
+      overrides.set(op.local_id, op.is_open);
+    }
+  }
+
+  return overrides;
+}
 
 /**
  * GET /public/locals
@@ -34,7 +94,7 @@ publicRouter.get("/locals", async (req, res) => {
     // Query base
     let query = supabase
       .from("locals")
-      .select("id, slug, name, type, location, city, gallery, attributes, min_age")
+      .select("id, slug, name, type, location, city, latitude, longitude, gallery, attributes, min_age, opening_hours")
       .order("name", { ascending: true })
       .limit(limit);
 
@@ -53,10 +113,23 @@ publicRouter.get("/locals", async (req, res) => {
       });
     }
 
-    // Transformar respuesta: extraer cover_url de gallery, normalizar attributes
+    const operationalDate = computeOperationalDate();
+    const localIds = (locals ?? [])
+      .map((local) => (typeof local.id === "string" ? local.id : null))
+      .filter((localId): localId is string => localId !== null);
+
+    const dailyOverrides = await fetchDailyOverrides(localIds, operationalDate, "/public/locals");
+
+    // Transformar respuesta: extraer cover_url de gallery, normalizar attributes + horarios de hoy
     const result = (locals || []).map((local) => {
       const gallery = Array.isArray(local.gallery) ? local.gallery : [];
       const coverItem = gallery.find((g: { kind?: string }) => g.kind === "cover");
+      const dailyIsOpen = dailyOverrides.get(local.id);
+      const { isOpenToday, todayHours } = resolveTodayScheduleState(
+        local.opening_hours,
+        operationalDate,
+        dailyIsOpen,
+      );
       
       return {
         id: local.id,
@@ -65,9 +138,14 @@ publicRouter.get("/locals", async (req, res) => {
         type: local.type,
         location: local.location || null,
         city: local.city || null,
+        latitude: typeof local.latitude === "number" ? local.latitude : null,
+        longitude: typeof local.longitude === "number" ? local.longitude : null,
         cover_url: coverItem?.url || null,
         attributes: Array.isArray(local.attributes) ? local.attributes : [],
         min_age: typeof local.min_age === "number" ? local.min_age : null,
+        is_open_today: isOpenToday,
+        today_hours: todayHours,
+        operational_date: operationalDate,
       };
     });
 
@@ -109,7 +187,7 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
     // Buscar local por slug
     const { data: local, error } = await supabase
       .from("locals")
-      .select("id, slug, name, address, location, city, hours, additional_info, phone, whatsapp, ticket_price, type, gallery")
+      .select("id, slug, name, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, ticket_price, type, gallery")
       .eq("slug", validSlug)
       .single();
 
@@ -161,6 +239,15 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       // Don't fail the request, just return empty promotions
     }
 
+    const operationalDate = computeOperationalDate();
+    const dailyOverrides = await fetchDailyOverrides([local.id], operationalDate, "/public/locals/by-slug/:slug");
+    const dailyIsOpen = dailyOverrides.get(local.id);
+    const { openingHours, isOpenToday, todayHours } = resolveTodayScheduleState(
+      local.opening_hours,
+      operationalDate,
+      dailyIsOpen,
+    );
+
     // Retornar solo los campos necesarios para B2C
     return res.status(200).json({
       id: local.id,
@@ -169,7 +256,13 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       address: local.address || null,
       location: local.location || null,
       city: local.city || null,
-      hours: Array.isArray(local.hours) ? local.hours : [],
+      latitude: typeof local.latitude === "number" ? local.latitude : null,
+      longitude: typeof local.longitude === "number" ? local.longitude : null,
+      hours: normalizeLegacyHours(local.hours),
+      opening_hours: openingHours,
+      is_open_today: isOpenToday,
+      today_hours: todayHours,
+      operational_date: operationalDate,
       additional_info: Array.isArray(local.additional_info) ? local.additional_info : [],
       phone: local.phone || null,
       whatsapp: local.whatsapp || null,

@@ -13,10 +13,12 @@ import { prefetchImages } from '@/lib/imagePrefetch';
 const BarsSection: React.FC<{
   typeFilter?: string;
   coverBySlug?: Map<string, string>;
+  scheduleBySlug?: Map<string, string>;
   isLoading?: boolean;
 }> = ({
   typeFilter,
   coverBySlug,
+  scheduleBySlug,
   isLoading = false,
 }) => {
   let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
@@ -125,7 +127,7 @@ const BarsSection: React.FC<{
                   key={item.id}
                   id={item.id}
                   name={item.name}
-                  schedule={item.schedule}
+                  schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                   rating={item.rating}
                   specialties={item.specialties}
                   image={coverBySlug?.get(barSlug) || item.image}
@@ -153,7 +155,7 @@ const BarsSection: React.FC<{
                     <VenueCard 
                       id={item.id}
                       name={item.name}
-                      schedule={item.schedule}
+                      schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                       rating={item.rating}
                       specialties={item.specialties}
                       image={coverBySlug?.get(barSlug) || item.image}

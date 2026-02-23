@@ -18,8 +18,12 @@ import {
   type LocalProfile,
   type LocalGalleryItem,
   type GalleryKind,
+  type OpeningHoursV1,
+  type OpeningHoursDayKey,
+  type OpeningHoursRange,
   type CatalogTicket,
   type CatalogTable,
+  OPENING_HOURS_DAY_KEYS,
   BAR_GALLERY_KINDS,
   CLUB_GALLERY_KINDS,
   GALLERY_KIND_LABELS,
@@ -41,6 +45,291 @@ const parseLines = (text: string): string[] =>
 
 const toLines = (arr?: string[] | null): string =>
   (arr ?? []).join("\n");
+
+const OPENING_HOURS_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const OPENING_HOURS_DEFAULT_RANGE: OpeningHoursRange = { start: "18:00", end: "23:00" };
+
+const OPENING_HOURS_DAY_LABELS: Record<OpeningHoursDayKey, { short: string; full: string }> = {
+  mon: { short: "Lun", full: "Lunes" },
+  tue: { short: "Mar", full: "Martes" },
+  wed: { short: "Mie", full: "Miercoles" },
+  thu: { short: "Jue", full: "Jueves" },
+  fri: { short: "Vie", full: "Viernes" },
+  sat: { short: "Sab", full: "Sabado" },
+  sun: { short: "Dom", full: "Domingo" },
+};
+
+const createDefaultOpeningHours = (): OpeningHoursV1 => ({
+  version: 1,
+  timezone: "America/Asuncion",
+  days: OPENING_HOURS_DAY_KEYS.reduce((acc, dayKey) => {
+    acc[dayKey] = { closed: true, ranges: [] };
+    return acc;
+  }, {} as OpeningHoursV1["days"]),
+});
+
+const normalizeOpeningHoursTime = (value: string): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (OPENING_HOURS_TIME_REGEX.test(trimmed)) return trimmed;
+
+  const tolerant = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!tolerant) return null;
+
+  const hour = Number(tolerant[1]);
+  const minute = Number(tolerant[2] ?? "0");
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const normalizeOpeningHoursRanges = (ranges: OpeningHoursRange[] | undefined): OpeningHoursRange[] =>
+  (Array.isArray(ranges) ? ranges : [])
+    .map((range) => {
+      const start = normalizeOpeningHoursTime(range?.start ?? "");
+      const end = normalizeOpeningHoursTime(range?.end ?? "");
+      if (!start || !end || start === end) return null;
+      return { start, end };
+    })
+    .filter((range): range is OpeningHoursRange => range !== null);
+
+const normalizeOpeningHoursForEditor = (value: OpeningHoursV1 | null | undefined): OpeningHoursV1 => {
+  const fallback = createDefaultOpeningHours();
+  if (!value) return fallback;
+
+  const normalizedDays = OPENING_HOURS_DAY_KEYS.reduce((acc, dayKey) => {
+    const sourceDay = value.days?.[dayKey];
+    const closed = Boolean(sourceDay?.closed);
+    const normalizedRanges = normalizeOpeningHoursRanges(sourceDay?.ranges);
+    acc[dayKey] = closed ? { closed: true, ranges: [] } : { closed: false, ranges: normalizedRanges };
+    return acc;
+  }, {} as OpeningHoursV1["days"]);
+
+  return {
+    version: 1,
+    timezone: "America/Asuncion",
+    days: normalizedDays,
+  };
+};
+
+const toMinutes = (hhmm: string): number => {
+  const [hour, minute] = hhmm.split(":").map(Number);
+  return hour * 60 + minute;
+};
+
+const formatLegacyRange = (start: string, end: string): string => `${start}-${end} hs`;
+
+const buildDayHoursDisplay = (dayConfig: OpeningHoursV1["days"][OpeningHoursDayKey]): string => {
+  if (dayConfig.closed || dayConfig.ranges.length === 0) {
+    return "Cerrado";
+  }
+
+  const ranges = dayConfig.ranges
+    .map((range) => {
+      const start = normalizeOpeningHoursTime(range.start);
+      const end = normalizeOpeningHoursTime(range.end);
+      if (!start || !end || start === end) return null;
+      return formatLegacyRange(start, end);
+    })
+    .filter((value): value is string => value !== null);
+
+  return ranges.length > 0 ? ranges.join(" / ") : "Cerrado";
+};
+
+const clampLegacyLine = (line: string): string =>
+  line.length <= 120 ? line : `${line.slice(0, 119)}…`;
+
+type LegacyHoursFormatMode = "compact" | "expanded";
+
+const deriveLegacyHoursCompact = (
+  dayDisplays: Array<{ dayKey: OpeningHoursDayKey; display: string }>
+): string[] => {
+  const grouped: Array<{ startIndex: number; endIndex: number; display: string }> = [];
+  for (let index = 0; index < dayDisplays.length; index += 1) {
+    const currentDisplay = dayDisplays[index].display;
+    const lastGroup = grouped[grouped.length - 1];
+    if (!lastGroup || lastGroup.display !== currentDisplay || lastGroup.endIndex !== index - 1) {
+      grouped.push({ startIndex: index, endIndex: index, display: currentDisplay });
+    } else {
+      lastGroup.endIndex = index;
+    }
+  }
+
+  const lines: string[] = [];
+  const addDayLine = (startIndex: number, endIndex: number, display: string) => {
+    const startKey = OPENING_HOURS_DAY_KEYS[startIndex];
+    const endKey = OPENING_HOURS_DAY_KEYS[endIndex];
+    const startLabel = OPENING_HOURS_DAY_LABELS[startKey].short;
+    const endLabel = OPENING_HOURS_DAY_LABELS[endKey].short;
+    const dayLabel = startIndex === endIndex ? startLabel : `${startLabel}-${endLabel}`;
+    lines.push(clampLegacyLine(`${dayLabel}: ${display}`));
+  };
+
+  grouped.forEach((group) => {
+    const startKey = OPENING_HOURS_DAY_KEYS[group.startIndex];
+    const endKey = OPENING_HOURS_DAY_KEYS[group.endIndex];
+    const dayLabel =
+      group.startIndex === group.endIndex
+        ? OPENING_HOURS_DAY_LABELS[startKey].short
+        : `${OPENING_HOURS_DAY_LABELS[startKey].short}-${OPENING_HOURS_DAY_LABELS[endKey].short}`;
+    const singleLine = `${dayLabel}: ${group.display}`;
+
+    if (singleLine.length <= 120) {
+      lines.push(singleLine);
+      return;
+    }
+
+    for (let dayIndex = group.startIndex; dayIndex <= group.endIndex; dayIndex += 1) {
+      addDayLine(dayIndex, dayIndex, group.display);
+    }
+  });
+
+  return lines.slice(0, 14).map(clampLegacyLine);
+};
+
+const deriveLegacyHoursExpanded = (
+  dayDisplays: Array<{ dayKey: OpeningHoursDayKey; display: string }>
+): string[] =>
+  dayDisplays
+    .map(({ dayKey, display }) => clampLegacyLine(`${OPENING_HOURS_DAY_LABELS[dayKey].full}: ${display}`))
+    .slice(0, 14);
+
+const deriveLegacyHours = (
+  openingHours: OpeningHoursV1,
+  mode: LegacyHoursFormatMode = "compact"
+): string[] => {
+  const normalized = normalizeOpeningHoursForEditor(openingHours);
+  const dayDisplays = OPENING_HOURS_DAY_KEYS.map((dayKey) => ({
+    dayKey,
+    display: buildDayHoursDisplay(normalized.days[dayKey]),
+  }));
+
+  return mode === "expanded"
+    ? deriveLegacyHoursExpanded(dayDisplays)
+    : deriveLegacyHoursCompact(dayDisplays);
+};
+
+interface OpeningHoursValidationResult {
+  normalized: OpeningHoursV1;
+  errors: string[];
+}
+
+const validateOpeningHoursForSubmit = (openingHours: OpeningHoursV1): OpeningHoursValidationResult => {
+  const normalized = createDefaultOpeningHours();
+  const errors: string[] = [];
+
+  OPENING_HOURS_DAY_KEYS.forEach((dayKey) => {
+    const sourceDay = openingHours.days?.[dayKey];
+    const dayLabel = OPENING_HOURS_DAY_LABELS[dayKey].full;
+    const dayClosed = Boolean(sourceDay?.closed);
+    const sourceRanges = Array.isArray(sourceDay?.ranges) ? sourceDay.ranges : [];
+
+    if (dayClosed) {
+      if (sourceRanges.length > 0) {
+        errors.push(`${dayLabel}: si esta cerrado no puede tener rangos.`);
+      }
+      normalized.days[dayKey] = { closed: true, ranges: [] };
+      return;
+    }
+
+    if (sourceRanges.length === 0) {
+      errors.push(`${dayLabel}: agrega al menos un rango o marca Cerrado.`);
+      normalized.days[dayKey] = { closed: false, ranges: [] };
+      return;
+    }
+
+    const normalizedRanges: OpeningHoursRange[] = [];
+    const intervals: Array<{ start: number; end: number; rangeIndex: number }> = [];
+    sourceRanges.forEach((range, rangeIndex) => {
+      const start = normalizeOpeningHoursTime(range.start);
+      const end = normalizeOpeningHoursTime(range.end);
+      if (!start || !end) {
+        errors.push(`${dayLabel}: rango ${rangeIndex + 1} debe tener formato HH:mm.`);
+        return;
+      }
+
+      if (start === end) {
+        errors.push(`${dayLabel}: rango ${rangeIndex + 1} no puede tener inicio y fin iguales.`);
+        return;
+      }
+
+      normalizedRanges.push({ start, end });
+
+      const startMinutes = toMinutes(start);
+      const endMinutes = toMinutes(end);
+      if (startMinutes < endMinutes) {
+        intervals.push({ start: startMinutes, end: endMinutes, rangeIndex });
+      } else {
+        intervals.push({ start: startMinutes, end: 24 * 60, rangeIndex });
+        intervals.push({ start: 0, end: endMinutes, rangeIndex });
+      }
+    });
+
+    const reportedPairs = new Set<string>();
+    for (let i = 0; i < intervals.length; i += 1) {
+      for (let j = i + 1; j < intervals.length; j += 1) {
+        const first = intervals[i];
+        const second = intervals[j];
+        if (first.rangeIndex === second.rangeIndex) continue;
+
+        const overlaps = first.start < second.end && second.start < first.end;
+        if (!overlaps) continue;
+
+        const a = Math.min(first.rangeIndex, second.rangeIndex) + 1;
+        const b = Math.max(first.rangeIndex, second.rangeIndex) + 1;
+        const pairKey = `${a}-${b}`;
+        if (reportedPairs.has(pairKey)) continue;
+        reportedPairs.add(pairKey);
+        errors.push(`${dayLabel}: los rangos ${a} y ${b} se solapan.`);
+      }
+    }
+
+    normalized.days[dayKey] = { closed: false, ranges: normalizedRanges };
+  });
+
+  return { normalized, errors };
+};
+
+type ParsedCoordinate = number | null | "invalid";
+
+const PARAGUAY_BOUNDS = {
+  minLat: -27.7,
+  maxLat: -19.0,
+  minLng: -62.9,
+  maxLng: -54.2,
+};
+
+const parseCoordinateInput = (value: string): ParsedCoordinate => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const cleaned = trimmed
+    .replace(/latitud|latitude|lat|longitud|longitude|lng/gi, "")
+    .replace(/[:=]/g, " ")
+    .trim();
+
+  const matches = cleaned.match(/-?\d+(?:[.,]\d+)?/g);
+  if (!matches || matches.length === 0) return "invalid";
+
+  const normalized = matches[0].replace(",", ".");
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return "invalid";
+  return parsed;
+};
+
+const isInRange = (value: number, min: number, max: number): boolean =>
+  value >= min && value <= max;
+
+const isWithinParaguay = (lat: number, lng: number): boolean =>
+  isInRange(lat, PARAGUAY_BOUNDS.minLat, PARAGUAY_BOUNDS.maxLat) &&
+  isInRange(lng, PARAGUAY_BOUNDS.minLng, PARAGUAY_BOUNDS.maxLng);
+
+const isLikelySwappedCoordinates = (lat: number, lng: number): boolean =>
+  isInRange(lat, PARAGUAY_BOUNDS.minLng, PARAGUAY_BOUNDS.maxLng) &&
+  isInRange(lng, PARAGUAY_BOUNDS.minLat, PARAGUAY_BOUNDS.maxLat);
 
 // Constantes de validación de imagen
 const MAX_FILE_SIZE_MB = 5;
@@ -132,11 +421,16 @@ export default function ProfilePage() {
     address: "",
     location: "",
     city: "",
+    latitude: "",
+    longitude: "",
     phone: "",
     whatsapp: "",
     hoursText: "",
     additionalInfoText: "",
   });
+  const [openingHoursDraft, setOpeningHoursDraft] = useState<OpeningHoursV1>(createDefaultOpeningHours);
+  const [useStructuredHours, setUseStructuredHours] = useState(false);
+  const [openingHoursErrors, setOpeningHoursErrors] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
   const [previewPromos, setPreviewPromos] = useState<Promo[]>([]);
   const [promosLoading, setPromosLoading] = useState(false);
@@ -220,17 +514,23 @@ export default function ProfilePage() {
 
     try {
       const data = await getPanelLocalProfile();
+      const normalizedOpeningHours = normalizeOpeningHoursForEditor(data.opening_hours);
       setProfile(data);
       setFormData({
         name: data.name || "",
         address: data.address || "",
         location: data.location || "",
         city: data.city || "",
+        latitude: data.latitude != null ? String(data.latitude) : "",
+        longitude: data.longitude != null ? String(data.longitude) : "",
         phone: data.phone || "",
         whatsapp: data.whatsapp || "",
         hoursText: toLines(data.hours),
         additionalInfoText: toLines(data.additional_info),
       });
+      setOpeningHoursDraft(normalizedOpeningHours);
+      setUseStructuredHours(Boolean(data.opening_hours));
+      setOpeningHoursErrors([]);
       setSelectedAttributes(Array.isArray(data.attributes) ? data.attributes : []);
       setMinAge(typeof data.min_age === "number" ? data.min_age : null);
     } catch (err) {
@@ -442,6 +742,91 @@ export default function ProfilePage() {
     }).format(price);
   };
 
+  const handleStructuredHoursToggle = (enabled: boolean) => {
+    setUseStructuredHours(enabled);
+    setOpeningHoursErrors([]);
+    setError(null);
+  };
+
+  const handleDayClosedToggle = (dayKey: OpeningHoursDayKey, closed: boolean) => {
+    setOpeningHoursDraft((prev) => {
+      const currentDay = prev.days[dayKey];
+      return {
+        ...prev,
+        days: {
+          ...prev.days,
+          [dayKey]: closed
+            ? { closed: true, ranges: [] }
+            : {
+                closed: false,
+                ranges: currentDay.ranges.length > 0 ? currentDay.ranges : [{ ...OPENING_HOURS_DEFAULT_RANGE }],
+              },
+        },
+      };
+    });
+    setOpeningHoursErrors([]);
+    setError(null);
+  };
+
+  const handleRangeChange = (
+    dayKey: OpeningHoursDayKey,
+    rangeIndex: number,
+    field: "start" | "end",
+    value: string,
+  ) => {
+    setOpeningHoursDraft((prev) => {
+      const dayConfig = prev.days[dayKey];
+      const updatedRanges = dayConfig.ranges.map((range, index) =>
+        index === rangeIndex ? { ...range, [field]: value } : range
+      );
+      return {
+        ...prev,
+        days: {
+          ...prev.days,
+          [dayKey]: { ...dayConfig, ranges: updatedRanges },
+        },
+      };
+    });
+    setOpeningHoursErrors([]);
+    setError(null);
+  };
+
+  const handleAddRange = (dayKey: OpeningHoursDayKey) => {
+    setOpeningHoursDraft((prev) => {
+      const dayConfig = prev.days[dayKey];
+      return {
+        ...prev,
+        days: {
+          ...prev.days,
+          [dayKey]: {
+            closed: false,
+            ranges: [...dayConfig.ranges, { ...OPENING_HOURS_DEFAULT_RANGE }],
+          },
+        },
+      };
+    });
+    setOpeningHoursErrors([]);
+    setError(null);
+  };
+
+  const handleRemoveRange = (dayKey: OpeningHoursDayKey, rangeIndex: number) => {
+    setOpeningHoursDraft((prev) => {
+      const dayConfig = prev.days[dayKey];
+      return {
+        ...prev,
+        days: {
+          ...prev.days,
+          [dayKey]: {
+            ...dayConfig,
+            ranges: dayConfig.ranges.filter((_, index) => index !== rangeIndex),
+          },
+        },
+      };
+    });
+    setOpeningHoursErrors([]);
+    setError(null);
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -458,12 +843,40 @@ export default function ProfilePage() {
       return;
     }
 
+    const parsedLatitude = parseCoordinateInput(formData.latitude);
+    if (parsedLatitude === "invalid" || (parsedLatitude !== null && (parsedLatitude < -90 || parsedLatitude > 90))) {
+      setError("Latitud inválida. Debe estar entre -90 y 90.");
+      return;
+    }
+
+    const parsedLongitude = parseCoordinateInput(formData.longitude);
+    if (parsedLongitude === "invalid" || (parsedLongitude !== null && (parsedLongitude < -180 || parsedLongitude > 180))) {
+      setError("Longitud inválida. Debe estar entre -180 y 180.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
     setSuccess(false);
+    setOpeningHoursErrors([]);
 
     try {
-      const hours = parseLines(formData.hoursText);
+      let hours: string[] = [];
+      let openingHoursPayload: OpeningHoursV1 | undefined;
+
+      if (useStructuredHours) {
+        const validation = validateOpeningHoursForSubmit(openingHoursDraft);
+        if (validation.errors.length > 0) {
+          setOpeningHoursErrors(validation.errors);
+          setError("Corregí los horarios estructurados antes de guardar.");
+          return;
+        }
+        openingHoursPayload = validation.normalized;
+        hours = deriveLegacyHours(validation.normalized, "expanded");
+      } else {
+        hours = parseLines(formData.hoursText);
+      }
+
       const additional_info = parseLines(formData.additionalInfoText);
 
       const updated = await updatePanelLocalProfile({
@@ -471,15 +884,25 @@ export default function ProfilePage() {
         address: formData.address.trim(),
         location: formData.location.trim(),
         city: formData.city.trim() || null,
+        latitude: parsedLatitude,
+        longitude: parsedLongitude,
         phone: formData.phone.trim(),
         whatsapp: formData.whatsapp.trim(),
         hours,
+        ...(useStructuredHours ? { opening_hours: openingHoursPayload ?? null } : {}),
         additional_info,
         attributes: selectedAttributes,
         min_age: minAge,
       });
 
       setProfile(updated);
+      setOpeningHoursDraft(normalizeOpeningHoursForEditor(updated.opening_hours));
+      setUseStructuredHours(Boolean(updated.opening_hours) || useStructuredHours);
+      setFormData((prev) => ({
+        ...prev,
+        hoursText: toLines(updated.hours),
+        additionalInfoText: toLines(updated.additional_info),
+      }));
       setSuccess(true);
 
       // Ocultar mensaje de exito despues de 3s
@@ -489,6 +912,15 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSwapCoordinates = () => {
+    if (typeof parsedLatitudeInput !== "number" || typeof parsedLongitudeInput !== "number") return;
+    setFormData((prev) => ({
+      ...prev,
+      latitude: String(parsedLongitudeInput),
+      longitude: String(parsedLatitudeInput),
+    }));
   };
 
   // ==========================================================================
@@ -767,9 +1199,40 @@ export default function ProfilePage() {
   const previewAddress = formData.address.trim();
   const previewLocation = formData.location.trim();
   const previewCity = formData.city.trim();
+  const parsedLatitudeInput = parseCoordinateInput(formData.latitude);
+  const parsedLongitudeInput = parseCoordinateInput(formData.longitude);
+  const latitudeInlineError =
+    parsedLatitudeInput === "invalid"
+      ? "Latitud inválida."
+      : typeof parsedLatitudeInput === "number" && !isInRange(parsedLatitudeInput, -90, 90)
+        ? "Latitud fuera de rango (-90 a 90)."
+        : null;
+  const longitudeInlineError =
+    parsedLongitudeInput === "invalid"
+      ? "Longitud inválida."
+      : typeof parsedLongitudeInput === "number" && !isInRange(parsedLongitudeInput, -180, 180)
+        ? "Longitud fuera de rango (-180 a 180)."
+        : null;
+  const hasValidCoordinatePair =
+    typeof parsedLatitudeInput === "number" &&
+    typeof parsedLongitudeInput === "number" &&
+    !latitudeInlineError &&
+    !longitudeInlineError;
+  const likelySwappedCoordinates =
+    hasValidCoordinatePair && isLikelySwappedCoordinates(parsedLatitudeInput, parsedLongitudeInput);
+  const outsideParaguayBounds =
+    hasValidCoordinatePair &&
+    !isWithinParaguay(parsedLatitudeInput, parsedLongitudeInput);
+  const mapsPreviewUrl = hasValidCoordinatePair
+    ? `https://www.google.com/maps?q=${parsedLatitudeInput},${parsedLongitudeInput}`
+    : null;
+  const hasPersistedOpeningHours = Boolean(profile?.opening_hours);
+  const derivedLegacyHoursExpanded = deriveLegacyHours(openingHoursDraft, "expanded");
   const previewPhone = formData.phone.trim();
   const previewWhatsapp = formData.whatsapp.trim();
-  const previewHours = parseLines(formData.hoursText);
+  const previewHours = useStructuredHours
+    ? derivedLegacyHoursExpanded
+    : parseLines(formData.hoursText);
   const previewAdditionalInfo = parseLines(formData.additionalInfoText);
   const previewAttributes = selectedAttributes.slice(0, 3);
   const previewCoverImage = sortedGallery.find((item) => item.kind === "cover")?.url ?? null;
@@ -1296,7 +1759,7 @@ export default function ProfilePage() {
               placeholder="Ej: Av. Mariscal López 1234"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Dirección completa que aparece en la sección Ubicación.
+              Dirección completa para geolocalizar el pin y para &quot;Cómo llegar&quot;.
             </p>
           </div>
 
@@ -1353,6 +1816,91 @@ export default function ProfilePage() {
               Se usa para mostrar &quot;Zona • Ciudad&quot; y para que &quot;Cómo llegar&quot; sea exacto.
             </p>
           </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="latitude"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Latitud (ej: -25.280046)
+              </label>
+              <input
+                type="text"
+                id="latitude"
+                value={formData.latitude}
+                onChange={(e) =>
+                  setFormData({ ...formData, latitude: e.target.value })
+                }
+                disabled={!canEdit || saving}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="-25.280046"
+              />
+              {latitudeInlineError ? (
+                <p className="mt-1 text-xs text-red-600">{latitudeInlineError}</p>
+              ) : null}
+            </div>
+
+            <div>
+              <label
+                htmlFor="longitude"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Longitud (ej: -57.634381)
+              </label>
+              <input
+                type="text"
+                id="longitude"
+                value={formData.longitude}
+                onChange={(e) =>
+                  setFormData({ ...formData, longitude: e.target.value })
+                }
+                disabled={!canEdit || saving}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="-57.634381"
+              />
+              {longitudeInlineError ? (
+                <p className="mt-1 text-xs text-red-600">{longitudeInlineError}</p>
+              ) : null}
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Ubicación exacta (recomendado). Si no la cargás, el mapa puede quedar aproximado.
+          </p>
+          <p className="text-xs text-gray-500">
+            Google Maps devuelve: lat, lng.
+          </p>
+          <p className="text-xs text-gray-500">
+            Mapbox &quot;center&quot; devuelve: lng, lat (si pegás eso, invertí).
+          </p>
+          {mapsPreviewUrl ? (
+            <a
+              href={mapsPreviewUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Ver en Google Maps
+            </a>
+          ) : null}
+          {outsideParaguayBounds ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <p>
+                {likelySwappedCoordinates
+                  ? "Las coordenadas parecen invertidas (lat/lng)."
+                  : "Las coordenadas están fuera de Paraguay y podrían generar un pin incorrecto."}
+              </p>
+              {likelySwappedCoordinates ? (
+                <button
+                  type="button"
+                  onClick={handleSwapCoordinates}
+                  className="mt-2 inline-flex rounded-md border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100"
+                >
+                  Intercambiar
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* Edad Mínima */}
           <div>
@@ -1471,28 +2019,180 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          {/* Hours (textarea, 1 linea = 1 item) */}
-          <div>
-            <label
-              htmlFor="hours"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Horarios
-            </label>
-            <textarea
-              id="hours"
-              rows={5}
-              value={formData.hoursText}
-              onChange={(e) =>
-                setFormData({ ...formData, hoursText: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
-              placeholder={`Lun - Jue: 18:00 - 02:00\nVie - Sáb: 18:00 - 03:00\nDom: Cerrado`}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Una línea por cada horario (máx 14 líneas).
-            </p>
+          {/* Opening hours v1 + legacy compatibility */}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Horarios (nuevo)</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    Editor semanal v1 (America/Asuncion). Soporta rangos overnight.
+                  </p>
+                </div>
+                {!hasPersistedOpeningHours && (
+                  <button
+                    type="button"
+                    onClick={() => handleStructuredHoursToggle(!useStructuredHours)}
+                    disabled={!canEdit || saving}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-blue-200 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {useStructuredHours ? "Usar modo legacy" : "Usar editor estructurado"}
+                  </button>
+                )}
+              </div>
+
+              {useStructuredHours ? (
+                <div className="mt-4 space-y-3">
+                  {OPENING_HOURS_DAY_KEYS.map((dayKey) => {
+                    const dayConfig = openingHoursDraft.days[dayKey];
+                    const dayLabel = OPENING_HOURS_DAY_LABELS[dayKey];
+                    const isClosed = dayConfig.closed;
+
+                    return (
+                      <div
+                        key={dayKey}
+                        className={`rounded-lg border p-3 sm:p-4 ${
+                          isClosed ? "border-gray-200 bg-white" : "border-blue-100 bg-blue-50/30"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700">
+                              {dayLabel.short}
+                            </span>
+                            <p className="text-sm font-medium text-gray-900">{dayLabel.full}</p>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                isClosed
+                                  ? "bg-gray-100 text-gray-600"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {isClosed ? "Cerrado" : "Abierto"}
+                            </span>
+                          </div>
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                            <input
+                              type="checkbox"
+                              checked={isClosed}
+                              onChange={(event) => handleDayClosedToggle(dayKey, event.target.checked)}
+                              disabled={!canEdit || saving}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Cerrado
+                          </label>
+                        </div>
+
+                        {!isClosed && (
+                          <div className="mt-3 space-y-2.5">
+                            {dayConfig.ranges.length === 0 && (
+                              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                Este día está abierto pero sin rangos. Agregá al menos un rango horario.
+                              </p>
+                            )}
+                            {dayConfig.ranges.map((range, index) => (
+                              <div
+                                key={`${dayKey}-${index}`}
+                                className="rounded-md border border-gray-200 bg-white p-2.5"
+                              >
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+                                  <div>
+                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                      Desde
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={range.start}
+                                      onChange={(event) =>
+                                        handleRangeChange(dayKey, index, "start", event.target.value)
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
+                                      Hasta
+                                    </label>
+                                    <input
+                                      type="time"
+                                      value={range.end}
+                                      onChange={(event) =>
+                                        handleRangeChange(dayKey, index, "end", event.target.value)
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveRange(dayKey, index)}
+                                    disabled={!canEdit || saving}
+                                    className="h-10 px-3 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    Quitar
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddRange(dayKey)}
+                              disabled={!canEdit || saving}
+                              className="inline-flex items-center rounded-md border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              + Agregar rango
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {openingHoursErrors.length > 0 && (
+                    <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                      <p className="text-sm font-medium text-red-700 mb-1">Errores de horarios</p>
+                      <ul className="list-disc list-inside space-y-0.5 text-sm text-red-700">
+                        {openingHoursErrors.map((issue) => (
+                          <li key={issue}>{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                </div>
+              ) : (
+                <p className="mt-3 text-xs text-gray-600">
+                  Si no tenes opening_hours cargado, podes seguir usando el campo legacy de abajo.
+                </p>
+              )}
+            </div>
+
+            {!useStructuredHours && (
+              <div>
+                <label
+                  htmlFor="hours"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Horarios
+                </label>
+                <textarea
+                  id="hours"
+                  rows={5}
+                  value={formData.hoursText}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hoursText: e.target.value })
+                  }
+                  disabled={!canEdit || saving}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
+                  placeholder={`Lun - Jue: 18:00 - 02:00\nVie - Sab: 18:00 - 03:00\nDom: Cerrado`}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Una linea por cada horario (max 14 lineas).
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Additional Info (textarea, 1 linea = 1 bullet) */}
@@ -1963,3 +2663,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

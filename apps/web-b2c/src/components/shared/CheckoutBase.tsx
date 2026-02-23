@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   CalendarDays,
@@ -22,11 +22,14 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
+import { getCalendarClassNames } from "@/components/shared/calendarClassNames";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder, type Order, type OrderItemPayload } from "@/lib/orders";
 import { isUuidLike } from "@/lib/types";
+import { isOpenOnWeekdayFromOpeningHours } from "@/lib/locals";
+import { useLocalOpeningHoursBySlug } from "@/hooks/useLocalOpeningHoursBySlug";
 import { es } from "date-fns/locale";
 
 interface CheckoutBaseProps {
@@ -37,6 +40,7 @@ interface CheckoutBaseProps {
 }
 
 const ASUNCION_TZ = "America/Asuncion";
+const NIGHT_CUTOFF_HOUR = 6;
 
 const pad2 = (value: number): string => value.toString().padStart(2, "0");
 
@@ -69,25 +73,35 @@ const addDaysToIso = (iso: string, days: number): string => {
   return isoFromUtcDate(parsed);
 };
 
-const getAsuncionTodayIso = (): string => {
+const getAsuncionDateParts = (date: Date): { iso: string; hour: number } => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: ASUNCION_TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date());
+    hour: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
 
   const year = parts.find((part) => part.type === "year")?.value ?? "1970";
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
 
-  return `${year}-${month}-${day}`;
+  return { iso: `${year}-${month}-${day}`, hour };
+};
+
+const getAsuncionOperationalDayIso = (): string => {
+  const { iso, hour } = getAsuncionDateParts(new Date());
+  if (!Number.isFinite(hour) || hour >= NIGHT_CUTOFF_HOUR) return iso;
+  return addDaysToIso(iso, -1);
 };
 
 const isIsoWithinRange = (iso: string, minIso: string, maxIso: string): boolean =>
   iso >= minIso && iso <= maxIso;
 
 const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: CheckoutBaseProps) => {
+  const location = useLocation();
   const { state: cartState, clearCart, removeFromCart } = useCart();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -103,13 +117,41 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const [orderCreated, setOrderCreated] = useState<Order | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const todayIso = useMemo(() => getAsuncionTodayIso(), []);
-  const maxSelectableIso = useMemo(() => addDaysToIso(todayIso, 30), [todayIso]);
-  const [selectedDate, setSelectedDate] = useState(todayIso);
+  const operationalDayIso = useMemo(() => getAsuncionOperationalDayIso(), []);
+  const maxSelectableIso = useMemo(
+    () => addDaysToIso(operationalDayIso, 30),
+    [operationalDayIso]
+  );
+  const [selectedDate, setSelectedDate] = useState(operationalDayIso);
+  const [hasCalendarInteraction, setHasCalendarInteraction] = useState(false);
 
   const selectedDateAsDate = useMemo(() => parseIsoDate(selectedDate), [selectedDate]);
-  const minSelectableDate = useMemo(() => parseIsoDate(todayIso), [todayIso]);
+  const minSelectableDate = useMemo(
+    () => parseIsoDate(operationalDayIso),
+    [operationalDayIso]
+  );
   const maxSelectableDate = useMemo(() => parseIsoDate(maxSelectableIso), [maxSelectableIso]);
+  const hasTicketItems = useMemo(
+    () => cartState.items.some((item) => item.kind === "ticket" || item.type === "ticket"),
+    [cartState.items]
+  );
+  const localSlug = useMemo(() => {
+    const segments = location.pathname.split("/").filter(Boolean);
+    if (segments.length < 2) return null;
+    const [entity, slug] = segments;
+    if ((entity === "club" || entity === "bar") && slug) return slug;
+    return null;
+  }, [location.pathname]);
+  const { openingHours: localOpeningHours } = useLocalOpeningHoursBySlug(
+    localSlug,
+    isOpen && hasTicketItems
+  );
+  const disabledByOpeningHours = useMemo(() => {
+    if (!hasTicketItems || localOpeningHours == null) {
+      return (date: Date) => false;
+    }
+    return (date: Date) => isOpenOnWeekdayFromOpeningHours(localOpeningHours, date) === false;
+  }, [hasTicketItems, localOpeningHours]);
 
   const selectedDateDisplay = useMemo(() => {
     const parsed = parseIsoDate(selectedDate);
@@ -214,7 +256,10 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       }
 
       const parsedSelectedDate = parseIsoDate(selectedDate);
-      if (!parsedSelectedDate || !isIsoWithinRange(selectedDate, todayIso, maxSelectableIso)) {
+      if (
+        !parsedSelectedDate ||
+        !isIsoWithinRange(selectedDate, operationalDayIso, maxSelectableIso)
+      ) {
         toast({
           title: "Error",
           description: "La fecha seleccionada está fuera del rango permitido.",
@@ -534,40 +579,27 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                             setSelectedDate("");
                             return;
                           }
+                          setHasCalendarInteraction(true);
                           const nextIso = dateToIsoFromLocal(date);
-                          if (isIsoWithinRange(nextIso, todayIso, maxSelectableIso)) {
+                          if (isIsoWithinRange(nextIso, operationalDayIso, maxSelectableIso)) {
                             setSelectedDate(nextIso);
                           }
                         }}
                         disabled={(date) => {
                           const iso = dateToIsoFromLocal(date);
-                          return !isIsoWithinRange(iso, todayIso, maxSelectableIso);
+                          if (!isIsoWithinRange(iso, operationalDayIso, maxSelectableIso)) {
+                            return true;
+                          }
+                          return disabledByOpeningHours(date);
                         }}
                         className="mx-auto w-full bg-transparent p-0"
                         components={{
                           IconLeft: () => <ChevronLeft className="h-4 w-4" />,
                           IconRight: () => <ChevronRight className="h-4 w-4" />,
                         }}
-                        classNames={{
-                          months: "flex flex-col",
-                          month: "space-y-4",
-                          caption: "relative flex items-center justify-center pb-1",
-                          caption_label: "text-base sm:text-lg font-semibold text-white",
-                          nav: "absolute inset-x-0 top-0 flex items-center justify-between px-1",
-                          nav_button:
-                            "h-7 w-7 rounded-md bg-transparent p-0 text-white/60 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/25",
-                          nav_button_previous: "relative left-0",
-                          nav_button_next: "relative right-0",
-                          table: "w-full border-collapse",
-                          head_row: "flex justify-between",
-                          head_cell: "w-9 text-center text-xs font-medium lowercase text-white/55 sm:w-10 sm:text-sm",
-                          row: "mt-2 flex justify-between",
-                          cell: "relative p-0 text-center",
-                          day: "h-9 w-9 rounded-md text-sm font-medium text-white/90 transition-colors hover:bg-white/10 sm:h-10 sm:w-10",
-                          day_outside: "text-white/25 opacity-60",
-                          day_disabled: "cursor-not-allowed text-white/20 opacity-50",
-                          day_hidden: "invisible",
-                        }}
+                        classNames={getCalendarClassNames({
+                          hideInitialSelectedVisual: !hasCalendarInteraction,
+                        })}
                       />
                     </div>
 

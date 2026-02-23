@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BarChart3, CalendarDays, CheckCircle2, Clock, Filter, Search } from "lucide-react";
+import { BarChart3, CalendarDays, CheckCircle2, Clock, Filter, RefreshCw, Search } from "lucide-react";
 
 import { Badge, EmptyState, PageHeader, StatCard, Toolbar, cn, panelUi } from "../ui";
 import { ReservationCard, type Reservation, type ReservationStatus } from "./ReservationCard";
@@ -41,6 +41,9 @@ export interface ReservationsViewProps {
   sortBy: "time" | "name";
   onSortChange: (value: "time" | "name") => void;
 
+  // Refetch
+  onRefresh: () => void;
+
   // Handlers para acciones de reservas
   onConfirm: (reservation: Reservation) => void;
   onCancel: (reservation: Reservation) => void;
@@ -51,6 +54,8 @@ export interface ReservationsViewProps {
 
   // Loading state (opcional)
   loading?: boolean;
+  hasLoadedDate?: boolean;
+  isFetchingForDate?: boolean;
 }
 
 export function ReservationsView({
@@ -64,12 +69,20 @@ export function ReservationsView({
   onStatusFilterChange,
   sortBy,
   onSortChange,
+  onRefresh,
   onConfirm,
   onCancel,
   onEdit,
   onClearFilters,
   loading,
+  hasLoadedDate,
+  isFetchingForDate,
 }: ReservationsViewProps) {
+  const showDateLoadingState =
+    Boolean(selectedDate) &&
+    (loading || isFetchingForDate) &&
+    (reservations.length === 0 || !hasLoadedDate);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -200,6 +213,21 @@ export function ReservationsView({
                 </span>
               </div>
             </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-neutral-600">Datos</span>
+              <button
+                className={cn(
+                  "inline-flex h-[38px] items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50",
+                  panelUi.focusRing
+                )}
+                type="button"
+                onClick={onRefresh}
+                disabled={!selectedDate || loading}
+              >
+                <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
+                {loading ? "Actualizando..." : "Refresh"}
+              </button>
+            </div>
           </div>
         }
       />
@@ -210,9 +238,11 @@ export function ReservationsView({
           <Badge variant="neutral">
             {loading ? "Cargando..." : `${reservations.length} reservas`}
           </Badge>
-          {selectedDate ? (
+          {!selectedDate ? (
+            <span className="text-xs text-neutral-500">Elegí una fecha</span>
+          ) : (
             <span className="text-xs text-neutral-500">Filtrado por fecha</span>
-          ) : null}
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -245,10 +275,20 @@ export function ReservationsView({
       </div>
 
       {/* Reservations grid o empty state */}
-      {reservations.length === 0 ? (
+      {!selectedDate ? (
         <EmptyState
-          title="No hay reservas para estos filtros"
-          description="Proba ajustando la fecha o el estado para ver resultados."
+          title="Elegí una fecha para ver reservas"
+          description="Seleccioná una fecha en el filtro para consultar la lista de reservas."
+        />
+      ) : showDateLoadingState ? (
+        <EmptyState
+          title="Cargando reservas..."
+          description="Estamos consultando las reservas del día seleccionado."
+        />
+      ) : reservations.length === 0 ? (
+        <EmptyState
+          title="Sin reservas para esta fecha"
+          description="Proba ajustando búsqueda o estado para ver otros resultados."
           action={
             <button
               className={cn(

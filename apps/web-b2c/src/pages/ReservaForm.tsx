@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createReservation } from '@/lib/api';
-import { getLocalBySlug } from '@/lib/locals';
+import {
+  getReservationTimeSlotsForDate,
+  isPastCalendarDateInAsuncion,
+  isOpenOnWeekdayFromOpeningHours,
+  isTimeAllowedOnDateFromOpeningHours,
+} from '@/lib/locals';
+import { useLocalOpeningHoursBySlug } from '@/hooks/useLocalOpeningHoursBySlug';
 import { Calendar as CalendarIcon, Users, Clock, User, Mail, Phone, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import Navbar from '@/components/layout/Navbar';
 import BackButton from '@/components/shared/BackButton';
+import { getCalendarClassNames } from '@/components/shared/calendarClassNames';
 
 const reservationSchema = z.object({
   firstName: z.string().trim().min(2, { message: "El nombre debe tener al menos 2 caracteres" }).max(100),
@@ -27,32 +34,26 @@ const reservationSchema = z.object({
   phone: z.string().trim().min(8, { message: "Número de teléfono inválido" }).max(20),
   people: z.string().min(1, { message: "Selecciona la cantidad de personas" }),
   date: z.date({ required_error: "Selecciona una fecha" }),
-  time: z.string().min(1, { message: "Selecciona un horario" }),
+  time: z
+    .string()
+    .min(1, { message: "Selecciona un horario" })
+    .regex(/^([01]?\d|2[0-3]):[0-5]\d$/, { message: "Selecciona un horario válido" }),
   comments: z.string().max(200).optional(),
 });
+
+const LEGACY_TIME_SLOTS = [
+  "18:00", "18:30", "19:00", "19:30", "20:00", "20:30",
+  "21:00", "21:30", "22:00", "22:30", "23:00", "23:30",
+  "00:00", "00:30", "01:00", "01:30", "02:00",
+];
 
 const ReservaForm = () => {
   const navigate = useNavigate();
   const { barId } = useParams();
   const [loading, setLoading] = useState(false);
-  const [localId, setLocalId] = useState<string | null>(null);
-
-  // Resolver local_id real desde slug
-  useEffect(() => {
-    if (!barId) return;
-
-    getLocalBySlug(barId)
-      .then((local) => {
-        if (local) {
-          setLocalId(local.id);
-        } else {
-          console.warn(`No se encontró local con slug: ${barId}`);
-        }
-      })
-      .catch((error) => {
-        console.error("Error al obtener local por slug:", error);
-      });
-  }, [barId]);
+  const { local, openingHours } = useLocalOpeningHoursBySlug(barId, Boolean(barId));
+  const localId = local?.id ?? null;
+  const previousDateKeyRef = useRef<string | null>(null);
 
   const form = useForm<z.infer<typeof reservationSchema>>({
     resolver: zodResolver(reservationSchema),
@@ -66,6 +67,39 @@ const ReservaForm = () => {
       comments: "",
     }
   });
+
+  const selectedDate = form.watch("date");
+  const selectedTime = form.watch("time");
+  const selectedDateKey = selectedDate instanceof Date && !Number.isNaN(selectedDate.getTime())
+    ? format(selectedDate, "yyyy-MM-dd")
+    : "";
+
+  const availableTimeSlots = useMemo(() => {
+    if (!(selectedDate instanceof Date) || Number.isNaN(selectedDate.getTime())) {
+      return [];
+    }
+
+    const dynamicSlots = getReservationTimeSlotsForDate(openingHours, selectedDate, { stepMinutes: 30 });
+    if (dynamicSlots === null) {
+      return LEGACY_TIME_SLOTS;
+    }
+
+    return dynamicSlots;
+  }, [openingHours, selectedDate]);
+
+  useEffect(() => {
+    const previousDateKey = previousDateKeyRef.current;
+    previousDateKeyRef.current = selectedDateKey || null;
+
+    if (!selectedTime) return;
+
+    if (!selectedDateKey || !availableTimeSlots.includes(selectedTime)) {
+      form.setValue("time", "", { shouldDirty: true, shouldValidate: true });
+      if (previousDateKey && previousDateKey !== selectedDateKey) {
+        toast.info("Seleccioná un horario disponible para la nueva fecha.");
+      }
+    }
+  }, [availableTimeSlots, form, selectedDateKey, selectedTime]);
 
   const onSubmit = async (data: z.infer<typeof reservationSchema>) => {
     if (loading) return;
@@ -81,12 +115,31 @@ const ReservaForm = () => {
     const phone = data.phone.trim();
     const guests = Number(data.people);
     const notes = data.comments?.trim() || undefined;
+    const normalizedTime = data.time.trim();
+
+    if (!/^([01]?\d|2[0-3]):[0-5]\d$/.test(normalizedTime)) {
+      toast.error("Selecciona un horario válido.");
+      return;
+    }
+
+    const isOpenOnSelectedDate = isOpenOnWeekdayFromOpeningHours(openingHours, data.date);
+
+    if (isOpenOnSelectedDate === false) {
+      toast.error("El local está cerrado en la fecha seleccionada.");
+      return;
+    }
+
+    const isTimeAllowed = isTimeAllowedOnDateFromOpeningHours(openingHours, data.date, normalizedTime);
+    if (isTimeAllowed === false) {
+      toast.error("La hora seleccionada está fuera del horario del local.");
+      return;
+    }
 
     // Combinar fecha y hora en ISO-8601
     const dateISO = (() => {
       if (!data.date || !data.time) return "";
       const d = new Date(data.date);
-      const [hours, minutes] = data.time.split(":");
+      const [hours, minutes] = normalizedTime.split(":");
       d.setHours(Number(hours), Number(minutes), 0, 0);
       return d.toISOString();
     })();
@@ -115,12 +168,6 @@ const ReservaForm = () => {
       setLoading(false);
     }
   };
-
-  const timeSlots = [
-    "18:00", "18:30", "19:00", "19:30", "20:00", "20:30",
-    "21:00", "21:30", "22:00", "22:30", "23:00", "23:30",
-    "00:00", "00:30", "01:00", "01:30", "02:00"
-  ];
 
   const peopleOptions = Array.from({ length: 15 }, (_, i) => (i + 1).toString());
 
@@ -274,7 +321,11 @@ const ReservaForm = () => {
                               mode="single"
                               selected={field.value}
                               onSelect={field.onChange}
-                              disabled={(date) => date < new Date()}
+                              disabled={(date) => {
+                                if (isPastCalendarDateInAsuncion(date)) return true;
+                                return isOpenOnWeekdayFromOpeningHours(openingHours, date) === false;
+                              }}
+                              classNames={getCalendarClassNames()}
                               initialFocus
                               className="pointer-events-auto"
                             />
@@ -294,20 +345,37 @@ const ReservaForm = () => {
                           <Clock className="w-4 h-4 text-primary" />
                           Hora
                         </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          value={field.value}
+                          disabled={!selectedDateKey || availableTimeSlots.length === 0}
+                        >
                           <FormControl>
                             <SelectTrigger className="h-12 text-base">
-                              <SelectValue placeholder="Horario" />
+                              <SelectValue
+                                placeholder={
+                                  !selectedDateKey
+                                    ? "Seleccioná una fecha primero"
+                                    : availableTimeSlots.length === 0
+                                      ? "Sin horarios disponibles"
+                                      : "Horario"
+                                }
+                              />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {timeSlots.map((slot) => (
+                            {availableTimeSlots.map((slot) => (
                               <SelectItem key={slot} value={slot} className="text-base">
                                 {slot}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedDateKey && availableTimeSlots.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            No hay horarios disponibles para la fecha seleccionada.
+                          </p>
+                        ) : null}
                         <FormMessage />
                       </FormItem>
                     )}

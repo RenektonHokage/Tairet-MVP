@@ -4,13 +4,105 @@ import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationReceivedEmail } from "../services/emails";
 import { panelAuth } from "../middlewares/panelAuth";
+import {
+  applyDailyOverride,
+  computeOperationalDate,
+  getTodayHoursDisplay,
+  isOpenOnOperationalDate,
+  validateOpeningHoursV1,
+} from "../services/openingHours";
 
 export const reservationsRouter = Router();
 
 // POST /reservations
 reservationsRouter.post("/", async (req, res, next) => {
   try {
-    const validated = createReservationSchema.parse(req.body);
+    const parsedBody = createReservationSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      const hasDateIssue = parsedBody.error.issues.some((issue) => issue.path[0] === "date");
+      if (hasDateIssue) {
+        return res.status(400).json({
+          error: "Fecha de reserva inválida",
+          code: "INVALID_RESERVATION_DATE",
+        });
+      }
+      return next(parsedBody.error);
+    }
+
+    const validated = parsedBody.data;
+
+    const reservationDate = new Date(validated.date);
+    if (Number.isNaN(reservationDate.getTime())) {
+      return res.status(400).json({
+        error: "Fecha de reserva inválida",
+        code: "INVALID_RESERVATION_DATE",
+      });
+    }
+
+    const operationalDate = computeOperationalDate(reservationDate);
+
+    const { data: localData, error: localError } = await supabase
+      .from("locals")
+      .select("id, name, opening_hours")
+      .eq("id", validated.local_id)
+      .maybeSingle();
+
+    if (localError) {
+      logger.error("Error fetching local for reservation validation", {
+        error: localError.message,
+        localId: validated.local_id,
+      });
+      return res.status(500).json({ error: "Error validando disponibilidad del local" });
+    }
+
+    if (!localData) {
+      return res.status(404).json({
+        error: "Local no encontrado",
+        code: "LOCAL_NOT_FOUND",
+      });
+    }
+
+    const { data: dailyOverrideRow, error: dailyOverrideError } = await supabase
+      .from("local_daily_ops")
+      .select("is_open")
+      .eq("local_id", validated.local_id)
+      .eq("day", operationalDate)
+      .maybeSingle();
+
+    if (dailyOverrideError) {
+      logger.warn("Error fetching local_daily_ops for reservation validation", {
+        error: dailyOverrideError.message,
+        localId: validated.local_id,
+        operationalDate,
+      });
+    }
+
+    const dailyIsOpen = typeof dailyOverrideRow?.is_open === "boolean" ? dailyOverrideRow.is_open : undefined;
+
+    let openingHours = null;
+    if (localData.opening_hours && typeof localData.opening_hours === "object") {
+      const validation = validateOpeningHoursV1(localData.opening_hours);
+      if (validation.ok) {
+        openingHours = validation.value;
+      } else {
+        logger.warn("Invalid opening_hours in reservation validation (compat mode, not blocking by schedule)", {
+          localId: validated.local_id,
+          errors: validation.errors,
+        });
+      }
+    }
+
+    const baseIsOpenOnDate = isOpenOnOperationalDate(openingHours, operationalDate);
+    const baseHoursOnDate = getTodayHoursDisplay(openingHours, operationalDate);
+    const { isOpenToday } = applyDailyOverride(baseIsOpenOnDate, baseHoursOnDate, dailyIsOpen);
+
+    if (isOpenToday === false) {
+      return res.status(409).json({
+        error: "El local está cerrado en la fecha seleccionada",
+        code: "LOCAL_CLOSED_DAY",
+        operational_date: operationalDate,
+      });
+    }
 
     const { data, error } = await supabase
       .from("reservations")
@@ -34,21 +126,7 @@ reservationsRouter.post("/", async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    let localName: string | undefined;
-    const { data: localData, error: localError } = await supabase
-      .from("locals")
-      .select("name")
-      .eq("id", validated.local_id)
-      .maybeSingle();
-
-    if (localError) {
-      logger.warn("Error fetching local name for reservation email", {
-        error: localError.message,
-        localId: validated.local_id,
-      });
-    } else {
-      localName = localData?.name ?? undefined;
-    }
+    const localName = localData.name ?? undefined;
 
     // Enviar email de forma fire-and-forget
     sendReservationReceivedEmail({

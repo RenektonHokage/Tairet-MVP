@@ -9,16 +9,31 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS locals (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
-  slug TEXT UNIQUE,
-  type TEXT NOT NULL CHECK (type IN ('bar', 'club')), -- Tipo de local: bar o club
+  slug TEXT CONSTRAINT locals_slug_key UNIQUE,
+  panel_handle TEXT,
+  type TEXT NOT NULL CONSTRAINT locals_type_check CHECK (type IN ('bar', 'club')), -- Tipo de local: bar o club
   description TEXT,
   address TEXT,
+  location TEXT,
+  city TEXT,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
   phone TEXT,
   whatsapp TEXT,
   email TEXT,
   ticket_price DECIMAL(10, 2) NOT NULL DEFAULT 0, -- Precio fijo por local (PYG)
+  hours JSONB NOT NULL DEFAULT '[]'::jsonb,
+  opening_hours JSONB,
+  additional_info JSONB NOT NULL DEFAULT '[]'::jsonb,
+  gallery JSONB NOT NULL DEFAULT '[]'::jsonb,
+  attributes JSONB NOT NULL DEFAULT '[]'::jsonb,
+  min_age SMALLINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT locals_latitude_range_check CHECK (latitude IS NULL OR (latitude >= -90 AND latitude <= 90)),
+  CONSTRAINT locals_longitude_range_check CHECK (longitude IS NULL OR (longitude >= -180 AND longitude <= 180)),
+  CONSTRAINT locals_min_age_range CHECK (min_age IS NULL OR (min_age >= 0 AND min_age <= 99)),
+  CONSTRAINT locals_opening_hours_is_object_check CHECK (opening_hours IS NULL OR jsonb_typeof(opening_hours) = 'object')
 );
 
 -- Tabla: promos

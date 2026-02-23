@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { images } from "@/lib/images";
 import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
 import { applySearchFilters, parseSearchParams, patchSearchParams } from "@/lib/search";
 import VenueCard from "@/components/shared/VenueCard";
 import { slugify } from "@/lib/slug";
 import { prefetchImages } from "@/lib/imagePrefetch";
+import { buildTodayScheduleBySlug, getLocalsList } from "@/lib/locals";
 
 const Explorar = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [todaySchedulesBySlug, setTodaySchedulesBySlug] = useState<Map<string, string>>(new Map());
   const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const typeFilter = searchState.type === "all" ? undefined : searchState.type;
   const bars = useMemo(
@@ -92,6 +94,30 @@ const Explorar = () => {
   }, [typeFilter, pageSubtitle]);
 
   useEffect(() => {
+    let active = true;
+
+    Promise.allSettled([getLocalsList("bar", 100), getLocalsList("club", 100)])
+      .then(([barsResult, clubsResult]) => {
+        if (!active) return;
+
+        const barsLocals = barsResult.status === "fulfilled" ? barsResult.value : [];
+        const clubsLocals = clubsResult.status === "fulfilled" ? clubsResult.value : [];
+        const nextMap = new Map<string, string>([
+          ...buildTodayScheduleBySlug(barsLocals),
+          ...buildTodayScheduleBySlug(clubsLocals),
+        ]);
+        setTodaySchedulesBySlug(nextMap);
+      })
+      .catch(() => {
+        // Fallback to fixture schedule on API errors.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasActiveQuery || totalResults === 0) return;
 
     const candidateImages: Array<string | undefined> = [];
@@ -166,7 +192,7 @@ const Explorar = () => {
                           key={`bar-${bar.id}`}
                           id={bar.id}
                           name={bar.name}
-                          schedule={bar.schedule}
+                          schedule={todaySchedulesBySlug.get(slugify(bar.name)) ?? "Horario no disponible"}
                           rating={bar.rating}
                           specialties={bar.specialties}
                           location={bar.location}
@@ -191,7 +217,7 @@ const Explorar = () => {
                           key={`club-${club.id}`}
                           id={club.id}
                           name={club.name}
-                          schedule={club.schedule}
+                          schedule={todaySchedulesBySlug.get(slugify(club.name)) ?? "Horario no disponible"}
                           rating={club.rating}
                           genres={club.genres}
                           image={club.customImage}

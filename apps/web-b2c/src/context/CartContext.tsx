@@ -34,6 +34,53 @@ const calculateTotal = (items: CartItem[]): number => {
   return items.reduce((sum, item) => sum + item.totalPrice, 0);
 };
 
+const FREE_PASS_NAME_REGEX = /free\s*pass/i;
+
+const isFreePassCartItem = (item: CartItem): boolean => {
+  const isTicket = item.kind === 'ticket' || item.type === 'ticket';
+  if (!isTicket) return false;
+
+  if (typeof item.price === 'number' && item.price <= 0) {
+    return true;
+  }
+
+  return FREE_PASS_NAME_REGEX.test(item.name ?? '');
+};
+
+const normalizeCartItemsForBusinessRules = (items: CartItem[]): CartItem[] => {
+  let hasFreePass = false;
+
+  return items.reduce<CartItem[]>((acc, currentItem) => {
+    if (isFreePassCartItem(currentItem)) {
+      if (hasFreePass) {
+        return acc;
+      }
+      hasFreePass = true;
+      acc.push({
+        ...currentItem,
+        quantity: 1,
+        totalPrice: currentItem.price,
+      });
+      return acc;
+    }
+
+    const quantity = Number.isFinite(currentItem.quantity) ? currentItem.quantity : 0;
+    const nextTotalPrice = currentItem.price * quantity;
+
+    if (currentItem.totalPrice === nextTotalPrice) {
+      acc.push(currentItem);
+      return acc;
+    }
+
+    acc.push({
+      ...currentItem,
+      quantity,
+      totalPrice: nextTotalPrice,
+    });
+    return acc;
+  }, []);
+};
+
 // Check if any items are invalid (legacy without valid UUID)
 const checkHasInvalidItems = (items: CartItem[]): boolean => {
   return items.some((item) => {
@@ -68,6 +115,15 @@ const normalizeStoredItems = (items: CartItem[]): CartItem[] => {
   });
 };
 
+const buildCartState = (items: CartItem[]): CartState => {
+  const normalizedItems = normalizeCartItemsForBusinessRules(items);
+  return {
+    items: normalizedItems,
+    total: calculateTotal(normalizedItems),
+    hasInvalidItems: checkHasInvalidItems(normalizedItems),
+  };
+};
+
 // Cart reducer
 const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
@@ -84,19 +140,11 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           quantity: newQuantity,
           totalPrice: existingItem.price * newQuantity
         };
-        return {
-          items: updatedItems,
-          total: calculateTotal(updatedItems),
-          hasInvalidItems: checkHasInvalidItems(updatedItems)
-        };
+        return buildCartState(updatedItems);
       } else {
         // Add new item
         const newItems = [...state.items, action.payload];
-        return {
-          items: newItems,
-          total: calculateTotal(newItems),
-          hasInvalidItems: checkHasInvalidItems(newItems)
-        };
+        return buildCartState(newItems);
       }
     }
     
@@ -104,11 +152,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       if (action.payload.quantity <= 0) {
         // Remove item if quantity is 0 or less
         const newItems = state.items.filter(item => item.id !== action.payload.id);
-        return {
-          items: newItems,
-          total: calculateTotal(newItems),
-          hasInvalidItems: checkHasInvalidItems(newItems)
-        };
+        return buildCartState(newItems);
       }
       
       const updatedItems = state.items.map(item =>
@@ -117,29 +161,17 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
           : item
       );
       
-      return {
-        items: updatedItems,
-        total: calculateTotal(updatedItems),
-        hasInvalidItems: checkHasInvalidItems(updatedItems)
-      };
+      return buildCartState(updatedItems);
     }
     
     case 'REMOVE_ITEM': {
       const newItems = state.items.filter(item => item.id !== action.payload);
-      return {
-        items: newItems,
-        total: calculateTotal(newItems),
-        hasInvalidItems: checkHasInvalidItems(newItems)
-      };
+      return buildCartState(newItems);
     }
     
     case 'REMOVE_ITEM_BY_INDEX': {
       const newItems = state.items.filter((_, index) => index !== action.payload);
-      return {
-        items: newItems,
-        total: calculateTotal(newItems),
-        hasInvalidItems: checkHasInvalidItems(newItems)
-      };
+      return buildCartState(newItems);
     }
     
     case 'CLEAR_CART':
@@ -151,11 +183,7 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       
     case 'LOAD_FROM_STORAGE': {
       const normalizedItems = normalizeStoredItems(action.payload);
-      return {
-        items: normalizedItems,
-        total: calculateTotal(normalizedItems),
-        hasInvalidItems: checkHasInvalidItems(normalizedItems)
-      };
+      return buildCartState(normalizedItems);
     }
       
     default:

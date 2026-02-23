@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { cardStyles, ratingStyles, textStyles, buttonStyles } from '@/lib/design-tokens';
 import cardHeaderPlaceholder from '@/assets/card-header-placeholder.png';
 import ProgressiveImage from '@/components/shared/ProgressiveImage';
+import { formatHoursDisplay } from '@/lib/hours';
 
 export interface VenueCardProps {
   id: number | string;
@@ -60,6 +61,7 @@ const VenueCard: React.FC<VenueCardProps> = ({
   const Icon = type === 'bar' ? Wine : Music;
   const hasDateHeader = dateTop && dateBottom;
   const headerImage = typeof image === "string" && image.trim().length > 0 ? image : undefined;
+  const formattedSchedule = formatHoursDisplay(schedule) ?? "Horario no disponible";
 
   return (
     <Link to={href} className={`block ${className}`}>
@@ -117,7 +119,7 @@ const VenueCard: React.FC<VenueCardProps> = ({
           {/* Schedule */}
           <div className={`${textStyles.small} flex items-center mb-3`}>
             <Clock className="w-4 h-4 mr-2" />
-            {schedule}
+            {formattedSchedule}
           </div>
 
           {location && (

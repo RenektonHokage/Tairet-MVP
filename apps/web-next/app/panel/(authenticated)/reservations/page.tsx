@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
 import {
@@ -33,35 +34,45 @@ function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+function isValidDateParam(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export default function ReservationsPage() {
   const { data: context, loading: contextLoading } = usePanelContext();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Estados de data (ApiReservation es superset de Reservation)
   const [reservations, setReservations] = useState<ApiReservation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoadedDate, setHasLoadedDate] = useState(false);
 
   // Estados de filtros UI
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const dateFromQuery = searchParams.get("date") ?? "";
+  const normalizedDateFromQuery = isValidDateParam(dateFromQuery) ? dateFromQuery : "";
+  const [selectedDate, setSelectedDate] = useState(normalizedDateFromQuery);
+  const [isFetchingForDate, setIsFetchingForDate] = useState(Boolean(normalizedDateFromQuery));
   const [statusFilter, setStatusFilter] = useState<"all" | ReservationStatus>("all");
   const [sortBy, setSortBy] = useState<"time" | "name">("time");
 
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
 
-  // Cargar reservas al montar (solo si no está bloqueado)
   useEffect(() => {
-    if (contextLoading) return;
-    if (isBlocked) return;
-    if (!context) return;
+    setSelectedDate((current) =>
+      current === normalizedDateFromQuery ? current : normalizedDateFromQuery
+    );
+    setIsFetchingForDate(Boolean(normalizedDateFromQuery));
+  }, [normalizedDateFromQuery]);
 
-    loadReservations();
-  }, [contextLoading, isBlocked, context]);
-
-  const loadReservations = async () => {
-    if (isBlocked || !context) return;
-
+  const loadReservations = useCallback(async () => {
+    if (isBlocked || !context || !selectedDate) return;
+    setHasLoadedDate(true);
+    setIsFetchingForDate(true);
     setLoading(true);
     setError(null);
 
@@ -71,9 +82,51 @@ export default function ReservationsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar reservas");
     } finally {
+      setIsFetchingForDate(false);
       setLoading(false);
     }
-  };
+  }, [context, isBlocked, selectedDate]);
+
+  // Cargar reservas cuando ya hay fecha seleccionada
+  useEffect(() => {
+    if (contextLoading || isBlocked || !context) return;
+
+    if (!selectedDate) {
+      setReservations([]);
+      setHasLoadedDate(false);
+      setIsFetchingForDate(false);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    void loadReservations();
+  }, [contextLoading, isBlocked, context, selectedDate, loadReservations]);
+
+  const handleDateChange = useCallback(
+    (value: string) => {
+      if (value !== selectedDate) {
+        setReservations([]);
+        setHasLoadedDate(false);
+      }
+      setIsFetchingForDate(Boolean(value));
+      setSelectedDate(value);
+      const params = new URLSearchParams(searchParams.toString());
+      if (value) {
+        params.set("date", value);
+      } else {
+        params.delete("date");
+      }
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams, selectedDate]
+  );
+
+  const handleRefresh = useCallback(() => {
+    if (!selectedDate || loading) return;
+    void loadReservations();
+  }, [selectedDate, loading, loadReservations]);
 
   // Filtrado y ordenamiento LOCAL (sin endpoint nuevo)
   const filteredReservations = useMemo(() => {
@@ -155,7 +208,6 @@ export default function ReservationsPage() {
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setSelectedDate("");
     setStatusFilter("all");
   };
 
@@ -196,16 +248,19 @@ export default function ReservationsPage() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         selectedDate={selectedDate}
-        onDateChange={setSelectedDate}
+        onDateChange={handleDateChange}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
         sortBy={sortBy}
         onSortChange={setSortBy}
+        onRefresh={handleRefresh}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
         onEdit={handleEdit}
         onClearFilters={handleClearFilters}
         loading={loading}
+        hasLoadedDate={hasLoadedDate}
+        isFetchingForDate={isFetchingForDate}
       />
     </>
   );

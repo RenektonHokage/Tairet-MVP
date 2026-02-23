@@ -39,6 +39,25 @@ export interface LocalGalleryItem {
   order: number;
 }
 
+export const OPENING_HOURS_DAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export type OpeningHoursDayKey = (typeof OPENING_HOURS_DAY_KEYS)[number];
+
+export interface OpeningHoursRange {
+  start: string;
+  end: string;
+}
+
+export interface OpeningHoursDay {
+  closed: boolean;
+  ranges: OpeningHoursRange[];
+}
+
+export interface OpeningHoursV1 {
+  version: 1;
+  timezone: "America/Asuncion";
+  days: Record<OpeningHoursDayKey, OpeningHoursDay>;
+}
+
 export const GALLERY_KIND_LABELS: Record<GalleryKind, string> = {
   cover: "Foto de Perfil",
   hero: "Imagen Principal",
@@ -61,7 +80,10 @@ export interface LocalProfile {
   address: string | null;
   location: string | null;
   city: string | null;
+  latitude: number | null;
+  longitude: number | null;
   hours: string[];
+  opening_hours: OpeningHoursV1 | null;
   additional_info: string[];
   phone: string | null;
   whatsapp: string | null;
@@ -75,7 +97,10 @@ export interface UpdateLocalProfileInput {
   address?: string;
   location?: string;
   city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   hours?: string[];
+  opening_hours?: OpeningHoursV1 | null;
   additional_info?: string[];
   phone?: string;
   attributes?: string[];

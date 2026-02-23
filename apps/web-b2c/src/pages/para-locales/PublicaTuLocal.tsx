@@ -1,14 +1,62 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Eye, Megaphone, BarChart3, Calendar, Percent, Sparkles, Users, Star, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import metricConsultas from "@/assets/metric-consultas.jpg";
 import metricVisitas from "@/assets/metric-visitas.jpg";
 import metricRedes from "@/assets/metric-redes.jpg";
 import metricResenas from "@/assets/metric-resenas.jpg";
+
+type VenueType = "bar" | "club";
+
+interface ToolCard {
+  title: string;
+  text: string;
+  bullets: string[];
+}
+
+const TOOLS_CONTENT_BY_VENUE_TYPE: Record<VenueType, ToolCard[]> = {
+  bar: [{
+    title: "Herramientas de perfil y presencia",
+    text: "Gestioná la presentación de tu local y mantené tu perfil siempre actualizado para convertir más visitas en contactos y reservas.",
+    bullets: ["Editá portada, galería, ubicación, contacto y acceso directo a WhatsApp.", "Configurá horarios semanales por día con franjas horarias y estado abierto/cerrado.", "Mantené tu información alineada a la operación real del local."]
+  }, {
+    title: "Calendario y operación",
+    text: "Organizá la operación del local con una vista clara por fecha para tomar decisiones más rápidas durante la semana.",
+    bullets: ["Consultá el calendario del local y el detalle operativo diario en una sola vista.", "Registrá y ajustá reservas del día para mantener control de disponibilidad.", "Centralizá el seguimiento de movimiento del local desde el panel."]
+  }, {
+    title: "Audiencia y métricas",
+    text: "Entendé cómo interactúan los clientes con tu perfil y qué acciones generan mejores resultados.",
+    bullets: ["Seguí visitas al perfil y clics a WhatsApp por período.", "Visualizá el rendimiento de reservas generadas desde Tairet.", "Leé el comportamiento de tu audiencia para optimizar horarios y publicación."]
+  }, {
+    title: "Rendimiento comercial",
+    text: "Tomá decisiones con una vista ordenada del desempeño de tu local dentro de Tairet.",
+    bullets: ["Controlá reservas recibidas y su estado operativo.", "Seguí la actividad por fecha para detectar picos de demanda.", "Usá la información para mejorar gestión y planificación semanal."]
+  }],
+  club: [{
+    title: "Herramientas de perfil y catálogo",
+    text: "Administrá la imagen de tu discoteca y configurá tu oferta comercial desde un solo panel.",
+    bullets: ["Editá portada, galería, ubicación, contacto y acceso directo a WhatsApp.", "Configurá horarios semanales por día con franjas horarias y estado abierto/cerrado.", "Gestioná entradas y mesas con catálogo activo, precios y disponibilidad."]
+  }, {
+    title: "Calendario y operación",
+    text: "Organizá cada fecha con una vista operativa pensada para la dinámica de eventos y noches de alta demanda.",
+    bullets: ["Consultá el calendario del local y el detalle operativo por jornada.", "Ajustá disponibilidad y seguimiento de movimiento según la fecha.", "Accedé a la gestión de entradas y check-in desde el flujo del panel."]
+  }, {
+    title: "Audiencia y métricas",
+    text: "Medí el interés del público y el desempeño de tus fechas para optimizar resultados.",
+    bullets: ["Seguí visitas al perfil y clics de contacto por período.", "Visualizá ventas y comportamiento del público dentro de Tairet.", "Identificá qué fechas y acciones responden mejor."]
+  }, {
+    title: "Analítica y resultados",
+    text: "Consolidá indicadores clave para evaluar el rendimiento comercial de tu discoteca.",
+    bullets: ["Monitoreá entradas vendidas, utilizadas y estado operativo.", "Seguí ingresos generados desde la plataforma.", "Usá datos para ajustar estrategia, fechas y oferta."]
+  }]
+};
+
 const PublicaTuLocal = () => {
+  const [venueType, setVenueType] = useState<VenueType>("bar");
   useEffect(() => {
     document.title = "Publicá tu local (Mesas) | Tairet";
     const desc = "Sumá visibilidad, gestioná mesas y promociones, y obtené analíticas claras en Tairet.";
@@ -33,8 +81,10 @@ const PublicaTuLocal = () => {
             <span className="text-sm text-muted-foreground hidden sm:inline">
               ¿Ya tenés tu local registrado?
             </span>
-            <Button variant="outline" size="sm" disabled>
-              Próximamente
+            <Button variant="outline" size="sm" asChild>
+              <a href="https://tairet-mvp-web-next.vercel.app/" target="_blank" rel="noopener noreferrer">
+                Ir al panel
+              </a>
             </Button>
           </div>
         </div>
@@ -144,24 +194,18 @@ const PublicaTuLocal = () => {
         <section className="border-b">
           <div className="mx-auto max-w-7xl px-6 py-16">
             <h2 className="text-2xl font-semibold tracking-tight">Herramientas</h2>
+            <Tabs
+              value={venueType}
+              onValueChange={(value) => setVenueType(value === "club" ? "club" : "bar")}
+              className="mt-6"
+            >
+              <TabsList className="grid w-full max-w-xs grid-cols-2">
+                <TabsTrigger value="bar">Bares</TabsTrigger>
+                <TabsTrigger value="club">Discotecas</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <div className="mt-8 grid gap-8 md:grid-cols-2">
-              {[{
-              title: "Gestión de mesas y entradas (MVP)",
-              text: "Configurá lo esencial para empezar a vender con Tairet, sin complejidad innecesaria.",
-              bullets: ["Carga inicial y edición de mesas y entradas: nombre, sector, precio y capacidad fija.", "Panel simple para ver las reservas y compras generadas desde Tairet.", "Ajustes manuales cuando se vende algo por fuera de la plataforma (por ejemplo, reservas telefónicas)."]
-            }, {
-              title: "Calendario y operación (MVP)",
-              text: "Tené a la vista los días en los que Tairet está trayendo gente a tu local.",
-              bullets: ["Calendario básico con las fechas y eventos activos publicados en Tairet.", "Bloqueo manual de fechas específicas (eventos privados, reformas, cierre del local).", "Visión rápida de qué días y horarios tienen más movimiento dentro de Tairet."]
-            }, {
-              title: "Audiencia y métricas básicas",
-              text: "Un panel claro para entender, sin complicaciones, cómo se mueve tu público dentro de Tairet.",
-              bullets: ["Vistas de perfil: cuántas personas ven tu ficha.", "Clics a WhatsApp: cuántos usuarios hacen clic para contactarte.", "Reservas recibidas y entradas vendidas desde la plataforma.", "Comparación simple por día/semana para ver qué tipo de eventos funcionan mejor."]
-            }, {
-              title: "Analítica y finanzas (MVP)",
-              text: "El foco está en ayudarte a medir el impacto de Tairet en tu negocio, sin volverte loco con reportes.",
-              bullets: ["Resumen básico de rendimiento: visitas → reservas → ventas.", "Indicadores simples para entender qué promos y qué fechas rinden mejor.", "Pensado para que más adelante puedas conectar esta información con tu propia gestión financiera interna."]
-            }].map((tool, idx) => <Card key={idx}>
+              {TOOLS_CONTENT_BY_VENUE_TYPE[venueType].map((tool, idx) => <Card key={idx}>
                   <CardHeader>
                     <CardTitle className="text-lg">{tool.title}</CardTitle>
                     <CardDescription>{tool.text}</CardDescription>

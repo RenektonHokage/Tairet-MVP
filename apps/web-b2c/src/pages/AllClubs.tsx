@@ -12,7 +12,7 @@ import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
 import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
 import { slugify } from "@/lib/slug";
-import { getLocalsList } from "@/lib/locals";
+import { buildTodayScheduleBySlug, getLocalsList } from "@/lib/locals";
 import { selectClubVenues } from "@/lib/venueSelectors";
 import { prefetchImages } from "@/lib/imagePrefetch";
 import { useSearchParams } from "react-router-dom";
@@ -79,6 +79,7 @@ export default function AllClubs() {
   const [dbCities, setDbCities] = useState<Map<string, string>>(new Map());
   const [dbGenres, setDbGenres] = useState<Map<string, string[]>>(new Map());
   const [dbMinAges, setDbMinAges] = useState<Map<string, number>>(new Map());
+  const [dbTodaySchedules, setDbTodaySchedules] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     document.title = "Todas las Discotecas | Tairet";
@@ -94,6 +95,7 @@ export default function AllClubs() {
         const cityMap = new Map<string, string>();
         const genresMap = new Map<string, string[]>();
         const minAgeMap = new Map<string, number>();
+        const todayScheduleMap = buildTodayScheduleBySlug(locals);
         
         locals.forEach((local) => {
           if (local.cover_url) {
@@ -118,6 +120,7 @@ export default function AllClubs() {
         setDbCities(cityMap);
         setDbGenres(genresMap);
         setDbMinAges(minAgeMap);
+        setDbTodaySchedules(todayScheduleMap);
       })
       .catch(() => {
         // Silently fail - mocks will be used
@@ -372,7 +375,7 @@ export default function AllClubs() {
                     key={club.id}
                     id={club.id}
                     name={club.name}
-                    schedule={club.schedule}
+                    schedule={dbTodaySchedules.get(clubSlug) ?? "Horario no disponible"}
                     rating={club.rating}
                     genres={genres}
                     location={locationDisplay}

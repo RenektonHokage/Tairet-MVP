@@ -1,7 +1,8 @@
-import { getLocalsList, type LocalListItem } from "@/lib/locals";
+import { buildTodayScheduleBySlug, getLocalsList, type LocalListItem } from "@/lib/locals";
 import { slugify } from "@/lib/slug";
 
 export type CoverBySlugMap = Map<string, string>;
+export type TodayScheduleBySlugMap = Map<string, string>;
 
 function buildCoverMap(locals: LocalListItem[]): CoverBySlugMap {
   const coverMap = new Map<string, string>();
@@ -24,6 +25,8 @@ function buildCoverMap(locals: LocalListItem[]): CoverBySlugMap {
 export async function getZoneCoverMaps(limit: number = 100): Promise<{
   clubCovers: CoverBySlugMap;
   barCovers: CoverBySlugMap;
+  clubSchedules: TodayScheduleBySlugMap;
+  barSchedules: TodayScheduleBySlugMap;
 }> {
   const [clubResult, barResult] = await Promise.allSettled([
     getLocalsList("club", limit),
@@ -36,5 +39,7 @@ export async function getZoneCoverMaps(limit: number = 100): Promise<{
   return {
     clubCovers: buildCoverMap(clubLocals),
     barCovers: buildCoverMap(barLocals),
+    clubSchedules: buildTodayScheduleBySlug(clubLocals),
+    barSchedules: buildTodayScheduleBySlug(barLocals),
   };
 }

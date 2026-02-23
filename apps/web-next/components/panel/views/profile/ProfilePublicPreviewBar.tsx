@@ -160,7 +160,7 @@ export function ProfilePublicPreviewBar({
                       <div>
                         <p className="font-semibold text-neutral-900">Horarios</p>
                         <div className="space-y-1 text-sm text-neutral-600">
-                          {safeHours.slice(0, 5).map((line) => (
+                          {safeHours.map((line) => (
                             <p key={line} className="break-words whitespace-pre-wrap">{line}</p>
                           ))}
                         </div>

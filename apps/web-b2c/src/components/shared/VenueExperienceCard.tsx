@@ -4,6 +4,7 @@ import { slugify } from '@/lib/slug';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ReactNode } from 'react';
+import { formatHoursDisplay } from '@/lib/hours';
 
 interface VenueExperienceCardProps {
   id: number;
@@ -32,6 +33,8 @@ const VenueExperienceCard = ({
   animationDelay,
   customHeader
 }: VenueExperienceCardProps) => {
+  const formattedSchedule = formatHoursDisplay(schedule) ?? "Horario no disponible";
+
   return (
     <Link 
       to={`/bar/${slugify(name)}`} 
@@ -74,7 +77,7 @@ const VenueExperienceCard = ({
           {/* Schedule line */}
           <div className="text-sm text-muted-foreground flex items-center mb-2">
             <Clock className="w-4 h-4 mr-2" />
-            {schedule}
+            {formattedSchedule}
           </div>
 
           {/* Location */}
