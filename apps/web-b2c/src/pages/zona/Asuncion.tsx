@@ -21,7 +21,9 @@ import { slugify } from "@/lib/slug";
 import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
 import {
   getZoneCoverMaps,
+  type AttributesBySlugMap,
   type CoverBySlugMap,
+  type MinAgeBySlugMap,
   type TodayScheduleBySlugMap,
 } from "@/lib/localCoverMaps";
 import { prefetchImages } from "@/lib/imagePrefetch";
@@ -76,6 +78,10 @@ export default function ZonaAsuncion() {
   const [barCoverBySlug, setBarCoverBySlug] = useState<CoverBySlugMap>(new Map());
   const [clubScheduleBySlug, setClubScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
   const [barScheduleBySlug, setBarScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
+  const [clubAttributesBySlug, setClubAttributesBySlug] = useState<AttributesBySlugMap>(new Map());
+  const [barAttributesBySlug, setBarAttributesBySlug] = useState<AttributesBySlugMap>(new Map());
+  const [clubMinAgeBySlug, setClubMinAgeBySlug] = useState<MinAgeBySlugMap>(new Map());
+  const [barMinAgeBySlug, setBarMinAgeBySlug] = useState<MinAgeBySlugMap>(new Map());
   const [isLoadingCovers, setIsLoadingCovers] = useState(true);
   const bars = useMemo(() => selectBarVenues({ city: "asuncion", scope: "zone" }), []);
 
@@ -84,12 +90,16 @@ export default function ZonaAsuncion() {
     document.title = "Descubrí Asunción | Zonas - Tairet";
 
     getZoneCoverMaps(100)
-      .then(({ clubCovers, barCovers, clubSchedules, barSchedules }) => {
+      .then(({ clubCovers, barCovers, clubSchedules, barSchedules, clubAttributes, barAttributes, clubMinAges, barMinAges }) => {
         if (!active) return;
         setClubCoverBySlug(clubCovers);
         setBarCoverBySlug(barCovers);
         setClubScheduleBySlug(clubSchedules);
         setBarScheduleBySlug(barSchedules);
+        setClubAttributesBySlug(clubAttributes);
+        setBarAttributesBySlug(barAttributes);
+        setClubMinAgeBySlug(clubMinAges);
+        setBarMinAgeBySlug(barMinAges);
       })
       .catch(() => {
         // Silently fail - current mock images/placeholders remain
@@ -165,6 +175,8 @@ export default function ZonaAsuncion() {
               >
                 {discotecas.map((item, index) => {
                   const clubSlug = slugify(item.name);
+                  const genres = clubAttributesBySlug.get(clubSlug) || item.genres;
+                  const minAge = clubMinAgeBySlug.get(clubSlug) ?? null;
                   return (
                     <VenueCard 
                       key={item.id}
@@ -172,10 +184,11 @@ export default function ZonaAsuncion() {
                       name={item.name}
                       schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                       rating={item.rating}
-                      genres={item.genres}
+                      genres={genres}
                       image={clubCoverBySlug.get(clubSlug) || item.customImage}
                       href={`/club/${clubSlug}`}
                       type="club"
+                      minAge={minAge}
                       className="w-[280px] sm:w-[300px] lg:w-auto"
                       imagePriority={index < 6}
                     />
@@ -214,6 +227,8 @@ export default function ZonaAsuncion() {
               <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
                 {discotecas.map((item, index) => {
                   const clubSlug = slugify(item.name);
+                  const genres = clubAttributesBySlug.get(clubSlug) || item.genres;
+                  const minAge = clubMinAgeBySlug.get(clubSlug) ?? null;
                   return (
                     <CarouselItem key={item.id} className="basis-1/4">
                       <VenueCard 
@@ -221,10 +236,11 @@ export default function ZonaAsuncion() {
                         name={item.name}
                         schedule={clubScheduleBySlug.get(clubSlug) ?? "Horario no disponible"}
                         rating={item.rating}
-                        genres={item.genres}
+                        genres={genres}
                         image={clubCoverBySlug.get(clubSlug) || item.customImage}
                         href={`/club/${clubSlug}`}
                         type="club"
+                        minAge={minAge}
                         imagePriority={index < 6}
                       />
                     </CarouselItem>
@@ -243,6 +259,8 @@ export default function ZonaAsuncion() {
       <BarsSection
         coverBySlug={barCoverBySlug}
         scheduleBySlug={barScheduleBySlug}
+        attributesBySlug={barAttributesBySlug}
+        minAgeBySlug={barMinAgeBySlug}
         isLoading={isLoadingCovers}
       />
     </main>

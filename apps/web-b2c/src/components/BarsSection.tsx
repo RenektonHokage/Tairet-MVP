@@ -14,11 +14,15 @@ const BarsSection: React.FC<{
   typeFilter?: string;
   coverBySlug?: Map<string, string>;
   scheduleBySlug?: Map<string, string>;
+  attributesBySlug?: Map<string, string[]>;
+  minAgeBySlug?: Map<string, number>;
   isLoading?: boolean;
 }> = ({
   typeFilter,
   coverBySlug,
   scheduleBySlug,
+  attributesBySlug,
+  minAgeBySlug,
   isLoading = false,
 }) => {
   let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
@@ -122,6 +126,7 @@ const BarsSection: React.FC<{
           >
             {bars.map((item, index) => {
               const barSlug = slugify(item.name);
+              const minAge = minAgeBySlug?.get(barSlug) ?? null;
               return (
                 <VenueCard 
                   key={item.id}
@@ -129,10 +134,11 @@ const BarsSection: React.FC<{
                   name={item.name}
                   schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                   rating={item.rating}
-                  specialties={item.specialties}
+                  specialties={attributesBySlug?.get(barSlug) || item.specialties}
                   image={coverBySlug?.get(barSlug) || item.image}
                   href={`/bar/${barSlug}`}
                   type="bar"
+                  minAge={minAge}
                   className="w-[280px] sm:w-[300px] lg:w-auto"
                   imagePriority={index < 6}
                 />
@@ -150,6 +156,7 @@ const BarsSection: React.FC<{
             <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
               {bars.map((item, index) => {
                 const barSlug = slugify(item.name);
+                const minAge = minAgeBySlug?.get(barSlug) ?? null;
                 return (
                   <CarouselItem key={item.id} className="basis-1/4">
                     <VenueCard 
@@ -157,10 +164,11 @@ const BarsSection: React.FC<{
                       name={item.name}
                       schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
                       rating={item.rating}
-                      specialties={item.specialties}
+                      specialties={attributesBySlug?.get(barSlug) || item.specialties}
                       image={coverBySlug?.get(barSlug) || item.image}
                       href={`/bar/${barSlug}`}
                       type="bar"
+                      minAge={minAge}
                       imagePriority={index < 6}
                     />
                   </CarouselItem>
