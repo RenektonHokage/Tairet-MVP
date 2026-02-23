@@ -28,7 +28,7 @@ type CheckinResult =
   | { type: "window_invalid"; code: string | null; message: string; validFrom: string | null; validTo: string | null; cutoffIso: string | null }
   | { type: "invalid_token"; message: string }
   | { type: "forbidden" }
-  | { type: "error"; status: number; message: string };
+  | { type: "error"; status: number; message: string; reason?: "timeout" | "network" | "server" | "unknown" };
 
 type CameraStatus =
   | "idle"
@@ -53,6 +53,36 @@ const SAME_TOKEN_COOLDOWN_MS = 5000;
 // Tuning operativo ZXing para lectura más estable en baja luz/movimiento moderado.
 const ZXING_SUCCESS_DELAY_MS = 380;
 const ZXING_SCAN_ATTEMPT_DELAY_MS = 110;
+// Tuning operativo de red para puerta: timeout + retry acotado en errores transitorios.
+const CHECKIN_REQUEST_TIMEOUT_MS = 5500;
+const CHECKIN_RETRY_MAX = 1;
+const CHECKIN_RETRY_BASE_MS = 450;
+
+interface CheckinSessionStats {
+  success: number;
+  alreadyUsed: number;
+  windowInvalid: number;
+  invalidToken: number;
+  forbidden: number;
+  timeout: number;
+  network: number;
+  server: number;
+  unknownError: number;
+  retries: number;
+}
+
+const EMPTY_CHECKIN_STATS: CheckinSessionStats = {
+  success: 0,
+  alreadyUsed: 0,
+  windowInvalid: 0,
+  invalidToken: 0,
+  forbidden: 0,
+  timeout: 0,
+  network: 0,
+  server: 0,
+  unknownError: 0,
+  retries: 0,
+};
 
 interface CameraCapabilityState {
   torch: boolean;
@@ -94,6 +124,12 @@ function getWindowMessage(code: string | null, fallback: string): string {
   return fallback || "Entrada fuera de ventana de check-in.";
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export default function CheckinPage() {
   const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
 
@@ -104,17 +140,22 @@ export default function CheckinPage() {
 
   const inFlightTokenRef = useRef<string | null>(null);
   const autoScanInFlightRef = useRef(false);
+  const checkinRequestInFlightRef = useRef(false);
+  const requestSequenceRef = useRef(0);
+  const latestAppliedSequenceRef = useRef(0);
   const lastProcessedTokenRef = useRef<string | null>(null);
   const lastProcessedAtRef = useRef<number>(0);
   const globalScanCooldownUntilRef = useRef<number>(0);
   const lastCompletedAutoTokenRef = useRef<string | null>(null);
   const sameTokenCooldownUntilRef = useRef<number>(0);
+  const sessionStatsRef = useRef<CheckinSessionStats>({ ...EMPTY_CHECKIN_STATS });
 
   const overlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckinResult | null>(null);
+  const [isCheckinProcessing, setIsCheckinProcessing] = useState(false);
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -321,6 +362,45 @@ export default function CheckinPage() {
     [clearOverlayTimeout]
   );
 
+  const updateSessionStats = useCallback((nextResult: CheckinResult) => {
+    const stats = sessionStatsRef.current;
+    switch (nextResult.type) {
+      case "success":
+        stats.success += 1;
+        break;
+      case "already_used":
+        stats.alreadyUsed += 1;
+        break;
+      case "window_invalid":
+        stats.windowInvalid += 1;
+        break;
+      case "invalid_token":
+        stats.invalidToken += 1;
+        break;
+      case "forbidden":
+        stats.forbidden += 1;
+        break;
+      case "error":
+        if (nextResult.reason === "timeout") {
+          stats.timeout += 1;
+        } else if (nextResult.reason === "network") {
+          stats.network += 1;
+        } else if (nextResult.reason === "server") {
+          stats.server += 1;
+        } else {
+          stats.unknownError += 1;
+        }
+        break;
+      default:
+        break;
+    }
+
+    console.info("[checkin][stats]", {
+      ...stats,
+      lastResultType: nextResult.type,
+    });
+  }, []);
+
   const pushResultFeedback = useCallback(
     (nextResult: CheckinResult) => {
       if (nextResult.type === "success") {
@@ -395,84 +475,222 @@ export default function CheckinPage() {
     [showOverlay]
   );
 
+  const applyCheckinResult = useCallback(
+    (requestSequence: number, nextResult: CheckinResult, source: "manual" | "auto") => {
+      if (requestSequence < latestAppliedSequenceRef.current) {
+        console.info("[checkin] discarded stale response", {
+          requestSequence,
+          latestAppliedSequence: latestAppliedSequenceRef.current,
+          source,
+          resultType: nextResult.type,
+        });
+        return;
+      }
+
+      latestAppliedSequenceRef.current = requestSequence;
+      setResult(nextResult);
+      pushResultFeedback(nextResult);
+      updateSessionStats(nextResult);
+    },
+    [pushResultFeedback, updateSessionStats]
+  );
+
   const performCheckin = useCallback(
     async (rawToken: string, source: "manual" | "auto") => {
       const normalizedToken = normalizeToken(rawToken);
       if (!normalizedToken || isBlocked) return;
 
+      if (checkinRequestInFlightRef.current) {
+        console.info("[checkin] request ignored because another check-in is in flight", {
+          source,
+          token: normalizedToken,
+        });
+        return;
+      }
+
+      checkinRequestInFlightRef.current = true;
+      setIsCheckinProcessing(true);
+
       if (source === "manual") {
         setLoading(true);
       }
 
+      const requestSequence = ++requestSequenceRef.current;
+      const maxAttempts = CHECKIN_RETRY_MAX + 1;
+
       try {
         const headers = await getAuthHeaders();
-        const response = await fetch(`${getApiBase()}/panel/checkin/${encodeURIComponent(normalizedToken)}`, {
-          method: "PATCH",
-          credentials: "include",
-          headers,
-        });
 
-        const payload = await response.json().catch(() => ({} as Record<string, unknown>));
-        let nextResult: CheckinResult;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), CHECKIN_REQUEST_TIMEOUT_MS);
 
-        if (response.ok) {
-          nextResult = { type: "success", data: payload as CheckinSuccess };
-        } else if (response.status === 409) {
-          const code = typeof payload.code === "string" ? payload.code : null;
-          const errorText = typeof payload.error === "string" ? payload.error : "";
-          const usedAt = typeof payload.usedAt === "string" ? payload.usedAt : null;
+          try {
+            const response = await fetch(`${getApiBase()}/panel/checkin/${encodeURIComponent(normalizedToken)}`, {
+              method: "PATCH",
+              credentials: "include",
+              headers,
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
 
-          if (usedAt || errorText.toLowerCase().includes("already used")) {
-            nextResult = {
-              type: "already_used",
-              usedAt: usedAt ?? "",
-            };
-          } else {
-            const validFrom = typeof payload.valid_from === "string" ? payload.valid_from : null;
-            const validTo = typeof payload.valid_to === "string" ? payload.valid_to : null;
-            const cutoffIso = typeof payload.cutoff_iso === "string" ? payload.cutoff_iso : null;
-            nextResult = {
-              type: "window_invalid",
-              code,
-              message: getWindowMessage(code, errorText),
-              validFrom,
-              validTo,
-              cutoffIso,
-            };
+            const payload = await response.json().catch(() => ({} as Record<string, unknown>));
+            const errorText = typeof payload.error === "string" ? payload.error : "";
+
+            if (response.status >= 500 && attempt < maxAttempts) {
+              sessionStatsRef.current.retries += 1;
+              console.warn("[checkin] transient server error, retrying", {
+                source,
+                token: normalizedToken,
+                status: response.status,
+                attempt,
+                maxAttempts,
+              });
+              await wait(CHECKIN_RETRY_BASE_MS * attempt);
+              continue;
+            }
+
+            let nextResult: CheckinResult;
+            if (response.ok) {
+              nextResult = { type: "success", data: payload as CheckinSuccess };
+            } else if (response.status === 409) {
+              const code = typeof payload.code === "string" ? payload.code : null;
+              const usedAt = typeof payload.usedAt === "string" ? payload.usedAt : null;
+
+              if (usedAt || errorText.toLowerCase().includes("already used")) {
+                nextResult = {
+                  type: "already_used",
+                  usedAt: usedAt ?? "",
+                };
+              } else {
+                const validFrom = typeof payload.valid_from === "string" ? payload.valid_from : null;
+                const validTo = typeof payload.valid_to === "string" ? payload.valid_to : null;
+                const cutoffIso = typeof payload.cutoff_iso === "string" ? payload.cutoff_iso : null;
+                nextResult = {
+                  type: "window_invalid",
+                  code,
+                  message: getWindowMessage(code, errorText),
+                  validFrom,
+                  validTo,
+                  cutoffIso,
+                };
+              }
+            } else if (response.status === 404) {
+              nextResult = {
+                type: "invalid_token",
+                message: "No se encontró una entrada válida para ese QR.",
+              };
+            } else if (response.status === 403) {
+              nextResult = { type: "forbidden" };
+            } else if (response.status >= 500) {
+              nextResult = {
+                type: "error",
+                status: response.status,
+                reason: "server",
+                message:
+                  errorText || `Error temporal del servidor (${response.status}). Reintentá en unos segundos.`,
+              };
+            } else {
+              nextResult = {
+                type: "error",
+                status: response.status,
+                reason: "unknown",
+                message: errorText || `Error ${response.status}`,
+              };
+            }
+
+            console.info("[checkin] request settled", {
+              source,
+              token: normalizedToken,
+              attempt,
+              status: response.status,
+              resultType: nextResult.type,
+            });
+            applyCheckinResult(requestSequence, nextResult, source);
+            return;
+          } catch (error) {
+            clearTimeout(timeoutId);
+
+            const castedError = error as Error;
+            const isTimeout = castedError.name === "AbortError";
+            const isOffline = typeof navigator !== "undefined" && navigator.onLine === false;
+            const isNetworkError =
+              isOffline ||
+              castedError instanceof TypeError ||
+              /network|fetch|connection|internet/i.test(castedError.message ?? "");
+            const canRetry = attempt < maxAttempts && (isTimeout || isNetworkError);
+
+            if (canRetry) {
+              sessionStatsRef.current.retries += 1;
+              console.warn("[checkin] transient network/timeout error, retrying", {
+                source,
+                token: normalizedToken,
+                attempt,
+                maxAttempts,
+                errorName: castedError.name,
+                message: castedError.message,
+              });
+              await wait(CHECKIN_RETRY_BASE_MS * attempt);
+              continue;
+            }
+
+            const nextResult: CheckinResult = isTimeout
+              ? {
+                  type: "error",
+                  status: 0,
+                  reason: "timeout",
+                  message: "Tiempo de espera agotado. Reintentá el check-in.",
+                }
+              : isNetworkError
+                ? {
+                    type: "error",
+                    status: 0,
+                    reason: "network",
+                    message: isOffline
+                      ? "Sin conexión. Verificá internet y reintentá."
+                      : "Error de red. Reintentá el check-in.",
+                  }
+                : {
+                    type: "error",
+                    status: 0,
+                    reason: "unknown",
+                    message: castedError.message || "Error de conexión",
+                  };
+
+            console.error("[checkin] request failed", {
+              source,
+              token: normalizedToken,
+              attempt,
+              errorName: castedError.name,
+              message: castedError.message,
+              reason: nextResult.reason,
+            });
+            applyCheckinResult(requestSequence, nextResult, source);
+            return;
           }
-        } else if (response.status === 404) {
-          nextResult = {
-            type: "invalid_token",
-            message: "No se encontró una entrada válida para ese QR.",
-          };
-        } else if (response.status === 403) {
-          nextResult = { type: "forbidden" };
-        } else {
-          const errorText = typeof payload.error === "string" ? payload.error : `Error ${response.status}`;
-          nextResult = {
-            type: "error",
-            status: response.status,
-            message: errorText,
-          };
         }
-
-        setResult(nextResult);
-        pushResultFeedback(nextResult);
       } catch (err) {
         const nextResult: CheckinResult = {
           type: "error",
           status: 0,
+          reason: "unknown",
           message: err instanceof Error ? err.message : "Error de conexión",
         };
-        setResult(nextResult);
-        pushResultFeedback(nextResult);
+        console.error("[checkin] setup failure before request", {
+          source,
+          token: normalizedToken,
+          message: err instanceof Error ? err.message : "unknown error",
+        });
+        applyCheckinResult(requestSequence, nextResult, source);
       } finally {
+        checkinRequestInFlightRef.current = false;
+        setIsCheckinProcessing(false);
         if (source === "manual") {
           setLoading(false);
         }
       }
     },
-    [isBlocked, pushResultFeedback]
+    [applyCheckinResult, isBlocked]
   );
 
   const handleScannedToken = useCallback(
@@ -482,6 +700,7 @@ export default function CheckinPage() {
 
       const now = Date.now();
       if (now < globalScanCooldownUntilRef.current) return;
+      if (checkinRequestInFlightRef.current) return;
       if (autoScanInFlightRef.current || inFlightTokenRef.current) return;
       if (
         lastCompletedAutoTokenRef.current === normalizedToken &&
@@ -680,6 +899,9 @@ export default function CheckinPage() {
           {cameraStatus === "permission_denied" && "permiso denegado"}
           {cameraStatus === "error" && "error"}
         </p>
+        {isCheckinProcessing && (
+          <p className="text-xs text-blue-600 mb-2">Procesando check-in...</p>
+        )}
 
         {cameraStatus === "requesting" || cameraStatus === "active" ? (
           <div className="space-y-4">
@@ -831,7 +1053,7 @@ export default function CheckinPage() {
           <div className="flex gap-2">
             <button
               onClick={handleCheckin}
-              disabled={loading || !token.trim()}
+              disabled={loading || isCheckinProcessing || !token.trim()}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Procesando..." : "✓ Check-in"}

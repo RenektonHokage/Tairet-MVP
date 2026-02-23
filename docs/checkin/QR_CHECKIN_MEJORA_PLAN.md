@@ -196,7 +196,7 @@ QA manual
 
 ---
 
-Fase 2 — Calidad de escaneo (baja luz / movimiento)
+Fase 2 — Calidad de escaneo (baja luz / movimiento) Pendiente minimo permission_deniend retry button should not flash viewport when permission is blocked
 
 Objetivo
 
@@ -411,3 +411,39 @@ lectura estable con poca luz
 
 Eso es lo que más impacta en experiencia real de puerta.
 
+
+
+Decisiones explícitas de scope (v1)
+
+Diferidos no bloqueantes (decisión consciente)
+
+1) Torch / Linterna en scanner
+
+Estado: Diferido (fuera de scope actual).
+
+Motivo: No aporta valor operativo comprobado en las pruebas actuales y su comportamiento puede variar según dispositivo/navegador. Además, en algunos casos puede generar reflejos y empeorar la lectura.
+
+Impacto actual: No bloquea el flujo de check-in (escaneo + fallback manual funcionan correctamente).
+
+Criterio para reabrir: Reimplementar solo si:
+
+un local lo solicita explícitamente, o
+
+en operación real se detectan problemas recurrentes de lectura en baja luz.
+
+
+
+2) permission_denied retry flash (parpadeo visual al reintentar cámara con permiso bloqueado)
+
+Estado: Diferido (fuera de scope actual).
+
+Motivo: Es un detalle visual/UX menor. El sistema ya muestra mensaje claro de permiso denegado y no rompe la página.
+
+Impacto actual: No bloquea operación ni fallback manual.
+
+Criterio para reabrir: Ajustar en una ronda futura de polish UX del panel (no urgente para MVP operativo).
+
+
+Nota de criterio
+
+Estas decisiones se dejan fuera de la versión actual por prioridad de operación en puerta: se prioriza estabilidad del check-in, claridad de feedback y continuidad de escaneo sobre mejoras no críticas.
