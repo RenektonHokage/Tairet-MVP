@@ -1,4 +1,4 @@
-# SEO Rollout Plan - B2C (Discovery + Fases)
+# SEO Rollout Plan - B2C (Discovery + Fases) TODO IMPLEMENTADO CORRECTAMENTE 24/02/2026 
 
 Fecha: 2026-02-23
 Scope: `apps/web-b2c/**` (discovery) + referencia de placeholders en `apps/web-next/public/**`
