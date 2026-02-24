@@ -84,15 +84,7 @@ export default function SimpleInfoPage() {
       document.head.appendChild(descTag);
     }
     descTag.content = description;
-
-    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
-    if (!canonical) {
-      canonical = document.createElement("link");
-      canonical.rel = "canonical";
-      document.head.appendChild(canonical);
-    }
-    canonical.href = window.location.origin + location.pathname;
-  }, [title, description, location.pathname]);
+  }, [title, description]);
 
   return (
     <div className="min-h-screen bg-white">
