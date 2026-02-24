@@ -52,6 +52,14 @@ export interface ReservationsViewProps {
   // Handler para limpiar filtros
   onClearFilters: () => void;
 
+  // Export CSV por rango
+  exportFrom: string;
+  exportTo: string;
+  onExportFromChange: (value: string) => void;
+  onExportToChange: (value: string) => void;
+  onExport: () => void;
+  exportLoading?: boolean;
+
   // Loading state (opcional)
   loading?: boolean;
   hasLoadedDate?: boolean;
@@ -74,6 +82,12 @@ export function ReservationsView({
   onCancel,
   onEdit,
   onClearFilters,
+  exportFrom,
+  exportTo,
+  onExportFromChange,
+  onExportToChange,
+  onExport,
+  exportLoading,
   loading,
   hasLoadedDate,
   isFetchingForDate,
@@ -231,6 +245,55 @@ export function ReservationsView({
           </div>
         }
       />
+
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-neutral-600" htmlFor="export-from">
+              Desde
+            </label>
+            <input
+              id="export-from"
+              type="date"
+              value={exportFrom}
+              onChange={(event) => onExportFromChange(event.target.value)}
+              className={cn(
+                "rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                panelUi.focusRing
+              )}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-neutral-600" htmlFor="export-to">
+              Hasta
+            </label>
+            <input
+              id="export-to"
+              type="date"
+              value={exportTo}
+              onChange={(event) => onExportToChange(event.target.value)}
+              className={cn(
+                "rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                panelUi.focusRing
+              )}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onExport}
+            disabled={!exportFrom || !exportTo || exportLoading}
+            className={cn(
+              "inline-flex h-[38px] items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50",
+              panelUi.focusRing
+            )}
+          >
+            {exportLoading ? "Exportando..." : "Exportar CSV"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-neutral-500">
+          Exporta reservas y datos de contacto del local autenticado para el rango seleccionado.
+        </p>
+      </section>
 
       {/* Sort bar + count badge */}
       <div className="flex flex-wrap items-center justify-between gap-3">

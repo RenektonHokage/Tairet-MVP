@@ -273,6 +273,150 @@ function sumOrderQuantity(rows: Array<{ quantity: number | null }> | null | unde
   }, 0);
 }
 
+const EXPORT_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const EXPORT_MAX_RANGE_DAYS = 366;
+const ASUNCION_TIMEZONE = "America/Asuncion";
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function parseDateOnlyToEpochDay(value: string): number | null {
+  if (!EXPORT_DATE_REGEX.test(value)) {
+    return null;
+  }
+
+  const [yearText, monthText, dayText] = value.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const utcMs = Date.UTC(year, month - 1, day);
+  const check = new Date(utcMs);
+
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return Math.floor(utcMs / MS_PER_DAY);
+}
+
+function epochDayToDateString(epochDay: number): string {
+  return new Date(epochDay * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+function shiftDateOnly(value: string, deltaDays: number): string | null {
+  const epochDay = parseDateOnlyToEpochDay(value);
+  if (epochDay === null) {
+    return null;
+  }
+  return epochDayToDateString(epochDay + deltaDays);
+}
+
+function parseExportDateRange(fromRaw: unknown, toRaw: unknown):
+  | { ok: true; from: string; to: string; fromEpochDay: number; toEpochDay: number }
+  | { ok: false; error: string } {
+  const from = typeof fromRaw === "string" ? fromRaw.trim() : "";
+  const to = typeof toRaw === "string" ? toRaw.trim() : "";
+
+  const fromEpochDay = parseDateOnlyToEpochDay(from);
+  const toEpochDay = parseDateOnlyToEpochDay(to);
+
+  if (fromEpochDay === null || toEpochDay === null) {
+    return { ok: false, error: "Invalid date range. Expected from/to in YYYY-MM-DD format." };
+  }
+
+  if (fromEpochDay > toEpochDay) {
+    return { ok: false, error: "Invalid date range. \"from\" must be earlier than or equal to \"to\"." };
+  }
+
+  const totalDays = toEpochDay - fromEpochDay + 1;
+  if (totalDays > EXPORT_MAX_RANGE_DAYS) {
+    return {
+      ok: false,
+      error: `Date range exceeds maximum of ${EXPORT_MAX_RANGE_DAYS} days.`,
+    };
+  }
+
+  return { ok: true, from, to, fromEpochDay, toEpochDay };
+}
+
+function toAsuncionDateOnly(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: ASUNCION_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(parsed);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateTimeAsuncion(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("es-PY", {
+    timeZone: ASUNCION_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
+function toCsvCell(value: unknown): string {
+  const raw = value == null ? "" : String(value);
+  const singleLine = raw.replace(/\r?\n/g, " ");
+  const safeForExcel = /^[=+\-@]/.test(singleLine) ? `'${singleLine}` : singleLine;
+  return `"${safeForExcel.replace(/"/g, "\"\"")}"`;
+}
+
+function buildCsv(headers: string[], rows: Array<Array<unknown>>): string {
+  const csvLines: string[] = [];
+  csvLines.push(headers.map(toCsvCell).join(","));
+  for (const row of rows) {
+    csvLines.push(row.map(toCsvCell).join(","));
+  }
+  return `\uFEFF${csvLines.join("\r\n")}\r\n`;
+}
+
+function sanitizeFileNameSegment(value: string): string {
+  const collapsed = value.trim().replace(/\s+/g, "_");
+  return collapsed.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 60) || "local";
+}
+
 export const panelRouter = Router();
 
 // GET /panel/me
@@ -1612,6 +1756,245 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
       unused_count: unusedRows?.length ?? 0,
       current_window: currentWindow,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /panel/exports/reservations-clients.csv?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Export CSV de reservas/clientes por local autenticado y rango de fechas
+// Roles permitidos: owner, staff
+panelRouter.get("/exports/reservations-clients.csv", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const parsedRange = parseExportDateRange(req.query.from, req.query.to);
+    if (!parsedRange.ok) {
+      return res.status(400).json({ error: parsedRange.error });
+    }
+
+    const { from, to } = parsedRange;
+    const localId = req.panelUser.localId;
+
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("id, name, type")
+      .eq("id", localId)
+      .single();
+
+    if (localError || !local) {
+      logger.error("Failed to resolve local in CSV export", {
+        localId,
+        error: localError?.message,
+      });
+      return res.status(404).json({ error: "Local not found" });
+    }
+
+    const fallbackFrom = shiftDateOnly(from, -1) ?? from;
+    const fallbackToExclusive = shiftDateOnly(to, 2) ?? to;
+    const now = new Date();
+
+    if (local.type === "bar") {
+      const { data: reservations, error: reservationsError } = await supabase
+        .from("reservations")
+        .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at")
+        .eq("local_id", localId)
+        .gte("date", `${fallbackFrom}T00:00:00.000Z`)
+        .lt("date", `${fallbackToExclusive}T00:00:00.000Z`)
+        .order("date", { ascending: true })
+        .order("created_at", { ascending: true })
+        .limit(10000);
+
+      if (reservationsError) {
+        logger.error("Failed to fetch reservations for CSV export", {
+          localId,
+          from,
+          to,
+          error: reservationsError.message,
+        });
+        return res.status(500).json({ error: "Failed to export reservations" });
+      }
+
+      const filteredReservations = (reservations ?? []).filter((reservation) => {
+        const asuncionDay = toAsuncionDateOnly(reservation.date);
+        return Boolean(asuncionDay && asuncionDay >= from && asuncionDay <= to);
+      });
+
+      const headers = [
+        "Tipo local",
+        "Local ID",
+        "Reserva ID",
+        "Fecha reserva",
+        "Fecha reserva y hora",
+        "Estado",
+        "Nombre",
+        "Apellido",
+        "Email",
+        "Telefono",
+        "Personas",
+        "Nota cliente",
+        "Nota interna",
+        "Creada",
+      ];
+
+      const rows = filteredReservations.map((reservation) => [
+        "bar",
+        reservation.local_id ?? localId,
+        reservation.id,
+        toAsuncionDateOnly(reservation.date) ?? "",
+        formatDateTimeAsuncion(reservation.date),
+        reservation.status,
+        reservation.name,
+        reservation.last_name ?? "",
+        reservation.email ?? "",
+        reservation.phone ?? "",
+        reservation.guests ?? "",
+        reservation.notes ?? "",
+        reservation.table_note ?? "",
+        formatDateTimeAsuncion(reservation.created_at),
+      ]);
+
+      const fileName = `tairet_reservas_clientes_bar_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}.csv`;
+      const csvBody = buildCsv(headers, rows);
+
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).send(csvBody);
+    }
+
+    type ExportOrderRow = {
+      id: string;
+      local_id: string | null;
+      status: string;
+      used_at: string | null;
+      checkin_token: string | null;
+      customer_name: string | null;
+      customer_last_name: string | null;
+      customer_email: string | null;
+      customer_phone: string | null;
+      customer_document: string | null;
+      quantity: number | null;
+      created_at: string | null;
+      intended_date: string | null;
+      valid_from: string | null;
+      valid_to: string | null;
+    };
+
+    const { data: orders, error: ordersError } = await supabase
+      .from("orders")
+      .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+      .eq("local_id", localId)
+      .gte("intended_date", from)
+      .lte("intended_date", to)
+      .order("intended_date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(10000);
+
+    if (ordersError) {
+      logger.error("Failed to fetch club orders for CSV export", {
+        localId,
+        from,
+        to,
+        error: ordersError.message,
+      });
+      return res.status(500).json({ error: "Failed to export orders" });
+    }
+
+    const { data: legacyOrders, error: legacyOrdersError } = await supabase
+      .from("orders")
+      .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+      .eq("local_id", localId)
+      .is("intended_date", null)
+      .gte("created_at", `${fallbackFrom}T00:00:00.000Z`)
+      .lt("created_at", `${fallbackToExclusive}T00:00:00.000Z`)
+      .order("created_at", { ascending: true })
+      .limit(10000);
+
+    if (legacyOrdersError) {
+      logger.error("Failed to fetch legacy club orders for CSV export", {
+        localId,
+        from,
+        to,
+        error: legacyOrdersError.message,
+      });
+      return res.status(500).json({ error: "Failed to export legacy orders" });
+    }
+
+    const legacyInRange = (legacyOrders ?? []).filter((order) => {
+      const createdDay = toAsuncionDateOnly(order.created_at);
+      return Boolean(createdDay && createdDay >= from && createdDay <= to);
+    });
+
+    const clubRowsMap = new Map<string, ExportOrderRow>();
+    for (const order of orders ?? []) {
+      clubRowsMap.set(order.id, order);
+    }
+    for (const legacyOrder of legacyInRange) {
+      if (!clubRowsMap.has(legacyOrder.id)) {
+        clubRowsMap.set(legacyOrder.id, legacyOrder);
+      }
+    }
+
+    const allOrders = Array.from(clubRowsMap.values()).sort((a, b) => {
+      const aKey = a.intended_date ?? toAsuncionDateOnly(a.created_at) ?? "";
+      const bKey = b.intended_date ?? toAsuncionDateOnly(b.created_at) ?? "";
+      if (aKey === bKey) {
+        const aCreated = Date.parse(a.created_at ?? "");
+        const bCreated = Date.parse(b.created_at ?? "");
+        if (Number.isFinite(aCreated) && Number.isFinite(bCreated)) {
+          return aCreated - bCreated;
+        }
+        return 0;
+      }
+      return aKey.localeCompare(bKey);
+    });
+
+    const headers = [
+      "Tipo local",
+      "Local ID",
+      "Orden ID",
+      "Fecha evento",
+      "Estado check-in",
+      "Estado orden",
+      "Nombre",
+      "Apellido",
+      "Email",
+      "Telefono",
+      "Documento",
+      "Entradas",
+      "Token check-in",
+      "Usada",
+      "Creada",
+    ];
+
+    const rows = allOrders.map((order) => [
+      "club",
+      order.local_id ?? localId,
+      order.id,
+      order.intended_date ?? toAsuncionDateOnly(order.created_at) ?? "",
+      resolveOrderState(order, now),
+      order.status,
+      order.customer_name ?? "",
+      order.customer_last_name ?? "",
+      order.customer_email ?? "",
+      order.customer_phone ?? "",
+      order.customer_document ?? "",
+      typeof order.quantity === "number" && Number.isFinite(order.quantity) ? order.quantity : "",
+      order.checkin_token ?? "",
+      formatDateTimeAsuncion(order.used_at),
+      formatDateTimeAsuncion(order.created_at),
+    ]);
+
+    const fileName = `tairet_reservas_clientes_club_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}.csv`;
+    const csvBody = buildCsv(headers, rows);
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(csvBody);
   } catch (error) {
     next(error);
   }

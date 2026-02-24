@@ -14,6 +14,7 @@ import {
   type Reservation,
   type ReservationStatus,
 } from "@/components/panel/views/ReservationsView";
+import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
 
 // Helper: parsear fecha ISO a Date
 function parseDate(dateStr: string): Date | null {
@@ -58,6 +59,10 @@ export default function ReservationsPage() {
   const [isFetchingForDate, setIsFetchingForDate] = useState(Boolean(normalizedDateFromQuery));
   const [statusFilter, setStatusFilter] = useState<"all" | ReservationStatus>("all");
   const [sortBy, setSortBy] = useState<"time" | "name">("time");
+  const [exportFrom, setExportFrom] = useState(normalizedDateFromQuery);
+  const [exportTo, setExportTo] = useState(normalizedDateFromQuery);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
@@ -67,6 +72,10 @@ export default function ReservationsPage() {
       current === normalizedDateFromQuery ? current : normalizedDateFromQuery
     );
     setIsFetchingForDate(Boolean(normalizedDateFromQuery));
+    if (normalizedDateFromQuery) {
+      setExportFrom((current) => current || normalizedDateFromQuery);
+      setExportTo((current) => current || normalizedDateFromQuery);
+    }
   }, [normalizedDateFromQuery]);
 
   const loadReservations = useCallback(async () => {
@@ -111,6 +120,10 @@ export default function ReservationsPage() {
       }
       setIsFetchingForDate(Boolean(value));
       setSelectedDate(value);
+      if (value) {
+        setExportFrom(value);
+        setExportTo(value);
+      }
       const params = new URLSearchParams(searchParams.toString());
       if (value) {
         params.set("date", value);
@@ -122,6 +135,22 @@ export default function ReservationsPage() {
     },
     [pathname, router, searchParams, selectedDate]
   );
+
+  const handleExport = useCallback(async () => {
+    if (!exportFrom || !exportTo || exportLoading) {
+      return;
+    }
+
+    setExportError(null);
+    setExportLoading(true);
+    try {
+      await downloadPanelReservationsClientsCsv({ from: exportFrom, to: exportTo });
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Error al exportar CSV");
+    } finally {
+      setExportLoading(false);
+    }
+  }, [exportFrom, exportLoading, exportTo]);
 
   const handleRefresh = useCallback(() => {
     if (!selectedDate || loading) return;
@@ -242,6 +271,11 @@ export default function ReservationsPage() {
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
+      {exportError && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-800">{exportError}</p>
+        </div>
+      )}
       <ReservationsView
         reservations={filteredReservations}
         stats={stats}
@@ -258,6 +292,18 @@ export default function ReservationsPage() {
         onCancel={handleCancel}
         onEdit={handleEdit}
         onClearFilters={handleClearFilters}
+        exportFrom={exportFrom}
+        exportTo={exportTo}
+        onExportFromChange={(value) => {
+          setExportError(null);
+          setExportFrom(value);
+        }}
+        onExportToChange={(value) => {
+          setExportError(null);
+          setExportTo(value);
+        }}
+        onExport={handleExport}
+        exportLoading={exportLoading}
         loading={loading}
         hasLoadedDate={hasLoadedDate}
         isFetchingForDate={isFetchingForDate}

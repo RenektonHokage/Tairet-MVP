@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
+import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
 
 interface OrderItem {
   id: string;
@@ -70,6 +71,10 @@ export default function OrdersPageClient() {
   const [summary, setSummary] = useState<OrdersSummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const summaryRequestIdRef = useRef(0);
@@ -78,10 +83,16 @@ export default function OrdersPageClient() {
   useEffect(() => {
     if (!isClub) {
       setIntendedDate("");
+      setExportFrom("");
+      setExportTo("");
       return;
     }
     const nextDate = searchParams.get("intended_date") ?? "";
     setIntendedDate(nextDate);
+    if (nextDate) {
+      setExportFrom((current) => current || nextDate);
+      setExportTo((current) => current || nextDate);
+    }
   }, [searchParams, isClub]);
 
   const updateIntendedDateInUrl = (value: string) => {
@@ -241,6 +252,22 @@ export default function OrdersPageClient() {
 
   const handleSearch = () => {
     setAppliedSearchValue(searchValue.trim());
+  };
+
+  const handleExportCsv = async () => {
+    if (!exportFrom || !exportTo || exportLoading) {
+      return;
+    }
+
+    setExportError(null);
+    setExportLoading(true);
+    try {
+      await downloadPanelReservationsClientsCsv({ from: exportFrom, to: exportTo });
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Error al exportar CSV");
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   const handleCopyToken = async (token: string, id: string) => {
@@ -502,6 +529,10 @@ export default function OrdersPageClient() {
                 onChange={(e) => {
                   const nextDate = e.target.value;
                   setIntendedDate(nextDate);
+                  if (nextDate) {
+                    setExportFrom(nextDate);
+                    setExportTo(nextDate);
+                  }
                   updateIntendedDateInUrl(nextDate);
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -526,6 +557,45 @@ export default function OrdersPageClient() {
         {summaryError ? (
           <p className="mt-3 text-sm text-amber-700">{summaryError}</p>
         ) : null}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">Exportar CSV</h2>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Desde</label>
+            <input
+              type="date"
+              value={exportFrom}
+              onChange={(event) => {
+                setExportError(null);
+                setExportFrom(event.target.value);
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Hasta</label>
+            <input
+              type="date"
+              value={exportTo}
+              onChange={(event) => {
+                setExportError(null);
+                setExportTo(event.target.value);
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={!exportFrom || !exportTo || exportLoading}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exportLoading ? "Exportando..." : "Exportar CSV"}
+          </button>
+        </div>
+        {exportError ? <p className="mt-3 text-sm text-amber-700">{exportError}</p> : null}
       </section>
 
       <section className="space-y-3">
