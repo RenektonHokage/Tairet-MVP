@@ -110,7 +110,7 @@ const BarsSection: React.FC<{
   }
 
   return <section className="py-6 md:py-8">
-      <div className="px-6">
+      <div className="px-0 lg:px-6">
         <div className="mb-6 lg:mb-8 flex items-center justify-between">
           <h2 className="text-2xl lg:text-3xl font-semibold text-foreground">{sectionTitle}</h2>
           <Link to="/bares" className="inline-block">

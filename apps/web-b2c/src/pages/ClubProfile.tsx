@@ -166,6 +166,14 @@ const ClubProfile = () => {
     return null; // Se redirige a 404
   }
 
+  const liveMusicLabel = localAdditionalInfo.find((item) => {
+    const normalized = item
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    return normalized.includes("dj") || normalized.includes("musica") || normalized.includes("live");
+  });
+
   const handlePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -262,10 +270,12 @@ const ClubProfile = () => {
                     <Clock size={16} />
                     {localTodayScheduleLabel}
                   </p>
-                  <p className="text-white/90 text-sm flex items-center gap-2">
-                    <Music size={16} />
-                    DJ en vivo
-                  </p>
+                  {liveMusicLabel ? (
+                    <p className="text-white/90 text-sm flex items-center gap-2">
+                      <Music size={16} />
+                      {liveMusicLabel}
+                    </p>
+                  ) : null}
                 </div>
               }
             />
@@ -283,10 +293,12 @@ const ClubProfile = () => {
                   <Clock size={16} />
                   {localTodayScheduleLabel}
                 </p>
-                <p className="text-white/90 text-sm sm:text-base flex items-center gap-2">
-                  <Music size={16} />
-                  DJ en vivo
-                </p>
+                {liveMusicLabel ? (
+                  <p className="text-white/90 text-sm sm:text-base flex items-center gap-2">
+                    <Music size={16} />
+                    {liveMusicLabel}
+                  </p>
+                ) : null}
               </div>
               <Dialog>
                 <DialogTrigger asChild>

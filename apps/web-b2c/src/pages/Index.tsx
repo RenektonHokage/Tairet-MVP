@@ -142,27 +142,31 @@ const Index = () => {
       </section>
       
       {/* Experiencias - Carrusel horizontal */}
-      <section className="py-8 md:py-10 px-6 md:px-12 bg-background overflow-hidden">
+      <section className="py-8 md:py-10 px-6 md:px-12 bg-background overflow-visible lg:overflow-hidden">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-2xl font-semibold text-foreground mb-6">Experiencias destacadas</h2>
         </div>
-        <ExperiencesCarousel startIndex={1} items={[{
-        src: rooftopCard,
-        title: "Rooftop",
-        href: "/experiencias/rooftop"
-      }, {
-        src: afterOfficeCard,
-        title: "After Office",
-        href: "/experiencias/after-office"
-      }, {
-        src: images.landing.experiences.promotions,
-        title: "Promociones",
-        href: "/experiencias/promociones"
-      }, {
-        src: images.landing.experiences.events,
-        title: "Eventos",
-        href: "/eventos"
-      }]} />
+        <div className="-mx-6 md:mx-0">
+          <div className="px-6 md:px-0">
+            <ExperiencesCarousel startIndex={1} items={[{
+            src: rooftopCard,
+            title: "Rooftop",
+            href: "/experiencias/rooftop"
+          }, {
+            src: afterOfficeCard,
+            title: "After Office",
+            href: "/experiencias/after-office"
+          }, {
+            src: images.landing.experiences.promotions,
+            title: "Promociones",
+            href: "/experiencias/promociones"
+          }, {
+            src: images.landing.experiences.events,
+            title: "Eventos",
+            href: "/eventos"
+          }]} />
+          </div>
+        </div>
       </section>
       
       {/* Featured Venues Section */}
