@@ -1,5 +1,4 @@
 // Centralized mock data for clubs
-import dlirioVideo from "@/assets/dlirio-video.mp4";
 import bailongoPromo from "@/assets/bailongo-promo.jpg";
 import formulaPromo from "@/assets/formula-promo.jpg";
 import tragosFreshPromo from "@/assets/tragos-fresh-promo.jpg";
@@ -132,7 +131,7 @@ export const mockClubData = {
   dlirio: {
     name: "DLirio",
     images: [dlirioGallery1, dlirioGallery2, dlirioGallery3, dlirioGallery4],
-    video: dlirioVideo,
+    video: undefined,
     ageRestriction: "+21",
     schedule: "22:00–05:00",
     genre: "Electrónica",

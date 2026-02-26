@@ -3,19 +3,43 @@ import BottomNavbar from "@/components/layout/BottomNavbar";
 import TairetInfoSection from "@/components/TairetInfoSection";
 import FeaturedVenuesSection from "@/components/TestimonialsSection";
 import Footer from "@/components/Footer";
+import { useEffect, useState } from "react";
 import rooftopCard from "@/assets/rooftop-card.png";
 import afterOfficeCard from "@/assets/after-office-card.png";
 import tairetLockup from "@/assets/tairet/tairet-lockup.png";
-import heroOverlayTarget from "@/assets/tairet/hero-overlay-target.png";
 import { images } from "@/lib/images";
 import ExperiencesCarousel from "@/components/ExperiencesCarousel";
 import { Link } from "react-router-dom";
 
 const Index = () => {
+  const [heroOverlayTarget, setHeroOverlayTarget] = useState<string | null>(null);
   const showHeroOverlay =
     import.meta.env.DEV &&
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("heroOverlay") === "1";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!showHeroOverlay || !import.meta.env.DEV) {
+      setHeroOverlayTarget(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    import("@/assets/tairet/hero-overlay-target.png")
+      .then((module) => {
+        if (!cancelled) setHeroOverlayTarget(module.default);
+      })
+      .catch(() => {
+        if (!cancelled) setHeroOverlayTarget(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showHeroOverlay]);
 
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -31,7 +55,7 @@ const Index = () => {
         {/* Background pattern/texture */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.1),transparent_50%)]" />
 
-        {showHeroOverlay && (
+        {showHeroOverlay && heroOverlayTarget && (
           <img
             src={heroOverlayTarget}
             alt=""
