@@ -246,7 +246,7 @@ export function ReservationsView({
         }
       />
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm md:block">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-neutral-600" htmlFor="export-from">

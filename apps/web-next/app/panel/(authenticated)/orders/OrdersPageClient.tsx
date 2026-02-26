@@ -559,7 +559,7 @@ export default function OrdersPageClient() {
         ) : null}
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:block">
         <h2 className="mb-4 text-xl font-semibold text-slate-900">Exportar CSV</h2>
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
           <div>
