@@ -63,6 +63,10 @@ export default function ReservationsPage() {
   const [exportTo, setExportTo] = useState(normalizedDateFromQuery);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [noteSavingId, setNoteSavingId] = useState<string | null>(null);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
 
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
@@ -231,9 +235,55 @@ export default function ReservationsPage() {
   };
 
   const handleEdit = (reservation: Reservation) => {
-    // TODO: Abrir modal de edición de nota interna
-    console.log("Editar reserva", reservation.id);
+    if (isBlocked || noteSavingId) return;
+
+    setNoteError(null);
+    setEditingReservation(reservation);
+    setNoteDraft(reservation.table_note?.trim() ?? "");
   };
+
+  const closeEditModal = useCallback(() => {
+    if (noteSavingId) return;
+    setEditingReservation(null);
+    setNoteDraft("");
+    setNoteError(null);
+  }, [noteSavingId]);
+
+  const handleSaveNote = useCallback(async () => {
+    if (isBlocked || !editingReservation || noteSavingId) return;
+
+    const normalizedValue = noteDraft.trim();
+    if (normalizedValue.length > 500) {
+      setNoteError("La nota interna no puede superar los 500 caracteres.");
+      return;
+    }
+
+    const tableNote = normalizedValue.length > 0 ? normalizedValue : null;
+    setNoteError(null);
+    setNoteSavingId(editingReservation.id);
+
+    try {
+      const updated = await updatePanelReservationStatus(editingReservation.id, { table_note: tableNote });
+      const savedNote = updated.table_note ?? tableNote;
+
+      setReservations((prev) =>
+        prev.map((item) =>
+          item.id === editingReservation.id
+            ? {
+                ...item,
+                table_note: savedNote,
+              }
+            : item
+        )
+      );
+      setEditingReservation(null);
+      setNoteDraft("");
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : "Error al actualizar nota interna");
+    } finally {
+      setNoteSavingId(null);
+    }
+  }, [editingReservation, isBlocked, noteDraft, noteSavingId]);
 
   const handleClearFilters = () => {
     setSearchQuery("");
@@ -264,6 +314,13 @@ export default function ReservationsPage() {
   }
 
   // RENDER PRINCIPAL con ReservationsView
+  const noteDraftLength = noteDraft.length;
+  const noteDraftTooLong = noteDraftLength > 500;
+  const isSavingNote = Boolean(editingReservation && noteSavingId === editingReservation.id);
+  const editingReservationName = editingReservation
+    ? [editingReservation.name, editingReservation.last_name].filter(Boolean).join(" ")
+    : "";
+
   return (
     <>
       {error && (
@@ -274,6 +331,16 @@ export default function ReservationsPage() {
       {exportError && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm text-amber-800">{exportError}</p>
+        </div>
+      )}
+      {noteError && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-800">{noteError}</p>
+        </div>
+      )}
+      {noteSavingId && (
+        <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-blue-800">Guardando nota interna...</p>
         </div>
       )}
       <ReservationsView
@@ -308,6 +375,85 @@ export default function ReservationsPage() {
         hasLoadedDate={hasLoadedDate}
         isFetchingForDate={isFetchingForDate}
       />
+
+      {editingReservation && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 px-4 py-4 sm:items-center sm:py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-note-title"
+          onClick={closeEditModal}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xl sm:p-5"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="space-y-1">
+              <h2 id="edit-note-title" className="text-base font-semibold text-neutral-900 sm:text-lg">
+                Editar nota interna
+              </h2>
+              <p className="text-xs text-neutral-600 sm:text-sm">
+                {editingReservationName || "Reserva seleccionada"} · {editingReservation.date}
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <label htmlFor="table-note-editor" className="text-xs font-medium text-neutral-700 sm:text-sm">
+                Nota de operación
+              </label>
+              <textarea
+                id="table-note-editor"
+                value={noteDraft}
+                onChange={(event) => {
+                  setNoteDraft(event.target.value);
+                  if (noteError) {
+                    setNoteError(null);
+                  }
+                }}
+                rows={5}
+                maxLength={2000}
+                className="w-full resize-y rounded-xl border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#8d1313] focus:ring-2 focus:ring-[#8d1313]/20"
+                placeholder="Agregar nota interna para operación..."
+                disabled={isSavingNote}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-xs ${noteDraftTooLong ? "text-rose-700" : "text-neutral-500"}`}>
+                  {noteDraftLength}/500
+                </span>
+                {noteDraftTooLong && (
+                  <span className="text-xs font-medium text-rose-700">
+                    La nota interna no puede superar los 500 caracteres.
+                  </span>
+                )}
+              </div>
+              {noteError && (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:text-sm">
+                  {noteError}
+                </p>
+              )}
+            </div>
+
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                disabled={isSavingNote}
+                className="inline-flex h-9 items-center justify-center rounded-full border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveNote()}
+                disabled={isSavingNote || noteDraftTooLong}
+                className="inline-flex h-9 items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSavingNote ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
