@@ -13,6 +13,78 @@ import {
 } from "../services/openingHours";
 
 export const reservationsRouter = Router();
+const ASUNCION_TIMEZONE = "America/Asuncion";
+const MS_PER_DAY = 86_400_000;
+
+function parseDateOnlyToEpochDay(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return null;
+  }
+
+  const [yearRaw, monthRaw, dayRaw] = trimmed.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  const utcMs = Date.UTC(year, month - 1, day);
+  const check = new Date(utcMs);
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return Math.floor(utcMs / MS_PER_DAY);
+}
+
+function epochDayToDateString(epochDay: number): string {
+  return new Date(epochDay * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+function shiftDateOnly(value: string, deltaDays: number): string | null {
+  const epochDay = parseDateOnlyToEpochDay(value);
+  if (epochDay === null) {
+    return null;
+  }
+
+  return epochDayToDateString(epochDay + deltaDays);
+}
+
+function toAsuncionDateOnly(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: ASUNCION_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(parsed);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return `${year}-${month}-${day}`;
+}
 
 // POST /reservations
 reservationsRouter.post("/", async (req, res, next) => {
@@ -175,14 +247,53 @@ localsReservationsRouter.get("/:id/reservations", panelAuth, async (req, res, ne
       return res.status(403).json({ error: "Forbidden: You can only access your own local's reservations" });
     }
 
+    const dateParam = typeof req.query.date === "string" ? req.query.date.trim() : "";
+
+    if (dateParam) {
+      if (parseDateOnlyToEpochDay(dateParam) === null) {
+        return res.status(400).json({
+          error: 'Invalid date. Expected query param "date" in YYYY-MM-DD format.',
+        });
+      }
+
+      const fallbackFrom = shiftDateOnly(dateParam, -1) ?? dateParam;
+      const fallbackToExclusive = shiftDateOnly(dateParam, 2) ?? dateParam;
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select(
+          "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
+        )
+        .eq("local_id", id)
+        .gte("date", `${fallbackFrom}T00:00:00.000Z`)
+        .lt("date", `${fallbackToExclusive}T00:00:00.000Z`)
+        .order("date", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        logger.error("Error fetching reservations for date", {
+          error: error.message,
+          localId: id,
+          date: dateParam,
+        });
+        return res.status(500).json({ error: error.message });
+      }
+
+      const filtered = (data || []).filter((reservation) => {
+        return toAsuncionDateOnly(reservation.date) === dateParam;
+      });
+
+      return res.status(200).json(filtered);
+    }
+
     const { data, error } = await supabase
-    .from("reservations")
-    .select(
-      "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
-    )
-    .eq("local_id", id)
-    .order("created_at", { ascending: false })
-    .limit(20);  
+      .from("reservations")
+      .select(
+        "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
+      )
+      .eq("local_id", id)
+      .order("created_at", { ascending: false })
+      .limit(20);
 
     if (error) {
       logger.error("Error fetching reservations", {

@@ -1,3 +1,22 @@
+Estado: histórico / snapshot de auditoría inicial
+
+No usar como fuente operativa primaria
+
+Fuente operativa actual:
+
+docs/audits/CONTRATOS_CONGELADOS_V1.md
+
+docs/audits/BASELINE_FUNCIONAL_V1.md
+
+docs/audits/MATRIZ_VALIDACION_PREVIA_V1.md
+
+docs/audits/SMOKE_TESTS_V1.md
+
+docs/audits/RIESGOS_ACEPTADOS_Y_PENDIENTES.md
+
+docs/audits/HARDENING_ROADMAP.md
+
+
 # TAIRET — Auditoría técnica MVP (Discovery + plan por fases)
 
 Fecha: 2026-02-24  

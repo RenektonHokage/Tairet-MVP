@@ -57,6 +57,15 @@ export async function getPanelReservationsByLocalId(
   return apiGetWithAuth<Reservation[]>(`/locals/${localId}/reservations`);
 }
 
+export async function getPanelReservationsByLocalIdAndDate(
+  localId: string,
+  date: string
+): Promise<Reservation[]> {
+  return apiGetWithAuth<Reservation[]>(
+    `/locals/${localId}/reservations?date=${encodeURIComponent(date)}`
+  );
+}
+
 /**
  * Busca reservas del panel por email, teléfono, nombre o apellido
  * Requiere autenticación
@@ -91,4 +100,3 @@ export async function updatePanelReservationStatus(
 ): Promise<Reservation> {
   return apiPatchWithAuth<Reservation>(`/panel/reservations/${reservationId}`, input);
 }
-

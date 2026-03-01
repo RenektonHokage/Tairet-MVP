@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
 import {
-  getPanelReservationsByLocalId,
+  getPanelReservationsByLocalIdAndDate,
   updatePanelReservationStatus,
   type Reservation as ApiReservation,
 } from "@/lib/reservations";
@@ -26,7 +26,6 @@ function parseDate(dateStr: string): Date | null {
   }
 }
 
-// Helper: comparar si dos fechas son el mismo día
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -90,7 +89,10 @@ export default function ReservationsPage() {
     setError(null);
 
     try {
-      const data = await getPanelReservationsByLocalId(context.local.id);
+      const data = await getPanelReservationsByLocalIdAndDate(
+        context.local.id,
+        selectedDate
+      );
       setReservations(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar reservas");
@@ -161,20 +163,13 @@ export default function ReservationsPage() {
     void loadReservations();
   }, [selectedDate, loading, loadReservations]);
 
-  // Filtrado y ordenamiento LOCAL (sin endpoint nuevo)
+  // Filtrado y ordenamiento LOCAL sobre dataset ya acotado por fecha en backend
   const filteredReservations = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const selectedDateValue = selectedDate ? new Date(`${selectedDate}T00:00:00`) : null;
 
     const filtered = reservations.filter((r) => {
       // Filtro por estado
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
-
-      // Filtro por fecha (comparar día)
-      if (selectedDateValue) {
-        const reservationDate = parseDate(r.date);
-        if (!reservationDate || !isSameDay(reservationDate, selectedDateValue)) return false;
-      }
 
       // Filtro por búsqueda (nombre, email, teléfono)
       if (normalizedQuery) {
@@ -197,7 +192,7 @@ export default function ReservationsPage() {
       const dateB = parseDate(b.date)?.getTime() ?? 0;
       return dateA - dateB;
     });
-  }, [reservations, searchQuery, selectedDate, statusFilter, sortBy]);
+  }, [reservations, searchQuery, statusFilter, sortBy]);
 
   // Stats calculadas sobre lista filtrada
   const stats = useMemo(() => {
