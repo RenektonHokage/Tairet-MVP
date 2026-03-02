@@ -60,7 +60,7 @@ Quedan fuera de alcance:
 ## ST-01 — Lookup público de órdenes por email
 
 * **ID:** ST-01
-* **Flujo:** API pública `/public/orders?email=...`
+* **Flujo:** contrato/backend preservado de `/public/orders?email=...`
 * **Tipo:** Mixto (Código + Runtime)
 * **Precondiciones:**
 
@@ -84,6 +84,7 @@ Quedan fuera de alcance:
   * Para email válido sin órdenes, la respuesta observable sigue siendo `[]`.
   * Para email inválido, la rama observable actual es `400` con `{ error: error.flatten() }`.
   * Para fallo backend, la rama observable actual es `500` con `{ error: "Failed to fetch orders" }`.
+  * Este smoke preserva el contrato/backend observado, pero ya no debe tratarse como bloqueo activo del cierre de `F4` mientras `MisEntradas` siga despublicada del pre-relanzamiento actual.
 * **Regresión observable:**
 
   * cambio de ruta o del query param `email`
@@ -101,59 +102,49 @@ Quedan fuera de alcance:
   * `functions/api/src/routes/public.ts:299`
   * `functions/api/src/routes/public.ts:303`
   * `functions/api/src/routes/public.ts:306`
-* **Estado:** Requiere validación
+* **Estado:** Residual posterior / Requiere validación
 
 ---
 
-## ST-02 — B2C `MisEntradas`
+## ST-02 — B2C `MisEntradas` (despublicada temporalmente)
 
 * **ID:** ST-02
-* **Flujo:** recuperación de entradas por email en frontend B2C
+* **Flujo:** despublicación temporal de `MisEntradas` en el B2C de pre-relanzamiento
 * **Tipo:** Mixto (Código + Runtime)
 * **Precondiciones:**
 
   * B2C accesible
-  * API pública accesible
-  * un email válido con órdenes para prueba
+  * navegación pública desktop y mobile visible
 * **Pasos:**
 
-  1. Verificar en código que `getOrdersByEmail()` consume `/public/orders?email` y devuelve `response.json()` directo cuando `response.ok`.
-  2. Verificar en código que `MisEntradas` usa `id`, `checkin_token`, `quantity`, `created_at`, `total_amount`, `currency`, `status`, `payment_method` y `used_at`.
-  3. En UI `MisEntradas`, buscar con email válido con órdenes.
-  4. Verificar que la lista renderiza sin romperse y que cada item mantiene el comportamiento observable actual.
-  5. Abrir modal o vista de entrada y validar QR, token visible y copy.
-  6. Probar email válido sin órdenes para verificar estado vacío sin romper contrato observable.
+  1. Verificar en código que `MisEntradas.tsx` sigue preservado como base de código.
+  2. Verificar en código que `/mis-entradas` ya no está montada en `App.tsx`.
+  3. Verificar en código que la navegación desktop ya no muestra `Mis entradas` y que en su lugar se repone `Publicá tu local` con la ruta canónica existente.
+  4. Verificar en código que la bottom navbar mobile ya no muestra `Mis entradas` y quedó equilibrada para `4` ítems.
+  5. Verificar en código que el CTA post-compra ya no apunta a `/mis-entradas`.
+  6. Validar manualmente en runtime visual que desktop y mobile no exponen `MisEntradas` y que el ajuste de navegación pasa visualmente.
 * **Resultado esperado:**
 
-  * La búsqueda dispara el consumo del endpoint público sin transformación intermedia del payload.
-  * La lista mantiene el comportamiento observable actual usando los campos hoy leídos por `MisEntradas`.
-  * El modal mantiene QR, token visible y acción de copia.
-  * La respuesta vacía sigue resolviendo estado vacío sin romper la pantalla.
-  * `local_id` puede seguir presente en el payload, pero no es requisito observable directo de esta pantalla.
+  * `MisEntradas` ya no forma parte de la superficie pública del B2C de pre-relanzamiento.
+  * El archivo `MisEntradas.tsx` sigue preservado para futura reintroducción con login/cuenta de usuario.
+  * La navbar desktop muestra `Publicá tu local` como reemplazo correcto del CTA retirado.
+  * La bottom navbar mobile queda visualmente equilibrada con `4` ítems.
+  * El CTA post-compra ya no deriva a `/mis-entradas`.
 * **Regresión observable:**
 
-  * la búsqueda deja de poblar `orders` con un array usable
-  * se rompe el render por ausencia/cambio de alguno de los campos usados por la pantalla
-  * no aparece QR o no aparece token donde hoy el flujo lo expone
-  * se rompe la vista vacía para emails sin órdenes
+  * `/mis-entradas` vuelve a quedar montada públicamente
+  * reaparece `Mis entradas` en la navegación pública desktop o mobile
+  * el CTA post-compra vuelve a dirigir a `/mis-entradas`
+  * desaparece `Publicá tu local` del reemplazo desktop
+  * la bottom navbar queda desbalanceada o inconsistente visualmente
 * **Evidencia base de código:**
 
-  * `apps/web-b2c/src/lib/orders.ts:20`
-  * `apps/web-b2c/src/lib/orders.ts:22`
-  * `apps/web-b2c/src/lib/orders.ts:36`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:43`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:156`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:165`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:168`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:174`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:178`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:183`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:227`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:241`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:253`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:258`
-  * `apps/web-b2c/src/pages/MisEntradas.tsx:275`
-* **Estado:** Requiere validación
+  * `apps/web-b2c/src/App.tsx:103`
+  * `apps/web-b2c/src/components/layout/Navbar.tsx:128`
+  * `apps/web-b2c/src/components/layout/BottomNavbar.tsx:17`
+  * `apps/web-b2c/src/components/shared/CheckoutBase.tsx:415`
+  * `apps/web-b2c/src/pages/MisEntradas.tsx:1`
+* **Estado:** Confirmado por código + runtime manual observado
 
 ---
 
@@ -243,33 +234,35 @@ Quedan fuera de alcance:
   * sesión panel activa
 * **Pasos:**
 
-  1. Verificar en código que el logout limpia `panel_token` y redirige a `/panel/login`.
+  1. Verificar en código que el logout usa `supabase.auth.signOut({ scope: "local" })`, limpia `panel_token` como compatibilidad residual y redirige con `replace("/panel/login")`.
   2. Ejecutar logout desde UI.
   3. Verificar que la app redirige a `/panel/login`.
   4. Ejecutar `back` y observar si reaparece contenido protegido o no.
-  5. Hacer refresh en una ruta protegida previamente abierta.
-  6. Navegar de nuevo a `/panel`.
-  7. Confirmar si una request autenticada posterior sigue funcionando o no.
+  5. Hacer refresh en `/panel`.
+  6. Hacer refresh en otra ruta protegida abierta, por ejemplo `/panel/reservations`.
+  7. Si el entorno lo permite, navegar de nuevo a `/panel` y confirmar si una request autenticada posterior sigue funcionando o no.
   8. Separar el resultado entre logout visible y invalidación efectiva de sesión.
 * **Resultado esperado:**
 
-  * Desde código, el comportamiento visible confirmado es limpieza de cookie + redirección a `/panel/login`.
-  * En el runtime local observado, el logout visible redirige a login pero no invalida la sesión Auth: `back` no restaura de inmediato el dashboard visible, pero refresh en `/panel`, nueva navegación a `/panel` y una request autenticada posterior siguen recuperando acceso.
-  * Fuera de ese runtime local observado, la reproducción del hallazgo sigue sujeta a validación adicional.
+  * Desde código, el logout observable actual usa el mecanismo real de Supabase Auth, mantiene limpieza de `panel_token` solo como compatibilidad residual y redirige a `/panel/login`.
+  * En el runtime manual observado, el logout redirige a login, `back` no recupera acceso efectivo y refresh en `/panel` y `/panel/reservations` no recupera acceso.
+  * Navegación directa a `/panel`, request autenticada posterior y cobertura fuera de ese runtime manual observado siguen sujetas a validación adicional.
 * **Regresión observable:**
 
-  * deja de limpiarse la cookie observada
+  * deja de ejecutarse el logout real de Supabase y el flujo vuelve a depender solo de `panel_token`
   * deja de existir la redirección visible a `/panel/login`
-  * cambia el comportamiento observable actual entre login visible y sesión todavía utilizable sin soporte documental/QA previo
+  * `back` o refresh en rutas protegidas vuelven a recuperar acceso efectivo en el runtime observado
+  * el estado visual y el acceso efectivo vuelven a desalinearse
 * **Evidencia base de código:**
 
-  * `apps/web-next/components/panel/SidebarUserInfo.tsx:13`
+  * `apps/web-next/components/panel/SidebarUserInfo.tsx:14`
   * `apps/web-next/components/panel/SidebarUserInfo.tsx:15`
-  * `apps/web-next/components/panel/SidebarUserInfo.tsx:16`
+  * `apps/web-next/components/panel/SidebarUserInfo.tsx:21`
+  * `apps/web-next/components/panel/SidebarUserInfo.tsx:22`
   * `apps/web-next/lib/api.ts:22`
   * `apps/web-next/app/panel/(authenticated)/page.tsx:307`
   * `functions/api/src/middlewares/panelAuth.ts:86`
-* **Estado:** Confirmado por runtime local observado
+* **Estado:** Confirmado por código + runtime manual observado; residual menor pendiente
 
 ---
 
@@ -330,7 +323,7 @@ Quedan fuera de alcance:
   * `functions/api/src/routes/reservations.ts:289`
   * `functions/api/src/routes/reservations.ts:296`
   * `apps/web-next/components/panel/views/lineup/LineupCalendarView.tsx:459`
-* **Estado:** Confirmado por código + runtime manual observado
+* **Estado:** Confirmado por código + runtime manual observado; residual posterior/no bloqueante del contrato legacy sin `date`
 
 ---
 
@@ -384,7 +377,7 @@ Quedan fuera de alcance:
   * `apps/web-next/app/panel/(authenticated)/checkin/page.tsx:583`
   * `apps/web-next/app/panel/(authenticated)/checkin/page.tsx:585`
   * `apps/web-next/app/panel/(authenticated)/checkin/page.tsx:874`
- * **Estado:** Confirmado por runtime local observado con cobertura combinada; residual menor pendiente
+ * **Estado:** Confirmado por runtime local observado con cobertura combinada; residual posterior/no bloqueante
 
 ---
 
@@ -437,7 +430,7 @@ Quedan fuera de alcance:
   * `apps/web-next/lib/panelExport.ts:79`
   * `apps/web-next/app/panel/(authenticated)/reservations/page.tsx:151`
   * `apps/web-next/app/panel/(authenticated)/orders/OrdersPageClient.tsx:265`
-* **Estado:** Confirmado por runtime local observado
+* **Estado:** Confirmado por runtime local observado; residual posterior/no bloqueante
 
 ---
 
@@ -478,7 +471,7 @@ Quedan fuera de alcance:
   * `functions/api/src/routes/panel.ts:1767`
   * `functions/api/src/middlewares/panelAuth.ts:65`
   * `functions/api/src/middlewares/panelAuth.ts:114`
-* **Estado:** Requiere validación
+* **Estado:** Requiere validación (residual posterior / no bloqueante para cierre de `F5B`)
 
 ---
 
@@ -552,11 +545,11 @@ Por definición de este documento, todos los smoke tests con comportamiento obse
 
 Especialmente sensibles:
 
-* **ST-05** — efectividad real del logout
-* **ST-06** — severidad residual del modo legacy sin `date` y cobertura fuera del caso manual observado
-* **ST-07** — residual menor del check-in (`scanner + expired` no observado directamente en esta corrida)
-* **ST-08** — descarga CSV real, filename efectivo y manejo de errores residuales
-* **ST-09** — enforcement real de autenticación/autorización
+* **ST-05** — cobertura residual del logout fuera del runtime manual observado
+* **ST-06** — severidad residual posterior del modo legacy sin `date` y cobertura fuera del caso manual observado
+* **ST-07** — residual posterior del check-in (`scanner + expired` no observado directamente en esta corrida)
+* **ST-08** — residual posterior del export (`500`, datasets grandes, otros entornos/navegadores)
+* **ST-09** — residual posterior de cobertura auth/rutas protegidas del bloque
 
 Contexto base útil para el triage posterior:
 

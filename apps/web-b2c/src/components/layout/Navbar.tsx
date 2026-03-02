@@ -119,15 +119,15 @@ const Navbar = () => {
         {/* Right - Auth buttons (Desktop only) */}
         <div className="hidden lg:flex items-center space-x-3">
           <ThemeToggle />
-          
+
           <Button 
             variant="default" 
             asChild
             className="font-medium"
           >
-            <Link to="/mis-entradas">Mis entradas</Link>
+            <Link to="/para-locales/publica-tu-local">Publicá tu local</Link>
           </Button>
-
+          
           {isAuthenticated && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

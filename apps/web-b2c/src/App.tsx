@@ -40,7 +40,6 @@ const AfterOffice = lazy(() => import("./pages/experiencias/AfterOffice"));
 const Promociones = lazy(() => import("./pages/experiencias/Promociones"));
 const PurchaseConfirmation = lazy(() => import("./pages/PurchaseConfirmation"));
 const ReservaForm = lazy(() => import("./pages/ReservaForm"));
-const MisEntradas = lazy(() => import("./pages/MisEntradas"));
 
 const RouteFallback = () => (
   <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
@@ -72,7 +71,6 @@ const App = () => (
             <Route path="/explorar" element={<Explorar />} />
             <Route path="/eventos" element={<Eventos />} />
             <Route path="/zonas" element={<Zonas />} />
-            <Route path="/mis-entradas" element={<MisEntradas />} />
             
             {/* Experience pages */}
             <Route path="/experiencias/rooftop" element={<Rooftop />} />

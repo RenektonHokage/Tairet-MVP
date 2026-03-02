@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Información del usuario en el sidebar: email, rol, y botón de logout.
@@ -10,10 +11,15 @@ export function SidebarUserInfo() {
   const { data, loading } = usePanelContext();
   const router = useRouter();
 
-  const handleLogout = () => {
-    // Limpiar token y redirigir a login
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut({ scope: "local" });
+    if (error) {
+      console.error("Error signing out from panel:", error);
+      return;
+    }
+
     document.cookie = "panel_token=; path=/; max-age=0";
-    router.push("/panel/login");
+    router.replace("/panel/login");
   };
 
   if (loading) {

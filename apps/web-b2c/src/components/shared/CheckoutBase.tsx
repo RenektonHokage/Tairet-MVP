@@ -412,7 +412,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
             </div>
             
             <p className="text-sm text-muted-foreground">
-              También puedes ver tus entradas en <strong>Mis Entradas</strong> ingresando tu email.
+              Guarda el código de entrada y revisa tu email para volver a consultarlo durante el pre-relanzamiento.
             </p>
             
             <div className="flex gap-3 justify-center pt-4">
@@ -420,7 +420,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                 Cerrar
               </Button>
               <Button asChild>
-                <Link to="/mis-entradas">Ver Mis Entradas</Link>
+                <Link to="/">Volver al inicio</Link>
               </Button>
             </div>
           </div>

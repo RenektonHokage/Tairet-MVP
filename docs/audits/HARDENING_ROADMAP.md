@@ -356,7 +356,7 @@ Solo cuando no toquen la misma superficie sensible:
 ## F4 — CODE de hardening aditivo del flujo público B2C
 
 **Tipo:** CODE
-**Objetivo:** endurecer el flujo público actual sin romper `MisEntradas`.
+**Objetivo:** endurecer el flujo público B2C existente en código sin romper `MisEntradas`, tratándolo como superficie potencialmente reexponible y previo al relanzamiento mientras el estado de exposición pública actual siga en `Requiere validación`.
 
 ### Input documental
 
@@ -374,15 +374,15 @@ Solo cuando no toquen la misma superficie sensible:
 
 ### Output esperado
 
-* reducción de exposición sin romper el flujo actual
+* reducción de exposición técnica antes de reexposición o relanzamiento
 * compatibilidad mantenida con `MisEntradas`
 * documentación actualizada del estado del riesgo
 
 ### Bloqueantes
 
-* payload mínimo real todavía no congelado
-* campos exactos consumidos por B2C aún abiertos
-* validación runtime insuficiente del popup o del abuso real del endpoint
+* estado de exposición pública actual del B2C sin confirmar en dominio/deploy final
+* abuso real del endpoint y exposición operativa exacta del bloque siguen en `Requiere validación`
+* cualquier hardening del bloque debe preservar `MisEntradas` y no asumir relanzamiento ya confirmado
 
 ### Docs a actualizar al cerrar
 
@@ -723,7 +723,7 @@ Antes de iniciar **F4**, **F5A**, **F5B**, **F6** o **F7**, deben cumplirse como
 
 ### 12.1 `/public/orders?email` + `MisEntradas`
 
-Existe riesgo aceptado por negocio, pero también exposición técnica abierta.
+Existe riesgo aceptado por negocio y superficie técnica potencialmente reexponible. El estado de exposición pública productiva actual queda en `Requiere validación` hasta confirmar dominio/deploy final.
 
 ### 12.2 Reservas panel
 
