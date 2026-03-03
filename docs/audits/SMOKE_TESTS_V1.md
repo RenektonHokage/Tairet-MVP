@@ -44,6 +44,8 @@ Este documento cubre smoke tests mínimos para los siguientes flujos críticos:
 8. Export CSV
 9. Auth panel / acceso a rutas protegidas
 10. Perfiles críticos B2C
+11. Refactor estructural del dominio club catalog en `panel.ts`
+12. Refactor estructural del dominio local profile + gallery en `panel.ts`
 
 Quedan fuera de alcance:
 
@@ -511,11 +513,196 @@ Quedan fuera de alcance:
 
 ---
 
+## ST-11 — Refactor estructural del dominio club catalog en `panel.ts`
+
+* **ID:** ST-11
+* **Flujo:** extracción estructural/no-breaking de `/panel/catalog/*`
+* **Tipo:** Mixto (Código + Runtime)
+* **Precondiciones:**
+
+  * API accesible
+  * panel autenticado si se quiere validar lectura/operación real del catálogo
+* **Pasos:**
+
+  1. Verificar en código que `panel.ts` ya no contiene inline las rutas CRUD de `tickets` y `tables`.
+  2. Verificar en código que `panel.ts` monta `panelCatalogRouter` bajo `/catalog`.
+  3. Verificar en código que `panelCatalog.ts` expone exactamente las rutas CRUD de `tickets` y `tables`.
+  4. Verificar en código que los middlewares observables del dominio catálogo siguen equivalentes:
+     * `GET /tickets` y `GET /tables` con `panelAuth + requireRole(["owner","staff"])`
+     * `POST/PATCH/DELETE` con `panelAuth + requireRole(["owner"])`
+  5. Verificar en código que los consumidores frontend del catálogo siguen apuntando a `/panel/catalog/tickets` y `/panel/catalog/tables`.
+  6. Ejecutar runtime mínimo no autenticado sobre `GET /panel/catalog/tickets` y `GET /panel/catalog/tables`.
+  7. Si el entorno lo permite, validar manualmente que cargan `tickets`, cargan `tables` y que una creación de ticket funciona sin error visible.
+  8. Dejar explícito que la duplicación temporal de `verifyClubOnly` queda aceptada como residual estructural acotado del slice.
+* **Resultado esperado:**
+
+  * El dominio `club catalog` queda extraído a `panelCatalog.ts` sin cambiar los paths públicos visibles.
+  * `GET /panel/catalog/tickets` y `GET /panel/catalog/tables` siguen protegidas y, sin auth, devuelven `401 Missing or invalid Authorization header`.
+  * En el runtime manual observado, el panel sigue cargando `tickets` y `tables`, la creación de ticket funciona y no aparecen errores visibles del flujo.
+  * Las rutas sensibles fuera de catálogo permanecen no tocadas.
+  * La duplicación temporal de `verifyClubOnly` no se trata como regresión visible inmediata del slice.
+* **Regresión observable:**
+
+  * desaparición o cambio de path de cualquiera de las rutas `/panel/catalog/*`
+  * cambios no controlados de middleware/rol observable del catálogo
+  * consumidores frontend del catálogo apuntando a endpoints distintos
+  * `401` distinto o desaparición del borde protegido en runtime mínimo no autenticado
+  * errores visibles al cargar `tickets`, `tables` o al crear un ticket en el runtime manual observado
+  * cambio accidental de rutas sensibles fuera del dominio catálogo
+* **Evidencia base de código:**
+
+  * `functions/api/src/routes/panel.ts:7`
+  * `functions/api/src/routes/panel.ts:277`
+  * `functions/api/src/routes/panel.ts:2024`
+  * `functions/api/src/routes/panelCatalog.ts:7`
+  * `functions/api/src/routes/panelCatalog.ts:13`
+  * `functions/api/src/routes/panelCatalog.ts:61`
+  * `functions/api/src/routes/panelCatalog.ts:100`
+  * `functions/api/src/routes/panelCatalog.ts:194`
+  * `functions/api/src/routes/panelCatalog.ts:308`
+  * `functions/api/src/routes/panelCatalog.ts:363`
+  * `functions/api/src/routes/panelCatalog.ts:402`
+  * `functions/api/src/routes/panelCatalog.ts:496`
+  * `functions/api/src/routes/panelCatalog.ts:602`
+  * `apps/web-next/lib/panel.ts:301`
+  * `apps/web-next/lib/panel.ts:325`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:10`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:553`
+* **Estado:** Confirmado por código + runtime manual observado
+
+---
+
+## ST-12 — Refactor estructural del dominio local profile + gallery en `panel.ts`
+
+* **ID:** ST-12
+* **Flujo:** extracción estructural/no-breaking de `/panel/local` y `/panel/local/gallery/*`
+* **Tipo:** Mixto (Código + Runtime)
+* **Precondiciones:**
+
+  * API accesible
+  * panel autenticado si se quiere validar lectura/operación real de profile/gallery
+* **Pasos:**
+
+  1. Verificar en código que `panel.ts` ya no contiene inline `GET /panel/local`, `PATCH /panel/local`, `POST /panel/local/gallery/signed-upload` y `DELETE /panel/local/gallery/:id`.
+  2. Verificar en código que `panel.ts` monta `panelLocalRouter` bajo `/local`.
+  3. Verificar en código que `panelLocal.ts` expone exactamente las rutas de local profile + gallery movidas.
+  4. Verificar en código que los middlewares observables del dominio siguen equivalentes a los del bloque original.
+  5. Verificar en código que los consumidores frontend siguen apuntando a `/panel/local` y `/panel/local/gallery/...`.
+  6. Ejecutar runtime mínimo no autenticado sobre `GET /panel/local` y `POST /panel/local/gallery/signed-upload`.
+  7. Si el entorno lo permite, validar manualmente que profile carga, profile guarda, gallery upload funciona y gallery delete funciona sin error visible.
+  8. Dejar explícito que `GET /panel/me` queda fuera del slice como residual estructural aceptable para mantener la extracción chica.
+* **Resultado esperado:**
+
+  * El dominio `local profile + gallery` queda extraído a `panelLocal.ts` sin cambiar los paths públicos visibles.
+  * `GET /panel/local` y `POST /panel/local/gallery/signed-upload` siguen protegidas y, sin auth, devuelven `401 Missing or invalid Authorization header`.
+  * En el runtime manual observado, profile load/save, gallery upload y gallery delete pasan sin errores visibles.
+  * Las rutas sensibles fuera de `local profile + gallery` permanecen no tocadas.
+  * `GET /panel/me` no entra en el slice y queda como residual estructural aceptable, no como regresión visible inmediata.
+* **Regresión observable:**
+
+  * desaparición o cambio de path de cualquiera de las rutas `/panel/local` o `/panel/local/gallery/*`
+  * cambios no controlados de middleware observable del dominio
+  * consumidores frontend de profile/gallery apuntando a endpoints distintos
+  * `401` distinto o desaparición del borde protegido en runtime mínimo no autenticado
+  * errores visibles al cargar/guardar profile o al subir/borrar gallery en el runtime manual observado
+  * cambio accidental de rutas sensibles fuera del dominio
+* **Evidencia base de código:**
+
+  * `functions/api/src/routes/panel.ts:7`
+  * `functions/api/src/routes/panel.ts:302`
+  * `functions/api/src/routes/panel.ts:343`
+  * `functions/api/src/routes/panelLocal.ts:15`
+  * `functions/api/src/routes/panelLocal.ts:118`
+  * `functions/api/src/routes/panelLocal.ts:171`
+  * `functions/api/src/routes/panelLocal.ts:465`
+  * `functions/api/src/routes/panelLocal.ts:553`
+  * `apps/web-next/lib/panel.ts:121`
+  * `apps/web-next/lib/panel.ts:132`
+  * `apps/web-next/lib/panel.ts:158`
+  * `apps/web-next/lib/panel.ts:208`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:516`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:882`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:970`
+  * `apps/web-next/app/panel/(authenticated)/profile/page.tsx:1001`
+* **Estado:** Confirmado por código + runtime manual observado
+
+---
+
+## ST-13 — Hardening SQL/RLS mínimo del bloque tracking público
+
+* **ID:** ST-13
+* **Flujo:** rollout acotado de `F7 CODE 01` sobre `events_public`, `whatsapp_clicks` y `profile_views`
+* **Tipo:** Mixto (Código + Runtime/entorno real)
+* **Precondiciones:**
+
+  * `infra/sql/migrations/016_harden_tracking_rls_backend_only.sql` aplicada en el proyecto real de Supabase
+  * confirmación operativa vigente de backend observable con cliente global `SUPABASE_SERVICE_ROLE`
+  * scope congelado del primer rollout limitado al bloque tracking público
+* **Pasos:**
+
+  1. Verificar en código que `infra/sql/migrations/016_harden_tracking_rls_backend_only.sql` solo hace `DROP POLICY IF EXISTS` y `CREATE POLICY` sobre `events_public`, `whatsapp_clicks` y `profile_views`.
+  2. Verificar en código que `infra/sql/rls.sql` quedó alineado con ese mismo estado del bloque tracking.
+  3. Verificar en código que los flows del bloque siguen siendo únicamente los inserts públicos de `functions/api/src/routes/events.ts` y las lecturas backend de `functions/api/src/routes/metrics.ts`, `functions/api/src/routes/activity.ts` y `functions/api/src/routes/promos.ts`.
+  4. Verificar por evidencia real post-apply en Supabase que las tres tablas siguen con `rls_enabled = true`.
+  5. Verificar por evidencia real post-apply en Supabase que ya no están activas las policies permisivas viejas:
+     * `events_public_select_by_local`
+     * `events_public_insert_public`
+     * `whatsapp_clicks_select_by_local`
+     * `whatsapp_clicks_insert_public`
+     * `profile_views_select_by_local`
+     * `profile_views_insert_public`
+  6. Verificar por evidencia real post-apply en Supabase que existen las seis policies nuevas:
+     * `events_public_select_backend_only`
+     * `events_public_insert_backend_only`
+     * `whatsapp_clicks_select_backend_only`
+     * `whatsapp_clicks_insert_backend_only`
+     * `profile_views_select_backend_only`
+     * `profile_views_insert_backend_only`
+  7. Verificar por evidencia real post-apply en Supabase que para `anon` y `authenticated` las nuevas policies quedan restrictivas:
+     * `SELECT` con `qual = false`
+     * `INSERT` con `with_check = false`
+  8. Dejar explícito que cualquier otra tabla o flow queda fuera del primer rollout de `F7`.
+* **Resultado esperado:**
+
+  * `F7 CODE 01` queda endurecido solo en `events_public`, `whatsapp_clicks` y `profile_views`.
+  * Las tres tablas mantienen `rls_enabled = true`.
+  * Las seis policies permisivas previas del bloque tracking dejan de ser las activas post-apply.
+  * Existen las seis policies `*_backend_only` y son restrictivas para `anon` y `authenticated`.
+  * El rollout sigue coherente con los flows observables actuales del bloque, apoyados en la lectura operativa vigente de backend con `SUPABASE_SERVICE_ROLE`.
+  * Ninguna tabla o flow fuera del bloque tracking entra en scope del primer rollout.
+* **Regresión observable:**
+
+  * aparición de tablas/policies fuera del bloque tracking dentro del rollout
+  * ausencia de alguna de las seis policies `*_backend_only`
+  * persistencia activa de las policies permisivas viejas en el proyecto real
+  * pérdida de `rls_enabled` en cualquiera de las tres tablas
+  * necesidad no prevista de tocar `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` o flows críticos derivados
+* **Evidencia base de código:**
+
+  * `infra/sql/rls.sql:41`
+  * `infra/sql/rls.sql:44`
+  * `infra/sql/rls.sql:49`
+  * `infra/sql/rls.sql:54`
+  * `infra/sql/rls.sql:59`
+  * `infra/sql/rls.sql:64`
+  * `infra/sql/migrations/016_harden_tracking_rls_backend_only.sql:1`
+  * `functions/api/src/routes/events.ts:43`
+  * `functions/api/src/routes/events.ts:99`
+  * `functions/api/src/routes/events.ts:130`
+  * `functions/api/src/routes/metrics.ts:59`
+  * `functions/api/src/routes/metrics.ts:122`
+  * `functions/api/src/routes/metrics.ts:143`
+  * `functions/api/src/routes/activity.ts:63`
+  * `functions/api/src/routes/promos.ts:99`
+* **Estado:** Confirmado por código + runtime/entorno real post-apply
+
+---
+
 ## 6) Criterio de salida del documento
 
 ## Etapa ST-0 — Definición documental (ASK)
 
-* [ ] Los 10 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
+* [ ] Los 13 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
 * [ ] Cada smoke incluye evidencia por archivo/línea.
 * [ ] No hay afirmaciones runtime marcadas como confirmadas sin ejecución.
 * [ ] El documento se mantiene alineado con:

@@ -61,7 +61,7 @@ Si hace falta ASK adicional dentro de `F3`, debería limitarse a una validación
 
 Bloques abiertos actuales:
 
-1. semántica efectiva de `SUPABASE_SERVICE_ROLE` / RLS en entorno (**fuera de `F3`; residual de `F7` / validación estructural**)
+1. alcance exacto por flujo real e implicancias de rollout de la semántica backend con `SUPABASE_SERVICE_ROLE` / RLS (**fuera de `F3`; residual de `F7` / validación estructural**)
 2. captura real de Sentry panel con DSN activo y cobertura runtime efectiva del wiring remanente en `apps/web-next` (**dependencia de entorno de `F3`**)
 
 ### Próximo CODE permitido
@@ -118,8 +118,8 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 ## 7) Fases pendientes
 
 * **F3 — CODE de observabilidad y guardrails (en curso)**
-* **F6 — CODE de refactor estructural `panel.ts`**
-* **F7 — CODE de hardening SQL / RLS**
+* **F6 — CODE de refactor estructural `panel.ts` (abierta pero pausada; `CODE 01` y `CODE 02` validados)**
+* **F7 — CODE de hardening SQL / RLS (abierta; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); el segundo bloque de rollout queda congelado en `promos`; `F7 CODE 02` queda habilitado únicamente para `promos`; cualquier otra tabla o flow queda fuera de scope del segundo rollout)**
 * **F8 — CODE de pendientes no bloqueantes y cierre documental**
 
 ---
@@ -128,7 +128,6 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 
 ### Bloqueantes runtime / de validación mínima
 
-* semántica efectiva de `SUPABASE_SERVICE_ROLE` / RLS en entorno (**abierto, pero fuera de `F3`; corresponde a `F7` / validación estructural**)
 * captura real de Sentry panel con DSN activo; el wiring remanente ya no rompe el panel, pero su efectividad real sigue en validación y depende del entorno
 
 ### Bloqueante operativo de habilitación
@@ -156,6 +155,17 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
   * **F5A — reservas + auth/logout**
   * **F5B — check-in + export CSV**
 * F7 quedó reforzada documentalmente: no debe diseñarse solo contra `schema.sql` + `rls.sql`, y requiere reconciliar `schema.sql`, migraciones y runtime antes de cualquier CODE del bloque
+* El ASK de reconciliación operativa de superficie SQL para `F7` queda **parcialmente cerrado**: el drift principal entre `schema.sql`, migraciones y runtime ya quedó identificado documentalmente; `customer_email_lower` y la correspondencia final con el esquema desplegado siguen en `Requiere validación`
+* La semántica operativa observable del backend para `F7` queda mejor asentada documentalmente: el cliente global usa `SUPABASE_SERVICE_ROLE` y, con la evidencia real disponible, cualquier diseño del bloque debe asumir bypass de RLS en backend hasta que se demuestre lo contrario por flujo real
+* El ASK de alcance por flujo real de `SUPABASE_SERVICE_ROLE` para `F7` queda **parcialmente confirmado**: el backend observable opera con un cliente global y el bloque debe asumir bypass de RLS hasta prueba contraria por flujo real; los flows con `orders`, `reservations`, `panel_users`, `payments/callback`, `check-in`, `orders/search`, `orders/summary` y `export` quedan documentados como de alta o muy alta criticidad para rollout
+* El primer bloque prudente de rollout de `F7` queda congelado en tracking público: `events_public`, `whatsapp_clicks` y `profile_views`
+* **F7 CODE 01 queda validado únicamente para `events_public`, `whatsapp_clicks` y `profile_views`. Cualquier otra tabla o flow queda fuera de scope del primer rollout.**
+* `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del primer rollout de `F7`
+* La validación de `F7 CODE 01` ya no depende solo de lectura de código: incluye verificación real post-apply en Supabase, con `rls_enabled = true` preservado para `events_public`, `whatsapp_clicks` y `profile_views`, desaparición de las policies permisivas previas del bloque y presencia de las seis policies `*_backend_only` restrictivas para `anon` y `authenticated`
+* El segundo bloque prudente de rollout de `F7` queda congelado en `promos`
+* **F7 CODE 02 queda habilitado únicamente para `promos`. Cualquier otra tabla o flow queda fuera de scope del segundo rollout.**
+* `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del segundo rollout de `F7`
+* El siguiente paso correcto de `F7` pasa a ser la **apertura controlada de `F7 CODE 02` con scope congelado en `promos`**
 * El gate hacia `F3` quedó satisfecho y la fase ya fue abierta con un primer slice seguro y aditivo
 * `F3 CODE 01` ya quedó implementado y validado en backend con:
 
@@ -255,6 +265,45 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 * El residual `/public/orders?email` + `checkin_token` no desaparece: pasa a ola posterior y deja de tratarse como bloqueo activo del pre-relanzamiento mientras `MisEntradas` siga despublicada del B2C actual
 * En el runtime local observado, la Fase B del bloque mapa/popup quedó cerrada como validación runtime: `dlirio` mostró mapa/ubicación operativos sin anomalías visibles y `mckharthys-bar` cayó a `Ubicación no disponible` cuando faltó ubicación cargada
 * El residual del bloque mapa/popup pasa a plano técnico/documental: `setHTML(...)` sigue existiendo como superficie por código, pero no demostró comportamiento riesgoso observable en esta corrida
+* `F6 CODE 01` ya quedó implementado y validado como slice estructural/no-breaking sobre `functions/api/src/routes/panel.ts`:
+
+  * extrajo solo el dominio **club catalog** a `functions/api/src/routes/panelCatalog.ts`
+  * preservó el mount visible bajo `/panel/catalog`
+  * movió exactamente las rutas CRUD de `tickets` y `tables`, sin tocar contratos visibles ni middlewares del bloque
+* La validación de `F6 CODE 01` confirmó por código + runtime manual observado:
+
+  * `typecheck` OK en `functions/api`
+  * borde no autenticado intacto (`GET /panel/catalog/tickets` y `GET /panel/catalog/tables` → `401`)
+  * carga manual observada de `tickets` y `tables`
+  * creación manual observada de ticket OK y uso posterior sin error visible
+* `F6 CODE 01` no tocó rutas sensibles fuera del dominio catálogo:
+
+  * `GET /panel/me`, `GET/PATCH /panel/local`, gallery upload/delete
+  * reservas, check-in, `orders/search`, `orders/summary`, export CSV, `calendar`
+  * `panelAuth` y `requireRole(...)`
+* La duplicación temporal de `verifyClubOnly` entre `panel.ts` y `panelCatalog.ts` queda aceptada como residual estructural menor del slice; no bloquea la consolidación de `F6 CODE 01`, pero `F6` sigue abierta para futuros refactors del archivo monolítico
+* `F6 CODE 02` ya quedó implementado y validado como slice estructural/no-breaking sobre `functions/api/src/routes/panel.ts`:
+
+  * extrajo solo el dominio **local profile + gallery** a `functions/api/src/routes/panelLocal.ts`
+  * preservó el mount visible bajo `/panel/local`
+  * movió exactamente `GET /panel/local`, `PATCH /panel/local`, `POST /panel/local/gallery/signed-upload` y `DELETE /panel/local/gallery/:id`, sin tocar contratos visibles ni middlewares del bloque
+* La validación de `F6 CODE 02` confirmó por código + runtime manual observado:
+
+  * `typecheck` OK en `functions/api`
+  * borde no autenticado intacto (`GET /panel/local` y `POST /panel/local/gallery/signed-upload` → `401`)
+  * carga manual observada de profile OK
+  * guardado manual observado de profile OK
+  * upload manual observado de gallery OK
+  * delete manual observado de gallery OK
+  * sin errores visibles en el flujo manual observado
+* `F6 CODE 02` no tocó rutas sensibles fuera del dominio local profile + gallery:
+
+  * `GET /panel/me`
+  * reservas, check-in, `orders/:id/use`, `orders/search`, `orders/summary`, export CSV
+  * `catalog`, `calendar`, `panelAuth` y `requireRole(...)`
+* `GET /panel/me` queda fuera de `F6 CODE 02` como residual estructural aceptable para mantener el slice chico; no bloquea la consolidación documental del slice
+* Tras reevaluar el remanente de `panel.ts`, `F6` queda **abierta pero pausada**: no corresponde abrir `F6 CODE 03` ahora porque el remanente ya está concentrado en dominios sensibles (`GET /panel/me`, reservas, órdenes, check-in y export) y no aparece otro slice pequeño, coherente y no-breaking comparable a `CODE 01` o `CODE 02`
+* El siguiente paso correcto dentro de `F6` no es un CODE inmediato, sino una **reevaluación posterior del remanente de `panel.ts`** cuando cambie el mapa de riesgo o aparezca un dominio claramente aislable
 
 ---
 
@@ -263,7 +312,7 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 Actualizar este documento cuando ocurra al menos una de estas situaciones:
 
 * cambie el próximo ASK activo
-* cambie el próximo CODE permitido
+* cambie el próximo CODE permitido o la pausa actual de `F6`
 * se destrabe o aparezca un bloqueante importante
 * cambie una decisión documental/operativa relevante
 
@@ -282,3 +331,11 @@ Actualizar este documento cuando ocurra al menos una de estas situaciones:
 * No debe usarse para introducir verdad nueva sin evidencia.
 * Si hay contradicción entre este documento y los docs base, prevalecen los docs base.
 * Antes de abrir un ASK o CODE nuevo, revisar este documento junto con `HARDENING_ROADMAP.md`.
+
+
+
+Nota importante: El backend observable usa hoy un cliente global SUPABASE_SERVICE_ROLE; cualquier diseño de F7 debe asumir bypass de RLS en backend hasta que se demuestre lo contrario por flujo real.
+
+
+
+

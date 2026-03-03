@@ -15,10 +15,11 @@ ALTER TABLE local_daily_ops ENABLE ROW LEVEL SECURITY;
 -- TODO: Ajustar según sistema de autenticación (Supabase Auth)
 -- Por ahora: permitir lectura pública (RLS se aplica a otras tablas)
 
--- Policy: promos (solo ver promos del local correspondiente)
-CREATE POLICY "promos_select_by_local" ON promos
+-- Policy: promos (backend only; clientes anon/authenticated no deben leer por SQL directo)
+CREATE POLICY "promos_select_backend_only" ON promos
   FOR SELECT
-  USING (true); -- TODO: Filtrar por local_id según usuario autenticado
+  TO anon, authenticated
+  USING (false);
 
 -- Policy: orders (solo ver órdenes del local correspondiente)
 CREATE POLICY "orders_select_by_local" ON orders
@@ -38,32 +39,38 @@ CREATE POLICY "reservations_insert_public" ON reservations
   FOR INSERT
   WITH CHECK (true); -- Permitir crear reservas públicamente
 
--- Policy: events_public (solo ver eventos del local correspondiente)
-CREATE POLICY "events_public_select_by_local" ON events_public
+-- Policy: tracking público (sin acceso SQL directo para anon/authenticated)
+-- El backend observable usa service_role y bypassea RLS; estas tablas no deben
+-- quedar abiertas por SQL directo para clientes anon/authenticated.
+CREATE POLICY "events_public_select_backend_only" ON events_public
   FOR SELECT
-  USING (true); -- TODO: Filtrar por local_id según usuario autenticado
+  TO anon, authenticated
+  USING (false);
 
-CREATE POLICY "events_public_insert_public" ON events_public
+CREATE POLICY "events_public_insert_backend_only" ON events_public
   FOR INSERT
-  WITH CHECK (true); -- Permitir insertar eventos públicamente
+  TO anon, authenticated
+  WITH CHECK (false);
 
--- Policy: whatsapp_clicks (solo ver clicks del local correspondiente)
-CREATE POLICY "whatsapp_clicks_select_by_local" ON whatsapp_clicks
+CREATE POLICY "whatsapp_clicks_select_backend_only" ON whatsapp_clicks
   FOR SELECT
-  USING (true); -- TODO: Filtrar por local_id según usuario autenticado
+  TO anon, authenticated
+  USING (false);
 
-CREATE POLICY "whatsapp_clicks_insert_public" ON whatsapp_clicks
+CREATE POLICY "whatsapp_clicks_insert_backend_only" ON whatsapp_clicks
   FOR INSERT
-  WITH CHECK (true); -- Permitir insertar clicks públicamente
+  TO anon, authenticated
+  WITH CHECK (false);
 
--- Policy: profile_views (solo ver vistas del local correspondiente)
-CREATE POLICY "profile_views_select_by_local" ON profile_views
+CREATE POLICY "profile_views_select_backend_only" ON profile_views
   FOR SELECT
-  USING (true); -- TODO: Filtrar por local_id según usuario autenticado
+  TO anon, authenticated
+  USING (false);
 
-CREATE POLICY "profile_views_insert_public" ON profile_views
+CREATE POLICY "profile_views_insert_backend_only" ON profile_views
   FOR INSERT
-  WITH CHECK (true); -- Permitir insertar vistas públicamente
+  TO anon, authenticated
+  WITH CHECK (false);
 
 -- Policy: local_daily_ops (solo ver/modificar operación del local correspondiente)
 CREATE POLICY "local_daily_ops_select_by_local" ON local_daily_ops
