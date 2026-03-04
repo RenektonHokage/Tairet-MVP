@@ -278,10 +278,14 @@ export default function TemporaryLanding() {
               />
 
               <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-                <div className="mb-10 flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
-                  <span className="h-px w-8 bg-white/12" />
-                  <span>Paraguay · Nightlife</span>
-                  <span className="h-px w-8 bg-white/12" />
+                <div className="mb-10 flex items-center gap-3 text-[10px] uppercase tracking-[0.22em] text-[#f4efe9] sm:gap-4 sm:text-[11px] sm:tracking-[0.35em]">
+                  <span className="h-px w-7 bg-white/12 sm:w-8" />
+                  <span className="flex items-center gap-2 whitespace-nowrap sm:gap-3">
+                    <span>Paraguay</span>
+                    <span className="text-white/55">·</span>
+                    <span>Nightlife</span>
+                  </span>
+                  <span className="h-px w-7 bg-white/12 sm:w-8" />
                 </div>
 
                 <h1
