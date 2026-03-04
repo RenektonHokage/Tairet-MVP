@@ -81,13 +81,13 @@ const cityCards = [
   },
   {
     number: "02",
-    eyebrow: "Lago & noche",
+    eyebrow: "Ciudad del verano",
     title: "San Bernardino",
     description: "El destino de verano que nunca duerme.",
   },
   {
     number: "03",
-    eyebrow: "Frontera activa",
+    eyebrow: "Ciudad sin pausa",
     title: "Ciudad del Este",
     description: "Una ciudad que vive las 24 horas.",
   },
@@ -99,7 +99,8 @@ const headingSerif = {
 };
 
 const bodySans = {
-  fontFamily: '"Aptos","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif',
+  fontFamily:
+    '"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,"Times New Roman",serif',
 };
 
 function upsertMeta(kind: "name" | "property", key: string, content: string) {
@@ -151,9 +152,9 @@ function LandingButton({
 
 function SectionEyebrow({ index, label }: { index: string; label: string }) {
   return (
-    <div className="mb-8 flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#c7ab86]">
+    <div className="mb-8 flex items-center gap-3 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
       <span>{index}</span>
-      <span className="h-px w-8 bg-white/12" />
+      <span aria-hidden="true">—</span>
       <span>{label}</span>
     </div>
   );
@@ -277,7 +278,7 @@ export default function TemporaryLanding() {
               />
 
               <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-                <div className="mb-10 flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#c7ab86]">
+                <div className="mb-10 flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
                   <span className="h-px w-8 bg-white/12" />
                   <span>Paraguay · Nightlife</span>
                   <span className="h-px w-8 bg-white/12" />
@@ -332,12 +333,12 @@ export default function TemporaryLanding() {
               <div className="space-y-8 pt-2 text-[19px] leading-10 text-[#8e8980]">
                 <p>
                   Tairet es la plataforma que conecta tu bar, discoteca o evento con miles de
-                  personas que buscan experiencias en Paraguay. Visibilidad real, reservas directas
-                  y herramientas pensadas para el rubro.
+                  personas que buscan salir en Paraguay. Visibilidad, reservas y herramientas
+                  pensadas para el rubro.
                 </p>
                 <p>
-                  No es solo un directorio. Es una presencia digital completa diseñada para que tu
-                  local destaque antes, durante y después de cada noche.
+                  Es una presencia digital completa diseñada para que tu local destaque y opere
+                  antes, durante y después de cada noche.
                 </p>
 
                 <div className="border-t border-white/10 pt-8 text-[18px] italic text-[#736d65]">
@@ -377,7 +378,7 @@ export default function TemporaryLanding() {
 
             <div className="mt-14 grid gap-6 lg:grid-cols-2">
               <article className="rounded-[30px] border border-white/10 bg-white/[0.03] p-8 transition duration-300 hover:-translate-y-1 hover:border-white/16 hover:bg-white/[0.04]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-[#d7ba97]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-white">
                   <Building2 className="h-5 w-5" />
                 </div>
                 <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingSerif}>
@@ -389,13 +390,13 @@ export default function TemporaryLanding() {
                 <ul className="mt-8 space-y-4 text-[17px] leading-8 text-[#a7a297]">
                   <li>Perfil digital completo y actualizable.</li>
                   <li>Visibilidad directa ante tu público objetivo.</li>
-                  <li>Gestión de reservas y eventos en un solo lugar.</li>
+                  <li>Gestión de reservas y entradas en un solo lugar.</li>
                   <li>Acceso a métricas y análisis de tu audiencia.</li>
                 </ul>
               </article>
 
               <article className="rounded-[30px] border border-white/10 bg-white/[0.02] p-8 transition duration-300 hover:-translate-y-1 hover:border-white/16 hover:bg-white/[0.04]">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-[#d7ba97]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-white">
                   <MapPin className="h-5 w-5" />
                 </div>
                 <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingSerif}>
@@ -407,7 +408,7 @@ export default function TemporaryLanding() {
                 <ul className="mt-8 space-y-4 text-[17px] leading-8 text-[#a7a297]">
                   <li>Descubrí tu próximo lugar favorito.</li>
                   <li>Enterate de lo que pasa esta noche.</li>
-                  <li>Reservar y comprar entradas sin complicaciones.</li>
+                  <li>Reservá y comprá entradas sin complicaciones.</li>
                   <li>Acceder a eventos antes que todos.</li>
                 </ul>
               </article>
@@ -424,7 +425,7 @@ export default function TemporaryLanding() {
                 className="text-[clamp(2.9rem,6vw,4.8rem)] leading-[0.98] tracking-[-0.04em] text-[#f6f0ea]"
                 style={headingSerif}
               >
-                Donde <em className="font-normal italic">empieza todo</em>
+                  Donde <em className="font-normal italic">empieza todo</em>
               </h2>
               <p className="mt-6 max-w-3xl text-[19px] leading-9 text-[#8f8a82]">
                 Tairet arranca en tres ciudades clave de Paraguay, con visión de crecer a todo el
@@ -436,18 +437,19 @@ export default function TemporaryLanding() {
               {cityCards.map((city) => (
                 <article
                   key={city.title}
-                  className="bg-[#080808] px-8 py-12 transition duration-300 hover:bg-white/[0.03]"
+                  className="group relative overflow-hidden bg-[#080808] px-8 py-12 transition duration-300 hover:bg-white/[0.03]"
                 >
-                  <div className="text-[44px] tracking-[-0.04em] text-[#746f68]" style={headingSerif}>
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_62%)] opacity-0 transition duration-500 group-hover:opacity-100" />
+                  <div className="relative text-[44px] tracking-[-0.04em] text-[#8b867f] transition duration-500 group-hover:text-[#f4efe9]" style={headingSerif}>
                     {city.number}
                   </div>
                   <div className="mt-8 inline-flex rounded-full border border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-[#8d887f]">
                     {city.eyebrow}
                   </div>
-                  <h3 className="mt-8 text-[36px] text-[#f6f0ea]" style={headingSerif}>
+                  <h3 className="relative mt-8 text-[36px] text-[#f6f0ea] transition duration-500 group-hover:text-white" style={headingSerif}>
                     {city.title}
                   </h3>
-                  <p className="mt-4 max-w-[22ch] text-[18px] leading-8 text-[#8f8a82]">
+                  <p className="relative mt-4 max-w-[22ch] text-[18px] leading-8 text-[#8f8a82] transition duration-500 group-hover:text-[#b7b2aa]">
                     {city.description}
                   </p>
                 </article>
@@ -473,8 +475,12 @@ export default function TemporaryLanding() {
                 </h2>
               </div>
 
-              <div className="inline-flex w-fit rounded-full border border-white/10 px-5 py-3 text-[11px] uppercase tracking-[0.3em] text-[#9d988f]">
-                En desarrollo
+              <div className="inline-flex w-fit items-center gap-3 rounded-full border border-white/10 px-5 py-3 text-[11px] uppercase tracking-[0.3em] text-[#f4efe9]">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inset-0 rounded-full bg-white/35 blur-[2px] animate-pulse" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.55)]" />
+                </span>
+                <span>En desarrollo</span>
               </div>
             </div>
 
@@ -516,7 +522,7 @@ export default function TemporaryLanding() {
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <div className="rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(92,18,18,0.12))] px-6 py-16 text-center shadow-[0_20px_80px_rgba(0,0,0,0.35)] sm:px-10 sm:py-20">
               <div className="mx-auto max-w-3xl">
-                <div className="mb-8 inline-flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#c7ab86]">
+                <div className="mb-8 inline-flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
                   <span className="h-px w-8 bg-white/12" />
                   <span>Locales fundadores</span>
                   <span className="h-px w-8 bg-white/12" />
@@ -562,7 +568,7 @@ export default function TemporaryLanding() {
             <img src={tairetMark} alt="" aria-hidden="true" className="h-6 w-6 object-contain opacity-90" />
             <span style={headingSerif}>Tairet</span>
           </div>
-          <div>Paraguay · Nightlife · {new Date().getFullYear()}</div>
+          <div className="text-[#f4efe9]">Paraguay · Nightlife · {new Date().getFullYear()}</div>
           <div className="rounded-full border border-white/10 px-4 py-2 text-[#8c877f]">Próximamente</div>
         </div>
       </footer>
