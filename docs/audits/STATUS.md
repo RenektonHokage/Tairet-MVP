@@ -119,7 +119,7 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 
 * **F3 — CODE de observabilidad y guardrails (en curso)**
 * **F6 — CODE de refactor estructural `panel.ts` (abierta pero pausada; `CODE 01` y `CODE 02` validados)**
-* **F7 — CODE de hardening SQL / RLS (abierta; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); el segundo bloque de rollout queda congelado en `promos`; `F7 CODE 02` queda habilitado únicamente para `promos`; cualquier otra tabla o flow queda fuera de scope del segundo rollout)**
+* **F7 — CODE de hardening SQL / RLS (abierta; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); segundo bloque de rollout congelado en `promos`; `F7 CODE 02` validado únicamente para `promos`; cualquier otra tabla o flow queda fuera de scope del segundo rollout; siguiente paso: selección del tercer bloque prudente de rollout)**
 * **F8 — CODE de pendientes no bloqueantes y cierre documental**
 
 ---
@@ -163,9 +163,10 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 * `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del primer rollout de `F7`
 * La validación de `F7 CODE 01` ya no depende solo de lectura de código: incluye verificación real post-apply en Supabase, con `rls_enabled = true` preservado para `events_public`, `whatsapp_clicks` y `profile_views`, desaparición de las policies permisivas previas del bloque y presencia de las seis policies `*_backend_only` restrictivas para `anon` y `authenticated`
 * El segundo bloque prudente de rollout de `F7` queda congelado en `promos`
-* **F7 CODE 02 queda habilitado únicamente para `promos`. Cualquier otra tabla o flow queda fuera de scope del segundo rollout.**
+* **F7 CODE 02 queda validado únicamente para `promos`. Cualquier otra tabla o flow queda fuera de scope del segundo rollout.**
 * `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del segundo rollout de `F7`
-* El siguiente paso correcto de `F7` pasa a ser la **apertura controlada de `F7 CODE 02` con scope congelado en `promos`**
+* La validación de `F7 CODE 02` ya no depende solo de lectura de código: incluye verificación real post-apply en Supabase (`promos` con `rls_enabled = true`, desaparición de `promos_select_by_local`, presencia de `promos_select_backend_only` restrictiva para `anon` y `authenticated`) y validación funcional mínima de los flows actuales (`GET /public/locals/by-slug/mckharthys-bar` con `promotions` y `GET /locals/:id/promos` con auth en panel)
+* El siguiente paso correcto de `F7` pasa a ser la **selección del tercer bloque prudente de rollout**; ya no corresponde revalidar ni reabrir `F7 CODE 02`
 * El gate hacia `F3` quedó satisfecho y la fase ya fue abierta con un primer slice seguro y aditivo
 * `F3 CODE 01` ya quedó implementado y validado en backend con:
 

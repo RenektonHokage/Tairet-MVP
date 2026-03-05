@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, Navigation, Clock, Phone, Calendar } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -153,6 +153,8 @@ const MapSection: React.FC<MapSectionProps> = ({
   const mapboxglRef = useRef<typeof import("mapbox-gl").default | null>(null);
   const resizeObserver = useRef<ResizeObserver | null>(null);
   const prevCoordsRef = useRef<Coordinates | null>(null);
+  const detachMapListeners = useRef<(() => void) | null>(null);
+  const hasRuntimeStyleError = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapOverlayError, setMapOverlayError] = useState<string | null>(null);
   const [mapOverlayDetail, setMapOverlayDetail] = useState<string | null>(null);
@@ -172,8 +174,13 @@ const MapSection: React.FC<MapSectionProps> = ({
     ? `${zone} • ${effectiveCity}`
     : zone || effectiveCity || "Ubicación no disponible";
   const displayAddress = address?.trim() || null;
-  const providedCoords: Coordinates | null =
-    Number.isFinite(longitude) && Number.isFinite(latitude) ? [Number(longitude), Number(latitude)] : null;
+  const providedCoords = useMemo<Coordinates | null>(
+    () =>
+      Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? [Number(longitude), Number(latitude)]
+        : null,
+    [longitude, latitude]
+  );
   const formattedHours = hours.map(formatHoursLine).filter((value): value is string => Boolean(value));
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string;
@@ -184,6 +191,9 @@ const MapSection: React.FC<MapSectionProps> = ({
     marker.current?.remove();
     marker.current = null;
     prevCoordsRef.current = null;
+    detachMapListeners.current?.();
+    detachMapListeners.current = null;
+    hasRuntimeStyleError.current = false;
     map.current?.remove();
     map.current = null;
   }, []);
@@ -196,6 +206,7 @@ const MapSection: React.FC<MapSectionProps> = ({
     if (providedCoords) {
       setResolvedCoords(providedCoords);
       setMapError(null);
+      hasRuntimeStyleError.current = false;
       setMapOverlayError(null);
       setMapOverlayDetail(null);
       setIsResolvingCoords(false);
@@ -207,6 +218,7 @@ const MapSection: React.FC<MapSectionProps> = ({
     if (!MAPBOX_TOKEN) {
       setResolvedCoords(null);
       setMapError("Mapa no disponible");
+      hasRuntimeStyleError.current = false;
       setMapOverlayError(null);
       setMapOverlayDetail(null);
       setIsResolvingCoords(false);
@@ -219,6 +231,7 @@ const MapSection: React.FC<MapSectionProps> = ({
     if (!hasAddressData) {
       setResolvedCoords(null);
       setMapError("Ubicación no disponible");
+      hasRuntimeStyleError.current = false;
       setMapOverlayError(null);
       setMapOverlayDetail(null);
       setIsResolvingCoords(false);
@@ -229,6 +242,7 @@ const MapSection: React.FC<MapSectionProps> = ({
 
     setIsResolvingCoords(true);
     setMapError(null);
+    hasRuntimeStyleError.current = false;
     setMapOverlayError(null);
     setMapOverlayDetail(null);
 
@@ -280,6 +294,7 @@ const MapSection: React.FC<MapSectionProps> = ({
         if (cancelled || !mapContainer.current) return;
         mapboxglRef.current = mapboxgl;
         mapboxgl.accessToken = MAPBOX_TOKEN;
+        hasRuntimeStyleError.current = false;
 
         const mapInstance = new mapboxgl.Map({
           container: mapContainer.current,
@@ -296,31 +311,36 @@ const MapSection: React.FC<MapSectionProps> = ({
         map.current = mapInstance;
         mapInstance.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
-        mapInstance.on('load', () => {
+        const handleLoad = () => {
           mapInstance.dragPan.enable();
           mapInstance.scrollZoom.enable();
           mapInstance.doubleClickZoom.enable();
           mapInstance.touchZoomRotate.enable();
           mapInstance.keyboard.enable();
           mapInstance.dragRotate.disable();
-        });
+        };
 
-        mapInstance.on('style.load', () => {
+        const handleStyleLoad = () => {
           if (MAP_DIAGNOSTICS_ENABLED) {
             console.info(`[MapSection] style.load ${venue}`);
           }
+          hasRuntimeStyleError.current = false;
           setMapOverlayError(null);
           setMapOverlayDetail(null);
-        });
+        };
 
-        mapInstance.on('idle', () => {
+        const handleIdle = () => {
           if (MAP_DIAGNOSTICS_ENABLED) {
             console.info(`[MapSection] idle ${venue}`);
           }
-        });
+        };
 
-        mapInstance.on('error', (event) => {
+        const handleError = (event: unknown) => {
           const parsedError = parseMapboxRuntimeError(event);
+          if (!parsedError.isStyleOrTilesFailure) return;
+          if (hasRuntimeStyleError.current) return;
+          hasRuntimeStyleError.current = true;
+
           if (MAP_DIAGNOSTICS_ENABLED) {
             console.warn('[MapSection] map.error', {
               message: parsedError.message,
@@ -329,14 +349,23 @@ const MapSection: React.FC<MapSectionProps> = ({
             });
           }
 
-          if (parsedError.isStyleOrTilesFailure) {
-            const diagnostic =
-              `${parsedError.status ? `[${parsedError.status}] ` : ''}${parsedError.message}` +
-              (parsedError.resource ? ` (${parsedError.resource})` : '');
-            setMapOverlayError(STYLE_TILES_ERROR_MESSAGE);
-            setMapOverlayDetail(diagnostic);
-          }
-        });
+          const diagnostic =
+            `${parsedError.status ? `[${parsedError.status}] ` : ''}${parsedError.message}` +
+            (parsedError.resource ? ` (${parsedError.resource})` : '');
+          setMapOverlayError(STYLE_TILES_ERROR_MESSAGE);
+          setMapOverlayDetail(diagnostic);
+        };
+
+        mapInstance.on('load', handleLoad);
+        mapInstance.on('style.load', handleStyleLoad);
+        mapInstance.on('idle', handleIdle);
+        mapInstance.on('error', handleError);
+        detachMapListeners.current = () => {
+          mapInstance.off('load', handleLoad);
+          mapInstance.off('style.load', handleStyleLoad);
+          mapInstance.off('idle', handleIdle);
+          mapInstance.off('error', handleError);
+        };
 
         marker.current = new mapboxgl.Marker({ color: '#8B5CF6' })
           .setLngLat(resolvedCoords)
@@ -360,6 +389,7 @@ const MapSection: React.FC<MapSectionProps> = ({
         }
 
         setMapError(null);
+        hasRuntimeStyleError.current = false;
         setMapOverlayError(null);
         setMapOverlayDetail(null);
       } catch (error) {

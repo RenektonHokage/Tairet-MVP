@@ -46,6 +46,8 @@ Este documento cubre smoke tests mínimos para los siguientes flujos críticos:
 10. Perfiles críticos B2C
 11. Refactor estructural del dominio club catalog en `panel.ts`
 12. Refactor estructural del dominio local profile + gallery en `panel.ts`
+13. Hardening SQL/RLS mínimo del bloque tracking público
+14. Hardening SQL/RLS mínimo del bloque `promos`
 
 Quedan fuera de alcance:
 
@@ -698,11 +700,58 @@ Quedan fuera de alcance:
 
 ---
 
+## ST-14 — Hardening SQL/RLS mínimo del bloque `promos`
+
+* **ID:** ST-14
+* **Flujo:** rollout acotado de `F7 CODE 02` sobre `promos`
+* **Tipo:** Mixto (Código + Runtime/entorno real)
+* **Precondiciones:**
+
+  * `infra/sql/migrations/017_harden_promos_rls_backend_only.sql` aplicada en el proyecto real de Supabase
+  * scope congelado del segundo rollout limitado únicamente a `promos`
+  * confirmación operativa vigente de backend observable con cliente global `SUPABASE_SERVICE_ROLE`
+* **Pasos:**
+
+  1. Verificar en código que `infra/sql/migrations/017_harden_promos_rls_backend_only.sql` solo hace `DROP POLICY IF EXISTS` y `CREATE POLICY` sobre `promos`.
+  2. Verificar en código que `infra/sql/rls.sql` quedó alineado con la policy `promos_select_backend_only`.
+  3. Verificar en código que los flows del bloque siguen acotados a `public.ts`, `metrics.ts` y `promos.ts` sobre la tabla `promos`.
+  4. Verificar por evidencia real post-apply en Supabase que `promos` mantiene `rls_enabled = true`.
+  5. Verificar por evidencia real post-apply en Supabase que ya no está activa `promos_select_by_local`.
+  6. Verificar por evidencia real post-apply en Supabase que existe `promos_select_backend_only` para `anon` y `authenticated` con `qual = false`.
+  7. Verificar por evidencia funcional mínima observada que `GET /public/locals/by-slug/mckharthys-bar` mantiene `promotions` y `GET /locals/:id/promos` sigue operativo con auth en panel.
+  8. Dejar explícito que cualquier otra tabla o flow queda fuera del segundo rollout de `F7`.
+* **Resultado esperado:**
+
+  * `F7 CODE 02` queda endurecido solo en `promos`.
+  * `promos` mantiene `rls_enabled = true`.
+  * `promos_select_by_local` deja de ser la policy activa post-apply.
+  * Existe `promos_select_backend_only` y es restrictiva para `anon` y `authenticated`.
+  * El rollout sigue coherente con los flows observables actuales del bloque.
+  * Ninguna tabla o flow fuera de `promos` entra en scope del segundo rollout.
+* **Regresión observable:**
+
+  * aparición de tablas/policies fuera de `promos` dentro del rollout
+  * ausencia de `promos_select_backend_only`
+  * persistencia activa de `promos_select_by_local` en el proyecto real
+  * pérdida de `rls_enabled` en `promos`
+  * necesidad no prevista de tocar `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` o flows críticos derivados
+* **Evidencia base de código:**
+
+  * `infra/sql/rls.sql:6`
+  * `infra/sql/rls.sql:19`
+  * `infra/sql/migrations/017_harden_promos_rls_backend_only.sql:1`
+  * `functions/api/src/routes/public.ts:225`
+  * `functions/api/src/routes/metrics.ts:110`
+  * `functions/api/src/routes/promos.ts:46`
+* **Estado:** Confirmado por código + runtime/entorno real post-apply
+
+---
+
 ## 6) Criterio de salida del documento
 
 ## Etapa ST-0 — Definición documental (ASK)
 
-* [ ] Los 13 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
+* [ ] Los 14 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
 * [ ] Cada smoke incluye evidencia por archivo/línea.
 * [ ] No hay afirmaciones runtime marcadas como confirmadas sin ejecución.
 * [ ] El documento se mantiene alineado con:
