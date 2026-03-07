@@ -119,8 +119,8 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 
 * **F3 — CODE de observabilidad y guardrails (en curso)**
 * **F6 — CODE de refactor estructural `panel.ts` (abierta pero pausada; `CODE 01` y `CODE 02` validados)**
-* **F7 — CODE de hardening SQL / RLS (abierta; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); segundo bloque de rollout congelado en `promos`; `F7 CODE 02` validado únicamente para `promos`; cualquier otra tabla o flow queda fuera de scope del segundo rollout; siguiente paso: selección del tercer bloque prudente de rollout)**
-* **F8 — CODE de pendientes no bloqueantes y cierre documental**
+* **F7 — CODE de hardening SQL / RLS (abierta pero pausada; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); `F7 CODE 02` validado únicamente para `promos`; `F7 CODE 03` validado únicamente para `reviews`; `F7 CODE 04` no corresponde por ahora; cualquier otra tabla o flow queda fuera de scope del tercer rollout; siguiente paso: esperar nueva evidencia o replanteo de rollout antes de volver a evaluar el remanente)**
+* **F8 — CODE de pendientes no bloqueantes y cierre documental (primer bloque seleccionado: cierre documental + backlog no bloqueante; `/panel/metrics` diferido/no activo; no habilita CODE ni reabre `F3`, `F6` o `F7`)**
 
 ---
 
@@ -166,7 +166,17 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 * **F7 CODE 02 queda validado únicamente para `promos`. Cualquier otra tabla o flow queda fuera de scope del segundo rollout.**
 * `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del segundo rollout de `F7`
 * La validación de `F7 CODE 02` ya no depende solo de lectura de código: incluye verificación real post-apply en Supabase (`promos` con `rls_enabled = true`, desaparición de `promos_select_by_local`, presencia de `promos_select_backend_only` restrictiva para `anon` y `authenticated`) y validación funcional mínima de los flows actuales (`GET /public/locals/by-slug/mckharthys-bar` con `promotions` y `GET /locals/:id/promos` con auth en panel)
-* El siguiente paso correcto de `F7` pasa a ser la **selección del tercer bloque prudente de rollout**; ya no corresponde revalidar ni reabrir `F7 CODE 02`
+* El tercer bloque prudente de rollout de `F7` queda congelado en `reviews`
+* **F7 CODE 03 queda validado únicamente para `reviews`. Cualquier otra tabla o flow queda fuera de scope del tercer rollout.**
+* `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types` y los flows derivados de alta criticidad (`payments/callback`, `check-in`, `orders/search`, `orders/summary`, `export`, bootstrap auth panel) quedan explícitamente fuera del tercer rollout de `F7`
+* La validación de `F7 CODE 03` ya no depende solo de lectura de código: incluye evidencia del repo/SQL (`013_create_reviews.sql`, `018_harden_reviews_rls_backend_only.sql`, `rls.sql`), evidencia real post-apply en Supabase (`reviews_select_public` ya no existe, `reviews_select_backend_only` existe para `anon` y `authenticated` con `qual = false`) y smoke funcional mínimo real (`GET /reviews` y `POST /reviews` siguen funcionando)
+* El hecho de que `reviews` siga fuera de `schema.sql` queda como **deuda documental separada** dentro del drift SQL del repo; no reabre `F7 CODE 03` ni debe volver a reclasificar este slice como validado parcial
+* **Después de `F7 CODE 01–03`, no queda actualmente un cuarto bloque con blast radius lo bastante bajo para justificar `F7 CODE 04`; el remanente queda pausado hasta nueva evidencia o replanteo de rollout.**
+* `ticket_types + table_types` queda como candidato relativo menos malo del remanente, pero todavía no cumple el umbral de prudencia por cruce entre catálogo público, panel, compra y coverage/documentación SQL insuficiente
+* El siguiente paso correcto de `F7` ya no es abrir `F7 CODE 04`, sino esperar nueva evidencia o replanteo de rollout antes de volver a evaluar un cuarto bloque; ya no corresponde revalidar ni reabrir `F7 CODE 03`
+* **El primer bloque de `F8` queda limitado a cierre documental, backlog no bloqueante y clasificación de `/panel/metrics` como diferido/no activo. No habilita CODE ni reabre `F3`, `F6` o `F7`.**
+* El primer bloque de `F8` ya queda seleccionado como docs-only del ciclo actual: consolida backlog no bloqueante, sincroniza docs operativos y mantiene `/panel/metrics` como pendiente P3 diferido / no activo
+* El siguiente paso correcto de `F8` ya no es abrir trabajo técnico nuevo, sino ejecutar ese cierre documental y mantener en pausa operativa el remanente de `F3`, `F6` y `F7` hasta nueva evidencia
 * El gate hacia `F3` quedó satisfecho y la fase ya fue abierta con un primer slice seguro y aditivo
 * `F3 CODE 01` ya quedó implementado y validado en backend con:
 

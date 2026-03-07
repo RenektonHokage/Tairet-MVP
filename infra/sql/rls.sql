@@ -9,6 +9,7 @@ ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events_public ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_clicks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profile_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE local_daily_ops ENABLE ROW LEVEL SECURITY;
 
 -- Policy: locals (cada usuario autenticado puede ver sus locales)
@@ -17,6 +18,12 @@ ALTER TABLE local_daily_ops ENABLE ROW LEVEL SECURITY;
 
 -- Policy: promos (backend only; clientes anon/authenticated no deben leer por SQL directo)
 CREATE POLICY "promos_select_backend_only" ON promos
+  FOR SELECT
+  TO anon, authenticated
+  USING (false);
+
+-- Policy: reviews (backend only; clientes anon/authenticated no deben leer por SQL directo)
+CREATE POLICY "reviews_select_backend_only" ON reviews
   FOR SELECT
   TO anon, authenticated
   USING (false);

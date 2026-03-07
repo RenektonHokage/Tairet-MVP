@@ -48,6 +48,7 @@ Este documento cubre smoke tests mínimos para los siguientes flujos críticos:
 12. Refactor estructural del dominio local profile + gallery en `panel.ts`
 13. Hardening SQL/RLS mínimo del bloque tracking público
 14. Hardening SQL/RLS mínimo del bloque `promos`
+15. Hardening SQL/RLS mínimo del bloque `reviews`
 
 Quedan fuera de alcance:
 
@@ -747,11 +748,63 @@ Quedan fuera de alcance:
 
 ---
 
+## ST-15 — Hardening SQL/RLS mínimo del bloque `reviews`
+
+* **ID:** ST-15
+* **Flujo:** rollout acotado de `F7 CODE 03` sobre `reviews`
+* **Tipo:** Mixto (Código + Runtime/entorno real)
+* **Precondiciones:**
+
+  * `infra/sql/migrations/018_harden_reviews_rls_backend_only.sql` aplicada en el proyecto real de Supabase
+  * scope congelado del tercer rollout limitado únicamente a `reviews`
+  * confirmación operativa vigente de backend observable con cliente global `SUPABASE_SERVICE_ROLE`
+* **Pasos:**
+
+  1. Verificar en código que `infra/sql/migrations/018_harden_reviews_rls_backend_only.sql` solo hace `DROP POLICY IF EXISTS` y `CREATE POLICY` sobre `reviews`.
+  2. Verificar en código que `infra/sql/rls.sql` quedó alineado con `reviews_select_backend_only`.
+  3. Verificar en código que los flows del bloque siguen acotados a `GET /reviews` y `POST /reviews` en backend y a su consumo HTTP real desde B2C.
+  4. Verificar por evidencia real post-apply en Supabase que `reviews_select_public` ya no existe.
+  5. Verificar por evidencia real post-apply en Supabase que `reviews_select_backend_only` existe para `anon` y `authenticated` con `qual = false`.
+  6. Verificar por smoke funcional mínimo real que `GET /reviews` sigue funcionando.
+  7. Verificar por smoke funcional mínimo real que `POST /reviews` sigue funcionando.
+  8. Dejar explícito que cualquier otra tabla o flow queda fuera del tercer rollout de `F7`.
+* **Resultado esperado:**
+
+  * `F7 CODE 03` queda endurecido solo en `reviews`.
+  * `reviews_select_public` deja de ser la policy activa post-apply.
+  * Existe `reviews_select_backend_only` y es restrictiva para `anon` y `authenticated`.
+  * El rollout sigue coherente con los flows observables actuales del bloque.
+  * Ninguna tabla o flow fuera de `reviews` entra en scope del tercer rollout.
+* **Regresión observable:**
+
+  * aparición de tablas/policies fuera de `reviews` dentro del rollout
+  * ausencia de `reviews_select_backend_only`
+  * persistencia activa de `reviews_select_public` en el proyecto real
+  * quiebre observable de `GET /reviews`
+  * quiebre observable de `POST /reviews`
+  * necesidad no prevista de tocar `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types`, `table_types`, `promos`, `events_public`, `whatsapp_clicks` o `profile_views`
+* **Evidencia base de código:**
+
+  * `infra/sql/rls.sql:12`
+  * `infra/sql/rls.sql:25`
+  * `infra/sql/migrations/013_create_reviews.sql:32`
+  * `infra/sql/migrations/013_create_reviews.sql:35`
+  * `infra/sql/migrations/018_harden_reviews_rls_backend_only.sql:1`
+  * `functions/api/src/services/supabase.ts:12`
+  * `functions/api/src/routes/reviews.ts:77`
+  * `functions/api/src/routes/reviews.ts:114`
+  * `functions/api/src/routes/reviews.ts:158`
+  * `apps/web-b2c/src/hooks/useReviews.ts:162`
+  * `apps/web-b2c/src/hooks/useReviews.ts:232`
+* **Estado:** Confirmado por código + runtime/entorno real post-apply
+
+---
+
 ## 6) Criterio de salida del documento
 
 ## Etapa ST-0 — Definición documental (ASK)
 
-* [ ] Los 14 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
+* [ ] Los 15 smoke tests están definidos con ID, precondiciones, pasos y regresión observable.
 * [ ] Cada smoke incluye evidencia por archivo/línea.
 * [ ] No hay afirmaciones runtime marcadas como confirmadas sin ejecución.
 * [ ] El documento se mantiene alineado con:
