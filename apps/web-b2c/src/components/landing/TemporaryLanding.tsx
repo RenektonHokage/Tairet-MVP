@@ -36,20 +36,20 @@ const stats = [
 const features = [
   {
     title: "Descubrimiento",
-    description: "Encontrá los mejores lugares de la noche. Filtrado por tipo, zona y ambiente.",
+    description: "Encontra los mejores lugares de tu ciudad, filtra por tipo, zona y ambiente",
     status: "Muy pronto",
     icon: Search,
   },
   {
     title: "Eventos",
-    description: "Todo lo que pasa esta semana, en un solo lugar. Sin perderte nada.",
+    description: "Todo lo que pasa esta semana, en un solo lugar.",
     status: "Muy pronto",
     icon: CalendarDays,
     highlighted: true,
   },
   {
     title: "Reservas",
-    description: "Asegurá tu lugar antes de llegar. Sin colas, sin sorpresas.",
+    description: "Asegurá tu lugar antes de llegar.",
     status: "Muy pronto",
     icon: Clock3,
   },
@@ -93,15 +93,16 @@ const cityCards = [
   },
 ] as const;
 
-const headingSerif = {
-  fontFamily:
-    '"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,"Times New Roman",serif',
+const headingFont = {
+  fontFamily: '"Playfair Display","Iowan Old Style","Palatino Linotype","Book Antiqua",serif',
 };
 
-const bodySans = {
-  fontFamily:
-    '"Iowan Old Style","Palatino Linotype","Book Antiqua",Georgia,"Times New Roman",serif',
+const uiFont = {
+  fontFamily: '"Inter","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif',
 };
+
+const uiLabelClassName = "text-[11px] uppercase tracking-[0.28em]";
+const compactUiLabelClassName = "text-[10px] uppercase tracking-[0.2em] sm:text-[11px] sm:tracking-[0.28em]";
 
 function upsertMeta(kind: "name" | "property", key: string, content: string) {
   let tag = document.head.querySelector(`meta[${kind}="${key}"]`) as HTMLMetaElement | null;
@@ -136,7 +137,7 @@ function LandingButton({
   className?: string;
 }) {
   const baseClassName =
-    "inline-flex items-center justify-center rounded-full px-7 py-3 text-[11px] font-medium uppercase tracking-[0.28em] transition duration-300 ease-out sm:px-8";
+    `inline-flex items-center justify-center rounded-full px-7 py-3 font-normal transition duration-300 ease-out sm:px-8 ${uiLabelClassName}`;
   const variants = {
     primary: "bg-[#efe8df] text-[#0b0b0b] hover:bg-white hover:shadow-[0_0_30px_rgba(255,255,255,0.12)]",
     secondary:
@@ -144,7 +145,12 @@ function LandingButton({
   } as const;
 
   return (
-    <button type="button" onClick={onClick} className={`${baseClassName} ${variants[variant]} ${className}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      style={uiFont}
+      className={`${baseClassName} ${variants[variant]} ${className}`}
+    >
       {children}
     </button>
   );
@@ -152,7 +158,7 @@ function LandingButton({
 
 function SectionEyebrow({ index, label }: { index: string; label: string }) {
   return (
-    <div className="mb-8 flex items-center gap-3 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
+    <div className={`mb-8 flex items-center gap-3 text-[#f4efe9] ${uiLabelClassName}`}>
       <span>{index}</span>
       <span aria-hidden="true">—</span>
       <span>{label}</span>
@@ -197,7 +203,7 @@ export default function TemporaryLanding() {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#050505] text-[#f4efe9]" style={bodySans}>
+    <div className="relative min-h-screen overflow-x-hidden bg-[#050505] text-[#f4efe9]" style={uiFont}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_18%),linear-gradient(180deg,#070707_0%,#050505_45%,#060606_100%)]" />
       <div className="pointer-events-none absolute inset-x-0 top-[24rem] h-[34rem] bg-[radial-gradient(circle_at_center,rgba(123,24,24,0.22),transparent_60%)]" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[28rem] bg-[radial-gradient(circle_at_center,rgba(88,20,20,0.20),transparent_58%)]" />
@@ -211,7 +217,7 @@ export default function TemporaryLanding() {
             aria-label="Ir al inicio de la landing"
           >
             <img src={tairetMark} alt="" aria-hidden="true" className="h-8 w-8 object-contain opacity-90" />
-            <span className="text-[17px] uppercase tracking-[0.22em]" style={headingSerif}>
+            <span className="text-[17px] uppercase tracking-[0.18em]" style={uiFont}>
               Tairet
             </span>
           </button>
@@ -222,7 +228,8 @@ export default function TemporaryLanding() {
                 key={item.sectionId}
                 type="button"
                 onClick={() => scrollToSection(item.sectionId)}
-                className="text-[11px] uppercase tracking-[0.32em] text-[#9f9a93] transition hover:text-[#f4efe9]"
+                style={uiFont}
+                className={`${uiLabelClassName} text-[#9f9a93] transition hover:text-[#f4efe9]`}
               >
                 {item.label}
               </button>
@@ -251,7 +258,8 @@ export default function TemporaryLanding() {
                   key={item.sectionId}
                   type="button"
                   onClick={() => scrollToSection(item.sectionId)}
-                  className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-left text-[11px] uppercase tracking-[0.32em] text-[#d2cdc5] transition hover:bg-white/[0.05]"
+                  style={uiFont}
+                  className={`rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3 text-left text-[#d2cdc5] transition hover:bg-white/[0.05] ${uiLabelClassName}`}
                 >
                   {item.label}
                 </button>
@@ -266,7 +274,7 @@ export default function TemporaryLanding() {
 
       <main className="relative z-10">
         <section id="inicio" className="scroll-mt-28">
-          <div className="mx-auto flex min-h-[calc(100vh-81px)] max-w-[1180px] items-center px-5 pb-16 pt-16 sm:px-8 sm:pb-24 sm:pt-20">
+          <div className="mx-auto flex min-h-[calc(100vh-81px)] max-w-[1180px] items-center px-5 pb-16 pt-8 sm:px-8 sm:pb-24 sm:pt-10 md:pt-20">
             <div className="relative w-full overflow-hidden rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] px-6 py-16 shadow-[0_30px_120px_rgba(0,0,0,0.42)] sm:px-10 sm:py-20 lg:px-16 lg:py-24">
               <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-[radial-gradient(circle_at_center,rgba(98,17,17,0.28),transparent_60%)]" />
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10" />
@@ -278,7 +286,7 @@ export default function TemporaryLanding() {
               />
 
               <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-                <div className="mb-10 flex items-center gap-3 text-[10px] uppercase tracking-[0.22em] text-[#f4efe9] sm:gap-4 sm:text-[11px] sm:tracking-[0.35em]">
+                <div className={`mb-10 flex items-center gap-3 text-[#f4efe9] sm:gap-4 ${compactUiLabelClassName}`}>
                   <span className="h-px w-7 bg-white/12 sm:w-8" />
                   <span className="flex items-center gap-2 whitespace-nowrap sm:gap-3">
                     <span>Paraguay</span>
@@ -290,9 +298,9 @@ export default function TemporaryLanding() {
 
                 <h1
                   className="max-w-4xl text-[clamp(3.7rem,8vw,7rem)] leading-[0.92] tracking-[-0.04em] text-[#f6f0ea]"
-                  style={headingSerif}
+                  style={headingFont}
                 >
-                  Explora la noche.
+                  Explora la noche
                 </h1>
 
                 <p className="mt-8 max-w-3xl text-[18px] leading-8 text-[#9d988f] sm:text-[21px]">
@@ -310,7 +318,8 @@ export default function TemporaryLanding() {
                 <button
                   type="button"
                   onClick={() => scrollToSection("que-es")}
-                  className="mt-16 inline-flex flex-col items-center gap-3 text-[11px] uppercase tracking-[0.34em] text-[#79756f] transition hover:text-[#f4efe9]"
+                  style={uiFont}
+                  className={`mt-16 inline-flex flex-col items-center gap-3 text-[#79756f] transition hover:text-[#f4efe9] ${uiLabelClassName}`}
                 >
                   <span>Scroll</span>
                   <span className="h-12 w-px bg-gradient-to-b from-white/35 to-transparent" />
@@ -328,9 +337,9 @@ export default function TemporaryLanding() {
               <div>
                 <h2
                   className="max-w-[9ch] text-[clamp(3rem,7vw,5.5rem)] leading-[0.97] tracking-[-0.04em] text-[#f6f0ea]"
-                  style={headingSerif}
+                  style={headingFont}
                 >
-                  La plataforma que <em className="font-normal italic">tu local necesita</em>
+                  La plataforma que tu local necesita
                 </h2>
               </div>
 
@@ -345,7 +354,7 @@ export default function TemporaryLanding() {
                   antes, durante y después de cada noche.
                 </p>
 
-                <div className="border-t border-white/10 pt-8 text-[18px] italic text-[#736d65]">
+                <div className="border-t border-white/10 pt-8 text-[18px] text-[#736d65]">
                   Estamos sumando los primeros locales. No te quedes afuera.
                 </div>
               </div>
@@ -357,10 +366,10 @@ export default function TemporaryLanding() {
                   key={stat.label}
                   className="bg-[#080808] px-6 py-10 text-center transition duration-300 hover:bg-white/[0.03]"
                 >
-                  <div className="text-[42px] text-[#f5efe8]" style={headingSerif}>
+                  <div className="text-[42px] text-[#f5efe8]" style={headingFont}>
                     {stat.value}
                   </div>
-                  <div className="mt-3 text-[11px] uppercase tracking-[0.3em] text-[#8a857d]">
+                  <div className={`mt-3 text-[#8a857d] ${uiLabelClassName}`}>
                     {stat.label}
                   </div>
                 </div>
@@ -375,9 +384,9 @@ export default function TemporaryLanding() {
 
             <h2
               className="max-w-[14ch] text-[clamp(2.8rem,6vw,4.8rem)] leading-[1] tracking-[-0.04em] text-[#f6f0ea]"
-              style={headingSerif}
+              style={headingFont}
             >
-              Pensado para <em className="font-normal italic">tu negocio</em>
+              Pensado para tu negocio
             </h2>
 
             <div className="mt-14 grid gap-6 lg:grid-cols-2">
@@ -385,7 +394,7 @@ export default function TemporaryLanding() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-white">
                   <Building2 className="h-5 w-5" />
                 </div>
-                <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingSerif}>
+                <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingFont}>
                   Para locales
                 </h3>
                 <p className="mt-4 text-[18px] leading-8 text-[#8f8a82]">
@@ -403,7 +412,7 @@ export default function TemporaryLanding() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/8 text-white">
                   <MapPin className="h-5 w-5" />
                 </div>
-                <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingSerif}>
+                <h3 className="mt-8 text-[38px] text-[#f6f0ea]" style={headingFont}>
                   Para personas
                 </h3>
                 <p className="mt-4 text-[18px] leading-8 text-[#8f8a82]">
@@ -427,9 +436,9 @@ export default function TemporaryLanding() {
             <div className="max-w-4xl">
               <h2
                 className="text-[clamp(2.9rem,6vw,4.8rem)] leading-[0.98] tracking-[-0.04em] text-[#f6f0ea]"
-                style={headingSerif}
+                style={headingFont}
               >
-                  Donde <em className="font-normal italic">empieza todo</em>
+                  Donde empieza todo
               </h2>
               <p className="mt-6 max-w-3xl text-[19px] leading-9 text-[#8f8a82]">
                 Tairet arranca en tres ciudades clave de Paraguay, con visión de crecer a todo el
@@ -444,13 +453,13 @@ export default function TemporaryLanding() {
                   className="group relative overflow-hidden bg-[#080808] px-8 py-12 transition duration-300 hover:bg-white/[0.03]"
                 >
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_62%)] opacity-0 transition duration-500 group-hover:opacity-100" />
-                  <div className="relative text-[44px] tracking-[-0.04em] text-[#8b867f] transition duration-500 group-hover:text-[#f4efe9]" style={headingSerif}>
+                  <div className="relative text-[44px] tracking-[-0.04em] text-[#8b867f] transition duration-500 group-hover:text-[#f4efe9]" style={headingFont}>
                     {city.number}
                   </div>
-                  <div className="mt-8 inline-flex rounded-full border border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-[#8d887f]">
+                  <div className={`mt-8 inline-flex rounded-full border border-white/10 px-4 py-2 text-[#8d887f] ${uiLabelClassName}`}>
                     {city.eyebrow}
                   </div>
-                  <h3 className="relative mt-8 text-[36px] text-[#f6f0ea] transition duration-500 group-hover:text-white" style={headingSerif}>
+                  <h3 className="relative mt-8 text-[36px] text-[#f6f0ea] transition duration-500 group-hover:text-white" style={headingFont}>
                     {city.title}
                   </h3>
                   <p className="relative mt-4 max-w-[22ch] text-[18px] leading-8 text-[#8f8a82] transition duration-500 group-hover:text-[#b7b2aa]">
@@ -460,7 +469,7 @@ export default function TemporaryLanding() {
               ))}
             </div>
 
-            <p className="mt-10 text-center text-[11px] uppercase tracking-[0.32em] text-[#7b766f]">
+            <p className={`mt-10 text-center text-[#7b766f] ${uiLabelClassName}`}>
               Más ciudades en camino
             </p>
           </div>
@@ -473,13 +482,13 @@ export default function TemporaryLanding() {
                 <SectionEyebrow index="04" label="Lo que viene" />
                 <h2
                   className="max-w-[14ch] text-[clamp(2.8rem,6vw,4.8rem)] leading-[1] tracking-[-0.04em] text-[#f6f0ea]"
-                  style={headingSerif}
+                  style={headingFont}
                 >
-                  Lo que estamos <em className="font-normal italic">construyendo</em>
+                  Lo que estamos construyendo
                 </h2>
               </div>
 
-              <div className="inline-flex w-fit items-center gap-3 rounded-full border border-white/10 px-5 py-3 text-[11px] uppercase tracking-[0.3em] text-[#f4efe9]">
+              <div className={`inline-flex w-fit items-center gap-3 rounded-full border border-white/10 px-5 py-3 text-[#f4efe9] ${uiLabelClassName}`}>
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="absolute inset-0 rounded-full bg-white/35 blur-[2px] animate-pulse" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.55)]" />
@@ -500,19 +509,19 @@ export default function TemporaryLanding() {
                     }`}
                   >
                     {Icon ? (
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-[#b8b2a8]">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 text-[#f4efe9]">
                         <Icon className="h-5 w-5" />
                       </div>
                     ) : (
                       <div className="h-11" />
                     )}
-                    <h3 className="mt-8 text-[34px] text-[#f6f0ea]" style={headingSerif}>
+                    <h3 className="mt-8 text-[34px] text-[#f6f0ea]" style={headingFont}>
                       {feature.title}
                     </h3>
                     <p className="mt-5 max-w-[22ch] text-[18px] leading-8 text-[#8c877f]">
                       {feature.description}
                     </p>
-                    <p className="mt-8 text-[11px] uppercase tracking-[0.3em] text-[#746f68]">
+                    <p className={`mt-8 text-[#746f68] ${uiLabelClassName}`}>
                       {feature.status}
                     </p>
                   </article>
@@ -526,7 +535,7 @@ export default function TemporaryLanding() {
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <div className="rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(92,18,18,0.12))] px-6 py-16 text-center shadow-[0_20px_80px_rgba(0,0,0,0.35)] sm:px-10 sm:py-20">
               <div className="mx-auto max-w-3xl">
-                <div className="mb-8 inline-flex items-center gap-4 text-[11px] uppercase tracking-[0.35em] text-[#f4efe9]">
+                <div className={`mb-8 inline-flex items-center gap-4 text-[#f4efe9] ${uiLabelClassName}`}>
                   <span className="h-px w-8 bg-white/12" />
                   <span>Locales fundadores</span>
                   <span className="h-px w-8 bg-white/12" />
@@ -534,9 +543,9 @@ export default function TemporaryLanding() {
 
                 <h2
                   className="text-[clamp(3rem,6vw,5.3rem)] leading-[0.98] tracking-[-0.04em] text-[#f6f0ea]"
-                  style={headingSerif}
+                  style={headingFont}
                 >
-                  Sumate antes del <em className="font-normal italic">lanzamiento</em>
+                  Sumate antes del lanzamiento
                 </h2>
 
                 <p className="mx-auto mt-8 max-w-2xl text-[19px] leading-9 text-[#99948b]">
@@ -549,7 +558,7 @@ export default function TemporaryLanding() {
                 </p>
 
                 <div className="mt-12 flex items-center justify-center gap-5">
-                  <span className="text-[11px] uppercase tracking-[0.32em] text-[#7d786f]">Seguinos</span>
+                  <span className={`text-[#7d786f] ${uiLabelClassName}`}>Seguinos</span>
                   <a
                     href="https://www.instagram.com/tairetpy/"
                     target="_blank"
@@ -567,10 +576,10 @@ export default function TemporaryLanding() {
       </main>
 
       <footer className="relative z-10 border-t border-white/8 py-6">
-        <div className="mx-auto flex max-w-[1180px] flex-col items-center justify-between gap-5 px-5 text-center text-[11px] uppercase tracking-[0.3em] text-[#78736b] sm:px-8 lg:flex-row lg:text-left">
+        <div className={`mx-auto flex max-w-[1180px] flex-col items-center justify-between gap-5 px-5 text-center text-[#78736b] sm:px-8 lg:flex-row lg:text-left ${uiLabelClassName}`}>
           <div className="flex items-center gap-3 text-[#f4efe9]">
             <img src={tairetMark} alt="" aria-hidden="true" className="h-6 w-6 object-contain opacity-90" />
-            <span style={headingSerif}>Tairet</span>
+            <span style={uiFont}>Tairet</span>
           </div>
           <div className="text-[#f4efe9]">Paraguay · Nightlife · {new Date().getFullYear()}</div>
           <div className="rounded-full border border-white/10 px-4 py-2 text-[#8c877f]">Próximamente</div>
