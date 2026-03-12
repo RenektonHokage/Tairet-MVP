@@ -345,14 +345,12 @@ export default function TemporaryLanding() {
 
               <div className="space-y-8 pt-2 text-[19px] leading-10 text-[#8e8980]">
                 <p>
-                  Tairet es la plataforma que conecta tu bar, discoteca o evento con miles de
-                  personas que buscan salir en Paraguay. Visibilidad, reservas y herramientas
-                  pensadas para el rubro.
+                  Tairet es la plataforma que conecta tu bar, discoteca o evento con personas que
+                  buscan salir en Paraguay.
+                  <br />
+                  Visibilidad, reservas, entradas y gestión para tu local.
                 </p>
-                <p>
-                  Es una presencia digital completa diseñada para que tu local destaque y opere
-                  antes, durante y después de cada noche.
-                </p>
+                <p>Acompaña a tu local antes, durante y después de cada noche.</p>
 
                 <div className="border-t border-white/10 pt-8 text-[18px] text-[#736d65]">
                   Estamos sumando los primeros locales. No te quedes afuera.
@@ -401,10 +399,10 @@ export default function TemporaryLanding() {
                   Bares, discotecas y organizadores de eventos que quieren crecer.
                 </p>
                 <ul className="mt-8 space-y-4 text-[17px] leading-8 text-[#a7a297]">
-                  <li>Perfil digital completo y actualizable.</li>
-                  <li>Visibilidad directa ante tu público objetivo.</li>
-                  <li>Gestión de reservas y entradas en un solo lugar.</li>
-                  <li>Acceso a métricas y análisis de tu audiencia.</li>
+                  <li>Perfil de tu local dentro de Tairet</li>
+                  <li>Gestión de reservas y entradas</li>
+                  <li>Publicación de promociones y fechas</li>
+                  <li>Seguimiento de la actividad de tu local</li>
                 </ul>
               </article>
 
@@ -419,10 +417,10 @@ export default function TemporaryLanding() {
                   Quienes viven la noche y quieren hacerlo mejor.
                 </p>
                 <ul className="mt-8 space-y-4 text-[17px] leading-8 text-[#a7a297]">
-                  <li>Descubrí tu próximo lugar favorito.</li>
-                  <li>Enterate de lo que pasa esta noche.</li>
-                  <li>Reservá y comprá entradas sin complicaciones.</li>
-                  <li>Acceder a eventos antes que todos.</li>
+                  <li>Descubrir locales</li>
+                  <li>Ver qué pasa esta noche</li>
+                  <li>Reservar tu mesa</li>
+                  <li>Comprar entradas</li>
                 </ul>
               </article>
             </div>
