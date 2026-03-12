@@ -15,6 +15,11 @@ import {
   type ReservationStatus,
 } from "@/components/panel/views/ReservationsView";
 import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
+import {
+  getPanelDemoBarReservationsByDate,
+  getPanelDemoBarReservationsDefaultDate,
+  updatePanelDemoBarReservation,
+} from "@/lib/panel-demo/reservations";
 
 // Helper: parsear fecha ISO a Date
 function parseDate(dateStr: string): Date | null {
@@ -39,7 +44,12 @@ function isValidDateParam(value: string): boolean {
 }
 
 export default function ReservationsPage() {
-  const { data: context, loading: contextLoading } = usePanelContext();
+  const {
+    data: context,
+    loading: contextLoading,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,17 +79,39 @@ export default function ReservationsPage() {
 
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
+  const isDemoBar = isDemo && demoScenario === "bar" && context?.local.type === "bar";
+  const demoDefaultDate = useMemo(
+    () => (isDemoBar ? getPanelDemoBarReservationsDefaultDate() : ""),
+    [isDemoBar]
+  );
 
   useEffect(() => {
+    const nextDate =
+      normalizedDateFromQuery || (isDemoBar && demoDefaultDate ? demoDefaultDate : "");
+
     setSelectedDate((current) =>
-      current === normalizedDateFromQuery ? current : normalizedDateFromQuery
+      current === nextDate ? current : nextDate
     );
-    setIsFetchingForDate(Boolean(normalizedDateFromQuery));
-    if (normalizedDateFromQuery) {
-      setExportFrom((current) => current || normalizedDateFromQuery);
-      setExportTo((current) => current || normalizedDateFromQuery);
+    setIsFetchingForDate(Boolean(nextDate));
+    if (nextDate) {
+      setExportFrom((current) => current || nextDate);
+      setExportTo((current) => current || nextDate);
     }
-  }, [normalizedDateFromQuery]);
+
+    if (!normalizedDateFromQuery && isDemoBar && demoDefaultDate) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("date", demoDefaultDate);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }
+  }, [
+    demoDefaultDate,
+    isDemoBar,
+    normalizedDateFromQuery,
+    pathname,
+    router,
+    searchParams,
+  ]);
 
   const loadReservations = useCallback(async () => {
     if (isBlocked || !context || !selectedDate) return;
@@ -89,10 +121,9 @@ export default function ReservationsPage() {
     setError(null);
 
     try {
-      const data = await getPanelReservationsByLocalIdAndDate(
-        context.local.id,
-        selectedDate
-      );
+      const data = isDemoBar
+        ? getPanelDemoBarReservationsByDate(selectedDate)
+        : await getPanelReservationsByLocalIdAndDate(context.local.id, selectedDate);
       setReservations(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar reservas");
@@ -100,7 +131,7 @@ export default function ReservationsPage() {
       setIsFetchingForDate(false);
       setLoading(false);
     }
-  }, [context, isBlocked, selectedDate]);
+  }, [context, isBlocked, isDemoBar, selectedDate]);
 
   // Cargar reservas cuando ya hay fecha seleccionada
   useEffect(() => {
@@ -147,6 +178,11 @@ export default function ReservationsPage() {
       return;
     }
 
+    if (isDemoBar) {
+      setExportError("La exportacion CSV no esta disponible en modo demo.");
+      return;
+    }
+
     setExportError(null);
     setExportLoading(true);
     try {
@@ -156,7 +192,7 @@ export default function ReservationsPage() {
     } finally {
       setExportLoading(false);
     }
-  }, [exportFrom, exportLoading, exportTo]);
+  }, [exportFrom, exportLoading, exportTo, isDemoBar]);
 
   const handleRefresh = useCallback(() => {
     if (!selectedDate || loading) return;
@@ -212,6 +248,15 @@ export default function ReservationsPage() {
   const handleConfirm = async (reservation: Reservation) => {
     if (isBlocked) return;
     try {
+      if (isDemoBar && selectedDate) {
+        setReservations(
+          updatePanelDemoBarReservation(selectedDate, reservation.id, {
+            status: "confirmed",
+          })
+        );
+        return;
+      }
+
       await updatePanelReservationStatus(reservation.id, { status: "confirmed" });
       await loadReservations();
     } catch (err) {
@@ -222,6 +267,15 @@ export default function ReservationsPage() {
   const handleCancel = async (reservation: Reservation) => {
     if (isBlocked) return;
     try {
+      if (isDemoBar && selectedDate) {
+        setReservations(
+          updatePanelDemoBarReservation(selectedDate, reservation.id, {
+            status: "cancelled",
+          })
+        );
+        return;
+      }
+
       await updatePanelReservationStatus(reservation.id, { status: "cancelled" });
       await loadReservations();
     } catch (err) {
@@ -258,6 +312,17 @@ export default function ReservationsPage() {
     setNoteSavingId(editingReservation.id);
 
     try {
+      if (isDemoBar && selectedDate) {
+        setReservations(
+          updatePanelDemoBarReservation(selectedDate, editingReservation.id, {
+            table_note: tableNote,
+          })
+        );
+        setEditingReservation(null);
+        setNoteDraft("");
+        return;
+      }
+
       const updated = await updatePanelReservationStatus(editingReservation.id, { table_note: tableNote });
       const savedNote = updated.table_note ?? tableNote;
 
@@ -278,7 +343,7 @@ export default function ReservationsPage() {
     } finally {
       setNoteSavingId(null);
     }
-  }, [editingReservation, isBlocked, noteDraft, noteSavingId]);
+  }, [editingReservation, isBlocked, isDemoBar, noteDraft, noteSavingId, selectedDate]);
 
   const handleClearFilters = () => {
     setSearchQuery("");

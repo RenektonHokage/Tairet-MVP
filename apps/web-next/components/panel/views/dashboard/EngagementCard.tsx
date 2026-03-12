@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Eye, MessageCircle } from "lucide-react";
+import { MessageCircle, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui";
 import { RangeToggle, type RangeValue } from "./RangeToggle";
 
@@ -38,7 +38,9 @@ export function EngagementCard({
         {/* WhatsApp Clicks */}
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm text-neutral-600">
-            <MessageCircle className="h-4 w-4" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700">
+              <MessageCircle className="h-4 w-4 text-[#374151]" />
+            </span>
             <span>WhatsApp Clicks</span>
           </div>
           <div className="text-xs text-neutral-500">Total de interacciones</div>
@@ -50,7 +52,9 @@ export function EngagementCard({
         {/* Top Promo */}
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-sm text-neutral-600">
-            <Eye className="h-4 w-4" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700">
+              <Star className="h-4 w-4 text-[#374151]" />
+            </span>
             <span>Promo más vista</span>
           </div>
           <div className="text-xs text-neutral-500">Contenido destacado</div>

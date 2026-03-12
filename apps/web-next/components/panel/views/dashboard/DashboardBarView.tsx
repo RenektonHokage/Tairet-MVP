@@ -74,7 +74,15 @@ function VisitsChartWithTotal({
         {total}{" "}
         <span className="text-base font-normal text-neutral-500">visitas</span>
       </div>
-      <LineChartSimple data={data} color="#8b5cf6" height={120} />
+      <LineChartSimple
+        data={data}
+        color="#2563eb"
+        height={120}
+        showGrid={false}
+        lineType="linear"
+        strokeWidth={2.5}
+        showDots={data.length <= 8}
+      />
     </div>
   );
 }
@@ -108,8 +116,8 @@ export function DashboardBarView({
       label: "Reservas Totales",
       value: kpis.reservationsTotal,
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
-          <Calendar className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <Calendar className="h-5 w-5 text-[#374151]" />
         </span>
       ),
     },
@@ -118,21 +126,21 @@ export function DashboardBarView({
       value: kpis.reservationsConfirmed,
       hint:
         kpis.reservationsTotal > 0
-          ? `${((kpis.reservationsConfirmed / kpis.reservationsTotal) * 100).toFixed(0)}% tasa de confirmación`
-          : undefined,
+            ? `${((kpis.reservationsConfirmed / kpis.reservationsTotal) * 100).toFixed(0)}% tasa de confirmación`
+            : undefined,
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-          <CheckCircle2 className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <CheckCircle2 className="h-5 w-5 text-[#22C55E]" />
         </span>
       ),
     },
     {
-      label: "Pendientes",
+      label: "En revisión",
       value: kpis.reservationsEnRevision,
-      hint: "Esperando aprobación",
+      hint: "Esperando confirmación",
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-          <Clock className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <Clock className="h-5 w-5 text-[#FACC15]" />
         </span>
       ),
     },
@@ -154,7 +162,7 @@ export function DashboardBarView({
         title="Gestión de Reservas"
         subtitle={
           pendingCount > 0
-            ? `Tienes ${pendingCount} reserva(s) pendiente(s) de confirmación`
+            ? `Tienes ${pendingCount} reserva(s) en revisión para confirmar`
             : "Todas las reservas están gestionadas"
         }
         ctaLabel="Ver Reservas"
@@ -184,18 +192,18 @@ export function DashboardBarView({
           subtitle={`Por estado · ${rangeLabel}`}
           legend={
             <>
-              <LegendItem color="#10b981" label="Confirmadas" />
-              <LegendItem color="#ef4444" label="Canceladas" />
-              <LegendItem color="#facc15" label="Pendientes" />
+              <LegendItem color="#22C55E" label="Confirmadas" />
+              <LegendItem color="#FACC15" label="En revisión" />
+              <LegendItem color="#EF4444" label="Canceladas" />
             </>
           }
         >
           <BarChartGrouped
             data={trendData}
             series={[
-              { dataKey: "confirmadas", name: "Confirmadas", color: "#10b981" },
-              { dataKey: "canceladas", name: "Canceladas", color: "#ef4444" },
-              { dataKey: "pendientes", name: "Pendientes", color: "#facc15" },
+              { dataKey: "confirmadas", name: "Confirmadas", color: "#22C55E" },
+              { dataKey: "pendientes", name: "En revisión", color: "#FACC15" },
+              { dataKey: "canceladas", name: "Canceladas", color: "#EF4444" },
             ]}
             height={180}
             loading={loading}

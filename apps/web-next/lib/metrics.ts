@@ -46,6 +46,42 @@ export interface ReservationStatusBucket {
   cancelled: number;
 }
 
+export type ReservationDaypartDayKey =
+  | "lun"
+  | "mar"
+  | "mie"
+  | "jue"
+  | "vie"
+  | "sab"
+  | "dom";
+
+export interface ReservationDaypartRow {
+  day_key: ReservationDaypartDayKey;
+  values: Record<string, number>;
+}
+
+export interface ReservationDaypartMeta {
+  key: string;
+  label: string;
+}
+
+export type ReservationStatusHourDayKey = ReservationDaypartDayKey;
+
+export interface ReservationStatusHourRow {
+  day_key: ReservationStatusHourDayKey;
+  confirmed_hour: number | null;
+  pending_hour: number | null;
+  cancelled_hour: number | null;
+  confirmed_count: number;
+  pending_count: number;
+  cancelled_count: number;
+}
+
+export interface ReservationStatusHourMeta {
+  window_start_hour: number;
+  window_end_hour: number;
+}
+
 export interface OrdersSoldUsedBucket {
   bucket: string;
   sold: number;
@@ -78,6 +114,10 @@ export interface MetricsSeries {
   bucket_mode: "day" | "week";
   profile_views: ProfileViewBucket[];
   reservations_by_status: ReservationStatusBucket[];
+  reservations_by_daypart?: ReservationDaypartRow[];
+  reservation_daypart_meta?: ReservationDaypartMeta[];
+  reservations_status_hour_by_day?: ReservationStatusHourRow[];
+  reservation_status_hour_meta?: ReservationStatusHourMeta;
   orders_sold_used: OrdersSoldUsedBucket[];
   tickets_sold_by_type?: TicketsSoldByTypeBucket[];
   ticket_types_meta?: TicketTypeMeta[];

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Moon, Sun } from "lucide-react";
 import { usePanelContext } from "@/lib/panelContext";
 
 interface NavItem {
@@ -17,13 +18,15 @@ interface NavGroup {
 
 interface SidebarNavProps {
   onNavigate?: () => void;
+  theme?: "dark" | "light";
+  onToggleTheme?: () => void;
 }
 
 /**
  * Navegación del sidebar con links dinámicos según el tipo de local.
  * Agrupados en secciones con gating por tipo.
  */
-export function SidebarNav({ onNavigate }: SidebarNavProps) {
+export function SidebarNav({ onNavigate, theme, onToggleTheme }: SidebarNavProps) {
   const { data, loading } = usePanelContext();
   const pathname = usePathname();
 
@@ -60,10 +63,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
           },
           {
             title: "Marketing",
-            items: [
-              { href: "/panel/marketing/promos", label: "Promociones", icon: "🎯" },
-              { href: "/panel/marketing/lineup", label: "Lineup", icon: "🎤" },
-            ],
+            items: [{ href: "/panel/marketing/promos", label: "Promociones", icon: "🎯" }],
           },
           {
             title: "Métricas",
@@ -93,10 +93,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
           },
           {
             title: "Marketing",
-            items: [
-              { href: "/panel/marketing/promos", label: "Promociones", icon: "🎯" },
-              { href: "/panel/marketing/lineup", label: "Lineup", icon: "🎤" },
-            ],
+            items: [{ href: "/panel/marketing/promos", label: "Promociones", icon: "🎯" }],
           },
           {
             title: "Métricas",
@@ -146,6 +143,26 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
           </div>
         </div>
       ))}
+
+      {theme && onToggleTheme ? (
+        <div className="pt-2">
+          <div className="mx-3 border-t border-gray-200 pt-3">
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              title="Cambiar tema"
+              aria-label={theme === "dark" ? "Cambiar a light mode" : "Cambiar a dark mode"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </nav>
   );
 }

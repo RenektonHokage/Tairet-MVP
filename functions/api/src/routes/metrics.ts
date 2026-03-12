@@ -13,6 +13,142 @@ import {
 
 export const metricsRouter = Router();
 
+const ASUNCION_TIMEZONE = "America/Asuncion";
+const RESERVATION_DAYPART_DAY_KEYS = [
+  "lun",
+  "mar",
+  "mie",
+  "jue",
+  "vie",
+  "sab",
+  "dom",
+] as const;
+const RESERVATION_DAYPART_META = [
+  { key: "18_20", label: "18:00-20:00" },
+  { key: "20_22", label: "20:00-22:00" },
+  { key: "22_00", label: "22:00-00:00" },
+] as const;
+const RESERVATION_STATUS_HOUR_META = {
+  window_start_hour: 18,
+  window_end_hour: 24,
+} as const;
+
+type ReservationDaypartDayKey = (typeof RESERVATION_DAYPART_DAY_KEYS)[number];
+
+const reservationWeekdayFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: ASUNCION_TIMEZONE,
+  weekday: "short",
+});
+
+const reservationHourFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: ASUNCION_TIMEZONE,
+  hour: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
+});
+
+const reservationHourPartsFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: ASUNCION_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  hourCycle: "h23",
+});
+
+function buildEmptyReservationDaypartValues(): Record<string, number> {
+  return Object.fromEntries(
+    RESERVATION_DAYPART_META.map((item) => [item.key, 0])
+  ) as Record<string, number>;
+}
+
+function getReservationDayKey(value: string): ReservationDaypartDayKey | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const weekday = reservationWeekdayFormatter.format(date);
+  switch (weekday) {
+    case "Mon":
+      return "lun";
+    case "Tue":
+      return "mar";
+    case "Wed":
+      return "mie";
+    case "Thu":
+      return "jue";
+    case "Fri":
+      return "vie";
+    case "Sat":
+      return "sab";
+    case "Sun":
+      return "dom";
+    default:
+      return null;
+  }
+}
+
+function getReservationDaypartKey(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const hourText = reservationHourFormatter.format(date);
+  const hour = Number(hourText);
+  if (!Number.isFinite(hour)) return null;
+
+  if (hour < 20) return "18_20";
+  if (hour < 22) return "20_22";
+  return "22_00";
+}
+
+function getReservationOperationalHour(value: string): number | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = reservationHourPartsFormatter.formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "");
+  const second = Number(parts.find((part) => part.type === "second")?.value ?? "");
+  if (!Number.isFinite(hour) || !Number.isFinite(minute) || !Number.isFinite(second)) {
+    return null;
+  }
+
+  if (hour === 0 && minute === 0 && second === 0) {
+    return 24;
+  }
+
+  if (hour < RESERVATION_STATUS_HOUR_META.window_start_hour || hour >= 24) {
+    return null;
+  }
+
+  return hour + minute / 60;
+}
+
+function mapReservationStatusToVisualState(
+  status: string | null | undefined
+): "confirmed" | "pending" | "cancelled" | null {
+  switch (status) {
+    case "confirmed":
+      return "confirmed";
+    case "en_revision":
+      return "pending";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return null;
+  }
+}
+
+function buildEmptyReservationStatusHourAccumulator() {
+  return {
+    confirmed_total: 0,
+    confirmed_count: 0,
+    pending_total: 0,
+    pending_count: 0,
+    cancelled_total: 0,
+    cancelled_count: 0,
+  };
+}
+
 const querySchema = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
@@ -86,6 +222,24 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
         toIso,
       });
       return res.status(500).json({ error: reservationsError.message });
+    }
+
+    const {
+      data: reservationsScheduleData,
+      error: reservationsScheduleError,
+    } = await supabase
+      .from("reservations")
+      .select("date, status")
+      .eq("local_id", localId)
+      .gte("date", fromIso)
+      .lte("date", toIso);
+
+    if (reservationsScheduleError) {
+      logger.error("Error fetching reservations schedule data", {
+        error: reservationsScheduleError.message,
+        localId,
+      });
+      return res.status(500).json({ error: reservationsScheduleError.message });
     }
 
     const {
@@ -357,6 +511,67 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
       }
     }
 
+    // ----- Series: reservations_by_daypart (según fecha/hora operativa de la reserva) -----
+    const reservationDaypartRows = new Map<
+      ReservationDaypartDayKey,
+      Record<string, number>
+    >(
+      RESERVATION_DAYPART_DAY_KEYS.map((dayKey) => [
+        dayKey,
+        buildEmptyReservationDaypartValues(),
+      ])
+    );
+
+    for (const reservation of reservationsScheduleData ?? []) {
+      const reservationDate =
+        reservation && typeof reservation.date === "string" ? reservation.date : null;
+      if (!reservationDate) continue;
+
+      const dayKey = getReservationDayKey(reservationDate);
+      const daypartKey = getReservationDaypartKey(reservationDate);
+      if (!dayKey || !daypartKey) continue;
+
+      const values = reservationDaypartRows.get(dayKey);
+      if (!values) continue;
+      values[daypartKey] = (values[daypartKey] ?? 0) + 1;
+    }
+
+    // ----- Series: reservations_status_hour_by_day (hora promedio operativa por estado/día) -----
+    const reservationStatusHourRows = new Map<
+      ReservationDaypartDayKey,
+      ReturnType<typeof buildEmptyReservationStatusHourAccumulator>
+    >(
+      RESERVATION_DAYPART_DAY_KEYS.map((dayKey) => [
+        dayKey,
+        buildEmptyReservationStatusHourAccumulator(),
+      ])
+    );
+
+    for (const reservation of reservationsScheduleData ?? []) {
+      const reservationDate =
+        reservation && typeof reservation.date === "string" ? reservation.date : null;
+      if (!reservationDate) continue;
+
+      const dayKey = getReservationDayKey(reservationDate);
+      const operationalHour = getReservationOperationalHour(reservationDate);
+      const visualState = mapReservationStatusToVisualState(reservation?.status);
+      if (!dayKey || operationalHour == null || !visualState) continue;
+
+      const entry = reservationStatusHourRows.get(dayKey);
+      if (!entry) continue;
+
+      if (visualState === "confirmed") {
+        entry.confirmed_total += operationalHour;
+        entry.confirmed_count += 1;
+      } else if (visualState === "pending") {
+        entry.pending_total += operationalHour;
+        entry.pending_count += 1;
+      } else if (visualState === "cancelled") {
+        entry.cancelled_total += operationalHour;
+        entry.cancelled_count += 1;
+      }
+    }
+
     // ----- Series: orders_sold_used (semántica A) -----
     // Sold: agrupar ordersData (created_at en rango, status=paid) por bucket
     const ordersSoldBuckets = initBucketMap(emptyBuckets, () => 0);
@@ -472,6 +687,35 @@ metricsRouter.get("/summary", panelAuth, requireRole(["owner", "staff"]), async 
           bucket,
           ...(reservationsBuckets.get(bucket) ?? { confirmed: 0, pending: 0, cancelled: 0 }),
         })),
+        reservations_by_daypart: RESERVATION_DAYPART_DAY_KEYS.map((dayKey) => ({
+          day_key: dayKey,
+          values: { ...(reservationDaypartRows.get(dayKey) ?? buildEmptyReservationDaypartValues()) },
+        })),
+        reservation_daypart_meta: RESERVATION_DAYPART_META.map((item) => ({ ...item })),
+        reservations_status_hour_by_day: RESERVATION_DAYPART_DAY_KEYS.map((dayKey) => {
+          const entry =
+            reservationStatusHourRows.get(dayKey) ??
+            buildEmptyReservationStatusHourAccumulator();
+          return {
+            day_key: dayKey,
+            confirmed_hour:
+              entry.confirmed_count > 0
+                ? Number((entry.confirmed_total / entry.confirmed_count).toFixed(2))
+                : null,
+            pending_hour:
+              entry.pending_count > 0
+                ? Number((entry.pending_total / entry.pending_count).toFixed(2))
+                : null,
+            cancelled_hour:
+              entry.cancelled_count > 0
+                ? Number((entry.cancelled_total / entry.cancelled_count).toFixed(2))
+                : null,
+            confirmed_count: entry.confirmed_count,
+            pending_count: entry.pending_count,
+            cancelled_count: entry.cancelled_count,
+          };
+        }),
+        reservation_status_hour_meta: { ...RESERVATION_STATUS_HOUR_META },
         orders_sold_used: ordersSoldUsedSeries,
         tickets_sold_by_type: ticketsSoldByTypeSeries,
         ticket_types_meta: ticketTypesMeta,

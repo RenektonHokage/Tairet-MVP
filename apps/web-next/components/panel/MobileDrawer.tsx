@@ -4,16 +4,25 @@ import { SidebarHeader } from "./SidebarHeader";
 import { SidebarNav } from "./SidebarNav";
 import { SidebarUserInfo } from "./SidebarUserInfo";
 
+type PanelTheme = "dark" | "light";
+
 interface MobileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
+  theme: PanelTheme;
+  onToggleTheme: () => void;
 }
 
 /**
  * Drawer overlay para navegación mobile.
  * Se muestra sobre el contenido con backdrop oscuro.
  */
-export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
+export function MobileDrawer({
+  isOpen,
+  onClose,
+  theme,
+  onToggleTheme,
+}: MobileDrawerProps) {
   if (!isOpen) return null;
 
   return (
@@ -29,7 +38,11 @@ export function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
       <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-xl flex flex-col">
         <SidebarHeader />
         <div className="flex-1 overflow-y-auto">
-          <SidebarNav onNavigate={onClose} />
+          <SidebarNav
+            onNavigate={onClose}
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+          />
         </div>
         <SidebarUserInfo />
       </div>

@@ -39,7 +39,9 @@ export function LegendItem({ color, label }: LegendItemProps) {
         className="h-3 w-3 rounded-full"
         style={{ backgroundColor: color }}
       />
-      <span className="text-neutral-600">{label}</span>
+      <span className="font-medium" style={{ color }}>
+        {label}
+      </span>
     </div>
   );
 }

@@ -96,16 +96,118 @@ export function ReservationsView({
     Boolean(selectedDate) &&
     (loading || isFetchingForDate) &&
     (reservations.length === 0 || !hasLoadedDate);
+  const [isExportMenuOpen, setIsExportMenuOpen] = React.useState(false);
+  const exportMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    if (!isExportMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isExportMenuOpen]);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Reservas"
-        subtitle="Gestiona confirmaciones, notas y horarios del local."
-        breadcrumbs={[
-          { label: "Panel", href: "/panel" },
-          { label: "Reservas" },
-        ]}
+        <PageHeader
+          title="Reservas"
+          subtitle="Gestiona confirmaciones, notas y horarios del local."
+          actions={
+            <div ref={exportMenuRef} className="relative">
+            <button
+              type="button"
+              aria-expanded={isExportMenuOpen}
+              className={cn(
+                "inline-flex items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm",
+                panelUi.focusRing
+              )}
+              onClick={() => setIsExportMenuOpen((current) => !current)}
+            >
+              Exportar
+              <span className="text-xs text-neutral-500">▾</span>
+            </button>
+
+            {isExportMenuOpen ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl">
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      className="text-xs font-medium text-neutral-600"
+                      htmlFor="reservations-export-from-menu"
+                    >
+                      Desde
+                    </label>
+                    <input
+                      id="reservations-export-from-menu"
+                      type="date"
+                      value={exportFrom}
+                      onChange={(event) =>
+                        onExportFromChange(event.target.value)
+                      }
+                      className={cn(
+                        "rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                        panelUi.focusRing
+                      )}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label
+                      className="text-xs font-medium text-neutral-600"
+                      htmlFor="reservations-export-to-menu"
+                    >
+                      Hasta
+                    </label>
+                    <input
+                      id="reservations-export-to-menu"
+                      type="date"
+                      value={exportTo}
+                      onChange={(event) => onExportToChange(event.target.value)}
+                      className={cn(
+                        "rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                        panelUi.focusRing
+                      )}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      onExport();
+                    }}
+                    disabled={!exportFrom || !exportTo || exportLoading}
+                    className={cn(
+                      "inline-flex h-[38px] w-full items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50",
+                      panelUi.focusRing
+                    )}
+                  >
+                    {exportLoading ? "Exportando..." : "Exportar CSV"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        }
       />
 
       {/* Stats KPIs */}
@@ -246,55 +348,6 @@ export function ReservationsView({
         }
       />
 
-      <section className="hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm md:block">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-600" htmlFor="export-from">
-              Desde
-            </label>
-            <input
-              id="export-from"
-              type="date"
-              value={exportFrom}
-              onChange={(event) => onExportFromChange(event.target.value)}
-              className={cn(
-                "rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
-                panelUi.focusRing
-              )}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-neutral-600" htmlFor="export-to">
-              Hasta
-            </label>
-            <input
-              id="export-to"
-              type="date"
-              value={exportTo}
-              onChange={(event) => onExportToChange(event.target.value)}
-              className={cn(
-                "rounded-full border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
-                panelUi.focusRing
-              )}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onExport}
-            disabled={!exportFrom || !exportTo || exportLoading}
-            className={cn(
-              "inline-flex h-[38px] items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50",
-              panelUi.focusRing
-            )}
-          >
-            {exportLoading ? "Exportando..." : "Exportar CSV"}
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-neutral-500">
-          Exporta reservas y datos de contacto del local autenticado para el rango seleccionado.
-        </p>
-      </section>
-
       {/* Sort bar + count badge */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm text-neutral-600">
@@ -307,14 +360,14 @@ export function ReservationsView({
             <span className="text-xs text-neutral-500">Filtrado por fecha</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white p-1 shadow-sm">
           <button
             className={cn(
-              "rounded-full px-4 py-2 text-xs font-semibold",
+              "rounded-full px-4 py-2 text-xs font-medium transition-colors",
               panelUi.focusRing,
               sortBy === "time"
-                ? "bg-[#8d1313] text-white shadow-sm"
-                : "border border-neutral-200 bg-white text-neutral-700"
+                ? "bg-neutral-100 text-neutral-900"
+                : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
             )}
             type="button"
             onClick={() => onSortChange("time")}
@@ -323,11 +376,11 @@ export function ReservationsView({
           </button>
           <button
             className={cn(
-              "rounded-full px-4 py-2 text-xs font-semibold",
+              "rounded-full px-4 py-2 text-xs font-medium transition-colors",
               panelUi.focusRing,
               sortBy === "name"
-                ? "bg-[#8d1313] text-white shadow-sm"
-                : "border border-neutral-200 bg-white text-neutral-700"
+                ? "bg-neutral-100 text-neutral-900"
+                : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
             )}
             type="button"
             onClick={() => onSortChange("name")}

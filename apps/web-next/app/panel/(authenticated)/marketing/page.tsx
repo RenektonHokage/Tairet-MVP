@@ -23,19 +23,6 @@ export default function MarketingPage() {
             Crea y gestiona promociones visibles en tu perfil público.
           </p>
         </Link>
-
-        <Link
-          href="/panel/marketing/lineup"
-          className="block p-6 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-3xl">🎤</span>
-            <h3 className="text-xl font-semibold text-gray-900">Lineup / Agenda</h3>
-          </div>
-          <p className="text-gray-600">
-            Publica tu calendario de eventos, DJs y artistas invitados.
-          </p>
-        </Link>
       </div>
     </div>
   );

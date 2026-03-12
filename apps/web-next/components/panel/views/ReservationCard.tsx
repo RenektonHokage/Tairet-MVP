@@ -47,9 +47,21 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
   const dateLabel = formatDateLabel(reservation.date);
   const fullName = [reservation.name, reservation.last_name].filter(Boolean).join(" ");
   const emailLabel = reservation.email || "-";
+  const isPending = reservation.status === "en_revision";
+  const showInlineEdit = isPending && Boolean(onEdit);
+  const showFooterEdit = !isPending && Boolean(onEdit);
+  const showActionFooter =
+    (isPending && (Boolean(onConfirm) || Boolean(onCancel))) || showFooterEdit;
 
   const notes = reservation.notes?.trim() || "Sin notas del cliente";
   const tableNote = reservation.table_note?.trim() || "Sin nota interna";
+  const noteBoxClass = cn(
+    "rounded-xl border border-neutral-200/70 bg-neutral-100 px-4 py-2.5"
+  );
+  const secondaryEditButtonClass = cn(
+    "w-full rounded-full border border-neutral-200 bg-neutral-100 px-4 py-2 text-xs font-semibold text-neutral-700 shadow-sm hover:bg-white",
+    panelUi.focusRing
+  );
 
   return (
     <Card>
@@ -107,7 +119,7 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
         </div>
 
         <div className="space-y-2">
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50 px-4 py-2.5">
+          <div className={noteBoxClass}>
             <div className="text-xs font-medium text-neutral-500">Notas del cliente</div>
             <div
               className="text-sm text-neutral-800 break-words whitespace-pre-wrap"
@@ -121,19 +133,21 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
               {notes}
             </div>
           </div>
-          <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/80 px-4 py-2.5">
+          <div className={noteBoxClass}>
             <div className="flex items-center justify-between gap-2">
               <div className="text-xs font-medium text-neutral-500">Nota de operacion</div>
-              <button
-                type="button"
-                className={cn(
-                  "text-xs font-medium text-[#8d1313] hover:underline",
-                  panelUi.focusRing
-                )}
-                onClick={() => onEdit?.(reservation)}
-              >
-                Editar
-              </button>
+              {showInlineEdit ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:underline",
+                    panelUi.focusRing
+                  )}
+                  onClick={() => onEdit?.(reservation)}
+                >
+                  Editar
+                </button>
+              ) : null}
             </div>
             <div className="text-sm text-neutral-800 break-words whitespace-pre-wrap">
               {tableNote}
@@ -141,35 +155,45 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
           </div>
         </div>
       </CardContent>
-      <CardFooter>
-        <div className="flex w-full flex-wrap gap-2">
-          {reservation.status === "en_revision" ? (
-            <>
+      {showActionFooter ? (
+        <CardFooter>
+          <div className="flex w-full flex-wrap gap-2">
+            {isPending && onConfirm ? (
               <button
                 className={cn(
                   "flex-1 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm",
                   panelUi.focusRing
                 )}
                 type="button"
-                onClick={() => onConfirm?.(reservation)}
+                onClick={() => onConfirm(reservation)}
               >
                 Confirmar
               </button>
+            ) : null}
+            {isPending && onCancel ? (
               <button
                 className={cn(
                   "flex-1 rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm",
                   panelUi.focusRing
                 )}
                 type="button"
-                onClick={() => onCancel?.(reservation)}
+                onClick={() => onCancel(reservation)}
               >
                 Cancelar
               </button>
-            </>
-          ) : null}
-          {/* confirmed: sin botón "Cancelar reserva" (quitado intencionalmente) */}
-        </div>
-      </CardFooter>
+            ) : null}
+            {showFooterEdit ? (
+              <button
+                className={secondaryEditButtonClass}
+                type="button"
+                onClick={() => onEdit?.(reservation)}
+              >
+                Editar nota
+              </button>
+            ) : null}
+          </div>
+        </CardFooter>
+      ) : null}
     </Card>
   );
 }

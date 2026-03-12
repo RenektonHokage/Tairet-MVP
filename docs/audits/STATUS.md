@@ -120,7 +120,7 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 * **F3 — CODE de observabilidad y guardrails (en curso)**
 * **F6 — CODE de refactor estructural `panel.ts` (abierta pero pausada; `CODE 01` y `CODE 02` validados)**
 * **F7 — CODE de hardening SQL / RLS (abierta pero pausada; reconciliación SQL parcialmente cerrada; semántica operativa observable del backend con `SUPABASE_SERVICE_ROLE` y alcance por flujo real parcialmente confirmados; `F7 CODE 01` validado sobre tracking público (`events_public`, `whatsapp_clicks`, `profile_views`); `F7 CODE 02` validado únicamente para `promos`; `F7 CODE 03` validado únicamente para `reviews`; `F7 CODE 04` no corresponde por ahora; cualquier otra tabla o flow queda fuera de scope del tercer rollout; siguiente paso: esperar nueva evidencia o replanteo de rollout antes de volver a evaluar el remanente)**
-* **F8 — CODE de pendientes no bloqueantes y cierre documental (primer bloque seleccionado: cierre documental + backlog no bloqueante; `/panel/metrics` diferido/no activo; no habilita CODE ni reabre `F3`, `F6` o `F7`)**
+* **F8 — CODE de pendientes no bloqueantes y cierre documental (primer bloque consolidado: cierre documental + backlog no bloqueante; `/panel/metrics` diferido/no activo; no habilita CODE ni reabre `F3`, `F6` o `F7`; no existe un segundo bloque útil por ahora)**
 
 ---
 
@@ -175,8 +175,9 @@ El siguiente CODE de `F3` solo debería reabrirse si aparece un bug activo confi
 * `ticket_types + table_types` queda como candidato relativo menos malo del remanente, pero todavía no cumple el umbral de prudencia por cruce entre catálogo público, panel, compra y coverage/documentación SQL insuficiente
 * El siguiente paso correcto de `F7` ya no es abrir `F7 CODE 04`, sino esperar nueva evidencia o replanteo de rollout antes de volver a evaluar un cuarto bloque; ya no corresponde revalidar ni reabrir `F7 CODE 03`
 * **El primer bloque de `F8` queda limitado a cierre documental, backlog no bloqueante y clasificación de `/panel/metrics` como diferido/no activo. No habilita CODE ni reabre `F3`, `F6` o `F7`.**
-* El primer bloque de `F8` ya queda seleccionado como docs-only del ciclo actual: consolida backlog no bloqueante, sincroniza docs operativos y mantiene `/panel/metrics` como pendiente P3 diferido / no activo
-* El siguiente paso correcto de `F8` ya no es abrir trabajo técnico nuevo, sino ejecutar ese cierre documental y mantener en pausa operativa el remanente de `F3`, `F6` y `F7` hasta nueva evidencia
+* El primer bloque de `F8` ya queda **consolidado / cumplido** como docs-only del ciclo actual: cerró backlog no bloqueante, sincronización documental y clasificación operativa de `/panel/metrics` como pendiente P3 diferido / no activo
+* **Después del primer bloque de `F8`, no existe actualmente un segundo bloque útil de cierre documental / backlog no bloqueante; `F8` queda sin más trabajo inmediato hasta nueva evidencia o nueva prioridad.**
+* Lo restante queda separado entre backlog no bloqueante ya clasificado, frentes pausados (`F3`, `F6`, `F7`) y trabajo técnico no habilitado; no corresponde convertir ese remanente en un segundo bloque activo de `F8`
 * El gate hacia `F3` quedó satisfecho y la fase ya fue abierta con un primer slice seguro y aditivo
 * `F3 CODE 01` ya quedó implementado y validado en backend con:
 

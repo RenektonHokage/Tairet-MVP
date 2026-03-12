@@ -51,15 +51,17 @@ function CustomTooltip({
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
-      <p className="mb-1 text-xs font-medium text-neutral-600">{label}</p>
+      <p className="mb-1 text-xs font-medium" style={{ color: "var(--panel-chart-tooltip-muted)" }}>
+        {label}
+      </p>
       {payload.map((entry, index) => (
         <div key={index} className="flex items-center gap-2 text-sm">
           <span
             className="h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: entry.color }}
           />
-          <span className="text-neutral-600">{entry.name}:</span>
-          <span className="font-semibold text-neutral-900">
+          <span style={{ color: "var(--panel-chart-tooltip-muted)" }}>{entry.name}:</span>
+          <span className="font-semibold" style={{ color: "var(--panel-chart-tooltip-text)" }}>
             {formatter ? formatter(entry.value ?? 0) : entry.value}
           </span>
         </div>
@@ -96,26 +98,30 @@ export function BarChartGrouped<T extends Record<string, unknown>>({
           barCategoryGap="20%"
         >
           {showGrid && (
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--panel-chart-grid)"
+              vertical={false}
+            />
           )}
           <XAxis
             dataKey={labelKey}
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 11, fill: "#a3a3a3" }}
+            tick={{ fontSize: 11, fill: "var(--panel-chart-axis)" }}
             dy={8}
           />
           {showYAxis && (
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 11, fill: "#a3a3a3" }}
+              tick={{ fontSize: 11, fill: "var(--panel-chart-axis)" }}
               width={40}
             />
           )}
           <Tooltip
             content={<CustomTooltip formatter={valueFormatter} />}
-            cursor={{ fill: "rgba(0, 0, 0, 0.04)" }}
+            cursor={{ fill: "var(--panel-chart-cursor)", fillOpacity: 0.12 }}
           />
           {series.map((s) => (
             <Bar

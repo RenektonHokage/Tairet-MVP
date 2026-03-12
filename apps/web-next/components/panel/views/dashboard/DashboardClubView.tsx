@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Clock, DollarSign, QrCode, Ticket } from "lucide-react";
+import { CheckCircle2, DollarSign, QrCode, Ticket } from "lucide-react";
 
 import {
   LineChartSimple,
@@ -67,7 +67,15 @@ function VisitsChartWithTotal({
         {total}{" "}
         <span className="text-base font-normal text-neutral-500">visitas</span>
       </div>
-      <LineChartSimple data={data} color="#8b5cf6" height={120} />
+      <LineChartSimple
+        data={data}
+        color="#2563eb"
+        height={120}
+        showGrid={false}
+        lineType="linear"
+        strokeWidth={2.5}
+        showDots={data.length <= 8}
+      />
     </div>
   );
 }
@@ -95,8 +103,8 @@ export function DashboardClubView({
       value: kpis.ticketsSold,
       hint: kpis.ticketsSold > 0 ? undefined : undefined,
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
-          <Ticket className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <Ticket className="h-5 w-5 text-[#374151]" />
         </span>
       ),
     },
@@ -108,8 +116,8 @@ export function DashboardClubView({
           ? `${((kpis.ticketsUsed / kpis.ticketsSold) * 100).toFixed(1)}% de tasa de uso`
           : undefined,
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
-          <Clock className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <CheckCircle2 className="h-5 w-5 text-[#22C55E]" />
         </span>
       ),
     },
@@ -118,8 +126,8 @@ export function DashboardClubView({
       value: `PYG ${kpis.revenuePaid.toLocaleString()}`,
       hint: kpis.revenuePaid === 0 ? "Pagos pendientes" : undefined,
       icon: (
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-neutral-600">
-          <DollarSign className="h-5 w-5" />
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
+          <DollarSign className="h-5 w-5 text-[#22C55E]" />
         </span>
       ),
     },
@@ -148,7 +156,7 @@ export function DashboardClubView({
         subtitle="Escanea los códigos QR de tus clientes para validar su entrada."
         ctaLabel="Abrir Check-in"
         onCta={onPrimaryAction}
-        tone="club"
+        tone="bar"
         icon={<QrCode className="h-4 w-4" />}
       />
 
@@ -174,8 +182,8 @@ export function DashboardClubView({
           legend={
             hasTrendData ? (
               <>
-                <LegendItem color="#3b82f6" label="Vendidas" />
-                <LegendItem color="#10b981" label="Usadas" />
+                <LegendItem color="#2563eb" label="Vendidas" />
+                <LegendItem color="#22C55E" label="Usadas" />
               </>
             ) : undefined
           }
@@ -184,8 +192,8 @@ export function DashboardClubView({
             <BarChartGrouped
               data={trendData}
               series={[
-                { dataKey: "vendidas", name: "Vendidas", color: "#3b82f6" },
-                { dataKey: "usadas", name: "Usadas", color: "#10b981" },
+                { dataKey: "vendidas", name: "Vendidas", color: "#2563eb" },
+                { dataKey: "usadas", name: "Usadas", color: "#22C55E" },
               ]}
               height={180}
               loading={loading}
@@ -224,12 +232,12 @@ export function DashboardClubView({
               ? [
                   { label: "Visitas → Ventas", value: summary.conversionRate, color: "success" },
                   { label: "Promedio semanal", value: summary.weeklyAverage },
-                  { label: "Ingresos generados", value: summary.revenue, color: "default" },
+                  { label: "Ingresos generados", value: summary.revenue, color: "success" },
                 ]
               : [
                   { label: "Visitas → Ventas", value: "0%", color: "default" },
                   { label: "Promedio semanal", value: "0 ventas" },
-                  { label: "Ingresos generados", value: "PYG 0", color: "default" },
+                  { label: "Ingresos generados", value: "PYG 0", color: "success" },
                 ]
           }
         />

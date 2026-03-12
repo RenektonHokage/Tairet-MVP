@@ -10,7 +10,7 @@ export interface RangeToggleProps {
 
 export function RangeToggle({ value, onChange }: RangeToggleProps) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 p-1">
+    <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white p-1 shadow-sm">
       <button
         type="button"
         onClick={() => onChange("7d")}
@@ -18,8 +18,8 @@ export function RangeToggle({ value, onChange }: RangeToggleProps) {
           "rounded-full px-3 py-1 text-xs font-medium transition-colors",
           panelUi.focusRing,
           value === "7d"
-            ? "bg-white text-neutral-900 shadow-sm"
-            : "text-neutral-600 hover:text-neutral-900"
+            ? "bg-neutral-100 text-neutral-900"
+            : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
         )}
       >
         7 días
@@ -31,8 +31,8 @@ export function RangeToggle({ value, onChange }: RangeToggleProps) {
           "rounded-full px-3 py-1 text-xs font-medium transition-colors",
           panelUi.focusRing,
           value === "30d"
-            ? "bg-white text-neutral-900 shadow-sm"
-            : "text-neutral-600 hover:text-neutral-900"
+            ? "bg-neutral-100 text-neutral-900"
+            : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
         )}
       >
         30 días

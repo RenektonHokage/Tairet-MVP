@@ -24,6 +24,12 @@ export interface LineChartSimpleProps {
   data: LineChartDataPoint[];
   /** Color de la línea (hex o tailwind color) */
   color?: string;
+  /** Tipo de curva */
+  lineType?: "monotone" | "linear";
+  /** Grosor de línea */
+  strokeWidth?: number;
+  /** Mostrar puntos en la serie */
+  showDots?: boolean;
   /** Mostrar grid */
   showGrid?: boolean;
   /** Mostrar eje Y */
@@ -47,8 +53,10 @@ function CustomTooltip({
   const value = payload[0]?.value ?? 0;
   return (
     <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
-      <p className="text-xs font-medium text-neutral-600">{label}</p>
-      <p className="text-sm font-semibold text-neutral-900">
+      <p className="text-xs font-medium" style={{ color: "var(--panel-chart-tooltip-muted)" }}>
+        {label}
+      </p>
+      <p className="text-sm font-semibold" style={{ color: "var(--panel-chart-tooltip-text)" }}>
         {formatter ? formatter(value) : value}
       </p>
     </div>
@@ -58,6 +66,9 @@ function CustomTooltip({
 export function LineChartSimple({
   data,
   color = "#8b5cf6",
+  lineType = "monotone",
+  strokeWidth = 2,
+  showDots = false,
   showGrid = true,
   showYAxis = false,
   height = 180,
@@ -81,33 +92,37 @@ export function LineChartSimple({
           margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
         >
           {showGrid && (
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--panel-chart-grid)"
+              vertical={false}
+            />
           )}
           <XAxis
             dataKey="label"
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 11, fill: "#a3a3a3" }}
+            tick={{ fontSize: 11, fill: "var(--panel-chart-axis)" }}
             dy={8}
           />
           {showYAxis && (
             <YAxis
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 11, fill: "#a3a3a3" }}
+              tick={{ fontSize: 11, fill: "var(--panel-chart-axis)" }}
               width={40}
             />
           )}
           <Tooltip
             content={<CustomTooltip formatter={valueFormatter} />}
-            cursor={{ stroke: "#d4d4d4", strokeWidth: 1 }}
+            cursor={{ stroke: "var(--panel-chart-cursor)", strokeWidth: 1 }}
           />
           <Line
-            type="monotone"
+            type={lineType}
             dataKey="value"
             stroke={color}
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={strokeWidth}
+            dot={showDots ? { r: 2.5, fill: color, strokeWidth: 0 } : false}
             activeDot={{ r: 4, fill: color, strokeWidth: 0 }}
           />
         </LineChart>

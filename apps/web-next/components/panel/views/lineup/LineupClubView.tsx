@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   CheckCircle2,
   ClipboardList,
@@ -22,6 +30,14 @@ import {
 } from "@/lib/metrics";
 import { getPanelActivity, type ActivityResponse, type ActivityItem } from "@/lib/activity";
 import { getClubBreakdown, type ClubBreakdown } from "@/lib/metricsBreakdown";
+import { getPanelDemoClubActivity } from "@/lib/panel-demo/activity";
+import { getPanelDemoMetricsSummaryWithSeries } from "@/lib/panel-demo/dashboard";
+import { getPanelDemoClubBreakdown } from "@/lib/panel-demo/metricsBreakdown";
+import {
+  getPanelDemoNow,
+  getPanelDemoPreviousRange,
+  getPanelDemoRange,
+} from "@/lib/panel-demo/time";
 import { DashboardSandboxView } from "@/components/panel/views/DashboardSandboxView";
 import { kpiDeltaPlaceholder } from "./lineupConstants";
 import {
@@ -42,6 +58,7 @@ import {
   LineChart,
   ResponsiveContainer,
   Tooltip,
+  type TooltipProps,
   XAxis,
   YAxis,
 } from "recharts";
@@ -83,7 +100,7 @@ const activityIcons: Record<ActivityItem["type"], ReactNode> = {
   profile_view: <Eye className="h-4 w-4" />,
 };
 
-const getPeriodDates = (period: Period): { from: string; to: string } => {
+const getLivePeriodDates = (period: Period): { from: string; to: string } => {
   const to = new Date();
   const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
@@ -105,9 +122,9 @@ const getPreviousRange = (range: { from: string; to: string }) => {
 type DeltaTone = "positive" | "negative" | "neutral";
 
 const deltaToneClass: Record<DeltaTone, string> = {
-  positive: "text-emerald-600",
-  negative: "text-rose-600",
-  neutral: "text-neutral-400",
+  positive: "text-[#15803d]",
+  negative: "text-[#b91c1c]",
+  neutral: "text-[#2563eb]",
 };
 
 const formatDelta = (current: number, previous?: number | null) => {
@@ -147,40 +164,60 @@ const formatCurrency = (value: number) =>
   }).format(value);
 
 /**
- * Formatea un bucket "YYYY-MM-DD" según el modo (day/week).
+ * Formatea un bucket que puede venir como "YYYY-MM-DD" o ISO string.
  * - day: dd/MM
- * - week: Sem dd/MM (weekStart = lunes UTC)
+ * - week: Sem dd/MM
  */
 function formatBucketLabel(bucket: string, mode: "day" | "week"): string {
-  try {
-    const date = new Date(bucket + "T00:00:00Z");
-    const day = date.getUTCDate().toString().padStart(2, "0");
-    const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
-    if (mode === "week") {
-      return `Sem ${day}/${month}`;
-    }
-    return `${day}/${month}`;
-  } catch {
+  const normalizedBucket = bucket.includes("T") ? bucket : `${bucket}T00:00:00Z`;
+  const date = new Date(normalizedBucket);
+
+  if (Number.isNaN(date.getTime())) {
     return bucket;
   }
+
+  const weekdayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  if (mode === "day") {
+    return weekdayLabels[date.getUTCDay()] ?? bucket;
+  }
+
+  const day = date.getUTCDate().toString().padStart(2, "0");
+  const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  return `Sem ${day}/${month}`;
 }
 
-const iconWrap = (icon: ReactNode) => (
-  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8d1313]/10 text-[#8d1313]">
-    {icon}
-  </span>
-);
+const iconWrap = (icon: ReactNode, tone: "accent" | "blue" | "emerald") => {
+  const styles = "border border-neutral-200 bg-neutral-50 text-neutral-700";
+  const iconColor = tone === "emerald" ? "text-[#22C55E]" : "text-[#374151]";
+  const renderedIcon =
+    isValidElement<{ className?: string }>(icon)
+      ? cloneElement(icon, {
+          className: cn(icon.props.className, iconColor),
+        })
+      : icon;
+
+  return (
+    <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", styles)}>
+      {renderedIcon}
+    </span>
+  );
+};
 
 const ticketColorPalette = [
-  "#8d1313",
-  "#1d4ed8",
-  "#16a34a",
-  "#f97316",
-  "#7c3aed",
+  "#2563eb",
   "#0f766e",
+  "#7c3aed",
   "#b45309",
+  "#15803d",
   "#475569",
 ];
+
+const ticketColorMap: Record<string, string> = {
+  general: "#2563eb",
+  vip: "#0f766e",
+  "free pass": "#0f766e",
+  backstage: "#7c3aed",
+};
 
 function hashColorKey(value: string) {
   let hash = 0;
@@ -191,6 +228,10 @@ function hashColorKey(value: string) {
 }
 
 function getTicketColor(key: string) {
+  const normalizedKey = key.trim().toLowerCase();
+  if (ticketColorMap[normalizedKey]) {
+    return ticketColorMap[normalizedKey];
+  }
   const idx = hashColorKey(key) % ticketColorPalette.length;
   return ticketColorPalette[idx];
 }
@@ -207,25 +248,93 @@ interface MultiLineChartProps {
   height?: number;
 }
 
+function TrendTooltip({
+  active,
+  payload,
+  label,
+  valueFormatter,
+}: TooltipProps<number, string> & { valueFormatter?: (value: number) => string }) {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
+      <p className="text-xs font-medium text-neutral-600">{label}</p>
+      <div className="mt-2 space-y-1.5">
+        {payload.map((entry, index) => {
+          const rawValue = typeof entry.value === "number" ? entry.value : Number(entry.value ?? 0);
+          const formattedValue = valueFormatter ? valueFormatter(rawValue) : formatNumber(rawValue);
+
+          return (
+            <div key={`${entry.dataKey ?? entry.name ?? "series"}-${index}`} className="flex items-center justify-between gap-4">
+              <span className="inline-flex items-center gap-2 text-xs font-medium text-neutral-700">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: entry.color ?? "#737373" }}
+                />
+                <span style={{ color: typeof entry.color === "string" ? entry.color : "#404040" }}>
+                  {entry.name ?? entry.dataKey}
+                </span>
+              </span>
+              <span className="text-sm font-semibold text-neutral-900">{formattedValue}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MultiLineChart({ data, series, height = 200 }: MultiLineChartProps) {
+  const showDots = data.length <= 8;
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip />
-          <Legend />
+          <CartesianGrid stroke="var(--panel-chart-grid)" vertical={false} />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 12, fill: "var(--panel-chart-axis)" }}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 12, fill: "var(--panel-chart-axis)" }}
+          />
+          <Tooltip
+            cursor={{ stroke: "var(--panel-chart-cursor)", strokeWidth: 1.5 }}
+            content={<TrendTooltip />}
+          />
+          <Legend
+            wrapperStyle={{ fontSize: 12 }}
+            formatter={(value, entry) => (
+              <span
+                style={{
+                  color: typeof entry.color === "string" ? entry.color : "#525252",
+                }}
+              >
+                {value}
+              </span>
+            )}
+          />
           {series.map((item) => (
             <Line
               key={item.key}
-              type="monotone"
+              type="linear"
               dataKey={item.key}
               name={item.name}
               stroke={item.color}
-              strokeWidth={2}
-              dot={false}
+              strokeWidth={2.5}
+              isAnimationActive={false}
+              dot={
+                showDots
+                  ? { r: 2.5, fill: item.color, stroke: "#ffffff", strokeWidth: 1 }
+                  : false
+              }
+              activeDot={{ r: 5, fill: item.color, stroke: "#ffffff", strokeWidth: 1.5 }}
+              legendType="plainline"
             />
           ))}
         </LineChart>
@@ -263,10 +372,10 @@ function LineupKpiGrid({ items }: { items: LineupKpiItem[] }) {
   );
 }
 
-function formatTime(isoString: string): string {
+function formatTime(isoString: string, nowReference?: Date): string {
   try {
     const date = new Date(isoString);
-    const now = new Date();
+    const now = nowReference ?? new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
@@ -283,7 +392,13 @@ function formatTime(isoString: string): string {
 }
 
 export function LineupClubView() {
-  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
+  const {
+    data: context,
+    loading: contextLoading,
+    error: contextError,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
   const [period, setPeriod] = useState<Period>("30d");
   const [trendMode, setTrendMode] = useState<TrendMode>("entries");
   const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
@@ -293,14 +408,25 @@ export function LineupClubView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchKeyRef = useRef<string | null>(null);
+  const isDemoClubMetrics =
+    isDemo && demoScenario === "discoteca" && context?.local.type === "club";
+  const activityNowReference = useMemo(
+    () => (isDemoClubMetrics ? getPanelDemoNow("discoteca") : undefined),
+    [isDemoClubMetrics]
+  );
 
   useEffect(() => {
     if (contextLoading || !context) return;
     if (context.local.type !== "club") return;
 
-    const range = getPeriodDates(period);
-    const prevRange = getPreviousRange(range);
-    const fetchKey = `${period}-${range.from}-${range.to}`;
+    const range = isDemoClubMetrics
+      ? getPanelDemoRange("discoteca", period)
+      : getLivePeriodDates(period);
+    const prevRange = isDemoClubMetrics
+      ? getPanelDemoPreviousRange("discoteca", period)
+      : getPreviousRange(range);
+    const modeKey = isDemoClubMetrics ? "demo-club" : "live";
+    const fetchKey = `${modeKey}-${period}-${range.from}-${range.to}`;
     if (fetchKeyRef.current === fetchKey) return;
     fetchKeyRef.current = fetchKey;
 
@@ -310,10 +436,16 @@ export function LineupClubView() {
       try {
         const [currentResult, prevResult, activityResult, breakdownResult] =
           await Promise.allSettled([
-            getPanelMetricsSummaryWithSeries(range),
-            prevRange ? getPanelMetricsSummaryWithSeries(prevRange) : Promise.resolve(null),
-            getPanelActivity(),
-            getClubBreakdown(period),
+            isDemoClubMetrics
+              ? getPanelDemoMetricsSummaryWithSeries("discoteca", range)
+              : getPanelMetricsSummaryWithSeries(range),
+            prevRange
+              ? isDemoClubMetrics
+                ? getPanelDemoMetricsSummaryWithSeries("discoteca", prevRange)
+                : getPanelMetricsSummaryWithSeries(prevRange)
+              : Promise.resolve(null),
+            isDemoClubMetrics ? getPanelDemoClubActivity(period) : getPanelActivity(),
+            isDemoClubMetrics ? getPanelDemoClubBreakdown(period) : getClubBreakdown(period),
           ]);
 
         if (currentResult.status === "fulfilled") {
@@ -351,7 +483,7 @@ export function LineupClubView() {
     };
 
     loadData();
-  }, [contextLoading, context, period]);
+  }, [contextLoading, context, isDemoClubMetrics, period]);
 
   const activityItems = activity?.items ?? [];
 
@@ -449,54 +581,54 @@ export function LineupClubView() {
       label: "Visitas al perfil",
       value: formatNumber(metrics?.kpis.profile_views ?? 0),
       hint: renderDelta(metrics?.kpis.profile_views ?? 0, metricsPrev?.kpis.profile_views),
-      icon: iconWrap(<Eye className="h-5 w-5" />),
+      icon: iconWrap(<Eye className="h-5 w-5" />, "blue"),
     },
     {
       label: "Clicks a WhatsApp",
       value: formatNumber(metrics?.kpis.whatsapp_clicks ?? 0),
       hint: renderDelta(metrics?.kpis.whatsapp_clicks ?? 0, metricsPrev?.kpis.whatsapp_clicks),
-      icon: iconWrap(<MessageCircle className="h-5 w-5" />),
+      icon: iconWrap(<MessageCircle className="h-5 w-5" />, "blue"),
     },
     {
       label: "Promociones vistas",
       value: formatNumber(metrics?.kpis.promo_open_count ?? 0),
       hint: renderDelta(metrics?.kpis.promo_open_count ?? 0, metricsPrev?.kpis.promo_open_count),
-      icon: iconWrap(<Sparkles className="h-5 w-5" />),
+      icon: iconWrap(<Sparkles className="h-5 w-5" />, "blue"),
     },
     {
       label: "Promo destacada",
       value: metrics?.kpis.top_promo?.title ?? "Sin datos",
       hint: undefined,
-      icon: iconWrap(<Star className="h-5 w-5" />),
+      icon: iconWrap(<Star className="h-5 w-5" />, "blue"),
     },
     {
       label: (
         <span className="inline-flex items-center gap-1">
-          Compras de entradas
+          Compras
           <InfoTip text="Cuenta la cantidad de compras realizadas. Una compra puede incluir varias entradas (ej.: 1 compra = 10 entradas)." />
         </span>
       ),
       value: formatNumber(metrics?.kpis.orders_total ?? 0),
       hint: renderDelta(metrics?.kpis.orders_total ?? 0, metricsPrev?.kpis.orders_total),
-      icon: iconWrap(<ClipboardList className="h-5 w-5" />),
+      icon: iconWrap(<ClipboardList className="h-5 w-5" />, "blue"),
     },
     {
       label: "Entradas vendidas",
       value: formatNumber(currentTicketsSold),
       hint: renderDelta(currentTicketsSold, prevTicketsSold),
-      icon: iconWrap(<Ticket className="h-5 w-5" />),
+      icon: iconWrap(<Ticket className="h-5 w-5" />, "blue"),
     },
     {
       label: "Entradas usadas",
       value: formatNumber(currentTicketsUsed),
       hint: renderDelta(currentTicketsUsed, prevTicketsUsed),
-      icon: iconWrap(<CheckCircle2 className="h-5 w-5" />),
+      icon: iconWrap(<CheckCircle2 className="h-5 w-5" />, "emerald"),
     },
     {
       label: "Ingresos pagados (PYG)",
       value: formatCurrency(currentRevenuePaid),
       hint: renderDelta(currentRevenuePaid, prevRevenuePaid),
-      icon: iconWrap(<DollarSign className="h-5 w-5" />),
+      icon: iconWrap(<DollarSign className="h-5 w-5" />, "emerald"),
     },
   ];
 
@@ -504,29 +636,29 @@ export function LineupClubView() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            <Ticket className="h-5 w-5" />
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb]/10 text-[#2563eb]">
+            <Ticket className="h-5 w-5 text-[#374151]" />
           </span>
           <div className="flex flex-col gap-1">
             <h1 className={panelUi.pageTitle}>Discotecas</h1>
             <p className={panelUi.pageSubtitle}>Analítica del club y rendimiento de entradas</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-neutral-100 p-1">
+        <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 p-1">
           {(Object.keys(periodLabels) as Period[]).map((value) => (
             <button
               key={value}
               type="button"
               onClick={() => setPeriod(value)}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                value === period
-                  ? "bg-[#8d1313] text-white"
-                  : "text-neutral-600 hover:text-neutral-900"
-              )}
-            >
-              {periodLabels[value]}
-            </button>
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                  value === period
+                    ? "bg-neutral-100 text-neutral-900"
+                    : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
+                )}
+              >
+                {periodLabels[value]}
+              </button>
           ))}
         </div>
       </div>
@@ -564,8 +696,8 @@ export function LineupClubView() {
                   <thead className={panelUi.tableHead}>
                     <tr>
                       <th className="px-4 py-3 text-left">Tipo</th>
-                      <th className="px-4 py-3 text-right">Vendidas (qty)</th>
-                      <th className="px-4 py-3 text-right">Entradas con check-in</th>
+                      <th className="px-4 py-3 text-right">Vendidas</th>
+                      <th className="px-4 py-3 text-right">Entradas usadas</th>
                       <th className="px-4 py-3 text-right">Ingresos (PYG)</th>
                     </tr>
                   </thead>
@@ -622,19 +754,19 @@ export function LineupClubView() {
                   <h4 className="text-sm font-semibold text-neutral-900">Tendencia en el tiempo</h4>
                   <p className="text-xs text-neutral-500">
                     {trendMode === "entries"
-                      ? "Suma de entradas vendidas (qty) en el período."
+                      ? "Suma de entradas vendidas en el período."
                       : "Suma de pagos confirmados (PYG) en el período."}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 rounded-full bg-neutral-100 p-1 text-xs font-semibold">
+                <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-neutral-50 p-1 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setTrendMode("entries")}
                     className={cn(
                       "rounded-full px-3 py-1 transition-colors",
                       trendMode === "entries"
-                        ? "bg-white text-neutral-900 shadow-sm"
-                        : "text-neutral-500 hover:text-neutral-900"
+                        ? "bg-neutral-100 text-neutral-900"
+                        : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
                     )}
                   >
                     Entradas
@@ -646,8 +778,8 @@ export function LineupClubView() {
                       className={cn(
                         "rounded-full px-3 py-1 transition-colors",
                         trendMode === "revenue"
-                          ? "bg-white text-neutral-900 shadow-sm"
-                          : "text-neutral-500 hover:text-neutral-900"
+                          ? "bg-neutral-100 text-neutral-900"
+                          : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
                       )}
                     >
                       Ingresos
@@ -675,7 +807,14 @@ export function LineupClubView() {
                   </div>
                 )
               ) : hasRevenueData ? (
-                <LineChartSimple data={revenueLineData} height={200} color="#16a34a" />
+                <LineChartSimple
+                  data={revenueLineData}
+                  height={200}
+                  color="#15803d"
+                  lineType="linear"
+                  strokeWidth={2.5}
+                  showDots={revenueLineData.length <= 8}
+                />
               ) : (
                 <div className={panelUi.emptyWrap}>
                   <p className="text-sm text-neutral-500">Aún no hay ingresos</p>
@@ -701,10 +840,7 @@ export function LineupClubView() {
                       className="h-full border border-neutral-100"
                     >
                       <div className="grid min-h-[156px] gap-4 px-4 py-4 md:px-5 md:py-5">
-                        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
-                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-700">
-                            {index + 1}
-                          </span>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-neutral-900">{table.name}</p>
                             <p className="text-xs text-neutral-500">Precio</p>
@@ -722,10 +858,10 @@ export function LineupClubView() {
                             </span>
                           </div>
                           <div className="space-y-1.5">
-                            <p className="text-xs text-neutral-400">Interacciones</p>
+                            <p className="text-xs text-[#8B5CF6]">Interacciones</p>
                             <div className="mt-1 h-2 w-full rounded-full bg-neutral-100">
                               <div
-                                className="h-2 rounded-full bg-[#8d1313]"
+                                className="h-2 rounded-full bg-[#8B5CF6]"
                                 style={{ width: `${percent}%` }}
                               />
                             </div>
@@ -766,7 +902,9 @@ export function LineupClubView() {
                       {activityLabels[item.type] ?? item.type}
                     </p>
                   </div>
-                  <span className="text-xs text-neutral-400">{formatTime(item.timestamp)}</span>
+                  <span className="text-xs text-neutral-400">
+                    {formatTime(item.timestamp, activityNowReference)}
+                  </span>
                 </div>
               ))}
             </div>

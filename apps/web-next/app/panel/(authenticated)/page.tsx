@@ -18,6 +18,12 @@ import {
   calculateClubSummary,
   type RangeDays,
 } from "@/lib/dashboardHelpers";
+import { getPanelDemoMetricsSummaryWithSeries } from "@/lib/panel-demo/dashboard";
+import {
+  getStoredPanelDemoRuntime,
+  type DemoScenario,
+} from "@/lib/panel-demo/runtime";
+import { getPanelDemoDashboardRange } from "@/lib/panel-demo/time";
 
 // ============================================================
 // Helper: Calcula from/to ISO strings según rango
@@ -60,21 +66,38 @@ function PanelHeader({ context }: { context: PanelUserInfo }) {
 // ============================================================
 // Componente: Dashboard para Clubs (discotecas)
 // ============================================================
-function DashboardClub({ context }: { context: PanelUserInfo }) {
+function DashboardClub({
+  context,
+  isDemo,
+  demoScenario,
+}: {
+  context: PanelUserInfo;
+  isDemo: boolean;
+  demoScenario: DemoScenario | null;
+}) {
   const router = useRouter();
   const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [range, setRange] = useState<RangeDays>(30);
 
   // Calcular from/to basado en el rango actual
-  const rangeDates = useMemo(() => getRangeDates(range), [range]);
+  const rangeDates = useMemo(
+    () =>
+      isDemo && demoScenario
+        ? getPanelDemoDashboardRange(demoScenario, range)
+        : getRangeDates(range),
+    [demoScenario, isDemo, range]
+  );
 
   // Cargar métricas CON series cuando cambia el rango
   useEffect(() => {
     const loadMetrics = async () => {
       setLoadingMetrics(true);
       try {
-        const data = await getPanelMetricsSummaryWithSeries(rangeDates);
+        const data =
+          isDemo && demoScenario
+            ? await getPanelDemoMetricsSummaryWithSeries(demoScenario, rangeDates)
+            : await getPanelMetricsSummaryWithSeries(rangeDates);
         setMetrics(data);
       } catch (err) {
         console.error("Error loading club metrics:", err);
@@ -83,8 +106,8 @@ function DashboardClub({ context }: { context: PanelUserInfo }) {
       }
     };
 
-    loadMetrics();
-  }, [rangeDates]);
+    void loadMetrics();
+  }, [demoScenario, isDemo, rangeDates]);
 
   const handlePrimaryAction = useCallback(() => {
     router.push("/panel/checkin");
@@ -181,21 +204,38 @@ function formatBucketLabel(bucket: string, mode: "day" | "week"): string {
 // ============================================================
 // Componente: Dashboard para Bars
 // ============================================================
-function DashboardBar({ context }: { context: PanelUserInfo }) {
+function DashboardBar({
+  context,
+  isDemo,
+  demoScenario,
+}: {
+  context: PanelUserInfo;
+  isDemo: boolean;
+  demoScenario: DemoScenario | null;
+}) {
   const router = useRouter();
   const [metrics, setMetrics] = useState<MetricsSummaryWithSeries | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [range, setRange] = useState<RangeDays>(30);
 
   // Calcular from/to basado en el rango actual
-  const rangeDates = useMemo(() => getRangeDates(range), [range]);
+  const rangeDates = useMemo(
+    () =>
+      isDemo && demoScenario
+        ? getPanelDemoDashboardRange(demoScenario, range)
+        : getRangeDates(range),
+    [demoScenario, isDemo, range]
+  );
 
   // Cargar métricas CON series cuando cambia el rango
   useEffect(() => {
     const loadMetrics = async () => {
       setLoadingMetrics(true);
       try {
-        const data = await getPanelMetricsSummaryWithSeries(rangeDates);
+        const data =
+          isDemo && demoScenario
+            ? await getPanelDemoMetricsSummaryWithSeries(demoScenario, rangeDates)
+            : await getPanelMetricsSummaryWithSeries(rangeDates);
         setMetrics(data);
       } catch (err) {
         console.error("Error loading bar metrics:", err);
@@ -204,8 +244,8 @@ function DashboardBar({ context }: { context: PanelUserInfo }) {
       }
     };
 
-    loadMetrics();
-  }, [rangeDates]);
+    void loadMetrics();
+  }, [demoScenario, isDemo, rangeDates]);
 
   const handlePrimaryAction = useCallback(() => {
     router.push("/panel/reservations");
@@ -295,11 +335,17 @@ function DashboardBar({ context }: { context: PanelUserInfo }) {
 // ============================================================
 export default function PanelPage() {
   const router = useRouter();
-  const { data: context, loading, error } = usePanelContext();
+  const { data: context, loading, error, isDemo, demoScenario } = usePanelContext();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   // Verificar sesión al montar
   useEffect(() => {
+    const demoRuntime = getStoredPanelDemoRuntime();
+    if (demoRuntime) {
+      setIsAuthenticated(true);
+      return;
+    }
+
     const checkSession = async () => {
       try {
         const {
@@ -318,7 +364,7 @@ export default function PanelPage() {
       }
     };
 
-    checkSession();
+    void checkSession();
   }, [router]);
 
   // Mostrar loading mientras se verifica la sesión o se carga el contexto
@@ -353,9 +399,17 @@ export default function PanelPage() {
     <div className="space-y-6">
       <PanelHeader context={context} />
       {context.local.type === "club" ? (
-        <DashboardClub context={context} />
+        <DashboardClub
+          context={context}
+          isDemo={isDemo}
+          demoScenario={demoScenario}
+        />
       ) : (
-        <DashboardBar context={context} />
+        <DashboardBar
+          context={context}
+          isDemo={isDemo}
+          demoScenario={demoScenario}
+        />
       )}
     </div>
   );

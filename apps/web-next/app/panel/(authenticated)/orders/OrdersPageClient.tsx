@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { PageHeader, cn, panelUi } from "@/components/panel/ui";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
+import {
+  getPanelDemoDiscotecaOrdersSummary,
+  searchPanelDemoDiscotecaOrders,
+} from "@/lib/panel-demo/orders";
+import { getPanelDemoNow } from "@/lib/panel-demo/time";
 
 interface OrderItem {
   id: string;
@@ -34,6 +40,10 @@ interface OrdersSummaryResponse {
   used_qty: number;
   pending_qty: number;
   unused_qty: number;
+  revenue_paid: number;
+  latest_purchase_at: string | null;
+  recent_sales_qty: number;
+  recent_sales_window_label: string;
   total_count: number;
   used_count: number;
   pending_count: number;
@@ -49,14 +59,89 @@ interface OrdersSummaryResponse {
 type SearchType = "email" | "document";
 type EntryStateFilter = "all" | "used" | "pending" | "unused";
 type EntryResolvedState = "used" | "pending" | "unused" | "other";
+type OrdersTemporalContext = "future" | "today" | "past";
+type SummaryCardKey =
+  | EntryStateFilter
+  | "revenue"
+  | "recent_sales"
+  | "latest_purchase";
+
+interface OrdersSummaryCard {
+  key: SummaryCardKey;
+  label: string;
+  value: string | number;
+  accent: string;
+  tone: "info" | "positive" | "warning" | "muted";
+  interactive?: boolean;
+}
+
+type PanelTheme = "dark" | "light";
+
+const PANEL_THEME_STORAGE_KEY = "tairet.panel.theme";
+const PANEL_THEME_EVENT_NAME = "tairet:panel-theme-change";
+
+function getDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveTemporalContext(
+  selectedDate: string,
+  nowDate: Date
+): OrdersTemporalContext {
+  const referenceDateKey = getDateKey(nowDate);
+
+  if (selectedDate > referenceDateKey) {
+    return "future";
+  }
+
+  if (selectedDate < referenceDateKey) {
+    return "past";
+  }
+
+  return "today";
+}
+
+function getAllowedStateFilters(
+  temporalContext: OrdersTemporalContext
+): EntryStateFilter[] {
+  if (temporalContext === "today") {
+    return ["all", "used", "pending"];
+  }
+
+  if (temporalContext === "past") {
+    return ["all", "used", "unused"];
+  }
+
+  return ["all"];
+}
+
+function getEffectiveStateFilter(
+  temporalContext: OrdersTemporalContext,
+  currentFilter: EntryStateFilter
+): EntryStateFilter {
+  return getAllowedStateFilters(temporalContext).includes(currentFilter)
+    ? currentFilter
+    : "all";
+}
 
 export default function OrdersPageClient() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data: context, loading: contextLoading, error: contextError } = usePanelContext();
+  const {
+    data: context,
+    loading: contextLoading,
+    error: contextError,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
 
   const isClub = context?.local.type === "club";
+  const isDemoDiscoteca =
+    isDemo && demoScenario === "discoteca" && context?.local.type === "club";
   const [searchType, setSearchType] = useState<SearchType>("email");
   const [searchValue, setSearchValue] = useState("");
   const [appliedSearchValue, setAppliedSearchValue] = useState("");
@@ -75,10 +160,49 @@ export default function OrdersPageClient() {
   const [exportTo, setExportTo] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [panelTheme, setPanelTheme] = useState<PanelTheme>("dark");
   const summaryRequestIdRef = useRef(0);
   const entriesRequestIdRef = useRef(0);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const syncTheme = (nextTheme?: string | null) => {
+      if (nextTheme === "dark" || nextTheme === "light") {
+        setPanelTheme(nextTheme);
+      }
+    };
+
+    try {
+      syncTheme(window.localStorage.getItem(PANEL_THEME_STORAGE_KEY));
+    } catch {
+      // noop
+    }
+
+    const handleThemeChange = (event: Event) => {
+      const customEvent = event as CustomEvent<PanelTheme>;
+      syncTheme(customEvent.detail);
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === PANEL_THEME_STORAGE_KEY) {
+        syncTheme(event.newValue);
+      }
+    };
+
+    window.addEventListener(PANEL_THEME_EVENT_NAME, handleThemeChange as EventListener);
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener(
+        PANEL_THEME_EVENT_NAME,
+        handleThemeChange as EventListener
+      );
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isClub) {
@@ -94,6 +218,35 @@ export default function OrdersPageClient() {
       setExportTo((current) => current || nextDate);
     }
   }, [searchParams, isClub]);
+
+  useEffect(() => {
+    if (!isExportMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsExportMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isExportMenuOpen]);
 
   const updateIntendedDateInUrl = (value: string) => {
     if (!isClub) {
@@ -123,26 +276,31 @@ export default function OrdersPageClient() {
     setSummaryError(null);
 
     try {
-      const headers = await getAuthHeaders();
-      const params = new URLSearchParams();
-      if (dateValue) {
-        params.set("intended_date", dateValue);
-      }
+      const data: OrdersSummaryResponse = isDemoDiscoteca
+        ? getPanelDemoDiscotecaOrdersSummary(dateValue)
+        : await (async () => {
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams();
+            if (dateValue) {
+              params.set("intended_date", dateValue);
+            }
 
-      const query = params.toString();
-      const url = `${getApiBase()}/panel/orders/summary${query ? `?${query}` : ""}`;
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers,
-      });
+            const query = params.toString();
+            const url = `${getApiBase()}/panel/orders/summary${query ? `?${query}` : ""}`;
+            const response = await fetch(url, {
+              method: "GET",
+              credentials: "include",
+              headers,
+            });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${response.status}`);
-      }
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || `Error ${response.status}`);
+            }
 
-      const data: OrdersSummaryResponse = await response.json();
+            return (await response.json()) as OrdersSummaryResponse;
+          })();
+
       if (requestId !== summaryRequestIdRef.current) {
         return null;
       }
@@ -159,7 +317,7 @@ export default function OrdersPageClient() {
         setSummaryLoading(false);
       }
     }
-  }, [isClub]);
+  }, [isClub, isDemoDiscoteca]);
 
   const loadEntries = useCallback(async () => {
     if (contextLoading || !context) {
@@ -175,32 +333,52 @@ export default function OrdersPageClient() {
     setEntriesError(null);
 
     try {
-      const headers = await getAuthHeaders();
-      const params = new URLSearchParams();
+      const referenceNow = isDemoDiscoteca ? getPanelDemoNow("discoteca") : new Date();
+      const temporalContext =
+        isClub && intendedDate
+          ? resolveTemporalContext(intendedDate, referenceNow)
+          : "future";
+      const effectiveStateFilter = getEffectiveStateFilter(
+        temporalContext,
+        stateFilter
+      );
       const trimmedSearch = appliedSearchValue.trim();
-      if (trimmedSearch) {
-        params.set(searchType === "email" ? "email" : "document", trimmedSearch);
-      }
-      if (isClub && intendedDate) {
-        params.set("intended_date", intendedDate);
-      }
-      if (isClub && stateFilter !== "all") {
-        params.set("state", stateFilter);
-      }
-      params.set("limit", "20");
+      const data: OrdersResponse = isDemoDiscoteca
+        ? searchPanelDemoDiscotecaOrders({
+            intendedDate,
+            searchType,
+            searchValue: trimmedSearch,
+            state: effectiveStateFilter,
+            limit: 20,
+          })
+        : await (async () => {
+            const headers = await getAuthHeaders();
+            const params = new URLSearchParams();
+            if (trimmedSearch) {
+              params.set(searchType === "email" ? "email" : "document", trimmedSearch);
+            }
+            if (isClub && intendedDate) {
+              params.set("intended_date", intendedDate);
+            }
+            if (isClub && effectiveStateFilter !== "all") {
+              params.set("state", effectiveStateFilter);
+            }
+            params.set("limit", "20");
 
-      const response = await fetch(`${getApiBase()}/panel/orders/search?${params.toString()}`, {
-        method: "GET",
-        credentials: "include",
-        headers,
-      });
+            const response = await fetch(`${getApiBase()}/panel/orders/search?${params.toString()}`, {
+              method: "GET",
+              credentials: "include",
+              headers,
+            });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${response.status}`);
-      }
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.error || `Error ${response.status}`);
+            }
 
-      const data: OrdersResponse = await response.json();
+            return (await response.json()) as OrdersResponse;
+          })();
+
       if (requestId !== entriesRequestIdRef.current) {
         return;
       }
@@ -216,7 +394,16 @@ export default function OrdersPageClient() {
         setEntriesLoading(false);
       }
     }
-  }, [appliedSearchValue, context, contextLoading, intendedDate, isClub, searchType, stateFilter]);
+  }, [
+    appliedSearchValue,
+    context,
+    contextLoading,
+    intendedDate,
+    isClub,
+    isDemoDiscoteca,
+    searchType,
+    stateFilter,
+  ]);
 
   useEffect(() => {
     if (contextLoading || !context || !isClub) {
@@ -259,6 +446,11 @@ export default function OrdersPageClient() {
       return;
     }
 
+    if (isDemoDiscoteca) {
+      setExportError("La exportacion CSV no esta disponible en modo demo.");
+      return;
+    }
+
     setExportError(null);
     setExportLoading(true);
     try {
@@ -296,6 +488,61 @@ export default function OrdersPageClient() {
     const [year, month, day] = dateStr.split("-");
     if (!year || !month || !day) return dateStr;
     return `${day}/${month}/${year}`;
+  };
+
+  const formatSelectedDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "Sin fecha seleccionada";
+    const parsed = new Date(`${dateStr}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return formatEventDate(dateStr);
+    }
+    return parsed.toLocaleDateString("es-PY", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("es-PY", {
+      style: "currency",
+      currency: "PYG",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const formatRelativePurchaseTime = (
+    dateStr: string | null,
+    nowDate: Date
+  ) => {
+    if (!dateStr) {
+      return "Sin compras";
+    }
+
+    const purchaseMs = Date.parse(dateStr);
+    if (!Number.isFinite(purchaseMs)) {
+      return "-";
+    }
+
+    const diffMs = nowDate.getTime() - purchaseMs;
+    if (diffMs <= 60 * 1000) {
+      return "Hace instantes";
+    }
+
+    const diffMinutes = Math.floor(diffMs / (60 * 1000));
+    if (diffMinutes < 60) {
+      return `Hace ${diffMinutes} min`;
+    }
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) {
+      return `Hace ${diffHours} h`;
+    }
+
+    const diffDays = Math.floor(diffHours / 24);
+    return `Hace ${diffDays} d`;
   };
 
   const formatTokenLabel = (token: string | null) => {
@@ -339,42 +586,315 @@ export default function OrdersPageClient() {
     return "other";
   };
 
-  const stateStyles: Record<EntryResolvedState, { label: string; badge: string; border: string; iconBg: string }> = {
-    used: {
-      label: "Usada",
-      badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-      border: "border-l-emerald-400",
-      iconBg: "bg-emerald-100",
-    },
-    pending: {
-      label: "Pendiente",
-      badge: "bg-amber-50 text-amber-700 border border-amber-200",
-      border: "border-l-amber-400",
-      iconBg: "bg-amber-100",
-    },
-    unused: {
-      label: "No usada",
-      badge: "bg-slate-100 text-slate-700 border border-slate-200",
-      border: "border-l-slate-400",
-      iconBg: "bg-slate-200",
-    },
-    other: {
-      label: "Sin estado",
-      badge: "bg-slate-50 text-slate-600 border border-slate-200",
-      border: "border-l-slate-300",
-      iconBg: "bg-slate-100",
-    },
+  const stateStyles = useMemo<
+    Record<
+      EntryResolvedState,
+      {
+        label: string;
+        badge: string;
+        border: string;
+        iconBg: string;
+        borderColor: string;
+        badgeStyle?: CSSProperties;
+      }
+    >
+  >(
+    () =>
+      panelTheme === "dark"
+        ? {
+            used: {
+              label: "Usada",
+              badge:
+                "border text-[#86EFAC]",
+              border: "border-l-transparent",
+              iconBg: "bg-[#22C55E]",
+              borderColor: "#22C55E",
+              badgeStyle: {
+                borderColor: "rgba(34,197,94,0.35)",
+                backgroundColor: "rgba(34,197,94,0.14)",
+              },
+            },
+            pending: {
+              label: "Pendiente",
+              badge:
+                "border text-[#FDE047]",
+              border: "border-l-transparent",
+              iconBg: "bg-[#FACC15]",
+              borderColor: "#FACC15",
+              badgeStyle: {
+                borderColor: "rgba(250,204,21,0.34)",
+                backgroundColor: "rgba(250,204,21,0.14)",
+              },
+            },
+            unused: {
+              label: "No usada",
+              badge:
+                "border text-[#E2E8F0]",
+              border: "border-l-transparent",
+              iconBg: "bg-[#94A3B8]",
+              borderColor: "#94A3B8",
+              badgeStyle: {
+                borderColor: "rgba(148,163,184,0.34)",
+                backgroundColor: "rgba(148,163,184,0.16)",
+              },
+            },
+            other: {
+              label: "Sin estado",
+              badge:
+                "border text-[#CBD5E1]",
+              border: "border-l-transparent",
+              iconBg: "bg-[rgba(71,85,105,0.28)]",
+              borderColor: "#64748B",
+              badgeStyle: {
+                borderColor: "rgba(148,163,184,0.28)",
+                backgroundColor: "rgba(71,85,105,0.14)",
+              },
+            },
+          }
+        : {
+            used: {
+              label: "Usada",
+              badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+              border: "border-l-emerald-400",
+              iconBg: "bg-[#22C55E]",
+              borderColor: "#4ade80",
+            },
+            pending: {
+              label: "Pendiente",
+              badge: "bg-amber-50 text-amber-700 border border-amber-200",
+              border: "border-l-amber-400",
+              iconBg: "bg-[#FACC15]",
+              borderColor: "#facc15",
+            },
+            unused: {
+              label: "No usada",
+              badge: "bg-slate-100 text-slate-700 border border-slate-200",
+              border: "border-l-slate-400",
+              iconBg: "bg-[#94A3B8]",
+              borderColor: "#94a3b8",
+            },
+            other: {
+              label: "Sin estado",
+              badge: "bg-slate-50 text-slate-600 border border-slate-200",
+              border: "border-l-slate-300",
+              iconBg: "bg-slate-100",
+              borderColor: "#cbd5e1",
+            },
+          },
+    [panelTheme]
+  );
+
+  const currentReferenceDate = isDemoDiscoteca
+    ? getPanelDemoNow("discoteca")
+    : new Date();
+  const temporalContext: OrdersTemporalContext =
+    isClub && intendedDate
+      ? resolveTemporalContext(intendedDate, currentReferenceDate)
+      : "future";
+  const effectiveStateFilter = getEffectiveStateFilter(
+    temporalContext,
+    stateFilter
+  );
+
+  useEffect(() => {
+    if (stateFilter !== effectiveStateFilter) {
+      setStateFilter(effectiveStateFilter);
+    }
+  }, [effectiveStateFilter, stateFilter]);
+
+  const summaryCards = useMemo<OrdersSummaryCard[]>(() => {
+    const source = summary ?? {
+      total_qty: 0,
+      used_qty: 0,
+      pending_qty: 0,
+      unused_qty: 0,
+      revenue_paid: 0,
+      latest_purchase_at: null,
+      recent_sales_qty: 0,
+      recent_sales_window_label: "Últimas 24 h",
+    };
+
+    if (temporalContext === "future") {
+      return [
+        {
+          key: "all",
+          label: "Vendidas para esta fecha",
+          value: source.total_qty,
+          accent: "border-blue-500",
+          tone: "info",
+          interactive: true,
+        },
+        {
+          key: "revenue",
+          label: "Ingresos acumulados",
+          value: formatCurrency(source.revenue_paid),
+          accent: "border-emerald-500",
+          tone: "positive",
+          interactive: false,
+        },
+        {
+          key: "recent_sales",
+          label: `Ritmo reciente de venta · ${source.recent_sales_window_label}`,
+          value: source.recent_sales_qty,
+          accent: "border-violet-500",
+          tone: "info",
+          interactive: false,
+        },
+        {
+          key: "latest_purchase",
+          label: "Última compra",
+          value: formatRelativePurchaseTime(
+            source.latest_purchase_at,
+            currentReferenceDate
+          ),
+          accent: "border-slate-400",
+          tone: "muted",
+          interactive: false,
+        },
+      ];
+    }
+
+    if (temporalContext === "today") {
+      return [
+        {
+          key: "all",
+          label: "Vendidas hoy",
+          value: source.total_qty,
+          accent: "border-blue-500",
+          tone: "info",
+          interactive: true,
+        },
+        {
+          key: "used",
+          label: "Usadas",
+          value: source.used_qty,
+          accent: "border-emerald-500",
+          tone: "positive",
+          interactive: true,
+        },
+        {
+          key: "pending",
+          label: "Pendientes",
+          value: source.pending_qty,
+          accent: "border-amber-500",
+          tone: "warning",
+          interactive: true,
+        },
+        {
+          key: "revenue",
+          label: "Ingresos de hoy",
+          value: formatCurrency(source.revenue_paid),
+          accent: "border-emerald-500",
+          tone: "positive",
+          interactive: false,
+        },
+      ];
+    }
+
+    return [
+      {
+        key: "all",
+        label: "Vendidas ese día",
+        value: source.total_qty,
+        accent: "border-blue-500",
+        tone: "info",
+        interactive: true,
+      },
+      {
+        key: "used",
+        label: "Usadas",
+        value: source.used_qty,
+        accent: "border-emerald-500",
+        tone: "positive",
+        interactive: true,
+      },
+      {
+        key: "unused",
+        label: "No usadas",
+        value: source.unused_qty,
+        accent: "border-slate-500",
+        tone: "muted",
+        interactive: true,
+      },
+      {
+        key: "revenue",
+        label: "Ingresos de ese día",
+        value: formatCurrency(source.revenue_paid),
+        accent: "border-emerald-500",
+        tone: "positive",
+        interactive: false,
+      },
+    ];
+  }, [currentReferenceDate, summary, temporalContext]);
+
+  const getSummaryCardShellClasses = (
+    card: OrdersSummaryCard,
+    active: boolean
+  ) => {
+    if (panelTheme !== "dark") {
+      return active
+        ? `${card.accent} ring-1 ring-slate-300`
+        : "border-slate-200 hover:border-slate-300";
+    }
+
+    return "border-[#1F2937] hover:border-[#374151]";
   };
 
-  const summaryCards = useMemo(() => {
-    const source = summary ?? { total_qty: 0, used_qty: 0, pending_qty: 0, unused_qty: 0 };
-    return [
-      { key: "all" as EntryStateFilter, label: "Total entradas", value: source.total_qty, accent: "border-blue-500" },
-      { key: "used" as EntryStateFilter, label: "Usadas", value: source.used_qty, accent: "border-emerald-500" },
-      { key: "pending" as EntryStateFilter, label: "Pendientes", value: source.pending_qty, accent: "border-amber-500" },
-      { key: "unused" as EntryStateFilter, label: "No usadas", value: source.unused_qty, accent: "border-slate-500" },
-    ];
-  }, [summary]);
+  const getSummaryCardStyle = (
+    card: OrdersSummaryCard,
+    active: boolean
+  ): CSSProperties | undefined => {
+    if (panelTheme !== "dark") {
+      return undefined;
+    }
+
+    if (!active) {
+      return {
+        borderColor: "#1F2937",
+        backgroundColor: "#111827",
+      };
+    }
+
+    const toneBorderColors: Record<OrdersSummaryCard["tone"], string> = {
+      info: "#60A5FA",
+      positive: "#22C55E",
+      warning: "#FACC15",
+      muted: "#94A3B8",
+    };
+
+    return {
+      backgroundColor: "#111827",
+      borderColor: toneBorderColors[card.tone],
+    };
+  };
+
+  const getSummaryValueClass = (card: OrdersSummaryCard) => {
+    if (panelTheme !== "dark") {
+      return "text-slate-900";
+    }
+
+    return "text-[#F3F4F6]";
+  };
+
+  const getSummaryLabelClass = (card: OrdersSummaryCard) => {
+    if (panelTheme !== "dark") {
+      return "text-slate-600";
+    }
+
+    return "text-[#CBD5E1]";
+  };
+
+  const getEntryCardStyle = (stateStyle: (typeof stateStyles)[EntryResolvedState]) => {
+    if (panelTheme !== "dark") {
+      return undefined;
+    }
+
+    return {
+      backgroundColor: "#111827",
+      borderColor: "#1F2937",
+      borderLeftColor: stateStyle.borderColor,
+    } satisfies CSSProperties;
+  };
 
   const renderEntryCard = (order: OrderItem) => {
     const resolvedState = resolveState(order);
@@ -385,12 +905,20 @@ export default function OrdersPageClient() {
     return (
       <div
         key={order.id}
+        data-orders-entry-card="true"
+        data-orders-entry-state={resolvedState}
         className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm border-l-4 ${stateStyle.border}`}
+        style={getEntryCardStyle(stateStyle)}
       >
         <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_230px] lg:items-center lg:gap-x-8">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[132px_minmax(0,1.15fr)_minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_90px] lg:gap-x-6">
             <div className="min-w-0">
-              <span className={`inline-flex min-w-[118px] items-center justify-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${stateStyle.badge}`}>
+              <span
+                data-orders-entry-chip="true"
+                data-orders-entry-state={resolvedState}
+                className={`inline-flex min-w-[118px] items-center justify-center rounded-full px-3.5 py-1.5 text-sm font-semibold ${stateStyle.badge}`}
+                style={panelTheme === "dark" ? stateStyle.badgeStyle : undefined}
+              >
                 {stateStyle.label}
               </span>
             </div>
@@ -418,7 +946,11 @@ export default function OrdersPageClient() {
 
           <div className="flex min-w-0 w-full flex-col gap-2 lg:w-auto lg:items-end">
             <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-              <div className={`h-7 w-7 rounded-full ${stateStyle.iconBg}`} />
+              <div
+                data-orders-entry-indicator="true"
+                data-orders-entry-state={resolvedState}
+                className={`h-7 w-7 rounded-full ${stateStyle.iconBg}`}
+              />
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Día del evento</p>
                 <p className="text-sm font-semibold text-slate-900">{formatEventDate(order.intended_date)}</p>
@@ -463,36 +995,204 @@ export default function OrdersPageClient() {
   }
 
   const showingFiltered = Boolean(appliedSearchValue);
+  const selectedDateLabel = formatSelectedDate(intendedDate);
+  const contextualHeader =
+    temporalContext === "today"
+      ? {
+          title: `Operación de hoy - ${selectedDateLabel}`,
+          subtitle: "Seguimiento de ventas, usos y pendientes del día.",
+        }
+      : temporalContext === "past"
+        ? {
+            title: `Resultado operativo - ${selectedDateLabel}`,
+            subtitle: "Resumen final de ventas y uso de esta fecha.",
+          }
+        : {
+            title: `Preventa - ${selectedDateLabel}`,
+            subtitle: "Seguimiento de ventas previas y actividad reciente.",
+          };
+  const listSummary = isClub
+    ? showingFiltered
+      ? `Mostrando ${entriesCount} resultado${entriesCount === 1 ? "" : "s"} para ${selectedDateLabel}`
+      : intendedDate
+        ? temporalContext === "future"
+          ? `Mostrando las ultimas 20 operaciones de preventa para ${selectedDateLabel}`
+          : temporalContext === "today"
+            ? `Mostrando las ultimas 20 operaciones de ${selectedDateLabel}`
+            : `Mostrando las ultimas 20 operaciones registradas para ${selectedDateLabel}`
+        : "Selecciona una fecha para ver el estado operativo de las entradas."
+    : showingFiltered
+      ? `Mostrando ${entriesCount} resultado${entriesCount === 1 ? "" : "s"} de búsqueda`
+      : "Mostrando las últimas 20 entradas";
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-bold text-slate-900">Entradas & Check-ins</h1>
-        <p className="text-sm text-slate-600">Gestiona y consulta el estado de las entradas del evento.</p>
-      </div>
+      <PageHeader
+        title="Entradas"
+        actions={
+          <div ref={exportMenuRef} className="relative">
+            <button
+              type="button"
+              aria-expanded={isExportMenuOpen}
+              className={cn(
+                "inline-flex items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm",
+                panelUi.focusRing
+              )}
+              onClick={() => setIsExportMenuOpen((current) => !current)}
+            >
+              Exportar
+              <span className="text-xs text-neutral-500">▾</span>
+            </button>
+
+            {isExportMenuOpen ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-2xl border border-neutral-200 bg-white p-4 shadow-xl">
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      className="text-xs font-medium text-neutral-600"
+                      htmlFor="orders-export-from-menu"
+                    >
+                      Desde
+                    </label>
+                    <input
+                      id="orders-export-from-menu"
+                      type="date"
+                      value={exportFrom}
+                      onChange={(event) => {
+                        setExportError(null);
+                        setExportFrom(event.target.value);
+                      }}
+                      className={cn(
+                        "rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                        panelUi.focusRing
+                      )}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label
+                      className="text-xs font-medium text-neutral-600"
+                      htmlFor="orders-export-to-menu"
+                    >
+                      Hasta
+                    </label>
+                    <input
+                      id="orders-export-to-menu"
+                      type="date"
+                      value={exportTo}
+                      onChange={(event) => {
+                        setExportError(null);
+                        setExportTo(event.target.value);
+                      }}
+                      className={cn(
+                        "rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900",
+                        panelUi.focusRing
+                      )}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      void handleExportCsv();
+                    }}
+                    disabled={!exportFrom || !exportTo || exportLoading}
+                    className={cn(
+                      "inline-flex h-[38px] w-full items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50",
+                      panelUi.focusRing
+                    )}
+                  >
+                    {exportLoading ? "Exportando..." : "Exportar CSV"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        }
+      />
+
+      {exportError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-700">{exportError}</p>
+        </div>
+      ) : null}
 
       {isClub ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((card) => (
-            <button
-              key={card.key}
-              type="button"
-              onClick={() => setStateFilter(card.key)}
-              className={`rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition-colors ${
-                stateFilter === card.key
-                  ? `${card.accent} ring-1 ring-slate-300`
-                  : "border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              <p className="text-3xl font-bold text-slate-900">{summaryLoading ? "..." : card.value}</p>
-              <p className="text-sm text-slate-600">{card.label}</p>
-            </button>
-          ))}
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{contextualHeader.title}</h2>
+            <p className="text-sm text-slate-600">
+              {contextualHeader.subtitle}
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {summaryCards.map((card) => {
+            const isActive = effectiveStateFilter === card.key;
+            const content = (
+              <>
+                <p className={cn("text-3xl font-bold", getSummaryValueClass(card))}>
+                  {summaryLoading ? "..." : card.value}
+                </p>
+                <p className={cn("text-sm", getSummaryLabelClass(card))}>{card.label}</p>
+              </>
+            );
+
+            if (card.interactive === false) {
+              return (
+                <div
+                  key={card.key}
+                  data-orders-summary-card="true"
+                  data-orders-tone={card.tone}
+                  data-orders-active="false"
+                  className={cn(
+                    "rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition-colors",
+                    getSummaryCardShellClasses(card, false)
+                  )}
+                  style={getSummaryCardStyle(card, false)}
+                >
+                  {content}
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => setStateFilter(card.key as EntryStateFilter)}
+                data-orders-summary-card="true"
+                data-orders-tone={card.tone}
+                data-orders-active={isActive ? "true" : "false"}
+                className={cn(
+                  "rounded-xl border bg-white px-4 py-4 text-left shadow-sm transition-colors",
+                  getSummaryCardShellClasses(card, isActive)
+                )}
+                style={getSummaryCardStyle(card, isActive)}
+              >
+                {content}
+              </button>
+            );
+          })}
+          </div>
         </section>
       ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-xl font-semibold text-slate-900">Buscar Entradas</h2>
+        <div className="mb-4 space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900">
+            {isClub
+              ? temporalContext === "future"
+                ? "Buscar preventa para esta fecha"
+                : "Buscar entradas para esta fecha"
+              : "Buscar Entradas"}
+          </h2>
+          {isClub ? (
+            <p className="text-sm text-slate-600">
+              {temporalContext === "future"
+                ? "La fecha elegida define el estado de preventa y el listado operativo."
+                : "La fecha elegida define el resumen superior y el listado operativo."}
+            </p>
+          ) : null}
+        </div>
         <div className="grid gap-3 lg:grid-cols-[220px_1fr_200px_120px]">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Buscar por</label>
@@ -559,51 +1259,8 @@ export default function OrdersPageClient() {
         ) : null}
       </section>
 
-      <section className="hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:block">
-        <h2 className="mb-4 text-xl font-semibold text-slate-900">Exportar CSV</h2>
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Desde</label>
-            <input
-              type="date"
-              value={exportFrom}
-              onChange={(event) => {
-                setExportError(null);
-                setExportFrom(event.target.value);
-              }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Hasta</label>
-            <input
-              type="date"
-              value={exportTo}
-              onChange={(event) => {
-                setExportError(null);
-                setExportTo(event.target.value);
-              }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={!exportFrom || !exportTo || exportLoading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {exportLoading ? "Exportando..." : "Exportar CSV"}
-          </button>
-        </div>
-        {exportError ? <p className="mt-3 text-sm text-amber-700">{exportError}</p> : null}
-      </section>
-
       <section className="space-y-3">
-        <p className="text-sm text-slate-500">
-          {showingFiltered
-            ? `Mostrando ${entriesCount} resultado${entriesCount === 1 ? "" : "s"} de búsqueda`
-            : "Mostrando las últimas 20 entradas"}
-        </p>
+        <p className="text-sm text-slate-500">{listSummary}</p>
 
         {entriesError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">

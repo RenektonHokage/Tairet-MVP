@@ -131,8 +131,8 @@ export function TicketsByTypeCard({
               <thead className={panelUi.tableHead}>
                 <tr>
                   <th className="px-4 py-3 text-left">Tipo</th>
-                  <th className="px-4 py-3 text-right">Vendidas (qty)</th>
-                  <th className="px-4 py-3 text-right">Entradas con check-in</th>
+                  <th className="px-4 py-3 text-right">Vendidas</th>
+                  <th className="px-4 py-3 text-right">Entradas usadas</th>
                   <th className="px-4 py-3 text-right">Ingresos (PYG)</th>
                 </tr>
               </thead>
@@ -184,7 +184,7 @@ export function TicketsByTypeCard({
               <h4 className="text-sm font-semibold text-neutral-900">Tendencia en el tiempo</h4>
               <p className="text-xs text-neutral-500">
                 {trendMode === "entries"
-                  ? "Suma de entradas vendidas (qty) en el período."
+                  ? "Suma de entradas vendidas en el período."
                   : "Suma de pagos confirmados (PYG) en el período."}
               </p>
             </div>

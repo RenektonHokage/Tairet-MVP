@@ -132,6 +132,20 @@ function sumOrderQuantity(rows: Array<{ quantity: number | null }> | null | unde
   }, 0);
 }
 
+function sumOrderRevenue(rows: Array<{ total_amount: number | null }> | null | undefined): number {
+  if (!rows) {
+    return 0;
+  }
+
+  return rows.reduce((total, row) => {
+    const amount =
+      typeof row.total_amount === "number" && Number.isFinite(row.total_amount)
+        ? row.total_amount
+        : 0;
+    return total + amount;
+  }, 0);
+}
+
 async function verifyClubOnly(localId: string): Promise<{ isClub: boolean; error?: string }> {
   const { data: local, error } = await supabase
     .from("locals")
@@ -955,6 +969,10 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
         used_qty: 0,
         pending_qty: 0,
         unused_qty: 0,
+        revenue_paid: 0,
+        latest_purchase_at: null,
+        recent_sales_qty: 0,
+        recent_sales_window_label: "Últimas 24 h",
         total_count: 0,
         used_count: 0,
         pending_count: 0,
@@ -966,6 +984,9 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
     const now = new Date();
     const nowIso = now.toISOString();
     const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const recentSalesStartIso = new Date(
+      now.getTime() - 24 * 60 * 60 * 1000
+    ).toISOString();
 
     const intendedDateRaw =
       typeof req.query.intended_date === "string" ? req.query.intended_date.trim() : "";
@@ -997,10 +1018,10 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
       };
     }
 
-    const buildSummaryQuery = () =>
+    const buildOrdersSummaryQuery = (selectClause: string) =>
       supabase
         .from("orders")
-        .select("id, quantity, status, used_at, valid_from, valid_to")
+        .select(selectClause)
         .eq("local_id", localId)
         .eq("intended_date", selectedIntendedDate);
 
@@ -1008,17 +1029,57 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
       { data: usedRows, error: usedError },
       { data: pendingRows, error: pendingError },
       { data: unusedRows, error: unusedError },
+      { data: latestPurchaseRows, error: latestPurchaseError },
+      { data: recentSalesRows, error: recentSalesError },
     ] = await Promise.all([
-      applyClubOrderStateFilter(buildSummaryQuery(), "used", nowIso, thirtyDaysAgoIso),
-      applyClubOrderStateFilter(buildSummaryQuery(), "pending", nowIso, thirtyDaysAgoIso),
-      applyClubOrderStateFilter(buildSummaryQuery(), "unused", nowIso, thirtyDaysAgoIso),
+      applyClubOrderStateFilter(
+        buildOrdersSummaryQuery(
+          "id, quantity, total_amount, status, used_at, valid_from, valid_to"
+        ),
+        "used",
+        nowIso,
+        thirtyDaysAgoIso
+      ),
+      applyClubOrderStateFilter(
+        buildOrdersSummaryQuery(
+          "id, quantity, total_amount, status, used_at, valid_from, valid_to"
+        ),
+        "pending",
+        nowIso,
+        thirtyDaysAgoIso
+      ),
+      applyClubOrderStateFilter(
+        buildOrdersSummaryQuery(
+          "id, quantity, total_amount, status, used_at, valid_from, valid_to"
+        ),
+        "unused",
+        nowIso,
+        thirtyDaysAgoIso
+      ),
+      buildOrdersSummaryQuery("created_at")
+        .eq("status", "paid")
+        .lte("created_at", nowIso)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      buildOrdersSummaryQuery("quantity, created_at")
+        .eq("status", "paid")
+        .gte("created_at", recentSalesStartIso)
+        .lte("created_at", nowIso),
     ]);
 
-    if (usedError || pendingError || unusedError) {
+    if (
+      usedError ||
+      pendingError ||
+      unusedError ||
+      latestPurchaseError ||
+      recentSalesError
+    ) {
       logger.error("Error fetching /panel/orders/summary", {
         usedError: usedError?.message,
         pendingError: pendingError?.message,
         unusedError: unusedError?.message,
+        latestPurchaseError: latestPurchaseError?.message,
+        recentSalesError: recentSalesError?.message,
         localId,
         intendedDate: selectedIntendedDate,
       });
@@ -1029,12 +1090,22 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
     const pendingQty = sumOrderQuantity(pendingRows);
     const unusedQty = sumOrderQuantity(unusedRows);
     const totalQty = usedQty + pendingQty + unusedQty;
+    const revenuePaid =
+      sumOrderRevenue(usedRows) +
+      sumOrderRevenue(pendingRows) +
+      sumOrderRevenue(unusedRows);
+    const latestPurchaseAt = latestPurchaseRows?.[0]?.created_at ?? null;
+    const recentSalesQty = sumOrderQuantity(recentSalesRows);
 
     res.status(200).json({
       total_qty: totalQty,
       used_qty: usedQty,
       pending_qty: pendingQty,
       unused_qty: unusedQty,
+      revenue_paid: revenuePaid,
+      latest_purchase_at: latestPurchaseAt,
+      recent_sales_qty: recentSalesQty,
+      recent_sales_window_label: "Últimas 24 h",
       total_count: (usedRows?.length ?? 0) + (pendingRows?.length ?? 0) + (unusedRows?.length ?? 0),
       used_count: usedRows?.length ?? 0,
       pending_count: pendingRows?.length ?? 0,
