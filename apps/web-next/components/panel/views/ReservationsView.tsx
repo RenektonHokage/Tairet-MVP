@@ -3,7 +3,7 @@
 import * as React from "react";
 import { BarChart3, CalendarDays, CheckCircle2, Clock, Filter, RefreshCw, Search } from "lucide-react";
 
-import { Badge, EmptyState, PageHeader, StatCard, Toolbar, cn, panelUi } from "../ui";
+import { Badge, EmptyState, PageHeader, StatCard, Toolbar, cn, panelSuccessTone, panelUi } from "../ui";
 import { ReservationCard, type Reservation, type ReservationStatus } from "./ReservationCard";
 
 // Re-export para conveniencia de la page
@@ -21,7 +21,7 @@ const reservationsKpiIconBase =
 
 const reservationsKpiToneClasses = {
   neutral: "border-neutral-200 bg-neutral-100 text-neutral-700",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-600",
+  success: `border-green-200 bg-green-50 ${panelSuccessTone.textClass}`,
   warning: "border-amber-200 bg-amber-50 text-amber-600",
   info: "border-blue-200 bg-blue-50 text-blue-600",
 } as const;

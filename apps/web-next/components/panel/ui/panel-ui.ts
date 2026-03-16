@@ -3,13 +3,13 @@ export function cn(...inputs: Array<string | false | null | undefined>) {
 }
 
 export const panelSuccessTone = {
-  textClass: "text-emerald-600",
-  solidBgClass: "bg-[#10b981]",
-  accentHex: "#10b981",
-  strongHex: "#059669",
-  darkSoftTextHex: "#34d399",
-  darkSoftBorderColor: "rgba(16, 185, 129, 0.28)",
-  darkSoftBgColor: "rgba(5, 150, 105, 0.14)",
+  textClass: "text-green-600",
+  solidBgClass: "bg-[#22c55e]",
+  accentHex: "#22c55e",
+  strongHex: "#16a34a",
+  darkSoftTextHex: "#4ade80",
+  darkSoftBorderColor: "rgba(74, 222, 128, 0.3)",
+  darkSoftBgColor: "rgba(34, 197, 94, 0.16)",
 } as const;
 
 export const panelUi = {
@@ -32,7 +32,7 @@ export const panelUi = {
   badgeBase:
     "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
   badgeNeutral: "border-neutral-200 bg-neutral-50 text-neutral-700",
-  badgeSuccess: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  badgeSuccess: "border-green-200 bg-green-50 text-green-600",
   badgeWarn: "border-amber-200 bg-amber-50 text-amber-800",
   badgeDanger: "border-rose-200 bg-rose-50 text-rose-700",
   destructiveOutline:
