@@ -14,7 +14,7 @@ import {
   type Reservation,
   type ReservationStatus,
 } from "@/components/panel/views/ReservationsView";
-import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
+import { downloadPanelReservationsClientsExcel } from "@/lib/panelExport";
 import {
   getPanelDemoBarReservationsByDate,
   getPanelDemoBarReservationsDefaultDate,
@@ -179,16 +179,16 @@ export default function ReservationsPage() {
     }
 
     if (isDemoBar) {
-      setExportError("La exportacion CSV no esta disponible en modo demo.");
+      setExportError("La exportacion Excel no esta disponible en modo demo.");
       return;
     }
 
     setExportError(null);
     setExportLoading(true);
     try {
-      await downloadPanelReservationsClientsCsv({ from: exportFrom, to: exportTo });
+      await downloadPanelReservationsClientsExcel({ from: exportFrom, to: exportTo });
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : "Error al exportar CSV");
+      setExportError(err instanceof Error ? err.message : "Error al exportar Excel");
     } finally {
       setExportLoading(false);
     }

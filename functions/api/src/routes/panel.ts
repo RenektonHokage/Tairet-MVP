@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as XLSX from "xlsx";
 import { ZodError } from "zod";
 import { panelAuth } from "../middlewares/panelAuth";
 import { requireRole } from "../middlewares/requireRole";
@@ -303,9 +304,265 @@ function buildCsv(headers: string[], rows: Array<Array<unknown>>): string {
   return `\uFEFF${csvLines.join("\r\n")}\r\n`;
 }
 
+function toExcelCell(value: unknown): string | number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const raw = value == null ? "" : String(value);
+  const singleLine = raw.replace(/\r?\n/g, " ");
+  return /^[=+\-@]/.test(singleLine) ? `'${singleLine}` : singleLine;
+}
+
+function buildXlsx(headers: string[], rows: Array<Array<unknown>>): Buffer {
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    headers,
+    ...rows.map((row) => row.map((value) => toExcelCell(value))),
+  ]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
+  return XLSX.write(workbook, { bookType: "xlsx", type: "buffer" }) as Buffer;
+}
+
 function sanitizeFileNameSegment(value: string): string {
   const collapsed = value.trim().replace(/\s+/g, "_");
   return collapsed.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 60) || "local";
+}
+
+type ExportOrderRow = {
+  id: string;
+  local_id: string | null;
+  status: string;
+  used_at: string | null;
+  checkin_token: string | null;
+  customer_name: string | null;
+  customer_last_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_document: string | null;
+  quantity: number | null;
+  created_at: string | null;
+  intended_date: string | null;
+  valid_from: string | null;
+  valid_to: string | null;
+};
+
+type ReservationsClientsExportPayload = {
+  headers: string[];
+  rows: Array<Array<unknown>>;
+  fileNameBase: string;
+};
+
+type ReservationsClientsExportResult =
+  | { ok: true; data: ReservationsClientsExportPayload }
+  | { ok: false; status: number; error: string };
+
+async function buildReservationsClientsExportPayload(
+  localId: string,
+  from: string,
+  to: string
+): Promise<ReservationsClientsExportResult> {
+  const { data: local, error: localError } = await supabase
+    .from("locals")
+    .select("id, name, type")
+    .eq("id", localId)
+    .single();
+
+  if (localError || !local) {
+    logger.error("Failed to resolve local in panel export", {
+      localId,
+      error: localError?.message,
+    });
+    return { ok: false, status: 404, error: "Local not found" };
+  }
+
+  const fallbackFrom = shiftDateOnly(from, -1) ?? from;
+  const fallbackToExclusive = shiftDateOnly(to, 2) ?? to;
+  const now = new Date();
+
+  if (local.type === "bar") {
+    const { data: reservations, error: reservationsError } = await supabase
+      .from("reservations")
+      .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at")
+      .eq("local_id", localId)
+      .gte("date", `${fallbackFrom}T00:00:00.000Z`)
+      .lt("date", `${fallbackToExclusive}T00:00:00.000Z`)
+      .order("date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(10000);
+
+    if (reservationsError) {
+      logger.error("Failed to fetch reservations for panel export", {
+        localId,
+        from,
+        to,
+        error: reservationsError.message,
+      });
+      return { ok: false, status: 500, error: "Failed to export reservations" };
+    }
+
+    const filteredReservations = (reservations ?? []).filter((reservation) => {
+      const asuncionDay = toAsuncionDateOnly(reservation.date);
+      return Boolean(asuncionDay && asuncionDay >= from && asuncionDay <= to);
+    });
+
+    const headers = [
+      "Tipo local",
+      "Local ID",
+      "Reserva ID",
+      "Fecha reserva",
+      "Fecha reserva y hora",
+      "Estado",
+      "Nombre",
+      "Apellido",
+      "Email",
+      "Telefono",
+      "Personas",
+      "Nota cliente",
+      "Nota interna",
+      "Creada",
+    ];
+
+    const rows = filteredReservations.map((reservation) => [
+      "bar",
+      reservation.local_id ?? localId,
+      reservation.id,
+      toAsuncionDateOnly(reservation.date) ?? "",
+      formatDateTimeAsuncion(reservation.date),
+      reservation.status,
+      reservation.name,
+      reservation.last_name ?? "",
+      reservation.email ?? "",
+      reservation.phone ?? "",
+      reservation.guests ?? "",
+      reservation.notes ?? "",
+      reservation.table_note ?? "",
+      formatDateTimeAsuncion(reservation.created_at),
+    ]);
+
+    return {
+      ok: true,
+      data: {
+        headers,
+        rows,
+        fileNameBase: `tairet_reservas_clientes_bar_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}`,
+      },
+    };
+  }
+
+  const { data: orders, error: ordersError } = await supabase
+    .from("orders")
+    .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+    .eq("local_id", localId)
+    .gte("intended_date", from)
+    .lte("intended_date", to)
+    .order("intended_date", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(10000);
+
+  if (ordersError) {
+    logger.error("Failed to fetch club orders for panel export", {
+      localId,
+      from,
+      to,
+      error: ordersError.message,
+    });
+    return { ok: false, status: 500, error: "Failed to export orders" };
+  }
+
+  const { data: legacyOrders, error: legacyOrdersError } = await supabase
+    .from("orders")
+    .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+    .eq("local_id", localId)
+    .is("intended_date", null)
+    .gte("created_at", `${fallbackFrom}T00:00:00.000Z`)
+    .lt("created_at", `${fallbackToExclusive}T00:00:00.000Z`)
+    .order("created_at", { ascending: true })
+    .limit(10000);
+
+  if (legacyOrdersError) {
+    logger.error("Failed to fetch legacy club orders for panel export", {
+      localId,
+      from,
+      to,
+      error: legacyOrdersError.message,
+    });
+    return { ok: false, status: 500, error: "Failed to export legacy orders" };
+  }
+
+  const legacyInRange = (legacyOrders ?? []).filter((order) => {
+    const createdDay = toAsuncionDateOnly(order.created_at);
+    return Boolean(createdDay && createdDay >= from && createdDay <= to);
+  });
+
+  const clubRowsMap = new Map<string, ExportOrderRow>();
+  for (const order of orders ?? []) {
+    clubRowsMap.set(order.id, order);
+  }
+  for (const legacyOrder of legacyInRange) {
+    if (!clubRowsMap.has(legacyOrder.id)) {
+      clubRowsMap.set(legacyOrder.id, legacyOrder);
+    }
+  }
+
+  const allOrders = Array.from(clubRowsMap.values()).sort((a, b) => {
+    const aKey = a.intended_date ?? toAsuncionDateOnly(a.created_at) ?? "";
+    const bKey = b.intended_date ?? toAsuncionDateOnly(b.created_at) ?? "";
+    if (aKey === bKey) {
+      const aCreated = Date.parse(a.created_at ?? "");
+      const bCreated = Date.parse(b.created_at ?? "");
+      if (Number.isFinite(aCreated) && Number.isFinite(bCreated)) {
+        return aCreated - bCreated;
+      }
+      return 0;
+    }
+    return aKey.localeCompare(bKey);
+  });
+
+  const headers = [
+    "Tipo local",
+    "Local ID",
+    "Orden ID",
+    "Fecha evento",
+    "Estado check-in",
+    "Estado orden",
+    "Nombre",
+    "Apellido",
+    "Email",
+    "Telefono",
+    "Documento",
+    "Entradas",
+    "Token check-in",
+    "Usada",
+    "Creada",
+  ];
+
+  const rows = allOrders.map((order) => [
+    "club",
+    order.local_id ?? localId,
+    order.id,
+    order.intended_date ?? toAsuncionDateOnly(order.created_at) ?? "",
+    resolveOrderState(order, now),
+    order.status,
+    order.customer_name ?? "",
+    order.customer_last_name ?? "",
+    order.customer_email ?? "",
+    order.customer_phone ?? "",
+    order.customer_document ?? "",
+    typeof order.quantity === "number" && Number.isFinite(order.quantity) ? order.quantity : "",
+    order.checkin_token ?? "",
+    formatDateTimeAsuncion(order.used_at),
+    formatDateTimeAsuncion(order.created_at),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      headers,
+      rows,
+      fileNameBase: `tairet_reservas_clientes_club_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}`,
+    },
+  };
 }
 
 export const panelRouter = Router();
@@ -900,14 +1157,23 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
     }
 
     const limitParam = req.query.limit;
-    const limit = typeof limitParam === "string" ? Math.min(parseInt(limitParam, 10) || 20, 100) : 20;
+    const offsetParam = req.query.offset;
+    const limit =
+      typeof limitParam === "string"
+        ? Math.min(Math.max(parseInt(limitParam, 10) || 20, 1), 100)
+        : 20;
+    const offset =
+      typeof offsetParam === "string" ? Math.max(parseInt(offsetParam, 10) || 0, 0) : 0;
     const now = new Date();
     const nowIso = now.toISOString();
     const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     let query = supabase
       .from("orders")
-      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+      .select(
+        "id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to",
+        { count: "exact" }
+      )
       .eq("local_id", localId);
 
     if (hasEmail) {
@@ -932,9 +1198,10 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
       }
     }
 
-    const { data: orders, error } = await query
+    const rangeEnd = offset + limit - 1;
+    const { data: orders, error, count } = await query
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .range(offset, rangeEnd);
 
     if (error) {
       logger.error("Error searching orders", { error: error.message });
@@ -946,7 +1213,16 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
       checkin_state: resolveOrderState(order, now),
     }));
 
-    res.status(200).json({ items, count: items.length });
+    const total = count ?? items.length;
+
+    res.status(200).json({
+      items,
+      count: items.length,
+      total,
+      limit,
+      offset,
+      hasMore: offset + items.length < total,
+    });
   } catch (error) {
     next(error);
   }
@@ -1132,225 +1408,53 @@ panelRouter.get("/exports/reservations-clients.csv", panelAuth, requireRole(["ow
     }
 
     const { from, to } = parsedRange;
-    const localId = req.panelUser.localId;
-
-    const { data: local, error: localError } = await supabase
-      .from("locals")
-      .select("id, name, type")
-      .eq("id", localId)
-      .single();
-
-    if (localError || !local) {
-      logger.error("Failed to resolve local in CSV export", {
-        localId,
-        error: localError?.message,
-      });
-      return res.status(404).json({ error: "Local not found" });
+    const exportPayload = await buildReservationsClientsExportPayload(req.panelUser.localId, from, to);
+    if (!exportPayload.ok) {
+      return res.status(exportPayload.status).json({ error: exportPayload.error });
     }
 
-    const fallbackFrom = shiftDateOnly(from, -1) ?? from;
-    const fallbackToExclusive = shiftDateOnly(to, 2) ?? to;
-    const now = new Date();
-
-    if (local.type === "bar") {
-      const { data: reservations, error: reservationsError } = await supabase
-        .from("reservations")
-        .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at")
-        .eq("local_id", localId)
-        .gte("date", `${fallbackFrom}T00:00:00.000Z`)
-        .lt("date", `${fallbackToExclusive}T00:00:00.000Z`)
-        .order("date", { ascending: true })
-        .order("created_at", { ascending: true })
-        .limit(10000);
-
-      if (reservationsError) {
-        logger.error("Failed to fetch reservations for CSV export", {
-          localId,
-          from,
-          to,
-          error: reservationsError.message,
-        });
-        return res.status(500).json({ error: "Failed to export reservations" });
-      }
-
-      const filteredReservations = (reservations ?? []).filter((reservation) => {
-        const asuncionDay = toAsuncionDateOnly(reservation.date);
-        return Boolean(asuncionDay && asuncionDay >= from && asuncionDay <= to);
-      });
-
-      const headers = [
-        "Tipo local",
-        "Local ID",
-        "Reserva ID",
-        "Fecha reserva",
-        "Fecha reserva y hora",
-        "Estado",
-        "Nombre",
-        "Apellido",
-        "Email",
-        "Telefono",
-        "Personas",
-        "Nota cliente",
-        "Nota interna",
-        "Creada",
-      ];
-
-      const rows = filteredReservations.map((reservation) => [
-        "bar",
-        reservation.local_id ?? localId,
-        reservation.id,
-        toAsuncionDateOnly(reservation.date) ?? "",
-        formatDateTimeAsuncion(reservation.date),
-        reservation.status,
-        reservation.name,
-        reservation.last_name ?? "",
-        reservation.email ?? "",
-        reservation.phone ?? "",
-        reservation.guests ?? "",
-        reservation.notes ?? "",
-        reservation.table_note ?? "",
-        formatDateTimeAsuncion(reservation.created_at),
-      ]);
-
-      const fileName = `tairet_reservas_clientes_bar_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}.csv`;
-      const csvBody = buildCsv(headers, rows);
-
-      res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
-      res.setHeader("Cache-Control", "no-store");
-      return res.status(200).send(csvBody);
-    }
-
-    type ExportOrderRow = {
-      id: string;
-      local_id: string | null;
-      status: string;
-      used_at: string | null;
-      checkin_token: string | null;
-      customer_name: string | null;
-      customer_last_name: string | null;
-      customer_email: string | null;
-      customer_phone: string | null;
-      customer_document: string | null;
-      quantity: number | null;
-      created_at: string | null;
-      intended_date: string | null;
-      valid_from: string | null;
-      valid_to: string | null;
-    };
-
-    const { data: orders, error: ordersError } = await supabase
-      .from("orders")
-      .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
-      .eq("local_id", localId)
-      .gte("intended_date", from)
-      .lte("intended_date", to)
-      .order("intended_date", { ascending: true })
-      .order("created_at", { ascending: true })
-      .limit(10000);
-
-    if (ordersError) {
-      logger.error("Failed to fetch club orders for CSV export", {
-        localId,
-        from,
-        to,
-        error: ordersError.message,
-      });
-      return res.status(500).json({ error: "Failed to export orders" });
-    }
-
-    const { data: legacyOrders, error: legacyOrdersError } = await supabase
-      .from("orders")
-      .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
-      .eq("local_id", localId)
-      .is("intended_date", null)
-      .gte("created_at", `${fallbackFrom}T00:00:00.000Z`)
-      .lt("created_at", `${fallbackToExclusive}T00:00:00.000Z`)
-      .order("created_at", { ascending: true })
-      .limit(10000);
-
-    if (legacyOrdersError) {
-      logger.error("Failed to fetch legacy club orders for CSV export", {
-        localId,
-        from,
-        to,
-        error: legacyOrdersError.message,
-      });
-      return res.status(500).json({ error: "Failed to export legacy orders" });
-    }
-
-    const legacyInRange = (legacyOrders ?? []).filter((order) => {
-      const createdDay = toAsuncionDateOnly(order.created_at);
-      return Boolean(createdDay && createdDay >= from && createdDay <= to);
-    });
-
-    const clubRowsMap = new Map<string, ExportOrderRow>();
-    for (const order of orders ?? []) {
-      clubRowsMap.set(order.id, order);
-    }
-    for (const legacyOrder of legacyInRange) {
-      if (!clubRowsMap.has(legacyOrder.id)) {
-        clubRowsMap.set(legacyOrder.id, legacyOrder);
-      }
-    }
-
-    const allOrders = Array.from(clubRowsMap.values()).sort((a, b) => {
-      const aKey = a.intended_date ?? toAsuncionDateOnly(a.created_at) ?? "";
-      const bKey = b.intended_date ?? toAsuncionDateOnly(b.created_at) ?? "";
-      if (aKey === bKey) {
-        const aCreated = Date.parse(a.created_at ?? "");
-        const bCreated = Date.parse(b.created_at ?? "");
-        if (Number.isFinite(aCreated) && Number.isFinite(bCreated)) {
-          return aCreated - bCreated;
-        }
-        return 0;
-      }
-      return aKey.localeCompare(bKey);
-    });
-
-    const headers = [
-      "Tipo local",
-      "Local ID",
-      "Orden ID",
-      "Fecha evento",
-      "Estado check-in",
-      "Estado orden",
-      "Nombre",
-      "Apellido",
-      "Email",
-      "Telefono",
-      "Documento",
-      "Entradas",
-      "Token check-in",
-      "Usada",
-      "Creada",
-    ];
-
-    const rows = allOrders.map((order) => [
-      "club",
-      order.local_id ?? localId,
-      order.id,
-      order.intended_date ?? toAsuncionDateOnly(order.created_at) ?? "",
-      resolveOrderState(order, now),
-      order.status,
-      order.customer_name ?? "",
-      order.customer_last_name ?? "",
-      order.customer_email ?? "",
-      order.customer_phone ?? "",
-      order.customer_document ?? "",
-      typeof order.quantity === "number" && Number.isFinite(order.quantity) ? order.quantity : "",
-      order.checkin_token ?? "",
-      formatDateTimeAsuncion(order.used_at),
-      formatDateTimeAsuncion(order.created_at),
-    ]);
-
-    const fileName = `tairet_reservas_clientes_club_${sanitizeFileNameSegment(local.name)}_${from}_a_${to}.csv`;
-    const csvBody = buildCsv(headers, rows);
+    const fileName = `${exportPayload.data.fileNameBase}.csv`;
+    const csvBody = buildCsv(exportPayload.data.headers, exportPayload.data.rows);
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(csvBody);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /panel/exports/reservations-clients.xlsx?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Export Excel de reservas/clientes por local autenticado y rango de fechas
+// Roles permitidos: owner, staff
+panelRouter.get("/exports/reservations-clients.xlsx", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const parsedRange = parseExportDateRange(req.query.from, req.query.to);
+    if (!parsedRange.ok) {
+      return res.status(400).json({ error: parsedRange.error });
+    }
+
+    const { from, to } = parsedRange;
+    const exportPayload = await buildReservationsClientsExportPayload(req.panelUser.localId, from, to);
+    if (!exportPayload.ok) {
+      return res.status(exportPayload.status).json({ error: exportPayload.error });
+    }
+
+    const fileName = `${exportPayload.data.fileNameBase}.xlsx`;
+    const workbook = buildXlsx(exportPayload.data.headers, exportPayload.data.rows);
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename=\"${fileName}\"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send(workbook);
   } catch (error) {
     next(error);
   }

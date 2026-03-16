@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 
-import { cn, panelUi } from "./panel-ui";
+import { cn, panelSuccessTone, panelUi } from "./panel-ui";
 import { Card, CardContent } from "./Card";
 
 export interface StatCardProps {
@@ -12,7 +12,7 @@ export interface StatCardProps {
 }
 
 const trendStyles = {
-  up: "text-emerald-600",
+  up: panelSuccessTone.textClass,
   down: "text-rose-600",
   flat: "text-neutral-500",
 };

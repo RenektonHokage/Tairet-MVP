@@ -2,6 +2,16 @@ export function cn(...inputs: Array<string | false | null | undefined>) {
   return inputs.filter(Boolean).join(" ");
 }
 
+export const panelSuccessTone = {
+  textClass: "text-emerald-600",
+  solidBgClass: "bg-[#10b981]",
+  accentHex: "#10b981",
+  strongHex: "#059669",
+  darkSoftTextHex: "#34d399",
+  darkSoftBorderColor: "rgba(16, 185, 129, 0.28)",
+  darkSoftBgColor: "rgba(5, 150, 105, 0.14)",
+} as const;
+
 export const panelUi = {
   pageTitle: "text-2xl font-semibold tracking-tight text-neutral-950",
   pageSubtitle: "text-sm text-neutral-600",
@@ -25,6 +35,8 @@ export const panelUi = {
   badgeSuccess: "border-emerald-200 bg-emerald-50 text-emerald-700",
   badgeWarn: "border-amber-200 bg-amber-50 text-amber-800",
   badgeDanger: "border-rose-200 bg-rose-50 text-rose-700",
+  destructiveOutline:
+    "border border-red-300 bg-white text-red-700 shadow-none transition-colors hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50",
   accentText: "text-[#8d1313]",
   accentBgSoft: "bg-[#8d1313]/10 text-[#8d1313]",
   toolbar: "flex flex-col gap-3 md:flex-row md:items-center md:justify-between",

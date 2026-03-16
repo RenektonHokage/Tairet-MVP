@@ -51,6 +51,7 @@ import {
   InfoTip,
   cn,
   panelUi,
+  panelSuccessTone,
 } from "@/components/panel/ui";
 import {
   CartesianGrid,
@@ -117,10 +118,13 @@ const getPreviousRange = (range: { from: string; to: string }) => {
 type DeltaTone = "positive" | "negative" | "neutral";
 
 const deltaToneClass: Record<DeltaTone, string> = {
-  positive: "text-[#15803d]",
+  positive: panelSuccessTone.textClass,
   negative: "text-[#b91c1c]",
-  neutral: "text-[#2563eb]",
+  neutral: "text-neutral-500",
 };
+
+const isNoDataValue = (value: ReactNode) =>
+  typeof value === "string" && /(sin datos|aún no hay datos|no hay datos)/i.test(value);
 
 const formatDelta = (current: number, previous?: number | null) => {
   if (previous == null || previous <= 0) {
@@ -155,7 +159,7 @@ const iconWrap = (icon: ReactNode, tone: "neutral" | "blue" | "amber" | "emerald
   const styles = "border border-neutral-200 bg-neutral-50 text-neutral-700";
   const iconColor =
     tone === "emerald"
-      ? "text-[#22C55E]"
+      ? panelSuccessTone.textClass
       : tone === "amber"
       ? "text-[#FACC15]"
       : tone === "rose"
@@ -297,28 +301,39 @@ function getReservationDayKeyFromBucket(bucket: string): ReservationStatusHourDa
 function BarKpiGrid({ items }: { items: BarKpiItem[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {items.map((item, index) => (
-        <Card key={index} className="h-full">
-          <CardContent className="flex min-h-[112px] flex-col justify-between gap-3 px-4 py-4 md:px-5 md:py-5">
-            <div className="space-y-1.5">
-              <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                {item.label}
+      {items.map((item, index) => {
+        const isNoData = isNoDataValue(item.value);
+
+        return (
+          <Card key={index} className="h-full">
+            <CardContent className="flex min-h-[112px] flex-col justify-between gap-3 px-4 py-4 md:px-5 md:py-5">
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  {item.label}
+                </div>
+                <div
+                  className={cn(
+                    "leading-tight",
+                    isNoData
+                      ? "text-lg font-medium text-neutral-500"
+                      : "text-3xl font-semibold text-neutral-950"
+                  )}
+                >
+                  {item.icon ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{item.value}</span>
+                      {item.icon}
+                    </div>
+                  ) : (
+                    item.value
+                  )}
+                </div>
               </div>
-              <div className="text-3xl font-semibold leading-tight text-neutral-950">
-                {item.icon ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{item.value}</span>
-                    {item.icon}
-                  </div>
-                ) : (
-                  item.value
-                )}
-              </div>
-            </div>
-            {item.hint ? <div className={panelUi.statHint}>{item.hint}</div> : null}
-          </CardContent>
-        </Card>
-      ))}
+              {item.hint ? <div className={panelUi.statHint}>{item.hint}</div> : null}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

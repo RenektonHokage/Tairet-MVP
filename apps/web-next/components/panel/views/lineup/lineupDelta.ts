@@ -1,7 +1,9 @@
 export type DeltaTone = "positive" | "negative" | "neutral";
 
+import { panelSuccessTone } from "../../ui";
+
 export const deltaToneClass: Record<DeltaTone, string> = {
-  positive: "text-emerald-600",
+  positive: panelSuccessTone.textClass,
   negative: "text-rose-600",
   neutral: "text-neutral-400",
 };

@@ -29,6 +29,10 @@ export interface PanelDemoOrderItem {
 export interface PanelDemoOrdersResponse {
   items: PanelDemoOrderItem[];
   count: number;
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 export interface PanelDemoOrdersSummaryResponse {
@@ -58,9 +62,11 @@ export interface SearchPanelDemoDiscotecaOrdersInput {
   searchValue?: string;
   state?: DemoOrderStateFilter;
   limit?: number;
+  offset?: number;
 }
 
 type DemoOrdersByDate = Record<string, PanelDemoOrderItem[]>;
+type DemoOrdersTemporalContext = "past" | "today" | "future";
 
 function padNumber(value: number): string {
   return String(value).padStart(2, "0");
@@ -163,6 +169,7 @@ type DemoOrderPlan = [
   usedHour?: number,
   usedMinute?: number,
 ];
+type DemoQuantityDistribution = Array<readonly [quantity: 1 | 2 | 3 | 4, count: number]>;
 
 const DEMO_ORDER_CONTACTS = [
   ["Nadia", "Maidana"],
@@ -238,49 +245,177 @@ function buildDemoOrdersForDate(
   );
 }
 
+function buildQuantitySequence(distribution: DemoQuantityDistribution): number[] {
+  const remaining = distribution.map(([quantity, count]) => ({ quantity, count }));
+  const quantities: number[] = [];
+
+  while (remaining.some((item) => item.count > 0)) {
+    for (const item of remaining) {
+      if (item.count > 0) {
+        quantities.push(item.quantity);
+        item.count -= 1;
+      }
+    }
+  }
+
+  return quantities;
+}
+
+function buildPlansFromDistribution(
+  distribution: DemoQuantityDistribution,
+  state: Exclude<DemoOrderResolvedState, "other">,
+  config: {
+    startDayOffset: number;
+    ordersPerDay: number;
+    startHour: number;
+    startMinute: number;
+    minuteStep: number;
+    usedStartHour?: number;
+    usedMinuteSlots?: number[];
+  }
+): DemoOrderPlan[] {
+  const quantities = buildQuantitySequence(distribution);
+  const usedMinuteSlots = config.usedMinuteSlots ?? [5, 10, 15, 20, 25, 30, 35, 40, 45];
+
+  return quantities.map((quantity, index) => {
+    const createdDayOffset =
+      config.startDayOffset + Math.floor(index / Math.max(config.ordersPerDay, 1));
+    const slotWithinDay = index % Math.max(config.ordersPerDay, 1);
+    const createdHour = Math.min(config.startHour + slotWithinDay, 23);
+    const createdMinute = (config.startMinute + slotWithinDay * config.minuteStep) % 60;
+
+    if (state === "used") {
+      const usedHour =
+        (config.usedStartHour ?? 0) + Math.floor(index / usedMinuteSlots.length);
+      const usedMinute = usedMinuteSlots[index % usedMinuteSlots.length];
+
+      return [
+        quantity,
+        state,
+        createdDayOffset,
+        createdHour,
+        createdMinute,
+        usedHour,
+        usedMinute,
+      ];
+    }
+
+    return [quantity, state, createdDayOffset, createdHour, createdMinute];
+  });
+}
+
 function createInitialDiscotecaOrders(): DemoOrdersByDate {
   const [friday, saturday, sunday, nextFriday] = getPanelDemoDiscotecaOrderDates();
 
   const fridayPlans: DemoOrderPlan[] = [
-    [14, "used", -8, 15, 30, 0, 55],
-    [12, "used", -7, 16, 10, 1, 12],
-    [10, "used", -6, 17, 45, 1, 36],
-    [11, "used", -5, 18, 25, 1, 58],
-    [9, "used", -4, 19, 40, 2, 14],
-    [8, "used", -3, 20, 15, 2, 28],
-    [6, "used", -2, 21, 0, 2, 52],
-    [8, "unused", -1, 22, 5],
+    ...buildPlansFromDistribution(
+      [
+        [1, 24],
+        [2, 10],
+        [3, 5],
+        [4, 3],
+      ],
+      "used",
+      {
+        startDayOffset: -11,
+        ordersPerDay: 4,
+        startHour: 15,
+        startMinute: 10,
+        minuteStep: 11,
+        usedStartHour: 0,
+      }
+    ),
+    ...buildPlansFromDistribution(
+      [
+        [1, 3],
+        [2, 2],
+      ],
+      "unused",
+      {
+        startDayOffset: -1,
+        ordersPerDay: 5,
+        startHour: 20,
+        startMinute: 5,
+        minuteStep: 13,
+      }
+    ),
   ];
 
   const saturdayPlans: DemoOrderPlan[] = [
-    [20, "used", -8, 16, 20, 0, 42],
-    [18, "used", -7, 17, 10, 1, 5],
-    [16, "used", -6, 18, 0, 1, 22],
-    [15, "used", -5, 18, 45, 1, 46],
-    [13, "used", -4, 19, 20, 2, 8],
-    [10, "used", -3, 20, 10, 2, 34],
-    [14, "used", -2, 20, 50, 2, 48],
-    [12, "used", -1, 21, 30, 3, 6],
-    [14, "unused", -1, 22, 15],
+    ...buildPlansFromDistribution(
+      [
+        [1, 24],
+        [2, 14],
+        [3, 6],
+        [4, 1],
+      ],
+      "used",
+      {
+        startDayOffset: -9,
+        ordersPerDay: 5,
+        startHour: 15,
+        startMinute: 0,
+        minuteStep: 9,
+        usedStartHour: 0,
+      }
+    ),
+    ...buildPlansFromDistribution(
+      [
+        [1, 20],
+        [2, 12],
+        [3, 4],
+        [4, 2],
+      ],
+      "pending",
+      {
+        startDayOffset: -6,
+        ordersPerDay: 6,
+        startHour: 17,
+        startMinute: 5,
+        minuteStep: 8,
+      }
+    ),
   ];
 
-  const nextFridayPlans: DemoOrderPlan[] = [
-    [8, "pending", -8, 15, 30],
-    [7, "pending", -6, 17, 25],
-    [6, "pending", -5, 18, 5],
-    [5, "pending", -4, 18, 55],
-    [4, "unused", -3, 20, 10],
-    [6, "unused", -2, 21, 20],
-  ];
+  const nextFridayPlans: DemoOrderPlan[] = buildPlansFromDistribution(
+    [
+      [1, 12],
+      [2, 7],
+      [3, 2],
+      [4, 1],
+    ],
+    "pending",
+    {
+      startDayOffset: -10,
+      ordersPerDay: 4,
+      startHour: 15,
+      startMinute: 20,
+      minuteStep: 10,
+    }
+  );
 
   const sundayPlans: DemoOrderPlan[] = [
-    [9, "pending", -6, 17, 10],
-    [7, "pending", -4, 19, 35],
-    [6, "pending", -2, 21, 25],
-    [5, "pending", -1, 10, 40],
-    [4, "pending", -1, 14, 10],
-    [5, "pending", -1, 18, 20],
-    [4, "pending", -1, 22, 5],
+    ...buildPlansFromDistribution(
+      [
+        [1, 17],
+        [2, 6],
+        [3, 2],
+      ],
+      "pending",
+      {
+        startDayOffset: -8,
+        ordersPerDay: 4,
+        startHour: 16,
+        startMinute: 15,
+        minuteStep: 10,
+      }
+    ),
+    [1, "pending", -1, 14, 5],
+    [2, "pending", -1, 16, 20],
+    [1, "pending", -1, 18, 10],
+    [2, "pending", -1, 20, 25],
+    [2, "pending", -1, 22, 14],
+    [4, "pending", -1, 23, 9],
   ];
 
   return {
@@ -296,16 +431,59 @@ function getDiscotecaOrdersByDate(intendedDate: string): PanelDemoOrderItem[] {
   return (ordersByDate[intendedDate] ?? []).map(cloneOrder);
 }
 
+function resolveDemoTemporalContext(
+  intendedDate: string,
+  nowDate: Date
+): DemoOrdersTemporalContext {
+  const referenceDateKey = formatDateOnly(nowDate);
+
+  if (intendedDate > referenceDateKey) {
+    return "future";
+  }
+
+  if (intendedDate < referenceDateKey) {
+    return "past";
+  }
+
+  return "today";
+}
+
+function normalizeDemoDiscotecaOrderForDate(
+  order: PanelDemoOrderItem,
+  temporalContext: DemoOrdersTemporalContext
+): PanelDemoOrderItem {
+  if (temporalContext !== "past" && order.checkin_state === "unused") {
+    return {
+      ...order,
+      checkin_state: "pending",
+    };
+  }
+
+  return order;
+}
+
+function getNormalizedDiscotecaOrdersByDate(
+  intendedDate: string,
+  nowDate = getPanelDemoNow("discoteca")
+): PanelDemoOrderItem[] {
+  const temporalContext = resolveDemoTemporalContext(intendedDate, nowDate);
+
+  return getDiscotecaOrdersByDate(intendedDate).map((order) =>
+    normalizeDemoDiscotecaOrderForDate(order, temporalContext)
+  );
+}
+
 function getDiscotecaRevenueByDate(intendedDate: string): number {
   const [friday, saturday, sunday, nextFriday] = getPanelDemoDiscotecaOrderDates();
-  const revenueByDate: Record<string, number> = {
-    [friday]: 4_140_000,
-    [saturday]: 6_925_000,
-    [sunday]: 2_460_000,
-    [nextFriday]: 1_980_000,
+  const unitPriceByDate: Record<string, number> = {
+    [friday]: 58_000,
+    [saturday]: 64_000,
+    [sunday]: 59_000,
+    [nextFriday]: 61_000,
   };
 
-  return revenueByDate[intendedDate] ?? 0;
+  const orders = getNormalizedDiscotecaOrdersByDate(intendedDate);
+  return sumOrderQuantity(orders) * (unitPriceByDate[intendedDate] ?? 0);
 }
 
 function filterOrdersByState(
@@ -371,12 +549,12 @@ export function getPanelDemoDiscotecaOrdersSummary(
   intendedDate?: string
 ): PanelDemoOrdersSummaryResponse {
   const selectedDate = intendedDate || getPanelDemoDiscotecaOrdersDefaultDate();
-  const orders = getDiscotecaOrdersByDate(selectedDate);
+  const demoNow = getPanelDemoNow("discoteca");
+  const orders = getNormalizedDiscotecaOrdersByDate(selectedDate, demoNow);
   const usedOrders = filterOrdersByState(orders, "used");
   const pendingOrders = filterOrdersByState(orders, "pending");
   const unusedOrders = filterOrdersByState(orders, "unused");
   const currentWindow = getNightWindow(selectedDate);
-  const demoNow = getPanelDemoNow("discoteca");
 
   return {
     total_qty:
@@ -402,10 +580,14 @@ export function searchPanelDemoDiscotecaOrders(
   input: SearchPanelDemoDiscotecaOrdersInput
 ): PanelDemoOrdersResponse {
   const state = input.state ?? "all";
-  const limit = Math.min(input.limit ?? 20, 100);
+  const limit = Math.min(Math.max(input.limit ?? 20, 1), 100);
+  const offset = Math.max(input.offset ?? 0, 0);
   const normalizedSearch = input.searchValue?.trim() ?? "";
 
-  let orders = filterOrdersByState(getDiscotecaOrdersByDate(input.intendedDate), state);
+  let orders = filterOrdersByState(
+    getNormalizedDiscotecaOrdersByDate(input.intendedDate),
+    state
+  );
 
   if (normalizedSearch) {
     if (input.searchType === "email") {
@@ -431,9 +613,14 @@ export function searchPanelDemoDiscotecaOrders(
     return 0;
   });
 
-  const items = sortedOrders.slice(0, limit).map(cloneOrder);
+  const total = sortedOrders.length;
+  const items = sortedOrders.slice(offset, offset + limit).map(cloneOrder);
   return {
     items,
     count: items.length,
+    total,
+    limit,
+    offset,
+    hasMore: offset + items.length < total,
   };
 }

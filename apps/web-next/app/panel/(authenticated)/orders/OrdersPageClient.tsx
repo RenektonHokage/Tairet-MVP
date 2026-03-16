@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PageHeader, cn, panelUi } from "@/components/panel/ui";
+import { PageHeader, cn, panelSuccessTone, panelUi } from "@/components/panel/ui";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
-import { downloadPanelReservationsClientsCsv } from "@/lib/panelExport";
+import { downloadPanelReservationsClientsExcel } from "@/lib/panelExport";
 import {
   getPanelDemoDiscotecaOrdersSummary,
   searchPanelDemoDiscotecaOrders,
@@ -33,6 +33,10 @@ interface OrderItem {
 interface OrdersResponse {
   items: OrderItem[];
   count: number;
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 }
 
 interface OrdersSummaryResponse {
@@ -79,6 +83,7 @@ type PanelTheme = "dark" | "light";
 
 const PANEL_THEME_STORAGE_KEY = "tairet.panel.theme";
 const PANEL_THEME_EVENT_NAME = "tairet:panel-theme-change";
+const ORDERS_PAGE_SIZE = 20;
 
 function getDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -147,9 +152,10 @@ export default function OrdersPageClient() {
   const [appliedSearchValue, setAppliedSearchValue] = useState("");
   const [intendedDate, setIntendedDate] = useState("");
   const [stateFilter, setStateFilter] = useState<EntryStateFilter>("all");
+  const [entriesOffset, setEntriesOffset] = useState(0);
 
   const [entries, setEntries] = useState<OrderItem[]>([]);
-  const [entriesCount, setEntriesCount] = useState(0);
+  const [entriesHasMore, setEntriesHasMore] = useState(false);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
 
@@ -349,7 +355,8 @@ export default function OrdersPageClient() {
             searchType,
             searchValue: trimmedSearch,
             state: effectiveStateFilter,
-            limit: 20,
+            limit: ORDERS_PAGE_SIZE,
+            offset: entriesOffset,
           })
         : await (async () => {
             const headers = await getAuthHeaders();
@@ -363,7 +370,8 @@ export default function OrdersPageClient() {
             if (isClub && effectiveStateFilter !== "all") {
               params.set("state", effectiveStateFilter);
             }
-            params.set("limit", "20");
+            params.set("limit", String(ORDERS_PAGE_SIZE));
+            params.set("offset", String(entriesOffset));
 
             const response = await fetch(`${getApiBase()}/panel/orders/search?${params.toString()}`, {
               method: "GET",
@@ -383,12 +391,13 @@ export default function OrdersPageClient() {
         return;
       }
       setEntries(data.items ?? []);
-      setEntriesCount(data.count ?? 0);
+      setEntriesHasMore(Boolean(data.hasMore));
     } catch (error) {
       if (requestId !== entriesRequestIdRef.current) {
         return;
       }
       setEntriesError(error instanceof Error ? error.message : "Error al cargar entradas");
+      setEntriesHasMore(false);
     } finally {
       if (requestId === entriesRequestIdRef.current) {
         setEntriesLoading(false);
@@ -401,6 +410,7 @@ export default function OrdersPageClient() {
     intendedDate,
     isClub,
     isDemoDiscoteca,
+    entriesOffset,
     searchType,
     stateFilter,
   ]);
@@ -438,25 +448,31 @@ export default function OrdersPageClient() {
   }, [loadEntries]);
 
   const handleSearch = () => {
+    setEntriesOffset(0);
     setAppliedSearchValue(searchValue.trim());
   };
 
-  const handleExportCsv = async () => {
+  const handleStateFilterChange = (nextFilter: EntryStateFilter) => {
+    setEntriesOffset(0);
+    setStateFilter(nextFilter);
+  };
+
+  const handleExportExcel = async () => {
     if (!exportFrom || !exportTo || exportLoading) {
       return;
     }
 
     if (isDemoDiscoteca) {
-      setExportError("La exportacion CSV no esta disponible en modo demo.");
+      setExportError("La exportacion Excel no esta disponible en modo demo.");
       return;
     }
 
     setExportError(null);
     setExportLoading(true);
     try {
-      await downloadPanelReservationsClientsCsv({ from: exportFrom, to: exportTo });
+      await downloadPanelReservationsClientsExcel({ from: exportFrom, to: exportTo });
     } catch (error) {
-      setExportError(error instanceof Error ? error.message : "Error al exportar CSV");
+      setExportError(error instanceof Error ? error.message : "Error al exportar Excel");
     } finally {
       setExportLoading(false);
     }
@@ -604,14 +620,14 @@ export default function OrdersPageClient() {
         ? {
             used: {
               label: "Usada",
-              badge:
-                "border text-[#86EFAC]",
+              badge: "border",
               border: "border-l-transparent",
-              iconBg: "bg-[#22C55E]",
-              borderColor: "#22C55E",
+              iconBg: panelSuccessTone.solidBgClass,
+              borderColor: panelSuccessTone.accentHex,
               badgeStyle: {
-                borderColor: "rgba(34,197,94,0.35)",
-                backgroundColor: "rgba(34,197,94,0.14)",
+                color: panelSuccessTone.darkSoftTextHex,
+                borderColor: panelSuccessTone.darkSoftBorderColor,
+                backgroundColor: panelSuccessTone.darkSoftBgColor,
               },
             },
             pending: {
@@ -629,35 +645,35 @@ export default function OrdersPageClient() {
             unused: {
               label: "No usada",
               badge:
-                "border text-[#E2E8F0]",
+                "border text-[#E5E5E5]",
               border: "border-l-transparent",
-              iconBg: "bg-[#94A3B8]",
-              borderColor: "#94A3B8",
+              iconBg: "bg-[#A3A3A3]",
+              borderColor: "#A3A3A3",
               badgeStyle: {
-                borderColor: "rgba(148,163,184,0.34)",
-                backgroundColor: "rgba(148,163,184,0.16)",
+                borderColor: "rgba(163,163,163,0.34)",
+                backgroundColor: "rgba(163,163,163,0.16)",
               },
             },
             other: {
               label: "Sin estado",
               badge:
-                "border text-[#CBD5E1]",
+                "border text-[#D4D4D4]",
               border: "border-l-transparent",
-              iconBg: "bg-[rgba(71,85,105,0.28)]",
-              borderColor: "#64748B",
+              iconBg: "bg-[rgba(115,115,115,0.28)]",
+              borderColor: "#737373",
               badgeStyle: {
-                borderColor: "rgba(148,163,184,0.28)",
-                backgroundColor: "rgba(71,85,105,0.14)",
+                borderColor: "rgba(115,115,115,0.28)",
+                backgroundColor: "rgba(115,115,115,0.14)",
               },
             },
           }
         : {
             used: {
               label: "Usada",
-              badge: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+              badge: `bg-emerald-50 border border-emerald-200 ${panelSuccessTone.textClass}`,
               border: "border-l-emerald-400",
-              iconBg: "bg-[#22C55E]",
-              borderColor: "#4ade80",
+              iconBg: panelSuccessTone.solidBgClass,
+              borderColor: panelSuccessTone.accentHex,
             },
             pending: {
               label: "Pendiente",
@@ -698,6 +714,7 @@ export default function OrdersPageClient() {
 
   useEffect(() => {
     if (stateFilter !== effectiveStateFilter) {
+      setEntriesOffset(0);
       setStateFilter(effectiveStateFilter);
     }
   }, [effectiveStateFilter, stateFilter]);
@@ -837,7 +854,7 @@ export default function OrdersPageClient() {
         : "border-slate-200 hover:border-slate-300";
     }
 
-    return "border-[#1F2937] hover:border-[#374151]";
+    return "border-[#303030] hover:border-[#454545]";
   };
 
   const getSummaryCardStyle = (
@@ -850,20 +867,20 @@ export default function OrdersPageClient() {
 
     if (!active) {
       return {
-        borderColor: "#1F2937",
-        backgroundColor: "#111827",
+        borderColor: "#303030",
+        backgroundColor: "#141414",
       };
     }
 
     const toneBorderColors: Record<OrdersSummaryCard["tone"], string> = {
       info: "#60A5FA",
-      positive: "#22C55E",
+      positive: panelSuccessTone.accentHex,
       warning: "#FACC15",
-      muted: "#94A3B8",
+      muted: "#A3A3A3",
     };
 
     return {
-      backgroundColor: "#111827",
+      backgroundColor: "#141414",
       borderColor: toneBorderColors[card.tone],
     };
   };
@@ -873,7 +890,7 @@ export default function OrdersPageClient() {
       return "text-slate-900";
     }
 
-    return "text-[#F3F4F6]";
+    return "text-[#F5F5F5]";
   };
 
   const getSummaryLabelClass = (card: OrdersSummaryCard) => {
@@ -881,7 +898,7 @@ export default function OrdersPageClient() {
       return "text-slate-600";
     }
 
-    return "text-[#CBD5E1]";
+    return "text-[#D4D4D4]";
   };
 
   const getEntryCardStyle = (stateStyle: (typeof stateStyles)[EntryResolvedState]) => {
@@ -890,8 +907,8 @@ export default function OrdersPageClient() {
     }
 
     return {
-      backgroundColor: "#111827",
-      borderColor: "#1F2937",
+      backgroundColor: "#141414",
+      borderColor: "#303030",
       borderLeftColor: stateStyle.borderColor,
     } satisfies CSSProperties;
   };
@@ -994,7 +1011,6 @@ export default function OrdersPageClient() {
     );
   }
 
-  const showingFiltered = Boolean(appliedSearchValue);
   const selectedDateLabel = formatSelectedDate(intendedDate);
   const contextualHeader =
     temporalContext === "today"
@@ -1011,20 +1027,6 @@ export default function OrdersPageClient() {
             title: `Preventa - ${selectedDateLabel}`,
             subtitle: "Seguimiento de ventas previas y actividad reciente.",
           };
-  const listSummary = isClub
-    ? showingFiltered
-      ? `Mostrando ${entriesCount} resultado${entriesCount === 1 ? "" : "s"} para ${selectedDateLabel}`
-      : intendedDate
-        ? temporalContext === "future"
-          ? `Mostrando las ultimas 20 operaciones de preventa para ${selectedDateLabel}`
-          : temporalContext === "today"
-            ? `Mostrando las ultimas 20 operaciones de ${selectedDateLabel}`
-            : `Mostrando las ultimas 20 operaciones registradas para ${selectedDateLabel}`
-        : "Selecciona una fecha para ver el estado operativo de las entradas."
-    : showingFiltered
-      ? `Mostrando ${entriesCount} resultado${entriesCount === 1 ? "" : "s"} de búsqueda`
-      : "Mostrando las últimas 20 entradas";
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -1093,7 +1095,7 @@ export default function OrdersPageClient() {
                     type="button"
                     onClick={() => {
                       setIsExportMenuOpen(false);
-                      void handleExportCsv();
+                      void handleExportExcel();
                     }}
                     disabled={!exportFrom || !exportTo || exportLoading}
                     className={cn(
@@ -1101,7 +1103,7 @@ export default function OrdersPageClient() {
                       panelUi.focusRing
                     )}
                   >
-                    {exportLoading ? "Exportando..." : "Exportar CSV"}
+                    {exportLoading ? "Exportando..." : "Exportar Excel"}
                   </button>
                 </div>
               </div>
@@ -1158,7 +1160,7 @@ export default function OrdersPageClient() {
               <button
                 key={card.key}
                 type="button"
-                onClick={() => setStateFilter(card.key as EntryStateFilter)}
+                onClick={() => handleStateFilterChange(card.key as EntryStateFilter)}
                 data-orders-summary-card="true"
                 data-orders-tone={card.tone}
                 data-orders-active={isActive ? "true" : "false"}
@@ -1198,7 +1200,10 @@ export default function OrdersPageClient() {
             <label className="mb-1 block text-sm font-medium text-slate-700">Buscar por</label>
             <select
               value={searchType}
-              onChange={(e) => setSearchType(e.target.value as SearchType)}
+              onChange={(e) => {
+                setEntriesOffset(0);
+                setSearchType(e.target.value as SearchType);
+              }}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             >
               <option value="email">Email</option>
@@ -1228,6 +1233,7 @@ export default function OrdersPageClient() {
                 value={intendedDate}
                 onChange={(e) => {
                   const nextDate = e.target.value;
+                  setEntriesOffset(0);
                   setIntendedDate(nextDate);
                   if (nextDate) {
                     setExportFrom(nextDate);
@@ -1260,8 +1266,6 @@ export default function OrdersPageClient() {
       </section>
 
       <section className="space-y-3">
-        <p className="text-sm text-slate-500">{listSummary}</p>
-
         {entriesError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-700">{entriesError}</p>
@@ -1281,6 +1285,37 @@ export default function OrdersPageClient() {
         ) : null}
 
         {entries.map(renderEntryCard)}
+
+        {(entriesOffset > 0 || entriesHasMore) && (entries.length > 0 || entriesOffset > 0) ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-2">
+              {entriesOffset > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEntriesOffset((current) =>
+                      Math.max(current - ORDERS_PAGE_SIZE, 0)
+                    )
+                  }
+                  disabled={entriesLoading}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Ver anteriores
+                </button>
+              ) : null}
+              {entriesHasMore ? (
+                <button
+                  type="button"
+                  onClick={() => setEntriesOffset((current) => current + ORDERS_PAGE_SIZE)}
+                  disabled={entriesLoading}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Ver siguientes
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );

@@ -16,6 +16,16 @@ const statusOptions: Array<{ value: "all" | ReservationStatus; label: string }> 
   { value: "cancelled", label: "Canceladas" },
 ];
 
+const reservationsKpiIconBase =
+  "flex h-10 w-10 items-center justify-center rounded-xl border";
+
+const reservationsKpiToneClasses = {
+  neutral: "border-neutral-200 bg-neutral-100 text-neutral-700",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-600",
+  warning: "border-amber-200 bg-amber-50 text-amber-600",
+  info: "border-blue-200 bg-blue-50 text-blue-600",
+} as const;
+
 export interface ReservationsViewStats {
   total: number;
   confirmed: number;
@@ -217,7 +227,14 @@ export function ReservationsView({
           value={
             <div className="flex items-center justify-between gap-3">
               <span>{stats.total}</span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-100 text-[#8d1313]">
+              <span
+                data-reservations-kpi-icon="true"
+                data-reservations-kpi-tone="neutral"
+                className={cn(
+                  reservationsKpiIconBase,
+                  reservationsKpiToneClasses.neutral
+                )}
+              >
                 <BarChart3 className="h-5 w-5" />
               </span>
             </div>
@@ -228,7 +245,14 @@ export function ReservationsView({
           value={
             <div className="flex items-center justify-between gap-3">
               <span>{stats.confirmed}</span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <span
+                data-reservations-kpi-icon="true"
+                data-reservations-kpi-tone="success"
+                className={cn(
+                  reservationsKpiIconBase,
+                  reservationsKpiToneClasses.success
+                )}
+              >
                 <CheckCircle2 className="h-5 w-5" />
               </span>
             </div>
@@ -239,7 +263,14 @@ export function ReservationsView({
           value={
             <div className="flex items-center justify-between gap-3">
               <span>{stats.pending}</span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+              <span
+                data-reservations-kpi-icon="true"
+                data-reservations-kpi-tone="warning"
+                className={cn(
+                  reservationsKpiIconBase,
+                  reservationsKpiToneClasses.warning
+                )}
+              >
                 <Clock className="h-5 w-5" />
               </span>
             </div>
@@ -250,7 +281,14 @@ export function ReservationsView({
           value={
             <div className="flex items-center justify-between gap-3">
               <span>{stats.today}</span>
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <span
+                data-reservations-kpi-icon="true"
+                data-reservations-kpi-tone="info"
+                className={cn(
+                  reservationsKpiIconBase,
+                  reservationsKpiToneClasses.info
+                )}
+              >
                 <CalendarDays className="h-5 w-5" />
               </span>
             </div>

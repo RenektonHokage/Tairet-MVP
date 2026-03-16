@@ -17,9 +17,7 @@ import {
   EyeOff,
   GripVertical,
   ImagePlus,
-  LayoutGrid,
   Link2,
-  List,
   Loader2,
   Pencil,
   Plus,
@@ -67,7 +65,11 @@ const EMPTY_FORM: CreatePromoInput = {
   image_url: "",
   description: "",
 };
-const PROMO_IMAGE_SHORT_HELPER_TEXT = "JPG, PNG o WebP · máx. 5 MB";
+const PROMO_IMAGE_GENERAL_HELPER_TEXT =
+  "Recomendamos una imagen horizontal 4:3, con el foco principal centrado. En el perfil público se recorta automáticamente.";
+const PROMO_IMAGE_FILE_HELPER_TEXT = "Archivo: JPG, PNG o WebP · máximo 5 MB";
+const PROMO_IMAGE_URL_HELPER_TEXT =
+  "URL pública: solo validamos que sea una URL http/https válida; no verificamos formato, peso ni dimensiones.";
 const PROMO_IMAGE_RATIO_WARNING =
   "Esta imagen no es 4:3 y podría recortarse en el perfil público.";
 const PROMO_TARGET_IMAGE_RATIO = 4 / 3;
@@ -189,7 +191,6 @@ export default function PromosPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [imageRatioWarning, setImageRatioWarning] = useState<string | null>(null);
-  const [showImageRecommendations, setShowImageRecommendations] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState("");
   const [urlInputError, setUrlInputError] = useState<string | null>(null);
@@ -198,7 +199,7 @@ export default function PromosPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortMode, setSortMode] = useState<SortMode>("priority");
-  const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [viewMode] = useState<ViewMode>("cards");
   const [draggedPromoId, setDraggedPromoId] = useState<string | null>(null);
   const [dragOverPromoId, setDragOverPromoId] = useState<string | null>(null);
 
@@ -236,7 +237,6 @@ export default function PromosPage() {
     setFormData(EMPTY_FORM);
     setUploadError(null);
     setImageRatioWarning(null);
-    setShowImageRecommendations(false);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
@@ -248,7 +248,6 @@ export default function PromosPage() {
     setFormData(EMPTY_FORM);
     setUploadError(null);
     setImageRatioWarning(null);
-    setShowImageRecommendations(false);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
@@ -265,7 +264,6 @@ export default function PromosPage() {
     });
     setUploadError(null);
     setImageRatioWarning(null);
-    setShowImageRecommendations(false);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
@@ -767,9 +765,11 @@ export default function PromosPage() {
                 disabled={saving}
                 title="Eliminar promoción"
                 aria-label="Eliminar promoción"
+                data-panel-delete-button="true"
                 className={cn(
                   panelUi.focusRing,
-                  "rounded-xl border border-transparent p-2 text-neutral-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  panelUi.destructiveOutline,
+                  "rounded-xl p-2"
                 )}
               >
                 <Trash2 className="h-[18px] w-[18px]" />
@@ -862,13 +862,16 @@ export default function PromosPage() {
           )}
         </div>
 
-        <div className="bg-neutral-50/70 px-5 py-5">
+        <div data-promos-preview="true" className="bg-neutral-50/70 px-5 py-5">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
             <Smartphone className="h-4 w-4" />
             Vista en perfil
           </div>
 
-          <div className="mt-4 rounded-[28px] border border-neutral-200 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+          <div
+            data-promos-preview-device="true"
+            className="mt-4 rounded-[28px] border border-neutral-200 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"
+          >
             <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-neutral-200" />
             <div className="space-y-3">
               <div className="space-y-1">
@@ -876,7 +879,10 @@ export default function PromosPage() {
                 <div className="h-2.5 w-28 rounded-full bg-neutral-100" />
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-2">
+              <div
+                data-promos-preview-rail="true"
+                className="rounded-2xl border border-neutral-200 bg-neutral-50 p-2"
+              >
                 <div className="text-[11px] font-medium text-neutral-500">Promociones</div>
                 {activePromos.length > 0 ? (
                   <div className="mt-2 flex gap-2 overflow-hidden">
@@ -914,7 +920,10 @@ export default function PromosPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-2 rounded-xl bg-white px-3 py-6 text-center text-xs text-neutral-400">
+                  <div
+                    data-promos-preview-empty="true"
+                    className="mt-2 rounded-xl bg-white px-3 py-6 text-center text-xs text-neutral-400"
+                  >
                     Sin promos activas
                   </div>
                 )}
@@ -1001,9 +1010,11 @@ export default function PromosPage() {
                       <button
                         type="button"
                         onClick={handleRemoveImage}
+                        data-panel-delete-button="true"
                         className={cn(
                           panelUi.focusRing,
-                          "absolute right-3 top-3 rounded-full bg-white/90 p-2 text-neutral-700 shadow-sm transition hover:bg-white"
+                          panelUi.destructiveOutline,
+                          "absolute right-3 top-3 rounded-full p-2"
                         )}
                         aria-label="Quitar imagen"
                       >
@@ -1046,7 +1057,7 @@ export default function PromosPage() {
                         {isUploading ? "Subiendo imagen..." : "Arrastra o haz clic para subir"}
                       </div>
                       <div className="mt-1 text-sm text-neutral-500">
-                        PNG, JPG, WEBP - max. 5MB
+                        {PROMO_IMAGE_FILE_HELPER_TEXT}
                       </div>
                     </div>
                   </button>
@@ -1061,34 +1072,9 @@ export default function PromosPage() {
                 />
 
                 <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                  <p className="text-sm text-neutral-600">
-                    {PROMO_IMAGE_SHORT_HELPER_TEXT}
+                  <p className="text-sm leading-relaxed text-neutral-600">
+                    {PROMO_IMAGE_GENERAL_HELPER_TEXT}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setShowImageRecommendations((current) => !current)
-                    }
-                    className={cn(
-                      panelUi.focusRing,
-                      "mt-2 inline-flex items-center gap-2 rounded-lg text-sm font-medium text-neutral-700 transition hover:text-neutral-900"
-                    )}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        "h-4 w-4 transition-transform",
-                        showImageRecommendations && "rotate-180"
-                      )}
-                    />
-                    Recomendaciones de imagen
-                  </button>
-                  {showImageRecommendations ? (
-                    <div className="mt-3 space-y-1.5 text-sm leading-relaxed text-neutral-500">
-                      <p>Recomendamos una imagen horizontal 4:3.</p>
-                      <p>Mantené el foco principal centrado.</p>
-                      <p>En el perfil público la imagen se muestra con recorte automático.</p>
-                    </div>
-                  ) : null}
                 </div>
 
                 {uploadError ? (
@@ -1114,6 +1100,9 @@ export default function PromosPage() {
                     Usar URL pública de imagen
                   </summary>
                   <div className="mt-3 space-y-3">
+                    <p className="text-sm leading-relaxed text-neutral-500">
+                      {PROMO_IMAGE_URL_HELPER_TEXT}
+                    </p>
                     <div className="relative">
                       <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
                       <input
@@ -1173,9 +1162,10 @@ export default function PromosPage() {
 
               <div className="space-y-2">
                 <label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  Descripción <span className="normal-case text-neutral-400">(opcional)</span>
+                  Vigencia <span className="normal-case text-neutral-400">(opcional)</span>
                 </label>
-                <textarea
+                <input
+                  type="text"
                   value={formData.description}
                   onChange={(event) =>
                     setFormData((current) => ({
@@ -1183,14 +1173,16 @@ export default function PromosPage() {
                       description: event.target.value,
                     }))
                   }
-                  placeholder="Describe brevemente la promoción..."
+                  placeholder="Ej.: Todos los viernes, Viernes y sábados, Hasta las 00:30"
                   className={cn(
                     panelUi.focusRing,
-                    "min-h-[120px] w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 placeholder:text-neutral-400"
+                    "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-900 placeholder:text-neutral-400"
                   )}
-                  rows={4}
-                  maxLength={500}
+                  maxLength={120}
                 />
+                <p className="text-sm text-neutral-500">
+                  Ej.: Todos los viernes, Viernes y sábados, Hasta las 00:30
+                </p>
               </div>
 
             </div>
@@ -1326,34 +1318,6 @@ export default function PromosPage() {
                       { value: "recent", label: "Más recientes" },
                     ]}
                   />
-                  <div className="inline-flex items-center rounded-xl border border-neutral-200 bg-white p-1 shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("cards")}
-                      className={cn(
-                        panelUi.focusRing,
-                        "rounded-lg p-2 transition",
-                        viewMode === "cards"
-                          ? "bg-neutral-100 text-neutral-900"
-                          : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
-                      )}
-                    >
-                      <LayoutGrid className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode("compact")}
-                      className={cn(
-                        panelUi.focusRing,
-                        "rounded-lg p-2 transition",
-                        viewMode === "compact"
-                          ? "bg-neutral-100 text-neutral-900"
-                          : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
-                      )}
-                    >
-                      <List className="h-4 w-4" />
-                    </button>
-                  </div>
                 </div>
               }
             />

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { BarChart3 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, InfoTip } from "../../ui";
+import { Card, CardContent, CardHeader, CardTitle, InfoTip, panelSuccessTone } from "../../ui";
 import { RangeToggle, type RangeValue } from "./RangeToggle";
 
 export interface SummaryMetric {
@@ -25,7 +25,7 @@ export interface SummaryCardProps {
 
 const colorMap = {
   default: "text-neutral-950",
-  success: "text-emerald-600",
+  success: panelSuccessTone.textClass,
   danger: "text-rose-600",
 };
 

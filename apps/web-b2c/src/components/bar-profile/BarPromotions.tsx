@@ -10,6 +10,8 @@ interface Promotion {
   id: string; // UUID string
   title: string;
   image: string;
+  validity?: string;
+  description?: string;
 }
 
 interface BarPromotionsProps {
@@ -18,34 +20,37 @@ interface BarPromotionsProps {
 }
 
 // Unified Promo Card - same visual size for grid and carousel
-const PromoCard: React.FC<{ promo: Promotion; onClick: () => void; showDate?: boolean }> = ({ 
-  promo, 
+const PromoCard: React.FC<{ promo: Promotion; onClick: () => void }> = ({
+  promo,
   onClick,
-  showDate = false 
-}) => (
-  <Card 
-    className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer w-full"
-    onClick={onClick}
-  >
-    <div className="aspect-[4/3] relative overflow-hidden">
-      <img 
-        src={promo.image} 
-        alt={promo.title}
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-      <div className="absolute bottom-4 left-4 right-4">
-        <h3 className="text-white font-semibold text-lg">{promo.title}</h3>
-        {showDate && (
-          <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
-            <Calendar className="w-4 h-4" />
-            <span>Válido hoy</span>
-          </div>
-        )}
+}) => {
+  const promoValidity = promo.validity ?? promo.description;
+
+  return (
+    <Card
+      className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group cursor-pointer w-full"
+      onClick={onClick}
+    >
+      <div className="aspect-[4/3] relative overflow-hidden">
+        <img
+          src={promo.image}
+          alt={promo.title}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-4 left-4 right-4">
+          <h3 className="text-white font-semibold text-lg">{promo.title}</h3>
+          {promoValidity ? (
+            <div className="flex items-center gap-2 mt-2 text-white/80 text-sm">
+              <Calendar className="w-4 h-4" />
+              <span>{promoValidity}</span>
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
-  </Card>
-);
+    </Card>
+  );
+};
 
 const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) => {
   // Desktop: use carousel if more than 3 promos to prevent layout wrap
@@ -121,7 +126,6 @@ const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) =>
                 key={promo.id}
                 promo={promo}
                 onClick={() => handleOpenPromo(promo)}
-                showDate
               />
             ))}
           </BaseCarousel>
@@ -132,7 +136,6 @@ const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) =>
                 key={promo.id}
                 promo={promo}
                 onClick={() => handleOpenPromo(promo)}
-                showDate
               />
             ))}
           </div>

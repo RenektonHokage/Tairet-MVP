@@ -8,6 +8,7 @@ import {
   BarChartGrouped,
   type LineChartDataPoint,
 } from "../../ui/charts";
+import { panelSuccessTone } from "../../ui";
 import {
   PrimaryActionBanner,
   KpiGrid,
@@ -117,7 +118,7 @@ export function DashboardClubView({
           : undefined,
       icon: (
         <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
-          <CheckCircle2 className="h-5 w-5 text-[#22C55E]" />
+          <CheckCircle2 className={`h-5 w-5 ${panelSuccessTone.textClass}`} />
         </span>
       ),
     },
@@ -127,7 +128,7 @@ export function DashboardClubView({
       hint: kpis.revenuePaid === 0 ? "Pagos pendientes" : undefined,
       icon: (
         <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
-          <DollarSign className="h-5 w-5 text-[#22C55E]" />
+          <DollarSign className={`h-5 w-5 ${panelSuccessTone.textClass}`} />
         </span>
       ),
     },

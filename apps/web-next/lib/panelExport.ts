@@ -37,12 +37,12 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(objectUrl);
 }
 
-export async function downloadPanelReservationsClientsCsv(params: {
+async function downloadPanelReservationsClientsFile(params: {
   from: string;
   to: string;
-}): Promise<void> {
+}, format: "csv" | "xlsx"): Promise<void> {
   if (typeof window === "undefined" || typeof document === "undefined") {
-    throw new Error("La exportación CSV solo está disponible en el navegador.");
+    throw new Error("La exportacion solo esta disponible en el navegador.");
   }
 
   const from = params.from.trim();
@@ -53,31 +53,43 @@ export async function downloadPanelReservationsClientsCsv(params: {
 
   const search = new URLSearchParams({ from, to });
   const headers = await getAuthHeaders();
+  const endpoint = `${getApiBase()}/panel/exports/reservations-clients.${format}?${search.toString()}`;
 
-  const response = await fetch(
-    `${getApiBase()}/panel/exports/reservations-clients.csv?${search.toString()}`,
-    {
-      method: "GET",
-      credentials: "include",
-      headers,
-    }
-  );
+  const response = await fetch(endpoint, {
+    method: "GET",
+    credentials: "include",
+    headers,
+  });
 
   if (!response.ok) {
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json")) {
       const data = await response.json().catch(() => ({}));
-      throw new Error(data.error || `Error ${response.status} exportando CSV.`);
+      throw new Error(data.error || `Error ${response.status} exportando ${format.toUpperCase()}.`);
     }
 
     const text = await response.text().catch(() => "");
-    throw new Error(text || `Error ${response.status} exportando CSV.`);
+    throw new Error(text || `Error ${response.status} exportando ${format.toUpperCase()}.`);
   }
 
   const fileName =
     parseFilenameFromContentDisposition(response.headers.get("Content-Disposition")) ??
-    `tairet_reservas_clientes_${from}_a_${to}.csv`;
+    `tairet_reservas_clientes_${from}_a_${to}.${format}`;
 
   const blob = await response.blob();
   triggerBrowserDownload(blob, fileName);
+}
+
+export async function downloadPanelReservationsClientsCsv(params: {
+  from: string;
+  to: string;
+}): Promise<void> {
+  return downloadPanelReservationsClientsFile(params, "csv");
+}
+
+export async function downloadPanelReservationsClientsExcel(params: {
+  from: string;
+  to: string;
+}): Promise<void> {
+  return downloadPanelReservationsClientsFile(params, "xlsx");
 }

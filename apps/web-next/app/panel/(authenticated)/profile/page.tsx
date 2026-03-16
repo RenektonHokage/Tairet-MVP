@@ -33,11 +33,19 @@ import {
 const MAX_TICKET_TYPES = 4;
 const MAX_ACTIVE_TICKETS = 2;
 import { getAttributesAllowlist, ZONES, MIN_AGES, CITIES } from "@/lib/constants/attributes";
+import { cn, panelUi } from "@/components/panel/ui";
 import { ListingPreviewCard } from "@/components/panel/views/profile/ListingPreviewCard";
+import { ClubHeroSurface } from "@/components/panel/views/profile/ClubHeroSurface";
 import { ProfilePublicPreviewBar } from "@/components/panel/views/profile/ProfilePublicPreviewBar";
 import { ProfilePublicPreviewClub } from "@/components/panel/views/profile/ProfilePublicPreviewClub";
 import { getPanelPromosByLocalId, type Promo } from "@/lib/promos";
-import { ChevronDown } from "lucide-react";
+import {
+  Armchair,
+  ChevronDown,
+  Ticket,
+  Trash2,
+  X,
+} from "lucide-react";
 
 // Helpers para arrays (sin dependencias)
 const parseLines = (text: string): string[] =>
@@ -49,6 +57,21 @@ const toLines = (arr?: string[] | null): string =>
 const OPENING_HOURS_TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const OPENING_HOURS_DEFAULT_RANGE: OpeningHoursRange = { start: "18:00", end: "23:00" };
+const DELETE_BUTTON_DATA_ATTR = { "data-panel-delete-button": "true" } as const;
+const PROFILE_EDIT_DARK_SCOPE_ATTR = { "data-profile-dark-scope": "true" } as const;
+const PROFILE_PRIMARY_CTA_ATTR = { "data-profile-primary-cta": "true" } as const;
+const PROFILE_ATTRIBUTE_CHIP_ATTR = { "data-profile-attribute-chip": "true" } as const;
+const PROFILE_DISCLOSURE_ATTR = { "data-profile-disclosure": "true" } as const;
+const PROFILE_DISCLOSURE_PANEL_ATTR = { "data-profile-disclosure-panel": "true" } as const;
+const PROFILE_INLINE_DISCLOSURE_ATTR = { "data-profile-inline-disclosure": "true" } as const;
+const PROFILE_INLINE_DISCLOSURE_PANEL_ATTR = {
+  "data-profile-inline-disclosure-panel": "true",
+} as const;
+const PROFILE_SECTION_SHELL_CLASS = "rounded-[28px] border border-neutral-200 bg-white p-6 sm:p-8";
+const LISTING_PREVIEW_REFERENCES = [
+  { key: "desktop", label: "Desktop", widthClass: "w-[286px]" },
+  { key: "mobile", label: "Mobile", widthClass: "w-[328px]" },
+] as const;
 
 const OPENING_HOURS_DAY_LABELS: Record<OpeningHoursDayKey, { short: string; full: string }> = {
   mon: { short: "Lun", full: "Lunes" },
@@ -294,6 +317,11 @@ const validateOpeningHoursForSubmit = (openingHours: OpeningHoursV1): OpeningHou
 };
 
 type ParsedCoordinate = number | null | "invalid";
+interface ParsedCoordinatePair {
+  latitude: ParsedCoordinate;
+  longitude: ParsedCoordinate;
+  formatError: boolean;
+}
 
 const PARAGUAY_BOUNDS = {
   minLat: -27.7,
@@ -318,6 +346,41 @@ const parseCoordinateInput = (value: string): ParsedCoordinate => {
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed)) return "invalid";
   return parsed;
+};
+
+const parseCoordinatePairInput = (value: string): ParsedCoordinatePair => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {
+      latitude: null,
+      longitude: null,
+      formatError: false,
+    };
+  }
+
+  const parts = trimmed.split(",");
+  if (parts.length !== 2 || parts.some((part) => part.trim().length === 0)) {
+    return {
+      latitude: "invalid",
+      longitude: "invalid",
+      formatError: true,
+    };
+  }
+
+  return {
+    latitude: parseCoordinateInput(parts[0]),
+    longitude: parseCoordinateInput(parts[1]),
+    formatError: false,
+  };
+};
+
+const formatCoordinatePairInput = (latitude: string, longitude: string): string => {
+  const trimmedLatitude = latitude.trim();
+  const trimmedLongitude = longitude.trim();
+
+  if (!trimmedLatitude && !trimmedLongitude) return "";
+  if (trimmedLatitude && trimmedLongitude) return `${trimmedLatitude},${trimmedLongitude}`;
+  return `${trimmedLatitude},${trimmedLongitude}`;
 };
 
 const isInRange = (value: number, min: number, max: number): boolean =>
@@ -364,29 +427,25 @@ interface ImageValidationResult {
   dimensions?: { width: number; height: number };
 }
 
-function FormatsDisclosure({ recommended, note }: { recommended: string; note?: string }) {
+function FormatsDisclosure({ recommended }: { recommended: string }) {
   return (
-    <details className="group mb-4 rounded-lg border border-gray-200 bg-white">
+    <details
+      {...PROFILE_DISCLOSURE_ATTR}
+      className="group mb-4 rounded-lg border border-gray-200 bg-white"
+    >
       <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 [&::-webkit-details-marker]:hidden">
         <span>Formatos y restricciones</span>
         <ChevronDown className="h-4 w-4 text-gray-500 transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t border-gray-200 px-4 py-3">
-        <ul className="space-y-1 text-xs text-gray-600">
-          <li>
-            <span className="font-medium">Formatos:</span> JPG, PNG, WebP
-          </li>
-          <li>
-            <span className="font-medium">Máximo:</span> {MAX_FILE_SIZE_MB}MB
-          </li>
-          <li>
-            <span className="font-medium">Mínimo:</span> {MIN_WIDTH}×{MIN_HEIGHT}px
-          </li>
-          <li>
-            <span className="font-medium">Recomendado:</span> {recommended}
-          </li>
-          {note ? <li className="pt-1 text-gray-500">{note}</li> : null}
-        </ul>
+      <div
+        {...PROFILE_DISCLOSURE_PANEL_ATTR}
+        className="border-t border-gray-200 px-4 py-3"
+      >
+        <div className="space-y-1.5 text-xs leading-relaxed text-gray-600">
+          <p>{`JPG, PNG o WebP · máximo ${MAX_FILE_SIZE_MB} MB · mínimo ${MIN_WIDTH}×${MIN_HEIGHT} px`}</p>
+          <p>{`Recomendado: ${recommended}`}</p>
+          <p>Si la proporción difiere, se recortará al centro.</p>
+        </div>
       </div>
     </details>
   );
@@ -428,6 +487,7 @@ export default function ProfilePage() {
     hoursText: "",
     additionalInfoText: "",
   });
+  const [coordinatesInput, setCoordinatesInput] = useState("");
   const [openingHoursDraft, setOpeningHoursDraft] = useState<OpeningHoursV1>(createDefaultOpeningHours);
   const [useStructuredHours, setUseStructuredHours] = useState(false);
   const [openingHoursErrors, setOpeningHoursErrors] = useState<string[]>([]);
@@ -435,11 +495,18 @@ export default function ProfilePage() {
   const [previewPromos, setPreviewPromos] = useState<Promo[]>([]);
   const [promosLoading, setPromosLoading] = useState(false);
   const [promosError, setPromosError] = useState<string | null>(null);
+  const [showClubGalleryManager, setShowClubGalleryManager] = useState(false);
   const promosCacheRef = useRef<Map<string, Promo[]>>(new Map());
 
   // Estados del catálogo (solo clubs)
   const [catalogTickets, setCatalogTickets] = useState<CatalogTicket[]>([]);
   const [catalogTables, setCatalogTables] = useState<CatalogTable[]>([]);
+  const [openTicketBenefits, setOpenTicketBenefits] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [openTableIncludes, setOpenTableIncludes] = useState<Record<string, boolean>>(
+    {},
+  );
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSuccess, setCatalogSuccess] = useState<string | null>(null);
@@ -451,6 +518,14 @@ export default function ProfilePage() {
   const [showNewTableForm, setShowNewTableForm] = useState(false);
   const [newTicketData, setNewTicketData] = useState({ name: "", price: "", description: "" });
   const [newTableData, setNewTableData] = useState({ name: "", price: "", capacity: "", includes: "" });
+  const closeNewTicketModal = () => {
+    setShowNewTicketForm(false);
+    setNewTicketData({ name: "", price: "", description: "" });
+  };
+  const closeNewTableModal = () => {
+    setShowNewTableForm(false);
+    setNewTableData({ name: "", price: "", capacity: "", includes: "" });
+  };
 
   // Determinar si el usuario puede editar (solo owner)
   const canEdit = context?.role === "owner";
@@ -528,6 +603,12 @@ export default function ProfilePage() {
         hoursText: toLines(data.hours),
         additionalInfoText: toLines(data.additional_info),
       });
+      setCoordinatesInput(
+        formatCoordinatePairInput(
+          data.latitude != null ? String(data.latitude) : "",
+          data.longitude != null ? String(data.longitude) : "",
+        ),
+      );
       setOpeningHoursDraft(normalizedOpeningHours);
       setUseStructuredHours(Boolean(data.opening_hours));
       setOpeningHoursErrors([]);
@@ -729,6 +810,7 @@ export default function ProfilePage() {
 
   // Computed: contadores para tickets
   const activeTicketsCount = catalogTickets.filter((t) => t.is_active).length;
+  const activeTablesCount = catalogTables.filter((t) => t.is_active).length;
   const canAddMoreTickets = catalogTickets.length < MAX_TICKET_TYPES;
   const canActivateMoreTickets = activeTicketsCount < MAX_ACTIVE_TICKETS;
 
@@ -843,13 +925,19 @@ export default function ProfilePage() {
       return;
     }
 
-    const parsedLatitude = parseCoordinateInput(formData.latitude);
+    const parsedCoordinates = parseCoordinatePairInput(coordinatesInput);
+    if (parsedCoordinates.formatError) {
+      setError("Coordenadas inválidas. Usa el formato lat,lng.");
+      return;
+    }
+
+    const parsedLatitude = parsedCoordinates.latitude;
     if (parsedLatitude === "invalid" || (parsedLatitude !== null && (parsedLatitude < -90 || parsedLatitude > 90))) {
       setError("Latitud inválida. Debe estar entre -90 y 90.");
       return;
     }
 
-    const parsedLongitude = parseCoordinateInput(formData.longitude);
+    const parsedLongitude = parsedCoordinates.longitude;
     if (parsedLongitude === "invalid" || (parsedLongitude !== null && (parsedLongitude < -180 || parsedLongitude > 180))) {
       setError("Longitud inválida. Debe estar entre -180 y 180.");
       return;
@@ -900,9 +988,17 @@ export default function ProfilePage() {
       setUseStructuredHours(Boolean(updated.opening_hours) || useStructuredHours);
       setFormData((prev) => ({
         ...prev,
+        latitude: updated.latitude != null ? String(updated.latitude) : "",
+        longitude: updated.longitude != null ? String(updated.longitude) : "",
         hoursText: toLines(updated.hours),
         additionalInfoText: toLines(updated.additional_info),
       }));
+      setCoordinatesInput(
+        formatCoordinatePairInput(
+          updated.latitude != null ? String(updated.latitude) : "",
+          updated.longitude != null ? String(updated.longitude) : "",
+        ),
+      );
       setSuccess(true);
 
       // Ocultar mensaje de exito despues de 3s
@@ -921,6 +1017,39 @@ export default function ProfilePage() {
       latitude: String(parsedLongitudeInput),
       longitude: String(parsedLatitudeInput),
     }));
+    setCoordinatesInput(`${parsedLongitudeInput},${parsedLatitudeInput}`);
+  };
+
+  const handleCoordinatesInputChange = (value: string) => {
+    setCoordinatesInput(value);
+
+    const parsedCoordinates = parseCoordinatePairInput(value);
+    if (!value.trim()) {
+      setFormData((prev) => ({
+        ...prev,
+        latitude: "",
+        longitude: "",
+      }));
+      return;
+    }
+
+    if (
+      !parsedCoordinates.formatError &&
+      parsedCoordinates.latitude !== "invalid" &&
+      parsedCoordinates.longitude !== "invalid"
+    ) {
+      setFormData((prev) => ({
+        ...prev,
+        latitude:
+          typeof parsedCoordinates.latitude === "number"
+            ? String(parsedCoordinates.latitude)
+            : "",
+        longitude:
+          typeof parsedCoordinates.longitude === "number"
+            ? String(parsedCoordinates.longitude)
+            : "",
+      }));
+    }
   };
 
   // ==========================================================================
@@ -1199,25 +1328,25 @@ export default function ProfilePage() {
   const previewAddress = formData.address.trim();
   const previewLocation = formData.location.trim();
   const previewCity = formData.city.trim();
-  const parsedLatitudeInput = parseCoordinateInput(formData.latitude);
-  const parsedLongitudeInput = parseCoordinateInput(formData.longitude);
-  const latitudeInlineError =
-    parsedLatitudeInput === "invalid"
+  const parsedCoordinateInput = parseCoordinatePairInput(coordinatesInput);
+  const parsedLatitudeInput = parsedCoordinateInput.latitude;
+  const parsedLongitudeInput = parsedCoordinateInput.longitude;
+  const coordinateInlineError = parsedCoordinateInput.formatError
+    ? "Usa el formato lat,lng."
+    : parsedLatitudeInput === "invalid"
       ? "Latitud inválida."
       : typeof parsedLatitudeInput === "number" && !isInRange(parsedLatitudeInput, -90, 90)
         ? "Latitud fuera de rango (-90 a 90)."
-        : null;
-  const longitudeInlineError =
-    parsedLongitudeInput === "invalid"
-      ? "Longitud inválida."
-      : typeof parsedLongitudeInput === "number" && !isInRange(parsedLongitudeInput, -180, 180)
-        ? "Longitud fuera de rango (-180 a 180)."
-        : null;
+        : parsedLongitudeInput === "invalid"
+          ? "Longitud inválida."
+          : typeof parsedLongitudeInput === "number" &&
+              !isInRange(parsedLongitudeInput, -180, 180)
+            ? "Longitud fuera de rango (-180 a 180)."
+            : null;
   const hasValidCoordinatePair =
     typeof parsedLatitudeInput === "number" &&
     typeof parsedLongitudeInput === "number" &&
-    !latitudeInlineError &&
-    !longitudeInlineError;
+    !coordinateInlineError;
   const likelySwappedCoordinates =
     hasValidCoordinatePair && isLikelySwappedCoordinates(parsedLatitudeInput, parsedLongitudeInput);
   const outsideParaguayBounds =
@@ -1234,6 +1363,30 @@ export default function ProfilePage() {
     ? derivedLegacyHoursExpanded
     : parseLines(formData.hoursText);
   const previewAdditionalInfo = parseLines(formData.additionalInfoText);
+  const renderListingPreviewReferences = (imageUrl: string | null) => (
+    <div className="flex flex-wrap justify-center gap-6">
+      {LISTING_PREVIEW_REFERENCES.map((reference) => (
+        <div key={reference.key} className="flex flex-col items-center gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+            {reference.label}
+          </p>
+          <div className={cn("max-w-full", reference.widthClass)}>
+            <ListingPreviewCard
+              localType={context.local.type}
+              name={previewName}
+              imageUrl={imageUrl}
+              location={previewLocation}
+              city={previewCity}
+              attributes={previewAttributes}
+              minAge={minAge}
+              hours={previewHours}
+              className={cn("max-w-full", reference.widthClass)}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
   const previewAttributes = selectedAttributes.slice(0, 3);
   const previewCoverImage = sortedGallery.find((item) => item.kind === "cover")?.url ?? null;
   const previewHeroImage = sortedGallery.find((item) => item.kind === "hero")?.url ?? null;
@@ -1273,7 +1426,7 @@ export default function ProfilePage() {
       </div>
 
       {activeTab === "edit" ? (
-        <>
+        <div {...PROFILE_EDIT_DARK_SCOPE_ATTR} className="space-y-8">
           {/* Mensaje de permisos */}
           {!canEdit && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -1302,16 +1455,13 @@ export default function ProfilePage() {
           {/* =================================================================== */}
           {/* GALERÍA DEL LOCAL */}
           {/* =================================================================== */}
-      <section className="bg-white p-6 rounded-lg shadow">
+      <section
+        data-profile-module="gallery"
+        className={PROFILE_SECTION_SHELL_CLASS}
+      >
         <h2 className="text-xl font-semibold text-gray-900 mb-4">
           Galería del Local
         </h2>
-        <p className="text-sm text-gray-600 mb-4">
-          {context.local.type === "bar" 
-            ? "Imágenes para tu perfil: portada y categorías (Comida, Carta, Tragos, Interior)."
-            : "Imágenes para tu perfil: portada y carrusel."
-          }
-        </p>
 
         {/* Gallery error */}
         {galleryError && (
@@ -1334,10 +1484,13 @@ export default function ProfilePage() {
         )}
 
         {/* ===== FOTO DE PERFIL (cover) ===== */}
-        <div className="mb-8 p-4 border-2 border-blue-100 rounded-xl bg-blue-50/30">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">📸 Foto de Perfil</h3>
+        <div
+          data-profile-accent-surface="true"
+          className="pb-8"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Foto de Perfil</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Esta imagen aparecerá en la card del local. Es lo primero que ve el usuario antes de entrar al perfil.
+            Esta imagen aparecerá en la foto de perfil del local.
           </p>
 
           <FormatsDisclosure recommended={RECOMMENDED_SIZES.cover.label} />
@@ -1345,73 +1498,82 @@ export default function ProfilePage() {
           {(() => {
             const coverImage = sortedGallery.find(g => g.kind === "cover");
             return (
-              <div className="grid min-w-0 grid-cols-1 gap-6 overflow-x-hidden xl:grid-cols-[minmax(0,420px)_minmax(0,360px)] xl:items-start xl:justify-center">
-                {/* Imagen actual o uploader */}
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Imagen actual</p>
-                  {coverImage ? (
-                    <div className="relative w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm bg-white">
-                      <img src={coverImage.url} alt="Foto de perfil" className="absolute inset-0 h-full w-full object-cover object-center" />
-                      {canEdit && (
-                        <button
-                          onClick={() => handleDeleteImage(coverImage.id)}
-                          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-lg"
-                          title="Eliminar foto de perfil"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      )}
+              <div className="flex min-w-0 flex-col items-center gap-4 overflow-x-hidden">
+                <div className="w-full">
+                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide text-center">Preview de card del listado</p>
+                  {renderListingPreviewReferences(coverImage?.url ?? previewHeroImage)}
+                </div>
+
+                {canEdit ? (
+                  coverImage ? (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      <label
+                        data-profile-soft-action="true"
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                      >
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, "cover")}
+                          disabled={uploading}
+                        />
+                        <span>Cambiar foto</span>
+                      </label>
+                      <button
+                        onClick={() => handleDeleteImage(coverImage.id)}
+                        {...DELETE_BUTTON_DATA_ATTR}
+                        className={cn(
+                          panelUi.destructiveOutline,
+                          "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+                        )}
+                        title="Eliminar foto de perfil"
+                      >
+                        <span>Eliminar</span>
+                      </button>
                     </div>
-                  ) : canEdit ? (
-                    <label className="block w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg border-2 border-dashed border-blue-300 hover:border-blue-500 bg-white cursor-pointer flex flex-col items-center justify-center text-blue-500 hover:text-blue-600 transition-colors">
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="hidden"
-                        onChange={(e) => handleFileSelect(e, "cover")}
-                        disabled={uploading}
-                      />
-                      <span className="text-3xl mb-2">📷</span>
-                      <span className="font-medium">Subir foto de perfil</span>
-                      <span className="text-xs text-gray-400 mt-1">Hacé click o arrastrá una imagen</span>
-                    </label>
                   ) : (
-                    <div className="w-full max-w-[420px] aspect-video max-h-[240px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
-                      Sin foto de perfil
+                    <div className="flex max-w-[360px] flex-col items-center gap-3 text-center">
+                      <p className="text-sm text-gray-500">
+                        No hay foto de perfil cargada. Subila y la verás aplicada directamente en la card del listado.
+                      </p>
+                      <label
+                        data-profile-soft-action="true"
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                      >
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => handleFileSelect(e, "cover")}
+                          disabled={uploading}
+                        />
+                        <span>Subir foto de perfil</span>
+                      </label>
                     </div>
-                  )}
-                </div>
-                <div className="min-w-0 w-full xl:max-w-[360px]">
-                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Vista previa en listado</p>
-                  <div className="w-full max-w-full overflow-hidden px-1">
-                    <div className="flex w-full max-w-full justify-center">
-                      <ListingPreviewCard
-                        localType={context.local.type}
-                        name={previewName}
-                        imageUrl={coverImage?.url ?? previewHeroImage}
-                        location={previewLocation}
-                        city={previewCity}
-                        attributes={previewAttributes}
-                        minAge={minAge}
-                        hours={previewHours}
-                        className="w-full max-w-[360px]"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2 italic">
-                    Así se verá tu local en el listado de {context.local.type === "bar" ? "bares" : "discotecas"}
-                  </p>
-                </div>
+                  )
+                ) : null}
               </div>
             );
           })()}
         </div>
 
+        <div
+          id="profile-gallery-divider-lightmode-01"
+          aria-hidden="true"
+          className="border-t border-neutral-200 pt-8"
+        />
+
         {/* ===== HERO (BAR y CLUB) ===== */}
-        <div className="mb-8 p-4 border-2 border-purple-100 rounded-xl bg-purple-50/30">
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">🖼️ Imagen Principal del Perfil (Hero)</h3>
+        <div
+          data-profile-accent-surface="true"
+          className="mb-8"
+        >
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">
+            {context.local.type === "bar" ? "Imagen Principal del Perfil" : "Imagen principal del perfil"}
+          </h3>
           <p className="text-sm text-gray-600 mb-4">
-            Esta imagen aparece dentro del perfil de tu local como imagen principal. Es diferente a la Foto de Perfil que se ve en la card del listado.
+            Esta imagen aparece dentro del perfil de tu local como imagen principal. Es diferente a la Foto de Perfil.
           </p>
 
             <FormatsDisclosure recommended={RECOMMENDED_SIZES.hero.label} />
@@ -1422,6 +1584,7 @@ export default function ProfilePage() {
               const isDuplicate = heroImage && coverImage && heroImage.url === coverImage.url;
               const isBarLocal = context.local.type === "bar";
               const heroPreviewImage = heroImage ?? coverImage;
+              const carouselImages = sortedGallery.filter((item) => item.kind === "carousel");
               const barPreviewTiles = (["food", "menu", "drinks", "interior"] as const).map((kind) => ({
                 kind,
                 label: GALLERY_KIND_LABELS[kind],
@@ -1446,41 +1609,50 @@ export default function ProfilePage() {
                         : "grid grid-cols-1 gap-6"
                     }
                   >
-                    {/* Imagen actual o uploader */}
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Imagen actual</p>
-                      {heroImage ? (
-                        <div className="relative w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
-                          <img src={heroImage.url} alt="Imagen principal" className="w-full h-full object-cover" />
-                          {canEdit && (
-                            <button
-                              onClick={() => handleDeleteImage(heroImage.id)}
-                              className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-lg"
-                              title="Eliminar imagen principal"
-                            >
-                              🗑️ Eliminar
-                            </button>
-                          )}
-                        </div>
-                      ) : canEdit ? (
-                        <label className="block w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 bg-white cursor-pointer flex flex-col items-center justify-center text-purple-500 hover:text-purple-600 transition-colors">
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="hidden"
-                            onChange={(e) => handleFileSelect(e, "hero")}
-                            disabled={uploading}
-                          />
-                          <span className="text-3xl mb-2">🖼️</span>
-                          <span className="font-medium">Subir imagen principal</span>
-                          <span className="text-xs text-gray-400 mt-1">Esta se ve dentro del perfil</span>
-                        </label>
-                      ) : (
-                        <div className="w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
-                          Sin imagen principal
-                        </div>
-                      )}
-                    </div>
+                    {isBarLocal && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Imagen actual</p>
+                        {heroImage ? (
+                          <div className="relative w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg overflow-hidden border-2 border-gray-200 shadow-sm">
+                            <img src={heroImage.url} alt="Imagen principal" className="w-full h-full object-cover" />
+                            {canEdit && (
+                              <button
+                                onClick={() => handleDeleteImage(heroImage.id)}
+                                {...DELETE_BUTTON_DATA_ATTR}
+                                className={cn(
+                                  panelUi.destructiveOutline,
+                                  "absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium"
+                                )}
+                                title="Eliminar imagen principal"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                <span>Eliminar</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : canEdit ? (
+                          <label
+                            data-profile-soft-action="true"
+                            className="block w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 bg-white cursor-pointer flex flex-col items-center justify-center text-purple-500 hover:text-purple-600 transition-colors"
+                          >
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(e) => handleFileSelect(e, "hero")}
+                              disabled={uploading}
+                            />
+                            <span className="text-3xl mb-2">🖼️</span>
+                            <span className="font-medium">Subir imagen principal</span>
+                            <span className="text-xs text-gray-400 mt-1">Esta se ve dentro del perfil</span>
+                          </label>
+                        ) : (
+                          <div className="w-full max-w-[560px] aspect-video max-h-[280px] rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400">
+                            Sin imagen principal
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {isBarLocal && (
                       <div>
                         <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Vista previa pública (Bar)</p>
@@ -1517,6 +1689,235 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     )}
+
+                    {!isBarLocal && (
+                      <div className="w-full space-y-4">
+                        <ClubHeroSurface
+                          name={previewName || "Nombre de la discoteca"}
+                          heroImageUrl={heroImage?.url ?? null}
+                          showPublicMeta={false}
+                          showHeroTextContent={false}
+                          emptyTitle="Todavia no cargaste una imagen principal"
+                          emptyDescription="Esta superficie muestra la portada visual del perfil de tu discoteca."
+                          emptyAction={
+                            canEdit ? (
+                              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20">
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  onChange={(e) => handleFileSelect(e, "hero")}
+                                  disabled={uploading}
+                                />
+                                <span>Subir imagen principal</span>
+                              </label>
+                            ) : null
+                          }
+                          onOpenGallery={() => setShowClubGalleryManager(true)}
+                        />
+
+                        <div
+                          data-profile-soft-surface="true"
+                          className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm sm:px-6"
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                              <p className="text-sm text-gray-500">
+                                {carouselImages.length > 0
+                                  ? `${carouselImages.length} imagen(es) disponibles en la galeria del perfil.`
+                                  : "Todavia no cargaste imagenes para la galeria del perfil."}
+                              </p>
+                            </div>
+
+                            {canEdit && (
+                              <div className="flex flex-wrap gap-2">
+                                <label
+                                  data-profile-soft-action="true"
+                                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                                >
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, "hero")}
+                                    disabled={uploading}
+                                  />
+                                  <span>{heroImage ? "Cambiar imagen principal" : "Subir hero"}</span>
+                                </label>
+                                {heroImage && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteImage(heroImage.id)}
+                                    {...DELETE_BUTTON_DATA_ATTR}
+                                    className={cn(
+                                      panelUi.destructiveOutline,
+                                      "rounded-lg px-3 py-2 text-sm font-medium"
+                                    )}
+                                  >
+                                    Eliminar
+                                  </button>
+                                )}
+                                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    className="hidden"
+                                    onChange={(e) => handleFileSelect(e, "carousel")}
+                                    disabled={uploading}
+                                  />
+                                  <span>Agregar imagen a galeria</span>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {showClubGalleryManager && (
+                          <div
+                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
+                            onClick={() => setShowClubGalleryManager(false)}
+                            role="dialog"
+                            aria-modal="true"
+                          >
+                            <div
+                              className="relative max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                                <div>
+                                  <h4 className="text-lg font-semibold text-gray-900">Galeria del perfil</h4>
+                                  <p className="mt-1 text-sm text-gray-500">
+                                    Gestiona aca las imagenes que acompanian la experiencia movil del perfil.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowClubGalleryManager(false)}
+                                  className="rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                                >
+                                  Cerrar
+                                </button>
+                              </div>
+
+                              <div className="max-h-[calc(90vh-90px)] overflow-y-auto p-6">
+                                <div className="mb-5 space-y-4">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-800">Imagenes de galeria / carrusel</p>
+                                      <p className="mt-1 text-xs text-gray-500">
+                                        Se muestran cuando el usuario abre la galeria del perfil.
+                                      </p>
+                                    </div>
+                                    {canEdit && (
+                                      <label
+                                        data-profile-soft-action="true"
+                                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                                      >
+                                        <input
+                                          type="file"
+                                          accept="image/jpeg,image/png,image/webp"
+                                          className="hidden"
+                                          onChange={(e) => handleFileSelect(e, "carousel")}
+                                          disabled={uploading}
+                                        />
+                                        <span>Agregar imagen</span>
+                                      </label>
+                                    )}
+                                  </div>
+                                  <FormatsDisclosure
+                                    recommended={RECOMMENDED_SIZES.carousel.label}
+                                  />
+                                </div>
+
+                                {carouselImages.length > 0 ? (
+                                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                    {carouselImages.map((item, idx) => (
+                                      <div key={item.id} className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                                        <div className="relative aspect-[4/3] bg-gray-100">
+                                          <img
+                                            src={item.url}
+                                            alt={`Galeria ${idx + 1}`}
+                                            className="h-full w-full object-cover"
+                                          />
+                                          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-gray-900 shadow-sm">
+                                            #{idx + 1}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                                          <div className="min-w-0">
+                                            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">Orden</p>
+                                            <p className="truncate text-sm font-semibold text-gray-900">#{idx + 1}</p>
+                                          </div>
+                                          {canEdit && (
+                                            <div className="flex gap-2">
+                                              {idx > 0 && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveImage(item.id, "up")}
+                                                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                                                  title="Mover antes"
+                                                >
+                                                  ↑
+                                                </button>
+                                              )}
+                                              {idx < carouselImages.length - 1 && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleMoveImage(item.id, "down")}
+                                                  className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-700"
+                                                  title="Mover despues"
+                                                >
+                                                  ↓
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteImage(item.id)}
+                                                {...DELETE_BUTTON_DATA_ATTR}
+                                                className={cn(
+                                                  panelUi.destructiveOutline,
+                                                  "rounded-md px-2.5 py-1 text-xs font-medium"
+                                                )}
+                                              >
+                                                Eliminar
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 text-center">
+                                    <div className="space-y-3">
+                                      <div className="text-4xl">🖼️</div>
+                                      <div className="space-y-1">
+                                        <p className="text-sm font-medium text-gray-700">Todavia no cargaste imagenes de galeria</p>
+                                        <p className="text-xs text-gray-500">
+                                          Agregalas aca para completar la galeria del perfil.
+                                        </p>
+                                      </div>
+                                      {canEdit && (
+                                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                                          <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            className="hidden"
+                                            onChange={(e) => handleFileSelect(e, "carousel")}
+                                            disabled={uploading}
+                                          />
+                                          <span>Agregar imagenes</span>
+                                        </label>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </>
               );
@@ -1528,23 +1929,29 @@ export default function ProfilePage() {
           /* ===== BAR: Galería por categoría (múltiples imágenes) ===== */
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">🍽️ Galería por Categorías</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Galería por Categorías</h3>
               <p className="text-sm text-gray-600 mb-3">
                 Subí varias imágenes por categoría. La primera de cada una se muestra como foto de su respectivo apartado. Al hacer clic, los usuarios ven la galería completa de esa categoría.
               </p>
               <FormatsDisclosure
                 recommended={RECOMMENDED_SIZES.food.label}
-                note="Si la proporción difiere, se recorta al centro."
               />
             </div>
             {(["food", "menu", "drinks", "interior"] as const).map((kind) => {
               const kindImages = sortedGallery.filter(g => g.kind === kind);
               return (
-                <div key={kind} className="border rounded-lg p-4 bg-gray-50">
+                <div
+                  key={kind}
+                  data-profile-soft-surface="true"
+                  className="border rounded-lg p-4 bg-gray-50"
+                >
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-medium text-gray-800">{GALLERY_KIND_LABELS[kind]}</h4>
                     {canEdit && (
-                      <label className="inline-flex items-center gap-1 px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                      <label
+                        data-profile-soft-action="true"
+                        className="inline-flex items-center gap-1 px-3 py-1 text-sm border border-blue-500 text-blue-600 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors"
+                      >
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
@@ -1563,11 +1970,6 @@ export default function ProfilePage() {
                           <div className="aspect-square rounded-lg overflow-hidden border">
                             <img src={item.url} alt={`${GALLERY_KIND_LABELS[kind]} ${idx + 1}`} className="w-full h-full object-cover" />
                           </div>
-                          {idx === 0 && (
-                            <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-blue-500 text-white text-xs rounded font-medium">
-                              Principal
-                            </span>
-                          )}
                           {canEdit && (
                             <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               {idx > 0 && (
@@ -1590,10 +1992,14 @@ export default function ProfilePage() {
                               )}
                               <button
                                 onClick={() => handleDeleteImage(item.id)}
-                                className="p-1 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                                {...DELETE_BUTTON_DATA_ATTR}
+                                className={cn(
+                                  panelUi.destructiveOutline,
+                                  "inline-flex items-center justify-center rounded-md p-1.5"
+                                )}
                                 title="Eliminar"
                               >
-                                🗑️
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           )}
@@ -1609,571 +2015,467 @@ export default function ProfilePage() {
               );
             })}
           </div>
-        ) : (
-          /* ===== CLUB: Carrusel ordenable ===== */
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">🎠 Carrusel de Imágenes</h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Estas imágenes se mostrarán dentro del botón «Ver galería». En celular, se verán como un carrusel horizontal (en mobile no hay botón «Ver galería»).
-            </p>
-            <FormatsDisclosure recommended={RECOMMENDED_SIZES.carousel.label} />
-            
-            {/* Add carousel image */}
-            {canEdit && (
-              <label className="inline-flex items-center gap-2 px-4 py-2 mb-4 border-2 border-blue-500 text-blue-600 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors font-medium">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => handleFileSelect(e, "carousel")}
-                  disabled={uploading}
-                />
-                <span>📷 Agregar imagen al carrusel</span>
-              </label>
-            )}
+        ) : null}
 
-            {/* Carousel images grid */}
-            {(() => {
-              const carouselImages = sortedGallery.filter(g => g.kind === "carousel");
-              return carouselImages.length > 0 ? (
-                <div className="w-full overflow-x-auto overflow-y-hidden pb-2">
-                  <div className="flex gap-3 min-w-max pr-2">
-                    {carouselImages.map((item, idx) => (
-                      <div key={item.id} className="relative group w-[220px] sm:w-[250px] md:w-[280px] flex-none">
-                        <div className="aspect-video rounded-lg overflow-hidden border bg-white">
-                          <img src={item.url} alt={`Carrusel ${idx + 1}`} className="w-full h-full object-cover" />
-                        </div>
-                        <span className="absolute top-1 left-1 px-1.5 py-0.5 bg-black bg-opacity-60 text-white text-xs rounded">
-                          {idx + 1}
-                        </span>
-                        {canEdit && (
-                          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {idx > 0 && (
-                              <button
-                                onClick={() => handleMoveImage(item.id, "up")}
-                                className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
-                                title="Mover arriba"
-                              >
-                                ↑
-                              </button>
-                            )}
-                            {idx < carouselImages.length - 1 && (
-                              <button
-                                onClick={() => handleMoveImage(item.id, "down")}
-                                className="p-1 bg-white rounded-full text-xs shadow hover:bg-gray-100"
-                                title="Mover abajo"
-                              >
-                                ↓
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDeleteImage(item.id)}
-                              className="p-1 bg-red-500 text-white rounded-full text-xs hover:bg-red-600"
-                              title="Eliminar"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8 bg-gray-50 rounded-lg text-gray-500 text-sm">
-                  No hay imágenes en el carrusel
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* Size guidelines summary */}
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <details className="text-xs text-gray-500">
-            <summary className="cursor-pointer font-medium text-gray-600 hover:text-gray-800">
-              ℹ️ Ver todas las restricciones de imágenes
-            </summary>
-            <div className="mt-2 p-3 bg-gray-50 rounded-lg space-y-1">
-              <p><strong>Formatos aceptados:</strong> JPG, PNG, WebP</p>
-              <p><strong>Peso máximo:</strong> {MAX_FILE_SIZE_MB}MB por imagen</p>
-              <p><strong>Resolución mínima:</strong> {MIN_WIDTH}×{MIN_HEIGHT} píxeles</p>
-              <p><strong>Cantidad máxima:</strong> 12 imágenes en total</p>
-              <p className="pt-2 border-t border-gray-200 mt-2"><strong>Tamaños recomendados:</strong></p>
-              <ul className="list-disc list-inside ml-2">
-                <li>Foto de perfil / Carrusel: 1600×900 (16:9)</li>
-                <li>Categorías (Comida, Carta, Tragos, Interior): 800×800 (1:1)</li>
-              </ul>
-            </div>
-          </details>
-        </div>
       </section>
 
       {/* =================================================================== */}
       {/* FORMULARIO DE DATOS */}
       {/* =================================================================== */}
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Información del Local
-        </h2>
-
-        <div className="space-y-6">
-          {/* Name */}
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Nombre del local *
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              required
-            />
-          </div>
-
-          {/* Address */}
-          <div>
-            <label
-              htmlFor="address"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Dirección
-            </label>
-            <input
-              type="text"
-              id="address"
-              value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              placeholder="Ej: Av. Mariscal López 1234"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Dirección completa para geolocalizar el pin y para &quot;Cómo llegar&quot;.
-            </p>
-          </div>
-
-          {/* Location (zona/barrio) */}
-          <div>
-            <label
-              htmlFor="location"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Zona / Barrio
-            </label>
-            <select
-              id="location"
-              value={formData.location}
-              onChange={(e) =>
-                setFormData({ ...formData, location: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Seleccionar zona...</option>
-              {ZONES.map((zone) => (
-                <option key={zone} value={zone}>{zone}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Esta zona se muestra en tu perfil y cards del listado.
-            </p>
-          </div>
-
-          {/* City (ciudad) */}
-          <div>
-            <label
-              htmlFor="city"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Ciudad
-            </label>
-            <select
-              id="city"
-              value={formData.city}
-              onChange={(e) =>
-                setFormData({ ...formData, city: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Seleccionar ciudad...</option>
-              {CITIES.map((city) => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Se usa para mostrar &quot;Zona • Ciudad&quot; y para que &quot;Cómo llegar&quot; sea exacto.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label
-                htmlFor="latitude"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Latitud (ej: -25.280046)
-              </label>
-              <input
-                type="text"
-                id="latitude"
-                value={formData.latitude}
-                onChange={(e) =>
-                  setFormData({ ...formData, latitude: e.target.value })
-                }
-                disabled={!canEdit || saving}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="-25.280046"
-              />
-              {latitudeInlineError ? (
-                <p className="mt-1 text-xs text-red-600">{latitudeInlineError}</p>
-              ) : null}
-            </div>
-
-            <div>
-              <label
-                htmlFor="longitude"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Longitud (ej: -57.634381)
-              </label>
-              <input
-                type="text"
-                id="longitude"
-                value={formData.longitude}
-                onChange={(e) =>
-                  setFormData({ ...formData, longitude: e.target.value })
-                }
-                disabled={!canEdit || saving}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="-57.634381"
-              />
-              {longitudeInlineError ? (
-                <p className="mt-1 text-xs text-red-600">{longitudeInlineError}</p>
-              ) : null}
-            </div>
-          </div>
-          <p className="mt-1 text-xs text-gray-500">
-            Ubicación exacta (recomendado). Si no la cargás, el mapa puede quedar aproximado.
-          </p>
-          <p className="text-xs text-gray-500">
-            Google Maps devuelve: lat, lng.
-          </p>
-          <p className="text-xs text-gray-500">
-            Mapbox &quot;center&quot; devuelve: lng, lat (si pegás eso, invertí).
-          </p>
-          {mapsPreviewUrl ? (
-            <a
-              href={mapsPreviewUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
-            >
-              Ver en Google Maps
-            </a>
-          ) : null}
-          {outsideParaguayBounds ? (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <p>
-                {likelySwappedCoordinates
-                  ? "Las coordenadas parecen invertidas (lat/lng)."
-                  : "Las coordenadas están fuera de Paraguay y podrían generar un pin incorrecto."}
+      <form
+        id="profile-edit-form"
+        data-profile-edit-form="true"
+        onSubmit={handleSubmit}
+        className="space-y-8"
+      >
+        <div className="space-y-8">
+          <section
+            data-profile-module="local-info"
+            className={PROFILE_SECTION_SHELL_CLASS}
+          >
+            <div className="space-y-1">
+              <h2 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                Informacion del Local
+              </h2>
+              <p className="text-base text-neutral-500">
+                Datos principales que se muestran en el perfil publico
               </p>
-              {likelySwappedCoordinates ? (
-                <button
-                  type="button"
-                  onClick={handleSwapCoordinates}
-                  className="mt-2 inline-flex rounded-md border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100"
-                >
-                  Intercambiar
-                </button>
-              ) : null}
             </div>
-          ) : null}
 
-          {/* Edad Mínima */}
-          <div>
-            <label
-              htmlFor="minAge"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Edad mínima
-            </label>
-            <select
-              id="minAge"
-              value={minAge === null ? "" : String(minAge)}
-              onChange={(e) => {
-                const val = e.target.value;
-                setMinAge(val === "" ? null : parseInt(val, 10));
-              }}
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              <option value="">Todo público (sin restricción)</option>
-              {MIN_AGES.map((age) => (
-                <option key={age} value={age}>+{age}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Si seleccionás &quot;Todo público&quot;, no se mostrará restricción de edad en la card.
-            </p>
-          </div>
+            <div className="mt-8 space-y-8">
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
+                    Nombre del local *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                    required
+                  />
+                </div>
 
-          {/* Attributes / Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {context?.local.type === "bar" ? "Especialidades" : "Géneros musicales"}{" "}
-              <span className="text-gray-400 font-normal">
-                ({selectedAttributes.length}/3)
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {(context?.local.type ? getAttributesAllowlist(context.local.type as "bar" | "club") : []).map((attr) => {
-                const isSelected = selectedAttributes.includes(attr);
-                const isDisabled = !canEdit || saving || (!isSelected && selectedAttributes.length >= 3);
-
-                return (
-                  <button
-                    key={attr}
-                    type="button"
-                    onClick={() => {
-                      if (!canEdit || saving) return;
-                      if (isSelected) {
-                        setSelectedAttributes(selectedAttributes.filter(a => a !== attr));
-                      } else if (selectedAttributes.length < 3) {
-                        setSelectedAttributes([...selectedAttributes, attr]);
-                      }
-                    }}
-                    disabled={isDisabled}
-                    className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
-                      isSelected
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : isDisabled
-                          ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
-                          : "bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600"
-                    }`}
-                  >
-                    {attr}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Seleccioná hasta 3 {context?.local.type === "bar" ? "especialidades" : "géneros"} que aparecerán en tu perfil y cards del listado.
-            </p>
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label
-              htmlFor="phone"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Teléfono de contacto
-            </label>
-            <input
-              type="tel"
-              id="phone"
-              value={formData.phone}
-              onChange={(e) =>
-                setFormData({ ...formData, phone: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              placeholder="Ej: (021) 123-456"
-            />
-          </div>
-
-          {/* WhatsApp */}
-          <div>
-            <label
-              htmlFor="whatsapp"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              WhatsApp
-            </label>
-            <input
-              type="tel"
-              id="whatsapp"
-              value={formData.whatsapp}
-              onChange={(e) =>
-                setFormData({ ...formData, whatsapp: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              placeholder="Ej: 595981123456"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Número con código de país para el botón de WhatsApp.
-            </p>
-          </div>
-
-          {/* Opening hours v1 + legacy compatibility */}
-          <div className="space-y-4">
-            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Horarios (nuevo)</p>
-                  <p className="text-xs text-gray-600 mt-0.5">
-                    Editor semanal v1 (America/Asuncion). Soporta rangos overnight.
+                <div className="space-y-2">
+                  <label htmlFor="address" className="block text-sm font-medium text-neutral-700">
+                    Direccion
+                  </label>
+                  <input
+                    type="text"
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                    placeholder="Ej: Av. Mariscal Lopez 1234"
+                  />
+                  <p className="text-sm text-neutral-500">
+                    Direccion completa para el boton de &quot;Como llegar&quot;.
                   </p>
                 </div>
-                {!hasPersistedOpeningHours && (
-                  <button
-                    type="button"
-                    onClick={() => handleStructuredHoursToggle(!useStructuredHours)}
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label htmlFor="location" className="block text-sm font-medium text-neutral-700">
+                    Zona / Barrio
+                  </label>
+                  <select
+                    id="location"
+                    value={formData.location}
+                    onChange={(e) =>
+                      setFormData({ ...formData, location: e.target.value })
+                    }
                     disabled={!canEdit || saving}
-                    className="px-3 py-1.5 text-xs font-medium rounded-md border border-blue-200 text-blue-700 bg-white hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
                   >
-                    {useStructuredHours ? "Usar modo legacy" : "Usar editor estructurado"}
-                  </button>
+                    <option value="">Seleccionar zona...</option>
+                    {ZONES.map((zone) => (
+                      <option key={zone} value={zone}>{zone}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="city" className="block text-sm font-medium text-neutral-700">
+                    Ciudad
+                  </label>
+                  <select
+                    id="city"
+                    value={formData.city}
+                    onChange={(e) =>
+                      setFormData({ ...formData, city: e.target.value })
+                    }
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                  >
+                    <option value="">Seleccionar ciudad...</option>
+                    {CITIES.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="minAge" className="block text-sm font-medium text-neutral-700">
+                    Edad minima
+                  </label>
+                  <select
+                    id="minAge"
+                    value={minAge === null ? "" : String(minAge)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMinAge(val === "" ? null : parseInt(val, 10));
+                    }}
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                  >
+                    <option value="">Todo publico (sin restriccion)</option>
+                    {MIN_AGES.map((age) => (
+                      <option key={age} value={age}>+{age}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="coordinates" className="block text-sm font-medium text-neutral-700">
+                  Coordenadas
+                </label>
+                <input
+                  type="text"
+                  id="coordinates"
+                  value={coordinatesInput}
+                  onChange={(e) => handleCoordinatesInputChange(e.target.value)}
+                  disabled={!canEdit || saving}
+                  className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                  placeholder="-25.2912657246182,-57.5743895830327"
+                />
+                {coordinateInlineError ? (
+                  <p className="text-sm text-red-600">{coordinateInlineError}</p>
+                ) : (
+                  <p className="text-sm text-neutral-500">
+                    Pega las coordenadas en formato lat,lng.
+                  </p>
                 )}
               </div>
 
-              {useStructuredHours ? (
-                <div className="mt-4 space-y-3">
-                  {OPENING_HOURS_DAY_KEYS.map((dayKey) => {
-                    const dayConfig = openingHoursDraft.days[dayKey];
-                    const dayLabel = OPENING_HOURS_DAY_LABELS[dayKey];
-                    const isClosed = dayConfig.closed;
+              <div
+                data-profile-location-help="true"
+                className="rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 px-4 py-4"
+              >
+                <p className="text-sm font-medium text-neutral-700">
+                  Ubicacion exacta recomendada
+                </p>
+                <details {...PROFILE_DISCLOSURE_ATTR} className="group mt-2">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-neutral-600 hover:text-neutral-900 [&::-webkit-details-marker]:hidden">
+                    <span>Como verificar las coordenadas</span>
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div
+                    {...PROFILE_DISCLOSURE_PANEL_ATTR}
+                    className="mt-3 space-y-1 text-sm text-neutral-500"
+                  >
+                    <p>
+                      Te recomendamos abrir la ubicacion del local en Google Maps y copiar
+                      la latitud y longitud.
+                    </p>
+                    <p>
+                      Luego clickear el texto en azul que dice "Ver en google Maps" y
+                      deberia llevarte a la ubicacion exacta.
+                    </p>
+                    <p>
+                      Si no es la ubicacion exacta, revisa el orden en el que pegaste la
+                      latitud y longitud.
+                    </p>
+                    {mapsPreviewUrl ? (
+                      <a
+                        href={mapsPreviewUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="inline-flex pt-1 font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Ver en Google Maps
+                      </a>
+                    ) : null}
+                  </div>
+                </details>
+                {outsideParaguayBounds ? (
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    <p>
+                      {likelySwappedCoordinates
+                        ? "Las coordenadas parecen invertidas (lat/lng)."
+                        : "Las coordenadas estan fuera de Paraguay y podrian generar un pin incorrecto."}
+                    </p>
+                    {likelySwappedCoordinates ? (
+                      <button
+                        type="button"
+                        onClick={handleSwapCoordinates}
+                        className="mt-2 inline-flex rounded-md border border-amber-400 px-2 py-1 font-medium text-amber-900 hover:bg-amber-100"
+                      >
+                        Intercambiar
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                <div className="space-y-2">
+                  <label htmlFor="phone" className="block text-sm font-medium text-neutral-700">
+                    Telefono de contacto
+                  </label>
+                  <input
+                    type="tel"
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                    placeholder="Ej: (021) 123-456"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="whatsapp" className="block text-sm font-medium text-neutral-700">
+                    WhatsApp
+                  </label>
+                  <input
+                    type="tel"
+                    id="whatsapp"
+                    value={formData.whatsapp}
+                    onChange={(e) =>
+                      setFormData({ ...formData, whatsapp: e.target.value })
+                    }
+                    disabled={!canEdit || saving}
+                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                    placeholder="Ej: 595981123456"
+                  />
+                  <p className="text-sm text-neutral-500">
+                    Numero con codigo de pais para el boton de WhatsApp.
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-neutral-200 pt-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-neutral-950">
+                      {context?.local.type === "bar" ? "Especialidades" : "Generos musicales"}
+                    </h3>
+                    <p className="mt-1 text-sm text-neutral-500">
+                      Selecciona los {context?.local.type === "bar" ? "atributos principales" : "generos principales"} de tu local.
+                    </p>
+                  </div>
+                  <span className="inline-flex h-9 items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 text-sm font-medium text-neutral-600">
+                    {selectedAttributes.length}/3
+                  </span>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  {(context?.local.type ? getAttributesAllowlist(context.local.type as "bar" | "club") : []).map((attr) => {
+                    const isSelected = selectedAttributes.includes(attr);
+                    const isDisabled = !canEdit || saving || (!isSelected && selectedAttributes.length >= 3);
 
                     return (
-                      <div
-                        key={dayKey}
-                        className={`rounded-lg border p-3 sm:p-4 ${
-                          isClosed ? "border-gray-200 bg-white" : "border-blue-100 bg-blue-50/30"
+                      <button
+                        key={attr}
+                        type="button"
+                        {...PROFILE_ATTRIBUTE_CHIP_ATTR}
+                        data-active={isSelected ? "true" : "false"}
+                        onClick={() => {
+                          if (!canEdit || saving) return;
+                          if (isSelected) {
+                            setSelectedAttributes(selectedAttributes.filter(a => a !== attr));
+                          } else if (selectedAttributes.length < 3) {
+                            setSelectedAttributes([...selectedAttributes, attr]);
+                          }
+                        }}
+                        disabled={isDisabled}
+                        className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : isDisabled
+                              ? "cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400"
+                              : "border-neutral-300 bg-white text-neutral-700 hover:border-blue-400 hover:text-blue-600"
                         }`}
                       >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-gray-200 bg-white px-2 text-xs font-semibold text-gray-700">
-                              {dayLabel.short}
-                            </span>
-                            <p className="text-sm font-medium text-gray-900">{dayLabel.full}</p>
-                            <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                isClosed
-                                  ? "bg-gray-100 text-gray-600"
-                                  : "bg-blue-100 text-blue-700"
-                              }`}
-                            >
-                              {isClosed ? "Cerrado" : "Abierto"}
-                            </span>
-                          </div>
-                          <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-                            <input
-                              type="checkbox"
-                              checked={isClosed}
-                              onChange={(event) => handleDayClosedToggle(dayKey, event.target.checked)}
-                              disabled={!canEdit || saving}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            Cerrado
-                          </label>
-                        </div>
-
-                        {!isClosed && (
-                          <div className="mt-3 space-y-2.5">
-                            {dayConfig.ranges.length === 0 && (
-                              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                                Este día está abierto pero sin rangos. Agregá al menos un rango horario.
-                              </p>
-                            )}
-                            {dayConfig.ranges.map((range, index) => (
-                              <div
-                                key={`${dayKey}-${index}`}
-                                className="rounded-md border border-gray-200 bg-white p-2.5"
-                              >
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                                  <div>
-                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
-                                      Desde
-                                    </label>
-                                    <input
-                                      type="time"
-                                      value={range.start}
-                                      onChange={(event) =>
-                                        handleRangeChange(dayKey, index, "start", event.target.value)
-                                      }
-                                      disabled={!canEdit || saving}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500">
-                                      Hasta
-                                    </label>
-                                    <input
-                                      type="time"
-                                      value={range.end}
-                                      onChange={(event) =>
-                                        handleRangeChange(dayKey, index, "end", event.target.value)
-                                      }
-                                      disabled={!canEdit || saving}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                    />
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveRange(dayKey, index)}
-                                    disabled={!canEdit || saving}
-                                    className="h-10 px-3 text-xs font-medium rounded-md border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    Quitar
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-
-                            <button
-                              type="button"
-                              onClick={() => handleAddRange(dayKey)}
-                              disabled={!canEdit || saving}
-                              className="inline-flex items-center rounded-md border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              + Agregar rango
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                        {attr}
+                      </button>
                     );
                   })}
-
-                  {openingHoursErrors.length > 0 && (
-                    <div className="rounded-md border border-red-200 bg-red-50 p-3">
-                      <p className="text-sm font-medium text-red-700 mb-1">Errores de horarios</p>
-                      <ul className="list-disc list-inside space-y-0.5 text-sm text-red-700">
-                        {openingHoursErrors.map((issue) => (
-                          <li key={issue}>{issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
                 </div>
-              ) : (
-                <p className="mt-3 text-xs text-gray-600">
-                  Si no tenes opening_hours cargado, podes seguir usando el campo legacy de abajo.
+
+                <p className="mt-4 text-sm text-neutral-500">
+                  Selecciona hasta 3 {context?.local.type === "bar" ? "especialidades" : "generos"} que apareceran en tu perfil y cards del listado.
                 </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Opening hours v1 + legacy compatibility */}
+          <section
+            data-profile-module="hours"
+            className={PROFILE_SECTION_SHELL_CLASS}
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="space-y-1">
+                <h3 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                  Horarios
+                </h3>
+                <p className="text-base text-neutral-500">
+                  Configura los horarios de apertura para cada dia de la semana
+                </p>
+              </div>
+
+              {!hasPersistedOpeningHours && (
+                <button
+                  type="button"
+                  onClick={() => handleStructuredHoursToggle(!useStructuredHours)}
+                  disabled={!canEdit || saving}
+                  className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {useStructuredHours ? "Usar modo legacy" : "Usar editor estructurado"}
+                </button>
               )}
             </div>
 
+            {useStructuredHours ? (
+              <div className="mt-8 overflow-hidden rounded-3xl border border-neutral-200 bg-white">
+                {OPENING_HOURS_DAY_KEYS.map((dayKey, index) => {
+                  const dayConfig = openingHoursDraft.days[dayKey];
+                  const dayLabel = OPENING_HOURS_DAY_LABELS[dayKey];
+                  const isClosed = dayConfig.closed;
+
+                  return (
+                    <div
+                      key={dayKey}
+                      className={`px-4 py-4 sm:px-5 ${index !== OPENING_HOURS_DAY_KEYS.length - 1 ? "border-b border-neutral-200" : ""}`}
+                    >
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex items-center gap-3">
+                          <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                              type="checkbox"
+                              checked={!isClosed}
+                              onChange={(event) => handleDayClosedToggle(dayKey, !event.target.checked)}
+                              disabled={!canEdit || saving}
+                              className="peer sr-only"
+                            />
+                            <span className="h-6 w-11 rounded-full bg-neutral-200 transition-colors peer-checked:bg-slate-700 peer-disabled:opacity-50" />
+                            <span className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5" />
+                          </label>
+
+                          <p className="text-sm font-semibold text-neutral-900">{dayLabel.full}</p>
+                          <span className={`text-sm ${isClosed ? "italic text-neutral-500" : "font-medium text-slate-700"}`}>
+                            {isClosed ? "Cerrado" : "Abierto"}
+                          </span>
+                        </div>
+
+                        {!isClosed && (
+                          <div className="flex-1 lg:max-w-[820px]">
+                            <div className="space-y-3">
+                              {dayConfig.ranges.length === 0 ? (
+                                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                  Este dia esta abierto pero sin rangos. Agrega al menos un rango horario.
+                                </p>
+                              ) : null}
+
+                              {dayConfig.ranges.map((range, index) => (
+                                <div
+                                  key={`${dayKey}-${index}`}
+                                  className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-3"
+                                >
+                                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                                    <div className="flex items-center gap-3">
+                                      <span className="w-12 text-sm text-neutral-500">Desde</span>
+                                      <input
+                                        type="time"
+                                        value={range.start}
+                                        onChange={(event) =>
+                                          handleRangeChange(dayKey, index, "start", event.target.value)
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="w-full min-w-[112px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      <span className="w-12 text-sm text-neutral-500">Hasta</span>
+                                      <input
+                                        type="time"
+                                        value={range.end}
+                                        onChange={(event) =>
+                                          handleRangeChange(dayKey, index, "end", event.target.value)
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="w-full min-w-[112px] rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                                      />
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveRange(dayKey, index)}
+                                      disabled={!canEdit || saving}
+                                      {...DELETE_BUTTON_DATA_ATTR}
+                                      className={cn(
+                                        panelUi.destructiveOutline,
+                                        "xl:ml-auto rounded-xl px-3 py-2 text-xs font-medium"
+                                      )}
+                                    >
+                                      Quitar
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              <button
+                                type="button"
+                                onClick={() => handleAddRange(dayKey)}
+                                disabled={!canEdit || saving}
+                                className="inline-flex items-center px-1 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                + Agregar rango
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {openingHoursErrors.length > 0 && (
+                  <div className="border-t border-neutral-200 bg-red-50/80 px-4 py-4 sm:px-5">
+                    <p className="mb-1 text-sm font-medium text-red-700">Errores de horarios</p>
+                    <ul className="list-disc list-inside space-y-0.5 text-sm text-red-700">
+                      {openingHoursErrors.map((issue) => (
+                        <li key={issue}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm text-neutral-600">
+                Si no tenes opening_hours cargado, podes seguir usando el campo legacy de abajo.
+              </div>
+            )}
+
             {!useStructuredHours && (
-              <div>
+              <div className="mt-6 space-y-2">
                 <label
                   htmlFor="hours"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-neutral-700"
                 >
                   Horarios
                 </label>
@@ -2185,52 +2487,54 @@ export default function ProfilePage() {
                     setFormData({ ...formData, hoursText: e.target.value })
                   }
                   disabled={!canEdit || saving}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
-                  placeholder={`Lun - Jue: 18:00 - 02:00\nVie - Sab: 18:00 - 03:00\nDom: Cerrado`}
+                  className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-4 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100 resize-none font-mono"
+                  placeholder={`Lunes - Jueves: 18:00 - 02:00\nViernes - Sabado: 18:00 - 03:00\nDomingo: Cerrado`}
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="text-sm text-neutral-500">
                   Una linea por cada horario (max 14 lineas).
                 </p>
               </div>
             )}
-          </div>
+          </section>
 
           {/* Additional Info (textarea, 1 linea = 1 bullet) */}
-          <div>
-            <label
-              htmlFor="additionalInfo"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Información adicional
-            </label>
-            <textarea
-              id="additionalInfo"
-              rows={5}
-              value={formData.additionalInfoText}
-              onChange={(e) =>
-                setFormData({ ...formData, additionalInfoText: e.target.value })
-              }
-              disabled={!canEdit || saving}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none font-mono text-sm"
-              placeholder={`Estacionamiento disponible\nWiFi gratuito\nAcepta tarjetas`}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Una línea por cada item (máx 20 líneas). Aparecen como bullets.
-            </p>
-          </div>
-
-          {/* Submit button */}
-          {canEdit && (
-            <div className="pt-4 border-t border-gray-200">
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? "Guardando..." : "Guardar cambios"}
-              </button>
+          <section
+            data-profile-module="additional-info"
+            className={PROFILE_SECTION_SHELL_CLASS}
+          >
+            <div className="space-y-1">
+              <h3 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                Informacion adicional
+              </h3>
+              <p className="text-base text-neutral-500">
+                Informacion complementaria visible en el perfil del local
+              </p>
             </div>
-          )}
+
+            <div className="mt-8 space-y-2">
+              <label
+                htmlFor="additionalInfo"
+                className="block text-sm font-medium text-neutral-700"
+              >
+                Detalles del local
+              </label>
+              <textarea
+                id="additionalInfo"
+                rows={5}
+                value={formData.additionalInfoText}
+                onChange={(e) =>
+                  setFormData({ ...formData, additionalInfoText: e.target.value })
+                }
+                disabled={!canEdit || saving}
+                className="min-h-[160px] w-full rounded-2xl border border-neutral-300 bg-white px-4 py-4 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15 disabled:cursor-not-allowed disabled:bg-neutral-100 resize-none"
+                placeholder={`Estacionamiento disponible\nWiFi gratuito\nAcepta tarjetas`}
+              />
+              <p className="text-sm text-neutral-500">
+                Informacion complementaria visible en el perfil (estacionamiento, facilidades, etc.). Una linea por item.
+              </p>
+            </div>
+          </section>
+
         </div>
       </form>
 
@@ -2238,53 +2542,78 @@ export default function ProfilePage() {
       {/* CATÁLOGO (solo discotecas) */}
       {/* =================================================================== */}
       {context.local.type === "club" && (
-        <section className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            🎟️ Catálogo de Entradas y Mesas
-          </h2>
-          <p className="text-sm text-gray-600 mb-6">
-            Configurá tus tipos de entradas (máx 2) y mesas (máx 6). Los clientes podrán comprar entradas 
-            y reservar mesas por WhatsApp desde tu perfil público.
-          </p>
+        <>
+        <section
+          data-profile-module="catalog"
+          className={PROFILE_SECTION_SHELL_CLASS}
+        >
+          <div className="flex flex-col gap-6">
+            <div className="border-b border-neutral-200 pb-6">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                  Catálogo de Entradas y Mesas
+                </h2>
+                <p className="max-w-2xl text-sm leading-6 text-neutral-600">
+                  Gestioná las opciones de acceso y reservas disponibles para tu
+                  local con acciones visibles y una lectura más clara del
+                  catálogo activo.
+                </p>
+              </div>
+            </div>
 
           {/* Catalog success/error banners */}
           {catalogSuccess && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+            <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
               <p className="text-sm text-green-800">✓ {catalogSuccess}</p>
             </div>
           )}
           {catalogError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
               <p className="text-sm text-red-800">{catalogError}</p>
             </div>
           )}
 
           {catalogLoading ? (
             <div className="space-y-4">
-              <div className="h-32 bg-gray-100 rounded-lg animate-pulse" />
-              <div className="h-32 bg-gray-100 rounded-lg animate-pulse" />
+              <div className="h-32 animate-pulse rounded-2xl bg-gray-100" />
+              <div className="h-32 animate-pulse rounded-2xl bg-gray-100" />
             </div>
           ) : (
             <div className="space-y-8">
               {/* ===== ENTRADAS ===== */}
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">🎫 Entradas</h3>
-                    <p className="text-xs text-gray-500">
-                      Creadas: {catalogTickets.length}/{MAX_TICKET_TYPES} · Activas: {activeTicketsCount}/{MAX_ACTIVE_TICKETS}
-                    </p>
+              <div className="space-y-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700">
+                      <Ticket className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-neutral-950">
+                        Entradas
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        {catalogTickets.length}/{MAX_TICKET_TYPES} creadas ·{" "}
+                        {activeTicketsCount}/{MAX_ACTIVE_TICKETS} activas
+                      </p>
+                    </div>
                   </div>
                   {canEdit && !showNewTicketForm && (
                     <button
-                      onClick={() => setShowNewTicketForm(true)}
+                      onClick={() => {
+                        setShowNewTableForm(false);
+                        setShowNewTicketForm(true);
+                      }}
                       disabled={!canAddMoreTickets}
-                      className={`px-3 py-1.5 text-sm border rounded-lg ${
-                        canAddMoreTickets 
-                          ? "border-blue-500 text-blue-600 hover:bg-blue-50" 
-                          : "border-gray-300 text-gray-400 cursor-not-allowed"
+                      className={`inline-flex items-center justify-center rounded-xl border px-4 py-2.5 text-sm font-medium shadow-sm transition ${
+                        canAddMoreTickets
+                          ? "border-neutral-300 bg-white text-neutral-800 hover:border-neutral-400 hover:bg-neutral-50"
+                          : "cursor-not-allowed border-neutral-300 bg-neutral-100 text-neutral-400"
                       }`}
-                      title={canAddMoreTickets ? undefined : `Máximo ${MAX_TICKET_TYPES} entradas`}
+                      title={
+                        canAddMoreTickets
+                          ? undefined
+                          : `Máximo ${MAX_TICKET_TYPES} entradas`
+                      }
                     >
                       + Nueva entrada
                     </button>
@@ -2293,150 +2622,161 @@ export default function ProfilePage() {
 
                 {/* Lista de tickets */}
                 {catalogTickets.length > 0 ? (
-                  <div className="space-y-3 mb-4">
-                    {catalogTickets.map((ticket) => (
-                      <div
-                        key={ticket.id}
-                        className={`flex items-center justify-between p-3 bg-white rounded-lg border ${
-                          ticket.is_active ? "border-gray-200" : "border-orange-200 bg-orange-50"
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{ticket.name}</span>
-                            {!ticket.is_active && (
-                              <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">
-                                Desactivada
-                              </span>
+                  <div className="space-y-3">
+                    {catalogTickets.map((ticket) => {
+                      const isBenefitsOpen = Boolean(
+                        openTicketBenefits[ticket.id],
+                      );
+                      const benefitLines =
+                        ticket.description
+                          ?.split(/\r?\n/)
+                          .map((line) => line.trim())
+                          .filter(Boolean) ?? [];
+
+                      return (
+                        <article
+                          key={ticket.id}
+                          className={`rounded-3xl border px-5 py-4 shadow-sm ${
+                            ticket.is_active
+                              ? "border-neutral-200 bg-white"
+                              : "border-neutral-200 bg-neutral-50"
+                          }`}
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0 flex-1 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="truncate text-base font-semibold text-neutral-950">
+                                    {ticket.name}
+                                  </span>
+                                  {!ticket.is_active && (
+                                    <span className="rounded-full border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                                      Desactivada
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-600">
+                                  <span className="font-medium text-neutral-900">
+                                    {ticket.price === 0
+                                      ? "Gratis"
+                                      : formatPYG(ticket.price)}
+                                  </span>
+                                </div>
+                                {benefitLines.length > 0 && (
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setOpenTicketBenefits((previous) => ({
+                                          ...previous,
+                                          [ticket.id]: !previous[ticket.id],
+                                        }))
+                                      }
+                                      {...PROFILE_INLINE_DISCLOSURE_ATTR}
+                                      className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-600 transition hover:text-neutral-900"
+                                    >
+                                      Ver beneficios
+                                      <ChevronDown
+                                        className={`h-4 w-4 transition-transform ${
+                                          isBenefitsOpen ? "rotate-180" : ""
+                                        }`}
+                                      />
+                                    </button>
+                                    {isBenefitsOpen && (
+                                      <div
+                                        {...PROFILE_INLINE_DISCLOSURE_PANEL_ATTR}
+                                        className="mt-3 rounded-xl bg-neutral-50 p-3"
+                                      >
+                                        <ul className="space-y-1.5 text-sm text-neutral-600">
+                                          {benefitLines.map((line, index) => (
+                                            <li
+                                              key={`${ticket.id}-benefit-${index}`}
+                                              className="flex gap-2"
+                                            >
+                                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400" />
+                                              <span>{line}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            {canEdit && (
+                              <div className="flex shrink-0 items-center gap-2 self-start lg:self-center">
+                                <button
+                                  onClick={() => handleToggleTicketActive(ticket)}
+                                  disabled={
+                                    savingTicket ||
+                                    (!ticket.is_active &&
+                                      !canActivateMoreTickets)
+                                  }
+                                  title={
+                                    !ticket.is_active && !canActivateMoreTickets
+                                      ? `Máximo ${MAX_ACTIVE_TICKETS} activas`
+                                      : undefined
+                                  }
+                                  className={`rounded-xl px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 ${
+                                    ticket.is_active
+                                      ? "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                                      : canActivateMoreTickets
+                                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                        : "cursor-not-allowed border border-neutral-300 bg-neutral-100 text-neutral-400"
+                                  }`}
+                                >
+                                  {ticket.is_active ? "Desactivar" : "Activar"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTicket(ticket)}
+                                  disabled={savingTicket}
+                                  {...DELETE_BUTTON_DATA_ATTR}
+                                  className={cn(
+                                    panelUi.destructiveOutline,
+                                    "rounded-xl px-3.5 py-2 text-sm font-medium"
+                                  )}
+                                  title="Eliminar entrada"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 mt-0.5">
-                            {ticket.price === 0 ? (
-                              <span className="text-green-600 font-medium">Gratis (Free Pass)</span>
-                            ) : (
-                              formatPYG(ticket.price)
-                            )}
-                            {ticket.description && (
-                              <span className="text-gray-400 ml-2">· {ticket.description}</span>
-                            )}
-                          </p>
-                        </div>
-                        {canEdit && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleToggleTicketActive(ticket)}
-                              disabled={savingTicket || (!ticket.is_active && !canActivateMoreTickets)}
-                              title={!ticket.is_active && !canActivateMoreTickets ? `Máximo ${MAX_ACTIVE_TICKETS} activas` : undefined}
-                              className={`px-3 py-1.5 text-sm rounded-lg disabled:opacity-50 ${
-                                ticket.is_active
-                                  ? "border border-orange-300 text-orange-600 hover:bg-orange-50"
-                                  : canActivateMoreTickets
-                                    ? "border border-green-300 text-green-600 hover:bg-green-50"
-                                    : "border border-gray-300 text-gray-400 cursor-not-allowed"
-                              }`}
-                            >
-                              {ticket.is_active ? "Desactivar" : "Activar"}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTicket(ticket)}
-                              disabled={savingTicket}
-                              className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                              title="Eliminar entrada"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-gray-400 text-sm bg-white rounded-lg border border-dashed mb-4">
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-5 py-8 text-center text-sm text-neutral-500">
                     No hay entradas configuradas
                   </div>
                 )}
 
-                {/* Formulario nueva entrada */}
-                {showNewTicketForm && canEdit && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                    <h4 className="font-medium text-gray-900 mb-3">Nueva entrada</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Nombre *
-                        </label>
-                        <input
-                          type="text"
-                          value={newTicketData.name}
-                          onChange={(e) => setNewTicketData({ ...newTicketData, name: e.target.value })}
-                          placeholder="Ej: Entrada General"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                          maxLength={100}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Precio (Gs) *
-                        </label>
-                        <input
-                          type="number"
-                          value={newTicketData.price}
-                          onChange={(e) => setNewTicketData({ ...newTicketData, price: e.target.value })}
-                          placeholder="Ej: 50000 (0 = gratis)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                          min="0"
-                        />
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Beneficios (1 por línea)
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={newTicketData.description}
-                          onChange={(e) => setNewTicketData({ ...newTicketData, description: e.target.value })}
-                          placeholder={"Acceso a pista de baile\nIncluye 1 bebida\nServicio preferencial"}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none font-mono"
-                          maxLength={500}
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Una línea por beneficio. Aparecerán como lista en el perfil.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCreateTicket}
-                        disabled={savingTicket}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {savingTicket ? "Guardando..." : "Crear entrada"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowNewTicketForm(false);
-                          setNewTicketData({ name: "", price: "", description: "" });
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* ===== MESAS ===== */}
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">🪑 Mesas</h3>
-                    <p className="text-xs text-gray-500">
-                      {catalogTables.length}/6 tipos de mesa · Reserva por WhatsApp (no se cobran online)
-                    </p>
+              <div className="space-y-5 border-t border-neutral-200 pt-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-indigo-100 bg-indigo-50 text-indigo-700">
+                      <Armchair className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-neutral-950">
+                        Mesas
+                      </h3>
+                      <p className="text-sm text-neutral-500">
+                        {catalogTables.length}/6 tipos de mesa ·{" "}
+                        {activeTablesCount}/{catalogTables.length} activas
+                      </p>
+                    </div>
                   </div>
                   {canEdit && catalogTables.length < 6 && !showNewTableForm && (
                     <button
-                      onClick={() => setShowNewTableForm(true)}
-                      className="px-3 py-1.5 text-sm border border-blue-500 text-blue-600 rounded-lg hover:bg-blue-50"
+                      onClick={() => {
+                        setShowNewTicketForm(false);
+                        setShowNewTableForm(true);
+                      }}
+                      className="inline-flex items-center justify-center rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:border-neutral-400 hover:bg-neutral-50"
                     >
                       + Nueva mesa
                     </button>
@@ -2445,180 +2785,410 @@ export default function ProfilePage() {
 
                 {/* Lista de mesas */}
                 {catalogTables.length > 0 ? (
-                  <div className="space-y-3 mb-4">
-                    {catalogTables.map((table) => (
-                      <div
-                        key={table.id}
-                        className={`flex items-center justify-between p-3 bg-white rounded-lg border ${
-                          table.is_active ? "border-gray-200" : "border-orange-200 bg-orange-50"
-                        }`}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{table.name}</span>
-                            {table.capacity && (
-                              <span className="text-xs text-gray-500">
-                                👥 {table.capacity} personas
-                              </span>
-                            )}
-                            {!table.is_active && (
-                              <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded">
-                                Desactivada
-                              </span>
+                  <div className="space-y-3">
+                    {catalogTables.map((table) => {
+                      const isIncludesOpen = Boolean(
+                        openTableIncludes[table.id],
+                      );
+                      const includeLines =
+                        table.includes
+                          ?.split(/\r?\n/)
+                          .map((line) => line.trim())
+                          .filter(Boolean) ?? [];
+
+                      return (
+                        <article
+                          key={table.id}
+                          className={`rounded-3xl border px-5 py-4 shadow-sm ${
+                            table.is_active
+                              ? "border-neutral-200 bg-white"
+                              : "border-neutral-200 bg-neutral-50"
+                          }`}
+                        >
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0 flex-1 space-y-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="truncate text-base font-semibold text-neutral-950">
+                                    {table.name}
+                                  </span>
+                                  {!table.is_active && (
+                                    <span className="rounded-full border border-neutral-300 bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-600">
+                                      Desactivada
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-600">
+                                  {table.capacity && (
+                                    <span>{table.capacity} personas</span>
+                                  )}
+                                  {table.price !== null && (
+                                    <span className="font-medium text-neutral-900">
+                                      {formatPYG(table.price)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {includeLines.length > 0 && (
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setOpenTableIncludes((previous) => ({
+                                          ...previous,
+                                          [table.id]: !previous[table.id],
+                                        }))
+                                      }
+                                      {...PROFILE_INLINE_DISCLOSURE_ATTR}
+                                      className="mt-2 inline-flex items-center gap-1 text-sm text-neutral-600 transition hover:text-neutral-900"
+                                    >
+                                      Ver qué incluye
+                                      <ChevronDown
+                                        className={`h-4 w-4 transition-transform ${
+                                          isIncludesOpen ? "rotate-180" : ""
+                                        }`}
+                                      />
+                                    </button>
+                                    {isIncludesOpen && (
+                                      <div
+                                        {...PROFILE_INLINE_DISCLOSURE_PANEL_ATTR}
+                                        className="mt-3 rounded-xl bg-neutral-50 p-3"
+                                      >
+                                        <ul className="space-y-1.5 text-sm text-neutral-600">
+                                          {includeLines.map((line, index) => (
+                                            <li
+                                              key={`${table.id}-include-${index}`}
+                                              className="flex gap-2"
+                                            >
+                                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-400" />
+                                              <span>{line}</span>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                            {canEdit && (
+                              <div className="flex shrink-0 items-center gap-2 self-start lg:self-center">
+                                <button
+                                  onClick={() => handleToggleTableActive(table)}
+                                  disabled={savingTable}
+                                  className={`rounded-xl px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 ${
+                                    table.is_active
+                                      ? "border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+                                      : "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                  }`}
+                                >
+                                  {table.is_active ? "Desactivar" : "Activar"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTable(table)}
+                                  disabled={savingTable}
+                                  {...DELETE_BUTTON_DATA_ATTR}
+                                  className={cn(
+                                    panelUi.destructiveOutline,
+                                    "rounded-xl px-3.5 py-2 text-sm font-medium"
+                                  )}
+                                  title="Eliminar mesa"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 mt-0.5">
-                            {table.price !== null && (
-                              <span className="text-gray-500">{formatPYG(table.price)} (ref.)</span>
-                            )}
-                            {table.includes && (
-                              <span className="text-gray-400 ml-2">· {table.includes}</span>
-                            )}
-                          </p>
-                        </div>
-                        {canEdit && (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleToggleTableActive(table)}
-                              disabled={savingTable}
-                              className={`px-3 py-1.5 text-sm rounded-lg disabled:opacity-50 ${
-                                table.is_active
-                                  ? "border border-orange-300 text-orange-600 hover:bg-orange-50"
-                                  : "border border-green-300 text-green-600 hover:bg-green-50"
-                              }`}
-                            >
-                              {table.is_active ? "Desactivar" : "Activar"}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTable(table)}
-                              disabled={savingTable}
-                              className="px-3 py-1.5 text-sm rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                              title="Eliminar mesa"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        </article>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-6 text-gray-400 text-sm bg-white rounded-lg border border-dashed mb-4">
+                  <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-5 py-8 text-center text-sm text-neutral-500">
                     No hay mesas configuradas
                   </div>
                 )}
 
-                {/* Formulario nueva mesa */}
-                {showNewTableForm && canEdit && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                    <h4 className="font-medium text-gray-900 mb-3">Nueva mesa</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Nombre *
-                        </label>
-                        <input
-                          type="text"
-                          value={newTableData.name}
-                          onChange={(e) => setNewTableData({ ...newTableData, name: e.target.value })}
-                          placeholder="Ej: Mesa VIP"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                          maxLength={100}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Capacidad
-                        </label>
-                        <input
-                          type="number"
-                          value={newTableData.capacity}
-                          onChange={(e) => setNewTableData({ ...newTableData, capacity: e.target.value })}
-                          placeholder="Ej: 10"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                          min="1"
-                          max="50"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Precio referencial (Gs)
-                        </label>
-                        <input
-                          type="number"
-                          value={newTableData.price}
-                          onChange={(e) => setNewTableData({ ...newTableData, price: e.target.value })}
-                          placeholder="Ej: 500000"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                          min="0"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">No se cobra online, solo informativo</p>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          ¿Qué incluye? (1 por línea)
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={newTableData.includes}
-                          onChange={(e) => setNewTableData({ ...newTableData, includes: e.target.value })}
-                          placeholder={"Botella de fernet\n6 mixers\nHielera y vasos\nServicio de mesero"}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none font-mono"
-                          maxLength={500}
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Una línea por beneficio. Aparecerán como lista en el perfil.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleCreateTable}
-                        disabled={savingTable}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {savingTable ? "Guardando..." : "Crear mesa"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowNewTableForm(false);
-                          setNewTableData({ name: "", price: "", capacity: "", includes: "" });
-                        }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Nota informativa */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                <p className="text-sm text-blue-800">
-                  <strong>ℹ️ Importante:</strong> Las entradas desactivadas no aparecerán en tu perfil público 
-                  ni podrán ser compradas. El historial de ventas se mantiene intacto.
-                </p>
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-3 text-xs leading-5 text-neutral-500">
+                Las entradas y mesas activas aparecerán en el perfil público
+                del local. Podés desactivar cualquier opción sin borrarla
+                definitivamente.
               </div>
             </div>
           )}
+          </div>
+        </section>
+        </>
+      )}
+
+      {canEdit && (
+        <section
+          data-profile-module="edit-actions"
+          className={PROFILE_SECTION_SHELL_CLASS}
+        >
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-neutral-500">
+              Los cambios se aplican a todo el perfil del local.
+            </p>
+            <button
+              type="submit"
+              form="profile-edit-form"
+              {...PROFILE_PRIMARY_CTA_ATTR}
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Guardando..." : "Guardar cambios"}
+            </button>
+          </div>
         </section>
       )}
-        </>
+
+      {showNewTicketForm && canEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/35 p-4">
+            <div className="w-full max-w-[520px] overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between border-b border-neutral-200 px-6 py-5">
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                    Nueva entrada
+                  </h3>
+                  <p className="text-sm text-neutral-500">
+                    Configurá un nuevo tipo de entrada para tu local.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeNewTicketModal}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+                  aria-label="Cerrar modal de nueva entrada"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-5 px-6 py-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-neutral-900">
+                    Nombre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newTicketData.name}
+                    onChange={(e) =>
+                      setNewTicketData({
+                        ...newTicketData,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Entrada General"
+                    className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-neutral-900">
+                    Precio (Gs) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={newTicketData.price}
+                    onChange={(e) =>
+                      setNewTicketData({
+                        ...newTicketData,
+                        price: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: 50000"
+                    className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                    min="0"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-neutral-900">
+                    Beneficios (1 por línea)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={newTicketData.description}
+                    onChange={(e) =>
+                      setNewTicketData({
+                        ...newTicketData,
+                        description: e.target.value,
+                      })
+                    }
+                    placeholder={"Acceso general\nBebida de bienvenida\nAcceso antes de la 1:00 AM"}
+                    className="min-h-[120px] w-full resize-none rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-neutral-500">
+                    Una línea por beneficio. Aparecerán como lista en el
+                    perfil.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-neutral-200 bg-neutral-50 px-6 py-5">
+                <button
+                  type="button"
+                  onClick={closeNewTicketModal}
+                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateTicket}
+                  disabled={savingTicket}
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingTicket ? "Guardando..." : "Crear entrada"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showNewTableForm && canEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/35 p-4">
+            <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between border-b border-neutral-200 px-6 py-5">
+                <div className="space-y-1">
+                  <h3 className="text-2xl font-semibold tracking-tight text-neutral-950">
+                    Nueva mesa
+                  </h3>
+                  <p className="text-sm text-neutral-500">
+                    Configurá una nueva mesa o zona VIP para reservas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeNewTableModal}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+                  aria-label="Cerrar modal de nueva mesa"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-5 px-6 py-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-neutral-900">
+                    Nombre <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newTableData.name}
+                    onChange={(e) =>
+                      setNewTableData({
+                        ...newTableData,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="Ej: Mesa VIP"
+                    className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-neutral-900">
+                      Capacidad
+                    </label>
+                    <input
+                      type="number"
+                      value={newTableData.capacity}
+                      onChange={(e) =>
+                        setNewTableData({
+                          ...newTableData,
+                          capacity: e.target.value,
+                        })
+                      }
+                      placeholder="Ej: 6-8 personas"
+                      className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                      min="1"
+                      max="50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-neutral-900">
+                      Precio referencial (Gs)
+                    </label>
+                    <input
+                      type="number"
+                      value={newTableData.price}
+                      onChange={(e) =>
+                        setNewTableData({
+                          ...newTableData,
+                          price: e.target.value,
+                        })
+                      }
+                      placeholder="Ej: 1500000"
+                      className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                      min="0"
+                    />
+                    <p className="text-xs text-neutral-500">
+                      No se cobra online, solo informativo.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-neutral-900">
+                    ¿Qué incluye? (1 por línea)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={newTableData.includes}
+                    onChange={(e) =>
+                      setNewTableData({
+                        ...newTableData,
+                        includes: e.target.value,
+                      })
+                    }
+                    placeholder={"Ubicación VIP\nServicio de mesero\nBotella de cortesía"}
+                    className="min-h-[120px] w-full resize-none rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-neutral-500">
+                    Una línea por beneficio. Aparecerán como lista en el
+                    perfil.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-neutral-200 bg-neutral-50 px-6 py-5">
+                <button
+                  type="button"
+                  onClick={closeNewTableModal}
+                  className="rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateTable}
+                  disabled={savingTable}
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingTable ? "Guardando..." : "Crear mesa"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
       ) : (
         <div className="space-y-6">
           <section className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-neutral-900">Preview de card del listado</h3>
-            <div className="mt-5 flex justify-center">
-              <ListingPreviewCard
-                localType={context.local.type}
-                name={previewName}
-                imageUrl={previewCoverImage ?? previewHeroImage}
-                location={previewLocation}
-                city={previewCity}
-                attributes={previewAttributes}
-                minAge={minAge}
-                hours={previewHours}
-                className="w-full max-w-[360px]"
-              />
+            <div className="mt-5">
+              {renderListingPreviewReferences(previewCoverImage ?? previewHeroImage)}
             </div>
           </section>
           {context.local.type === "bar" ? (

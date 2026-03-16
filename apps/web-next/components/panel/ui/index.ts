@@ -20,7 +20,7 @@ export { StatCard } from "./StatCard";
 export type { StatCardProps } from "./StatCard";
 export { Toolbar } from "./Toolbar";
 export type { ToolbarProps } from "./Toolbar";
-export { cn, panelUi } from "./panel-ui";
+export { cn, panelUi, panelSuccessTone } from "./panel-ui";
 
 // Charts
 export {

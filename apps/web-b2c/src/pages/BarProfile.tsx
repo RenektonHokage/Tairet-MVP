@@ -49,7 +49,9 @@ const BarProfile = () => {
   const [showGalleryMenu, setShowGalleryMenu] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
   // Promotions from API (undefined = backend viejo/fetch failed, [] = no promos, [...] = promos)
-  const [apiPromotions, setApiPromotions] = useState<{id: string; title: string; image: string}[] | undefined>(undefined);
+  const [apiPromotions, setApiPromotions] = useState<
+    { id: string; title: string; image: string; validity?: string }[] | undefined
+  >(undefined);
 
   // Resolver local_id real desde slug
   useEffect(() => {
@@ -106,6 +108,7 @@ const BarProfile = () => {
               id: p.id,
               title: p.title,
               image: p.image_url ?? "/placeholder.svg",
+              validity: p.description?.trim() || undefined,
             }))
           );
         }
