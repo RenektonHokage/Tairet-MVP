@@ -74,6 +74,11 @@ const PROMO_IMAGE_RATIO_WARNING =
   "Esta imagen no es 4:3 y podría recortarse en el perfil público.";
 const PROMO_TARGET_IMAGE_RATIO = 4 / 3;
 const PROMO_RATIO_WARNING_TOLERANCE = 0.12;
+// Temporary panel-only override for demo/video recordings.
+const PROMO_VIDEO_VIEW_OVERRIDES = {
+  "mckharthys-bar": [4981, 3420, 2870],
+  dlirio: [5340, 4110, 3260],
+} as const;
 
 const numberFormatter = new Intl.NumberFormat("es-PY");
 const PRIMARY_BUTTON_CLASS =
@@ -124,6 +129,18 @@ async function getImageDimensions(
 function shouldWarnPromoImageRatio(width: number, height: number) {
   const ratio = width / height;
   return Math.abs(ratio - PROMO_TARGET_IMAGE_RATIO) > PROMO_RATIO_WARNING_TOLERANCE;
+}
+
+function getPromoVideoOverrideSlug(slug?: string | null) {
+  const normalizedSlug = slug?.trim().toLowerCase();
+
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  return normalizedSlug in PROMO_VIDEO_VIEW_OVERRIDES
+    ? (normalizedSlug as keyof typeof PROMO_VIDEO_VIEW_OVERRIDES)
+    : null;
 }
 
 function PromoStatusBadge({ isActive }: { isActive: boolean }) {
@@ -177,6 +194,7 @@ export default function PromosPage() {
   const { data, loading: contextLoading } = usePanelContext();
   const isOwner = data?.role === "owner";
   const localId = data?.local?.id;
+  const localSlug = data?.local?.slug;
 
   const [promos, setPromos] = useState<Promo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -469,23 +487,6 @@ export default function PromosPage() {
     setImageRatioWarning(null);
   };
 
-  const metrics = useMemo(() => {
-    const active = promos.filter((promo) => promo.is_active);
-    const inactive = promos.filter((promo) => !promo.is_active);
-    const totalViews = promos.reduce((sum, promo) => sum + (promo.view_count ?? 0), 0);
-    const mostViewed = promos.reduce<Promo | null>((current, promo) => {
-      if (!current) return promo;
-      return (promo.view_count ?? 0) > (current.view_count ?? 0) ? promo : current;
-    }, null);
-
-    return {
-      activeCount: active.length,
-      inactiveCount: inactive.length,
-      totalViews,
-      mostViewed,
-    };
-  }, [promos]);
-
   const orderedPromos = useMemo(
     () => [...promos].sort((left, right) => left.sort_order - right.sort_order),
     [promos]
@@ -500,6 +501,62 @@ export default function PromosPage() {
     () => orderedPromos.filter((promo) => !promo.is_active),
     [orderedPromos]
   );
+
+  const promoVideoOverrideSlug = useMemo(
+    () => getPromoVideoOverrideSlug(localSlug),
+    [localSlug]
+  );
+
+  const promoViewOverrides = useMemo(() => {
+    if (!promoVideoOverrideSlug) {
+      return new Map<string, number>();
+    }
+
+    const overrideValues = PROMO_VIDEO_VIEW_OVERRIDES[promoVideoOverrideSlug];
+    return new Map(
+      activePromos
+        .slice(0, overrideValues.length)
+        .map((promo, index) => [promo.id, overrideValues[index] ?? 0] as const)
+    );
+  }, [activePromos, promoVideoOverrideSlug]);
+
+  const getPromoDisplayViews = (promo: Promo) =>
+    promoViewOverrides.get(promo.id) ?? promo.view_count ?? 0;
+
+  const metrics = useMemo(() => {
+    const active = promos.filter((promo) => promo.is_active);
+    const inactive = promos.filter((promo) => !promo.is_active);
+
+    if (promoVideoOverrideSlug) {
+      const mostViewed = activePromos[0] ?? null;
+      const totalViews = Array.from(promoViewOverrides.values()).reduce(
+        (sum, value) => sum + value,
+        0
+      );
+
+      return {
+        activeCount: active.length,
+        inactiveCount: inactive.length,
+        totalViews,
+        mostViewed,
+        mostViewedViews: mostViewed ? getPromoDisplayViews(mostViewed) : 0,
+      };
+    }
+
+    const totalViews = promos.reduce((sum, promo) => sum + (promo.view_count ?? 0), 0);
+    const mostViewed = promos.reduce<Promo | null>((current, promo) => {
+      if (!current) return promo;
+      return (promo.view_count ?? 0) > (current.view_count ?? 0) ? promo : current;
+    }, null);
+
+    return {
+      activeCount: active.length,
+      inactiveCount: inactive.length,
+      totalViews,
+      mostViewed,
+      mostViewedViews: mostViewed?.view_count ?? 0,
+    };
+  }, [activePromos, promoVideoOverrideSlug, promoViewOverrides, promos]);
 
   const profileOrderMap = useMemo(
     () =>
@@ -541,7 +598,7 @@ export default function PromosPage() {
       },
       {
         label: "Más vista",
-        value: numberFormatter.format(metrics.mostViewed?.view_count ?? 0),
+        value: numberFormatter.format(metrics.mostViewedViews),
         hint: metrics.mostViewed?.title || "Sin datos todavía",
         icon: (
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-700">
@@ -572,8 +629,8 @@ export default function PromosPage() {
 
     if (sortMode === "views") {
       sorted.sort((left, right) => {
-        const leftViews = left.view_count ?? 0;
-        const rightViews = right.view_count ?? 0;
+        const leftViews = getPromoDisplayViews(left);
+        const rightViews = getPromoDisplayViews(right);
         if (rightViews !== leftViews) return rightViews - leftViews;
         return left.sort_order - right.sort_order;
       });
@@ -587,7 +644,7 @@ export default function PromosPage() {
     }
 
     return sorted;
-  }, [promos, searchQuery, sortMode, statusFilter]);
+  }, [promos, searchQuery, sortMode, statusFilter, promoViewOverrides]);
 
   const persistPromoOrder = async (nextActiveIds: string[]) => {
     if (!localId || !isOwner) return;
@@ -717,7 +774,7 @@ export default function PromosPage() {
                 ) : null}
                 <span className="inline-flex items-center gap-1.5">
                   <Eye className="h-3.5 w-3.5" />
-                  {formatPromoViews(promo.view_count)}
+                  {formatPromoViews(getPromoDisplayViews(promo))}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <CalendarDays className="h-3.5 w-3.5" />
