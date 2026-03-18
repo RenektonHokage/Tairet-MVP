@@ -1,6 +1,7 @@
-export default function PanelLoading() {
+export function PanelLoadingState() {
   return (
-    <div className="space-y-6">
+    <div aria-busy="true" aria-live="polite" className="space-y-6">
+      <span className="sr-only">Cargando panel</span>
       <div className="space-y-2">
         <div className="h-9 w-56 rounded-lg bg-neutral-200/70 animate-pulse" />
         <div className="h-4 w-80 max-w-full rounded bg-neutral-200/60 animate-pulse" />
@@ -35,4 +36,8 @@ export default function PanelLoading() {
       </div>
     </div>
   );
+}
+
+export default function PanelLoading() {
+  return <PanelLoadingState />;
 }

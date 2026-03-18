@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { usePanelContext, type PanelUserInfo } from "@/lib/panelContext";
+import { PanelLoadingState } from "./loading";
 // reservations se usa solo en /panel/reservations, no en dashboard
 import {
   getPanelMetricsSummaryWithSeries,
@@ -369,13 +370,7 @@ export default function PanelPage() {
 
   // Mostrar loading mientras se verifica la sesión o se carga el contexto
   if (isAuthenticated === null || loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <p className="text-gray-600">Verificando sesión...</p>
-        </div>
-      </div>
-    );
+    return <PanelLoadingState />;
   }
 
   // Mostrar error si no se pudo cargar el contexto

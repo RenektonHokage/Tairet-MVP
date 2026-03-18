@@ -20,6 +20,39 @@ export interface PanelContextValue {
 }
 
 const PanelContext = createContext<PanelContextValue | null>(null);
+const PANEL_VIDEO_DISPLAY_OVERRIDES = {
+  dlirio: {
+    localName: "Boliche",
+    email: "owner.boliche@tairet.com.py",
+  },
+  "mckharthys-bar": {
+    localName: "Mckharthys Bar",
+    email: "owner.bar@tairet.com.py",
+  },
+} as const;
+
+function applyPanelVideoDisplayOverride(data: PanelUserInfo): PanelUserInfo {
+  const normalizedSlug = data.local.slug.trim().toLowerCase();
+  const override =
+    normalizedSlug in PANEL_VIDEO_DISPLAY_OVERRIDES
+      ? PANEL_VIDEO_DISPLAY_OVERRIDES[
+          normalizedSlug as keyof typeof PANEL_VIDEO_DISPLAY_OVERRIDES
+        ]
+      : null;
+
+  if (!override) {
+    return data;
+  }
+
+  return {
+    ...data,
+    email: override.email,
+    local: {
+      ...data.local,
+      name: override.localName,
+    },
+  };
+}
 
 /**
  * Provider que hace UN solo fetch de /panel/me y comparte el resultado
@@ -40,7 +73,11 @@ export function PanelProvider({ children }: { children: ReactNode }) {
         const demoRuntime = getStoredPanelDemoRuntime();
         if (demoRuntime) {
           if (isMounted) {
-            setData(getPanelDemoIdentity(demoRuntime.scenario));
+            setData(
+              applyPanelVideoDisplayOverride(
+                getPanelDemoIdentity(demoRuntime.scenario)
+              )
+            );
             setError(null);
             setIsDemo(true);
             setDemoScenario(demoRuntime.scenario);
@@ -50,7 +87,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
 
         const info = await getPanelUserInfo();
         if (isMounted) {
-          setData(info);
+          setData(applyPanelVideoDisplayOverride(info));
           setError(null);
           setIsDemo(false);
           setDemoScenario(null);
