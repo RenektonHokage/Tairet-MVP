@@ -13,11 +13,36 @@ import { applySearchFilters, parseSearchParams, patchSearchParams } from "@/lib/
 import VenueCard from "@/components/shared/VenueCard";
 import { slugify } from "@/lib/slug";
 import { prefetchImages } from "@/lib/imagePrefetch";
-import { buildTodayScheduleBySlug, getLocalsList } from "@/lib/locals";
+import {
+  buildTodayScheduleBySlug,
+  getLocalsList,
+  type LocalListItem,
+} from "@/lib/locals";
+
+function buildCoverMap(locals: LocalListItem[]) {
+  const coverMap = new Map<string, string>();
+
+  locals.forEach((local) => {
+    if (!local.cover_url) return;
+
+    const normalizedSlug = slugify(local.name);
+    if (normalizedSlug) {
+      coverMap.set(normalizedSlug, local.cover_url);
+    }
+
+    if (local.slug && local.slug !== normalizedSlug) {
+      coverMap.set(local.slug, local.cover_url);
+    }
+  });
+
+  return coverMap;
+}
 
 const Explorar = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [todaySchedulesBySlug, setTodaySchedulesBySlug] = useState<Map<string, string>>(new Map());
+  const [barCoverBySlug, setBarCoverBySlug] = useState<Map<string, string>>(new Map());
+  const [clubCoverBySlug, setClubCoverBySlug] = useState<Map<string, string>>(new Map());
   const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const typeFilter = searchState.type === "all" ? undefined : searchState.type;
   const bars = useMemo(
@@ -107,6 +132,8 @@ const Explorar = () => {
           ...buildTodayScheduleBySlug(clubsLocals),
         ]);
         setTodaySchedulesBySlug(nextMap);
+        setBarCoverBySlug(buildCoverMap(barsLocals));
+        setClubCoverBySlug(buildCoverMap(clubsLocals));
       })
       .catch(() => {
         // Fallback to fixture schedule on API errors.
@@ -123,15 +150,28 @@ const Explorar = () => {
     const candidateImages: Array<string | undefined> = [];
 
     if (showBars) {
-      candidateImages.push(...bars.map((bar) => bar.image));
+      candidateImages.push(
+        ...bars.map((bar) => barCoverBySlug.get(slugify(bar.name)) || bar.image)
+      );
     }
 
     if (showClubs) {
-      candidateImages.push(...clubs.map((club) => club.customImage));
+      candidateImages.push(
+        ...clubs.map((club) => clubCoverBySlug.get(slugify(club.name)) || club.customImage)
+      );
     }
 
     prefetchImages(candidateImages, 8);
-  }, [bars, clubs, hasActiveQuery, showBars, showClubs, totalResults]);
+  }, [
+    barCoverBySlug,
+    bars,
+    clubCoverBySlug,
+    clubs,
+    hasActiveQuery,
+    showBars,
+    showClubs,
+    totalResults,
+  ]);
 
   const clearSearch = () => {
     const nextParams = patchSearchParams(
@@ -196,7 +236,7 @@ const Explorar = () => {
                           rating={bar.rating}
                           specialties={bar.specialties}
                           location={bar.location}
-                          image={bar.image}
+                          image={barCoverBySlug.get(slugify(bar.name)) || bar.image}
                           href={`/bar/${slugify(bar.name)}`}
                           type="bar"
                           imagePriority={index < 6}
@@ -220,7 +260,7 @@ const Explorar = () => {
                           schedule={todaySchedulesBySlug.get(slugify(club.name)) ?? "Horario no disponible"}
                           rating={club.rating}
                           genres={club.genres}
-                          image={club.customImage}
+                          image={clubCoverBySlug.get(slugify(club.name)) || club.customImage}
                           href={`/club/${slugify(club.name)}`}
                           type="club"
                           imagePriority={index < 6}

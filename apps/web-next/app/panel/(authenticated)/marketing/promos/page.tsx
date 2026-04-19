@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { usePanelContext } from "@/lib/panelContext";
+import { getPanelDemoPromos } from "@/lib/panel-demo/promos";
 import {
   createPromo,
   deletePromo,
@@ -55,6 +56,7 @@ import {
   panelUi,
 } from "@/components/panel/ui";
 import { KpiGrid, type KpiItem } from "@/components/panel/views/dashboard";
+import { PromoImageCropperModal } from "@/components/panel/views/promos/PromoImageCropperModal";
 
 type StatusFilter = "all" | "active" | "inactive";
 type SortMode = "priority" | "views" | "recent";
@@ -66,14 +68,10 @@ const EMPTY_FORM: CreatePromoInput = {
   description: "",
 };
 const PROMO_IMAGE_GENERAL_HELPER_TEXT =
-  "Recomendamos una imagen horizontal 4:3, con el foco principal centrado. En el perfil público se recorta automáticamente.";
+  "Si subís un archivo, podrás ajustar el encuadre 4:3 antes de guardarlo. Si usás una URL pública, el perfil público se recorta automáticamente.";
 const PROMO_IMAGE_FILE_HELPER_TEXT = "Archivo: JPG, PNG o WebP · máximo 5 MB";
 const PROMO_IMAGE_URL_HELPER_TEXT =
   "URL pública: solo validamos que sea una URL http/https válida; no verificamos formato, peso ni dimensiones.";
-const PROMO_IMAGE_RATIO_WARNING =
-  "Esta imagen no es 4:3 y podría recortarse en el perfil público.";
-const PROMO_TARGET_IMAGE_RATIO = 4 / 3;
-const PROMO_RATIO_WARNING_TOLERANCE = 0.12;
 // Temporary panel-only override for demo/video recordings.
 const PROMO_VIDEO_VIEW_OVERRIDES = {
   "mckharthys-bar": [4981, 3420, 2870],
@@ -126,9 +124,25 @@ async function getImageDimensions(
   });
 }
 
-function shouldWarnPromoImageRatio(width: number, height: number) {
-  const ratio = width / height;
-  return Math.abs(ratio - PROMO_TARGET_IMAGE_RATIO) > PROMO_RATIO_WARNING_TOLERANCE;
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("No se pudo leer la imagen seleccionada."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("No se pudo leer la imagen seleccionada."));
+    };
+
+    reader.readAsDataURL(file);
+  });
 }
 
 function getPromoVideoOverrideSlug(slug?: string | null) {
@@ -191,10 +205,17 @@ function ToolbarSelect({
 }
 
 export default function PromosPage() {
-  const { data, loading: contextLoading } = usePanelContext();
+  const {
+    data,
+    loading: contextLoading,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
   const isOwner = data?.role === "owner";
   const localId = data?.local?.id;
   const localSlug = data?.local?.slug;
+  const isDemoPromos =
+    isDemo && (demoScenario === "bar" || demoScenario === "discoteca");
 
   const [promos, setPromos] = useState<Promo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,11 +229,14 @@ export default function PromosPage() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [imageRatioWarning, setImageRatioWarning] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInputValue, setUrlInputValue] = useState("");
   const [urlInputError, setUrlInputError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cropSourceUrlRef = useRef<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -222,7 +246,19 @@ export default function PromosPage() {
   const [dragOverPromoId, setDragOverPromoId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!localId) return;
+    if (contextLoading) return;
+
+    if (isDemoPromos && demoScenario) {
+      setPromos(getPanelDemoPromos(demoScenario));
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    if (!localId) {
+      setLoading(false);
+      return;
+    }
 
     const fetchPromos = async () => {
       setLoading(true);
@@ -242,30 +278,52 @@ export default function PromosPage() {
     };
 
     fetchPromos();
-  }, [localId]);
+  }, [contextLoading, demoScenario, isDemoPromos, localId]);
 
   const showSuccessMessage = (message: string) => {
     setSuccess(message);
     window.setTimeout(() => setSuccess(null), 3000);
   };
 
+  const revokeCropSourceUrl = () => {
+    if (!cropSourceUrlRef.current) {
+      return;
+    }
+
+    URL.revokeObjectURL(cropSourceUrlRef.current);
+    cropSourceUrlRef.current = null;
+  };
+
+  const closeCropModal = () => {
+    revokeCropSourceUrl();
+    setCropModalOpen(false);
+    setCropSourceUrl(null);
+    setPendingCropFile(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      revokeCropSourceUrl();
+    };
+  }, []);
+
   const resetForm = () => {
+    closeCropModal();
     setIsDrawerOpen(false);
     setEditingPromo(null);
     setFormData(EMPTY_FORM);
     setUploadError(null);
-    setImageRatioWarning(null);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
   };
 
   const openCreateDrawer = () => {
+    closeCropModal();
     setError(null);
     setEditingPromo(null);
     setFormData(EMPTY_FORM);
     setUploadError(null);
-    setImageRatioWarning(null);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
@@ -273,6 +331,7 @@ export default function PromosPage() {
   };
 
   const handleEditClick = (promo: Promo) => {
+    closeCropModal();
     setError(null);
     setEditingPromo(promo);
     setFormData({
@@ -281,7 +340,6 @@ export default function PromosPage() {
       description: promo.description || "",
     });
     setUploadError(null);
-    setImageRatioWarning(null);
     setShowUrlInput(false);
     setUrlInputValue("");
     setUrlInputError(null);
@@ -289,33 +347,61 @@ export default function PromosPage() {
   };
 
   const handleFileSelect = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.target;
     const file = event.target.files?.[0];
     if (!file) return;
+    input.value = "";
 
     const validationError = validatePromoImageFile(file);
     if (validationError) {
       setUploadError(validationError.error);
-      setImageRatioWarning(null);
       return;
     }
 
     setUploadError(null);
-    setImageRatioWarning(null);
-    setIsUploading(true);
 
     try {
       const dimensions = await getImageDimensions(file);
-      if (
-        dimensions &&
-        shouldWarnPromoImageRatio(dimensions.width, dimensions.height)
-      ) {
-        setImageRatioWarning(PROMO_IMAGE_RATIO_WARNING);
+      if (!dimensions) {
+        setUploadError("No se pudo procesar la imagen seleccionada.");
+        return;
       }
 
-      const result = await uploadPromoImage(file);
-      setFormData((current) => ({ ...current, image_url: result.imageUrl }));
+      closeCropModal();
+      const objectUrl = URL.createObjectURL(file);
+      cropSourceUrlRef.current = objectUrl;
+      setPendingCropFile(file);
+      setCropSourceUrl(objectUrl);
+      setCropModalOpen(true);
       setShowUrlInput(false);
       setUrlInputValue("");
+      setUrlInputError(null);
+    } catch (selectingError) {
+      setUploadError(
+        selectingError instanceof Error
+          ? selectingError.message
+          : "No se pudo procesar la imagen seleccionada."
+      );
+    }
+  };
+
+  const handleCropConfirm = async (croppedFile: File) => {
+    setUploadError(null);
+    setIsUploading(true);
+
+    try {
+      if (isDemoPromos) {
+        const dataUrl = await readFileAsDataUrl(croppedFile);
+        setFormData((current) => ({ ...current, image_url: dataUrl }));
+      } else {
+        const result = await uploadPromoImage(croppedFile);
+        setFormData((current) => ({ ...current, image_url: result.imageUrl }));
+      }
+
+      closeCropModal();
+      setShowUrlInput(false);
+      setUrlInputValue("");
+      setUrlInputError(null);
     } catch (uploadingError) {
       setUploadError(
         uploadingError instanceof Error
@@ -324,9 +410,6 @@ export default function PromosPage() {
       );
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -338,7 +421,6 @@ export default function PromosPage() {
     }
 
     setUrlInputError(null);
-    setImageRatioWarning(null);
     setFormData((current) => ({ ...current, image_url: urlInputValue }));
     setShowUrlInput(false);
   };
@@ -361,6 +443,32 @@ export default function PromosPage() {
     setError(null);
 
     try {
+      if (isDemoPromos) {
+        const now = new Date().toISOString();
+        const nextSortOrder =
+          promos.reduce(
+            (maxSortOrder, promo) => Math.max(maxSortOrder, promo.sort_order),
+            -1
+          ) + 1;
+        const newPromo: Promo = {
+          id: `demo-promo-${Date.now()}`,
+          local_id: localId,
+          title: formData.title.trim(),
+          image_url: formData.image_url.trim(),
+          description: formData.description?.trim() || null,
+          is_active: true,
+          sort_order: nextSortOrder,
+          created_at: now,
+          updated_at: now,
+          view_count: 0,
+        };
+
+        setPromos((current) => [...current, newPromo]);
+        resetForm();
+        showSuccessMessage("Promoción creada");
+        return;
+      }
+
       const newPromo = await createPromo(localId, {
         title: formData.title.trim(),
         image_url: formData.image_url.trim(),
@@ -414,6 +522,26 @@ export default function PromosPage() {
     setError(null);
 
     try {
+      if (isDemoPromos) {
+        const now = new Date().toISOString();
+        setPromos((current) =>
+          current.map((promo) =>
+            promo.id === editingPromo.id
+              ? {
+                  ...promo,
+                  title: formData.title.trim(),
+                  image_url: formData.image_url.trim(),
+                  description: formData.description?.trim() || null,
+                  updated_at: now,
+                }
+              : promo
+          )
+        );
+        resetForm();
+        showSuccessMessage("Promoción actualizada");
+        return;
+      }
+
       const updatedPromo = await updatePromo(localId, editingPromo.id, input);
       setPromos((current) =>
         current.map((promo) => (promo.id === updatedPromo.id ? updatedPromo : promo))
@@ -438,6 +566,22 @@ export default function PromosPage() {
     setError(null);
 
     try {
+      if (isDemoPromos) {
+        const now = new Date().toISOString();
+        const nextIsActive = !promo.is_active;
+        setPromos((current) =>
+          current.map((item) =>
+            item.id === promo.id
+              ? { ...item, is_active: nextIsActive, updated_at: now }
+              : item
+          )
+        );
+        showSuccessMessage(
+          nextIsActive ? "Promoción activada" : "Promoción desactivada"
+        );
+        return;
+      }
+
       const updatedPromo = await updatePromo(localId, promo.id, {
         is_active: !promo.is_active,
       });
@@ -468,6 +612,12 @@ export default function PromosPage() {
     setError(null);
 
     try {
+      if (isDemoPromos) {
+        setPromos((current) => current.filter((item) => item.id !== promo.id));
+        showSuccessMessage("Promoción eliminada");
+        return;
+      }
+
       await deletePromo(localId, promo.id);
       setPromos((current) => current.filter((item) => item.id !== promo.id));
       showSuccessMessage("Promoción eliminada");
@@ -484,7 +634,7 @@ export default function PromosPage() {
 
   const handleRemoveImage = () => {
     setFormData((current) => ({ ...current, image_url: "" }));
-    setImageRatioWarning(null);
+    setUploadError(null);
   };
 
   const orderedPromos = useMemo(
@@ -651,6 +801,25 @@ export default function PromosPage() {
 
     const orderedIds = [...nextActiveIds, ...inactivePromos.map((promo) => promo.id)];
     const previousPromos = promos;
+
+    if (isDemoPromos) {
+      setPromos(() => {
+        const promoMap = new Map(previousPromos.map((promo) => [promo.id, promo]));
+        const now = new Date().toISOString();
+        return orderedIds
+          .map((id, index) => {
+            const promo = promoMap.get(id);
+            return promo
+              ? { ...promo, sort_order: index, updated_at: now }
+              : null;
+          })
+          .filter((promo): promo is Promo => promo !== null);
+      });
+      showSuccessMessage("Orden de aparición actualizado");
+      setDraggedPromoId(null);
+      setDragOverPromoId(null);
+      return;
+    }
 
     setPromos(() => {
       const promoMap = new Map(previousPromos.map((promo) => [promo.id, promo]));
@@ -1140,12 +1309,6 @@ export default function PromosPage() {
                   </div>
                 ) : null}
 
-                {imageRatioWarning ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    {imageRatioWarning}
-                  </div>
-                ) : null}
-
                 <details
                   open={showUrlInput}
                   onToggle={(event) =>
@@ -1436,6 +1599,15 @@ export default function PromosPage() {
         )}
       </div>
       {renderPromoDrawer()}
+      <PromoImageCropperModal
+        open={cropModalOpen}
+        file={pendingCropFile}
+        imageSrc={cropSourceUrl}
+        isSubmitting={isUploading}
+        error={uploadError}
+        onCancel={closeCropModal}
+        onConfirm={handleCropConfirm}
+      />
     </>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from "react";
 import { usePanelContext } from "@/lib/panelContext";
+import { getPanelDemoProfileData } from "@/lib/panel-demo/profile";
+import { getPanelDemoPromos } from "@/lib/panel-demo/promos";
 import {
   getPanelLocalProfile,
   updatePanelLocalProfile,
@@ -419,6 +421,27 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("No se pudo leer la imagen seleccionada."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("No se pudo leer la imagen seleccionada."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
 // Tipo para resultado de validación
 interface ImageValidationResult {
   valid: boolean;
@@ -452,8 +475,15 @@ function FormatsDisclosure({ recommended }: { recommended: string }) {
 }
 
 export default function ProfilePage() {
-  const { data: context, loading: contextLoading } = usePanelContext();
+  const {
+    data: context,
+    loading: contextLoading,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isDemoProfile =
+    isDemo && (demoScenario === "bar" || demoScenario === "discoteca");
 
   // Estados principales
   const [profile, setProfile] = useState<LocalProfile | null>(null);
@@ -518,6 +548,37 @@ export default function ProfilePage() {
   const [showNewTableForm, setShowNewTableForm] = useState(false);
   const [newTicketData, setNewTicketData] = useState({ name: "", price: "", description: "" });
   const [newTableData, setNewTableData] = useState({ name: "", price: "", capacity: "", includes: "" });
+  const applyProfileToEditor = (data: LocalProfile) => {
+    const normalizedOpeningHours = normalizeOpeningHoursForEditor(data.opening_hours);
+    setProfile(data);
+    setFormData({
+      name: data.name || "",
+      address: data.address || "",
+      location: data.location || "",
+      city: data.city || "",
+      latitude: data.latitude != null ? String(data.latitude) : "",
+      longitude: data.longitude != null ? String(data.longitude) : "",
+      phone: data.phone || "",
+      whatsapp: data.whatsapp || "",
+      hoursText: toLines(data.hours),
+      additionalInfoText: toLines(data.additional_info),
+    });
+    setCoordinatesInput(
+      formatCoordinatePairInput(
+        data.latitude != null ? String(data.latitude) : "",
+        data.longitude != null ? String(data.longitude) : "",
+      ),
+    );
+    setOpeningHoursDraft(normalizedOpeningHours);
+    setUseStructuredHours(Boolean(data.opening_hours));
+    setOpeningHoursErrors([]);
+    setSelectedAttributes(Array.isArray(data.attributes) ? data.attributes : []);
+    setMinAge(typeof data.min_age === "number" ? data.min_age : null);
+  };
+  const showCatalogSuccessMessage = (message: string) => {
+    setCatalogSuccess(message);
+    window.setTimeout(() => setCatalogSuccess(null), 3000);
+  };
   const closeNewTicketModal = () => {
     setShowNewTicketForm(false);
     setNewTicketData({ name: "", price: "", description: "" });
@@ -562,58 +623,43 @@ export default function ProfilePage() {
     setPromosError(null);
     setPreviewPromos([]);
 
-    getPanelPromosByLocalId(localId, false)
-      .then((items) => {
+    const loadPreviewPromos = async () => {
+      try {
+        const items =
+          isDemoProfile && demoScenario
+            ? getPanelDemoPromos(demoScenario).filter((promo) => promo.is_active)
+            : await getPanelPromosByLocalId(localId, false);
+
         if (cancelled) return;
         promosCacheRef.current.set(localId, items);
         setPreviewPromos(items);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return;
         setPromosError(err instanceof Error ? err.message : "Error al cargar promociones");
         setPreviewPromos([]);
-      })
-      .finally(() => {
+      } finally {
         if (cancelled) return;
         setPromosLoading(false);
-      });
+      }
+    };
+
+    void loadPreviewPromos();
 
     return () => {
       cancelled = true;
     };
-  }, [activeTab, context?.local?.id]);
+  }, [activeTab, context?.local?.id, demoScenario, isDemoProfile]);
 
   const loadProfile = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await getPanelLocalProfile();
-      const normalizedOpeningHours = normalizeOpeningHoursForEditor(data.opening_hours);
-      setProfile(data);
-      setFormData({
-        name: data.name || "",
-        address: data.address || "",
-        location: data.location || "",
-        city: data.city || "",
-        latitude: data.latitude != null ? String(data.latitude) : "",
-        longitude: data.longitude != null ? String(data.longitude) : "",
-        phone: data.phone || "",
-        whatsapp: data.whatsapp || "",
-        hoursText: toLines(data.hours),
-        additionalInfoText: toLines(data.additional_info),
-      });
-      setCoordinatesInput(
-        formatCoordinatePairInput(
-          data.latitude != null ? String(data.latitude) : "",
-          data.longitude != null ? String(data.longitude) : "",
-        ),
-      );
-      setOpeningHoursDraft(normalizedOpeningHours);
-      setUseStructuredHours(Boolean(data.opening_hours));
-      setOpeningHoursErrors([]);
-      setSelectedAttributes(Array.isArray(data.attributes) ? data.attributes : []);
-      setMinAge(typeof data.min_age === "number" ? data.min_age : null);
+      const data =
+        isDemoProfile && demoScenario
+          ? getPanelDemoProfileData(demoScenario).profile
+          : await getPanelLocalProfile();
+      applyProfileToEditor(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar perfil");
     } finally {
@@ -630,10 +676,13 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
-      const [tickets, tables] = await Promise.all([
-        getCatalogTickets(),
-        getCatalogTables(),
-      ]);
+      const { tickets, tables } =
+        isDemoProfile && demoScenario
+          ? getPanelDemoProfileData(demoScenario)
+          : {
+              tickets: await getCatalogTickets(),
+              tables: await getCatalogTables(),
+            };
       setCatalogTickets(tickets);
       setCatalogTables(tables);
     } catch (err) {
@@ -663,6 +712,29 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        const now = new Date().toISOString();
+        const newTicket: CatalogTicket = {
+          id: `demo-ticket-${Date.now()}`,
+          name,
+          price: priceNum,
+          description: newTicketData.description.trim() || null,
+          is_active: activeTicketsCount < MAX_ACTIVE_TICKETS,
+          sort_order:
+            catalogTickets.reduce(
+              (maxSortOrder, ticket) => Math.max(maxSortOrder, ticket.sort_order),
+              -1,
+            ) + 1,
+          created_at: now,
+          updated_at: now,
+        };
+        setCatalogTickets([...catalogTickets, newTicket]);
+        setNewTicketData({ name: "", price: "", description: "" });
+        setShowNewTicketForm(false);
+        showCatalogSuccessMessage("Entrada creada correctamente");
+        return;
+      }
+
       const newTicket = await createCatalogTicket({
         name,
         price: priceNum,
@@ -671,8 +743,7 @@ export default function ProfilePage() {
       setCatalogTickets([...catalogTickets, newTicket]);
       setNewTicketData({ name: "", price: "", description: "" });
       setShowNewTicketForm(false);
-      setCatalogSuccess("Entrada creada correctamente");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage("Entrada creada correctamente");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al crear entrada");
     } finally {
@@ -687,10 +758,21 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        const nextIsActive = !ticket.is_active;
+        const updated = {
+          ...ticket,
+          is_active: nextIsActive,
+          updated_at: new Date().toISOString(),
+        };
+        setCatalogTickets(catalogTickets.map((t) => (t.id === ticket.id ? updated : t)));
+        showCatalogSuccessMessage(nextIsActive ? "Entrada activada" : "Entrada desactivada");
+        return;
+      }
+
       const updated = await updateCatalogTicket(ticket.id, { is_active: !ticket.is_active });
       setCatalogTickets(catalogTickets.map((t) => (t.id === ticket.id ? updated : t)));
-      setCatalogSuccess(updated.is_active ? "Entrada activada" : "Entrada desactivada");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage(updated.is_active ? "Entrada activada" : "Entrada desactivada");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al actualizar entrada");
     } finally {
@@ -730,6 +812,30 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        const now = new Date().toISOString();
+        const newTable: CatalogTable = {
+          id: `demo-table-${Date.now()}`,
+          name,
+          price: priceNum,
+          capacity: capacityNum,
+          includes: newTableData.includes.trim() || null,
+          is_active: true,
+          sort_order:
+            catalogTables.reduce(
+              (maxSortOrder, table) => Math.max(maxSortOrder, table.sort_order),
+              -1,
+            ) + 1,
+          created_at: now,
+          updated_at: now,
+        };
+        setCatalogTables([...catalogTables, newTable]);
+        setNewTableData({ name: "", price: "", capacity: "", includes: "" });
+        setShowNewTableForm(false);
+        showCatalogSuccessMessage("Mesa creada correctamente");
+        return;
+      }
+
       const newTable = await createCatalogTable({
         name,
         price: priceNum,
@@ -739,8 +845,7 @@ export default function ProfilePage() {
       setCatalogTables([...catalogTables, newTable]);
       setNewTableData({ name: "", price: "", capacity: "", includes: "" });
       setShowNewTableForm(false);
-      setCatalogSuccess("Mesa creada correctamente");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage("Mesa creada correctamente");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al crear mesa");
     } finally {
@@ -755,10 +860,21 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        const nextIsActive = !table.is_active;
+        const updated = {
+          ...table,
+          is_active: nextIsActive,
+          updated_at: new Date().toISOString(),
+        };
+        setCatalogTables(catalogTables.map((t) => (t.id === table.id ? updated : t)));
+        showCatalogSuccessMessage(nextIsActive ? "Mesa activada" : "Mesa desactivada");
+        return;
+      }
+
       const updated = await updateCatalogTable(table.id, { is_active: !table.is_active });
       setCatalogTables(catalogTables.map((t) => (t.id === table.id ? updated : t)));
-      setCatalogSuccess(updated.is_active ? "Mesa activada" : "Mesa desactivada");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage(updated.is_active ? "Mesa activada" : "Mesa desactivada");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al actualizar mesa");
     } finally {
@@ -776,10 +892,15 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        setCatalogTickets(catalogTickets.filter((t) => t.id !== ticket.id));
+        showCatalogSuccessMessage("Entrada eliminada");
+        return;
+      }
+
       await deleteCatalogTicket(ticket.id);
       setCatalogTickets(catalogTickets.filter((t) => t.id !== ticket.id));
-      setCatalogSuccess("Entrada eliminada");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage("Entrada eliminada");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al eliminar entrada");
     } finally {
@@ -797,10 +918,15 @@ export default function ProfilePage() {
     setCatalogError(null);
 
     try {
+      if (isDemoProfile) {
+        setCatalogTables(catalogTables.filter((t) => t.id !== table.id));
+        showCatalogSuccessMessage("Mesa eliminada");
+        return;
+      }
+
       await deleteCatalogTable(table.id);
       setCatalogTables(catalogTables.filter((t) => t.id !== table.id));
-      setCatalogSuccess("Mesa eliminada");
-      setTimeout(() => setCatalogSuccess(null), 3000);
+      showCatalogSuccessMessage("Mesa eliminada");
     } catch (err) {
       setCatalogError(err instanceof Error ? err.message : "Error al eliminar mesa");
     } finally {
@@ -967,6 +1093,30 @@ export default function ProfilePage() {
 
       const additional_info = parseLines(formData.additionalInfoText);
 
+      if (isDemoProfile && profile) {
+        const updated: LocalProfile = {
+          ...profile,
+          name: formData.name.trim(),
+          address: formData.address.trim(),
+          location: formData.location.trim(),
+          city: formData.city.trim() || null,
+          latitude: parsedLatitude,
+          longitude: parsedLongitude,
+          phone: formData.phone.trim(),
+          whatsapp: formData.whatsapp.trim(),
+          hours,
+          opening_hours: useStructuredHours ? openingHoursPayload ?? null : null,
+          additional_info,
+          attributes: [...selectedAttributes],
+          min_age: minAge,
+        };
+
+        applyProfileToEditor(updated);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+        return;
+      }
+
       const updated = await updatePanelLocalProfile({
         name: formData.name.trim(),
         address: formData.address.trim(),
@@ -1095,13 +1245,27 @@ export default function ProfilePage() {
     setUploading(true);
 
     try {
-      // Upload via signed URL (evita límite 100KB)
-      const newItem = await uploadGalleryImage(file, kind);
+      if (isDemoProfile) {
+        const dataUrl = await readFileAsDataUrl(file);
+        const nextOrder =
+          profile.gallery.reduce((maxOrder, item) => Math.max(maxOrder, item.order), -1) + 1;
+        const newItem: LocalGalleryItem = {
+          id: `demo-gallery-${Date.now()}`,
+          url: dataUrl,
+          path: `demo/${profile.id}/${kind}/${Date.now()}`,
+          kind,
+          order: nextOrder,
+        };
+        setProfile({ ...profile, gallery: [...profile.gallery, newItem] });
+      } else {
+        // Upload via signed URL (evita límite 100KB)
+        const newItem = await uploadGalleryImage(file, kind);
 
-      // Agregar a gallery via PATCH
-      const updatedGallery = [...profile.gallery, newItem];
-      const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
-      setProfile(updated);
+        // Agregar a gallery via PATCH
+        const updatedGallery = [...profile.gallery, newItem];
+        const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
+        setProfile(updated);
+      }
 
       // Reset file input
       if (fileInputRef.current) {
@@ -1127,9 +1291,16 @@ export default function ProfilePage() {
     setGalleryError(null);
 
     try {
-      const result = await deleteGalleryImage(imageId);
-      // Update local state with returned gallery
-      setProfile({ ...profile, gallery: result.gallery });
+      if (isDemoProfile) {
+        setProfile({
+          ...profile,
+          gallery: profile.gallery.filter((item) => item.id !== imageId),
+        });
+      } else {
+        const result = await deleteGalleryImage(imageId);
+        // Update local state with returned gallery
+        setProfile({ ...profile, gallery: result.gallery });
+      }
     } catch (err) {
       setGalleryError(err instanceof Error ? err.message : "Error al eliminar imagen");
     }
@@ -1147,8 +1318,12 @@ export default function ProfilePage() {
         kind: g.id === imageId ? "cover" as GalleryKind : (g.kind === "cover" ? "carousel" as GalleryKind : g.kind),
       }));
 
-      const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
-      setProfile(updated);
+      if (isDemoProfile) {
+        setProfile({ ...profile, gallery: updatedGallery });
+      } else {
+        const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
+        setProfile(updated);
+      }
     } catch (err) {
       setGalleryError(err instanceof Error ? err.message : "Error al cambiar portada");
     }
@@ -1175,8 +1350,12 @@ export default function ProfilePage() {
         g.order = i;
       });
 
-      const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
-      setProfile(updated);
+      if (isDemoProfile) {
+        setProfile({ ...profile, gallery: updatedGallery });
+      } else {
+        const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
+        setProfile(updated);
+      }
     } catch (err) {
       setGalleryError(err instanceof Error ? err.message : "Error al reordenar");
     }
@@ -1210,8 +1389,12 @@ export default function ProfilePage() {
         return g;
       });
 
-      const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
-      setProfile(updated);
+      if (isDemoProfile) {
+        setProfile({ ...profile, gallery: updatedGallery });
+      } else {
+        const updated = await updatePanelLocalProfile({ gallery: updatedGallery });
+        setProfile(updated);
+      }
     } catch (err) {
       setGalleryError(err instanceof Error ? err.message : "Error al reordenar");
     }

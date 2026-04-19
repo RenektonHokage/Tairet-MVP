@@ -1,3 +1,8 @@
+> Estado documental: Requiere revalidación
+> Fuente operativa primaria: No
+> Usar para: contexto del discovery técnico fechado de la landing temporal.
+> Ver también: `docs/architecture/**`, `docs/production/**`
+
 # TAIRET - Landing publica temporal - Discovery tecnico
 
 Fecha del discovery: 2026-03-03

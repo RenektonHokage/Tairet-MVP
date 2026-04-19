@@ -1,3 +1,8 @@
+> Estado documental: Superado
+> Fuente operativa primaria: No
+> Usar para: trazabilidad del checklist MVP panel original.
+> Ver también: `docs/architecture/**`, `docs/operations/**`, `docs/production/**`
+
 Perfecto, ya tenemos todo verde en GitHub y el monorepo sano 👌
 
 Te dejo directamente el contenido para `docs/docs/CHECKLIST_MVP_PANEL.md` listo para **copiar y pegar**.

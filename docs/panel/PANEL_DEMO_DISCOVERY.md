@@ -1,3 +1,8 @@
+> Estado documental: Histórico
+> Fuente operativa primaria: No
+> Usar para: contexto de origen y decisiones iniciales del panel demo.
+> Ver también: `docs/panel/PANEL_DEMO_Y_CAMBIOS_RELEVANTES.md`
+
 # PANEL DEMO DISCOVERY
 
 ## Contexto

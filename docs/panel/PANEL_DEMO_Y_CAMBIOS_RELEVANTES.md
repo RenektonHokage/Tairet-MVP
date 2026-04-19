@@ -1,77 +1,141 @@
 # Panel Demo y Cambios Relevantes
 
 ## 1. Propósito
-Este documento resume solo los cambios relevantes del panel para demo/video y los puntos a revisar antes de operar real.
-No es un changelog completo de UI. Sirve como referencia rápida para nosotros y para futuras intervenciones de Codex.
+Este documento resume el estado operativo actual del panel demo y los cambios relevantes que conviene tener presentes para video, QA interno y futuras intervenciones.
+No es un changelog exhaustivo de UI. Solo registra lo estable, lo demo-only y el cleanup previo a operación real.
 
-## 2. Cambios relevantes implementados
-- Exportación principal del panel a Excel (`.xlsx`) para Reservas y Orders.
-- Paginación simple en `/panel/orders` con navegación `Ver anteriores` / `Ver siguientes`.
-- Login del panel rediseñado, estabilizado y con switch dark/light local.
-- Runtime demo del panel habilitable por env y rutas dedicadas.
-- Override temporal visual de métricas en `Promociones` para grabación/video.
+## 2. Estado actual del panel demo
+- El panel demo quedó funcional y reutilizable como base de demo comercial e interna.
+- El runtime demo vive en frontend y se habilita por env + rutas dedicadas.
+- La demo ya no depende de abrir una segunda pestaña ni de usar el panel real para mostrar los módulos principales.
+- Los módulos demo-ready usan datasets locales y, donde aplica, edición local en cliente sin backend real.
+- `Check-in` y `Soporte/Settings` no forman parte de la superficie demo reutilizable actual; siguen acoplados a flujos reales.
 
-## 3. Demo / video: elementos temporales
-- Env relevante para demo: `NEXT_PUBLIC_ENABLE_PANEL_DEMO=true`.
-- Rutas demo del panel:
+## 3. Módulos demo-ready hoy
+- Shell demo del panel:
+  - identidad demo;
+  - navegación;
+  - runtime por escenario.
+- Dashboard / Inicio:
+  - `bar`;
+  - `discoteca`.
+- Reservas:
+  - demo-ready para `bar`.
+- Orders / Entradas:
+  - demo-ready para `discoteca`.
+- Métricas:
+  - demo-ready para `bar`;
+  - demo-ready para `discoteca`.
+- Promociones:
+  - demo-ready para `bar`;
+  - demo-ready para `discoteca`;
+  - dataset local y mutaciones solo en cliente.
+- Perfil del local:
+  - demo-ready para `bar`;
+  - demo-ready para `discoteca`;
+  - edición local e imágenes demo sin storage real.
+- Calendario:
+  - demo-ready para `bar`;
+  - demo-ready para `discoteca`;
+  - navegación mensual y guardado local de demo.
+- Fuera del scope demo-ready actual:
+  - `Check-in`;
+  - `Soporte / Settings`.
+
+## 4. Cambios relevantes estables
+- Exportación principal del panel a Excel (`.xlsx`) para flujos operativos.
+- Compatibilidad CSV interna mantenida donde correspondía.
+- Paginación simple en `/panel/orders`.
+- Login del panel rediseñado y estabilizado.
+- Switch dark/light disponible en `/panel/login`.
+
+## 5. Elementos demo-only / temporales
+- Env de demo:
+  - `NEXT_PUBLIC_ENABLE_PANEL_DEMO=true`
+- Rutas demo:
   - `/panel/demo/bar`
   - `/panel/demo/discoteca`
   - `/panel/demo/off`
-- Hoy no se está operando real; los flujos y datos de demo no deben asumirse productivos.
-- Las métricas fake de `Promociones` son solo visuales y se usan únicamente para grabación.
+- Runtime demo en frontend:
+  - `apps/web-next/lib/panel-demo/runtime.ts`
+  - `apps/web-next/lib/panel-demo/identity.ts`
+- Datasets demo locales para módulos demo-ready:
+  - dashboard / métricas;
+  - reservas bar;
+  - orders discoteca;
+  - promociones;
+  - perfil del local;
+  - calendario.
+- Edición local en cliente, sin backend real, en módulos demo donde aplica:
+  - `Promociones`
+  - `Perfil del local`
+  - `Calendario`
+- Hoy no se está operando real; los datos y flujos demo no deben asumirse productivos.
 
-## 4. Overrides temporales de promociones
-- Existe un override temporal visual en `apps/web-next/app/panel/(authenticated)/marketing/promos/page.tsx`.
-- Aplica solo a los locales:
-  - `dlirio`
-  - `mckharthys-bar`
-- Toma las 3 promos activas visibles por posición y les asigna vistas fake para demo:
-  - `dlirio`: `5.340`, `4.110`, `3.260`
-  - `mckharthys-bar`: `4.981`, `3.420`, `2.870`
-- Con ese override también se inflan:
-  - `Total vistas`
-  - `Más vista`
-  - vistas individuales de las 3 promos visibles
-- Es un cambio de frontend/panel, no toca backend ni DB.
-- Es fácil de revertir eliminando la allowlist y el bloque de override temporal.
+## 6. Overrides temporales específicos
+- Override visual temporal de nombre/email mostrado en el panel:
+  - `dlirio`:
+    - nombre mostrado: `Boliche`
+    - email mostrado: `owner.boliche@tairet.com.py`
+  - `mckharthys-bar`:
+    - nombre mostrado: `Mckharthys Bar`
+    - email mostrado: `owner.bar@tairet.com.py`
+  - vive en `apps/web-next/lib/panelContext.tsx`
+  - aplica solo a display en UI del panel
+  - no cambia credenciales reales, auth, backend ni DB
+- Override temporal visual de métricas fake en `Promociones` para video:
+  - aplica solo a `dlirio` y `mckharthys-bar`
+  - infla:
+    - `Total vistas`
+    - `Más vista`
+    - vistas individuales de las 3 promos visibles
+  - valores usados:
+    - `dlirio`: `5.340`, `4.110`, `3.260`
+    - `mckharthys-bar`: `4.981`, `3.420`, `2.870`
+  - vive en `apps/web-next/app/panel/(authenticated)/marketing/promos/page.tsx`
+  - es reversible y no toca backend ni DB
 
-## 5. Exportación
-- La UI principal del panel descarga Excel real (`.xlsx`).
-- El backend expone `/panel/exports/reservations-clients.xlsx`.
-- El endpoint CSV original se mantiene como compatibilidad interna:
-  - `/panel/exports/reservations-clients.csv`
-- La exportación conserva columnas, permisos y semántica del flujo anterior.
-
-## 6. Login del panel
-- El login fue rediseñado y estabilizado como pantalla principal de acceso al panel.
-- `/panel/login` tiene switch dark/light local, compatible con:
-  - `tairet.panel.theme`
-  - `tairet:panel-theme-change`
-- La lentitud inicial observada en dev correspondió a compilación/carga inicial de Next, no a un bug funcional persistente del login.
-- No se documentan aquí microajustes visuales menores del login.
-
-## 7. Qué limpiar o revertir antes de producción real
-- Desactivar o retirar rutas demo del panel si no van a seguir activas.
-- Revisar `NEXT_PUBLIC_ENABLE_PANEL_DEMO` y dejarlo apagado si no corresponde.
-- Revertir el override temporal de métricas fake en `Promociones`.
-- Limpiar datos demo o inflados antes de operar con datos reales.
-- Validar que no queden métricas, vistas o escenarios de grabación activos por error.
-- Revalidar exportación Excel, login y Orders con contexto real antes de operar.
+## 7. Qué limpiar o revertir antes de operación real
+- Revisar si el runtime demo debe quedar habilitado:
+  - si no, apagar `NEXT_PUBLIC_ENABLE_PANEL_DEMO`
+  - y retirar o dejar inaccesibles las rutas demo
+- Revisar y retirar los overrides visuales de video:
+  - nombre/email fake en panel
+  - métricas fake de `Promociones`
+- Confirmar que no queden visibles en panel real:
+  - nombres fake;
+  - emails fake;
+  - métricas infladas;
+  - datasets demo por error fuera del runtime demo
+- Revalidar con contexto real:
+  - login;
+  - exportación `.xlsx`;
+  - `/panel/orders`;
+  - `Promociones`
+  - `Perfil del local`
+  - `Calendario`
+- Si el runtime demo va a permanecer, mantenerlo explícitamente aislado del panel real por env y por escenario.
 
 ## 8. Validación manual recomendada
-- Probar `/panel/demo/bar`, `/panel/demo/discoteca` y `/panel/demo/off` con demo habilitada.
-- Probar `/panel/login` en dark y light.
-- Probar exportación Excel desde Reservas y Orders.
-- Verificar la paginación simple en `/panel/orders`.
-- Verificar que el override de `Promociones` solo aparezca en `dlirio` y `mckharthys-bar`.
-
-## 9. Referencias a otros frentes del panel
-- Este documento queda como fuente de verdad del frente de rediseño/UI/demo del panel.
-- El discovery UX/performance del panel B2B y el primer slice de UX/loading del dashboard `/panel` quedaron reubicados en:
-  - `docs/panel/PANEL_B2B_UX_LOADING_Y_PERFORMANCE.md`
-- El roadmap operativo del frente UX/performance del panel vive en:
-  - `docs/panel/PANEL_B2B_UX_PERFORMANCE_ROADMAP.md`
-- Esa separación es deliberada:
-  - `PANEL_DEMO_Y_CAMBIOS_RELEVANTES.md` cubre rediseño visual, demo y cambios relevantes de UI;
-  - `PANEL_B2B_UX_LOADING_Y_PERFORMANCE.md` cubre discovery, trazabilidad y cierre de slices UX/loading;
-  - `PANEL_B2B_UX_PERFORMANCE_ROADMAP.md` cubre el roadmap operativo del frente.
+- `/panel/login`:
+  - dark;
+  - light.
+- `/panel/demo/bar`:
+  - dashboard;
+  - reservas;
+  - métricas;
+  - promociones;
+  - perfil del local;
+  - calendario.
+- `/panel/demo/discoteca`:
+  - dashboard;
+  - orders / entradas;
+  - métricas;
+  - promociones;
+  - perfil del local;
+  - calendario.
+- `/panel/demo/off`
+- Exportación Excel desde módulos reales donde corresponda.
+- Verificar que los overrides visuales de video solo aparezcan en:
+  - `dlirio`
+  - `mckharthys-bar`

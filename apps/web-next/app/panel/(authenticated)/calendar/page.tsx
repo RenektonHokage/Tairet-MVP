@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { usePanelContext } from "@/lib/panelContext";
 import {
+  getPanelDemoCalendarDay,
+  getPanelDemoCalendarMonth,
+  type DemoCalendarDayOverride,
+} from "@/lib/panel-demo/calendar";
+import {
   getCalendarMonth,
   getCalendarDay,
   updateCalendarDay,
@@ -38,10 +43,16 @@ const formatDateKey = (date: Date) => {
 const startOfMonth = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 
 export default function CalendarPage() {
-  const { data: panelData, loading: panelLoading } = usePanelContext();
+  const {
+    data: panelData,
+    loading: panelLoading,
+    isDemo,
+    demoScenario,
+  } = usePanelContext();
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [dayState, setDayState] = useState<Record<string, DayState>>({});
+  const [demoOverrides, setDemoOverrides] = useState<Record<string, DemoCalendarDayOverride>>({});
   const [draft, setDraft] = useState<DayState>(defaultDayState);
   const [loadingMonth, setLoadingMonth] = useState(false);
   const [monthError, setMonthError] = useState<string | null>(null);
@@ -67,6 +78,7 @@ export default function CalendarPage() {
 
   const localType: LocalType = panelData?.local.type === "bar" ? "bar" : "club";
   const localId = panelData?.local.id ?? null;
+  const isDemoCalendar = isDemo && (demoScenario === "bar" || demoScenario === "discoteca");
 
   useEffect(() => {
     setDraft({ ...selectedState });
@@ -108,6 +120,15 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (panelLoading || !localId) return;
+
+    if (isDemoCalendar && demoScenario) {
+      const data = getPanelDemoCalendarMonth(demoScenario, monthKey, demoOverrides);
+      setLoadingMonth(false);
+      setMonthError(null);
+      applyMonthDays(data.days ?? []);
+      return;
+    }
+
     const cacheKey = `${localId}-${monthKey}`;
     const cached = monthCacheRef.current.get(cacheKey);
     if (cached) {
@@ -144,10 +165,19 @@ export default function CalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [panelLoading, localId, monthKey]);
+  }, [panelLoading, localId, monthKey, demoOverrides, demoScenario, isDemoCalendar]);
 
   useEffect(() => {
     if (panelLoading || !localId) return;
+
+    if (isDemoCalendar && demoScenario) {
+      const data = getPanelDemoCalendarDay(demoScenario, selectedKey, demoOverrides);
+      setDayError(null);
+      setDayDetail(data);
+      setLoadingDay(false);
+      return;
+    }
+
     const fetchKey = `${localId}-${selectedKey}`;
     if (dayFetchKeyRef.current === fetchKey) return;
     dayFetchKeyRef.current = fetchKey;
@@ -178,7 +208,7 @@ export default function CalendarPage() {
     return () => {
       cancelled = true;
     };
-  }, [panelLoading, localId, selectedKey]);
+  }, [panelLoading, localId, selectedKey, demoOverrides, demoScenario, isDemoCalendar]);
 
   const setSelectedDateAndReset = (date: Date) => {
     setSelectedDate(date);
@@ -221,6 +251,20 @@ export default function CalendarPage() {
     const nextDraft = { ...draft, isOpen: nextSaved.isOpen };
     const prevSaved = saved;
 
+    if (isDemoCalendar) {
+      setSaveError(null);
+      commitDayState(nextSaved);
+      setDraft(nextDraft);
+      setDemoOverrides((prev) => ({
+        ...prev,
+        [selectedKey]: {
+          ...prev[selectedKey],
+          is_open: nextSaved.isOpen,
+        },
+      }));
+      return;
+    }
+
     saveInFlightRef.current = true;
     setSaving(true);
     setSaveError(null);
@@ -256,6 +300,33 @@ export default function CalendarPage() {
           ? Math.max(0, draft.tablesWhatsapp) + Math.max(0, draft.tablesTairet)
           : undefined,
     };
+
+    if (isDemoCalendar) {
+      const nextSaved: DayState = {
+        ...draft,
+        note: normalizedNote,
+        tablesWhatsapp: Math.max(0, draft.tablesWhatsapp),
+        tablesTairet: Math.max(0, draft.tablesTairet),
+      };
+
+      setSaveError(null);
+      commitDayState(nextSaved);
+      setDemoOverrides((prev) => ({
+        ...prev,
+        [selectedKey]: {
+          ...prev[selectedKey],
+          is_open: nextSaved.isOpen,
+          note: payload.note,
+          ...(localType === "club"
+            ? {
+                tables_whatsapp: payload.tables_whatsapp,
+                tables_tairet: payload.tables_tairet,
+              }
+            : {}),
+        },
+      }));
+      return;
+    }
 
     saveInFlightRef.current = true;
     setSaving(true);

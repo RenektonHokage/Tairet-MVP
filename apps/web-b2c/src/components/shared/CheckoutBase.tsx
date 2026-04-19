@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -100,10 +100,40 @@ const getAsuncionOperationalDayIso = (): string => {
 const isIsoWithinRange = (iso: string, minIso: string, maxIso: string): boolean =>
   iso >= minIso && iso <= maxIso;
 
+function canScrollCheckoutContainer(container: HTMLDivElement, deltaY: number) {
+  if (container.scrollHeight <= container.clientHeight) {
+    return false;
+  }
+
+  if (deltaY < 0) {
+    return container.scrollTop > 0;
+  }
+
+  if (deltaY > 0) {
+    return container.scrollTop + container.clientHeight < container.scrollHeight - 1;
+  }
+
+  return true;
+}
+
 const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: CheckoutBaseProps) => {
   const location = useLocation();
   const { state: cartState, clearCart, removeFromCart } = useCart();
   const { toast } = useToast();
+  const modalViewportRef = useRef<HTMLDivElement | null>(null);
+  const modalScrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollLockSnapshotRef = useRef<{
+    scrollY: number;
+    bodyOverflow: string;
+    bodyPosition: string;
+    bodyTop: string;
+    bodyLeft: string;
+    bodyRight: string;
+    bodyWidth: string;
+    bodyPaddingRight: string;
+    htmlOverflow: string;
+  } | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -174,6 +204,144 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       year: "numeric",
     }).format(parsed);
   }, [selectedDate, selectedDateDisplay]);
+
+  useEffect(() => {
+    if (!isOpen || typeof window === "undefined") {
+      return;
+    }
+
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    const scrollbarWidth = Math.max(0, window.innerWidth - html.clientWidth);
+
+    scrollLockSnapshotRef.current = {
+      scrollY,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyPaddingRight: body.style.paddingRight,
+      htmlOverflow: html.style.overflow,
+    };
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    html.style.overflow = "hidden";
+
+    return () => {
+      const snapshot = scrollLockSnapshotRef.current;
+      if (!snapshot) {
+        return;
+      }
+
+      body.style.overflow = snapshot.bodyOverflow;
+      body.style.position = snapshot.bodyPosition;
+      body.style.top = snapshot.bodyTop;
+      body.style.left = snapshot.bodyLeft;
+      body.style.right = snapshot.bodyRight;
+      body.style.width = snapshot.bodyWidth;
+      body.style.paddingRight = snapshot.bodyPaddingRight;
+      html.style.overflow = snapshot.htmlOverflow;
+
+      window.scrollTo({ top: snapshot.scrollY, behavior: "auto" });
+      scrollLockSnapshotRef.current = null;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const viewport = modalViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const getScrollContainer = () => modalScrollContainerRef.current;
+
+    const eventCameFromScrollContainer = (target: EventTarget | null) => {
+      const container = getScrollContainer();
+      return container && target instanceof Node ? container.contains(target) : false;
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      const container = getScrollContainer();
+      if (!container) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!eventCameFromScrollContainer(event.target)) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!canScrollCheckoutContainer(container, event.deltaY)) {
+        event.preventDefault();
+      }
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      touchStartYRef.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const container = getScrollContainer();
+      const nextTouchY = event.touches[0]?.clientY ?? null;
+      const previousTouchY = touchStartYRef.current;
+      touchStartYRef.current = nextTouchY;
+
+      if (!container) {
+        event.preventDefault();
+        return;
+      }
+
+      if (!eventCameFromScrollContainer(event.target)) {
+        event.preventDefault();
+        return;
+      }
+
+      if (nextTouchY === null || previousTouchY === null) {
+        return;
+      }
+
+      const deltaY = previousTouchY - nextTouchY;
+      if (!canScrollCheckoutContainer(container, deltaY)) {
+        event.preventDefault();
+      }
+    };
+
+    viewport.addEventListener("wheel", handleWheel, {
+      passive: false,
+      capture: true,
+    });
+    viewport.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+      capture: true,
+    });
+    viewport.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
+      capture: true,
+    });
+
+    return () => {
+      viewport.removeEventListener("wheel", handleWheel, true);
+      viewport.removeEventListener("touchstart", handleTouchStart, true);
+      viewport.removeEventListener("touchmove", handleTouchMove, true);
+      touchStartYRef.current = null;
+    };
+  }, [isOpen, Boolean(orderCreated)]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -380,8 +548,14 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   // Vista de confirmación después de compra exitosa
   if (orderCreated) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <div className="bg-background max-w-md w-full max-h-[90vh] overflow-y-auto rounded-lg shadow-lg">
+      <div
+        ref={modalViewportRef}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overscroll-none"
+      >
+        <div
+          ref={modalScrollContainerRef}
+          className="bg-background max-w-md w-full max-h-[90vh] overflow-y-auto overscroll-contain rounded-lg shadow-lg"
+        >
           <div className="p-6 space-y-6 text-center">
             <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
             <h2 className="text-2xl font-bold text-foreground">¡Free Pass Creado!</h2>
@@ -430,8 +604,14 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden bg-black/70 p-3 sm:p-4">
-      <div className="max-h-[95vh] w-full max-w-6xl overflow-x-hidden overflow-y-auto rounded-2xl border border-white/10 bg-[#101010] text-white shadow-2xl">
+    <div
+      ref={modalViewportRef}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-x-hidden bg-black/70 p-3 sm:p-4 overscroll-none"
+    >
+      <div
+        ref={modalScrollContainerRef}
+        className="max-h-[95vh] w-full max-w-6xl overflow-x-hidden overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#101010] text-white shadow-2xl"
+      >
         <div className="min-w-0 space-y-6 p-4 sm:p-6 lg:p-8">
           <div className="grid grid-cols-[auto_1fr] items-center gap-3 sm:gap-4">
             <Button
