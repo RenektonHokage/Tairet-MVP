@@ -66,11 +66,31 @@ Resultado confirmado:
 - post-check runtime: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
 - QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `POST /orders` free pass, QR/email, `POST /reservations`, `GET /panel/calendar/month`, `GET /panel/calendar/day` y `PATCH /panel/calendar/day`;
 - el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
-- `B5b` sigue abierto para `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+- tras este primer slice, `B5b` seguia abierto para `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+
+### 1.3 Remediation checkpoint — `orders`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-04-26 |
+| Estado | Segundo slice de contencion de exposicion directa aplicado y validado en Supabase live |
+| Recurso | `public.orders` |
+| Migracion versionada | `infra/sql/migrations/020_harden_orders_data_api.sql` |
+
+Resultado confirmado:
+
+- antes de la remediacion, `public.orders` tenia RLS on, policies publicas abiertas `orders_insert_by_local` y `orders_select_by_local`, y grants amplios para `anon` / `authenticated`;
+- la remediacion live mantuvo RLS on, elimino esas policies y removio grants de `anon` / `authenticated`;
+- post-check runtime: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `POST /orders` free pass, orden creada, QR generado, email recibido, `GET /public/orders?email=...`, `GET /orders/:id`, `GET /panel/orders/summary`, `GET /panel/orders/search`, `PATCH /panel/checkin/:token`, `GET /activity`, `GET /metrics/summary`, `GET /panel/calendar/month` y `GET /panel/calendar/day`;
+- los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
+- los endpoints publicos de ordenes se mantienen temporalmente y quedan como decision posterior; este checkpoint cierra la exposicion directa de la tabla cruda por Data API, no el diseno de esos endpoints;
+- el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
+- `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
-No reabre `B5a`, no implementa mitigaciones y no modifica código, SQL, rutas, contratos ni configuración.
+No reabre `B5a`. Los checkpoints de remediacion registran cambios ya aplicados/versionados; este documento no cambia rutas, contratos ni configuracion.
 
 ## 2. Objetivo del discovery
 

@@ -199,7 +199,7 @@ Checkpoint `B5b`:
 - `B5b` no se considera cerrado: el riesgo central sigue en `SUPABASE_SERVICE_ROLE`, blast radius backend, lookups publicos, `/payments/callback`, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
-- la contencion inicial debe enfocarse en `local_daily_ops`, `orders` y `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- la contencion inicial empezo por `local_daily_ops` y `orders`; el siguiente foco directo queda en `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
 - no se debe implementar todo `B5b` en una sola tanda: los lookups publicos de ordenes siguen requiriendo decision explicita, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -210,7 +210,17 @@ Checkpoint `B5b-1 local_daily_ops`:
 - el cambio aplicado en Supabase live quedo versionado en `infra/sql/migrations/019_harden_local_daily_ops_data_api.sql`;
 - resultado: RLS on, policies abiertas previas eliminadas y grants de `anon` / `authenticated` removidos;
 - validacion: post-checks runtime OK y QA live aprobado para perfiles publicos, orden `free_pass`, QR/email, reservas y calendario panel;
-- este checkpoint cierra solo el slice `local_daily_ops`; `B5b` sigue abierto para `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE` y decisiones de aceptacion restantes.
+- este checkpoint cierra solo el slice `local_daily_ops`; `B5b` seguia abierto para `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE` y decisiones de aceptacion restantes.
+
+Checkpoint `B5b-2 orders`:
+
+- `public.orders` ya fue remediado como segundo slice de contencion focalizada de exposicion directa de datos;
+- el cambio aplicado en Supabase live quedo versionado en `infra/sql/migrations/020_harden_orders_data_api.sql`;
+- resultado: RLS sigue on, policies publicas abiertas previas eliminadas y grants de `anon` / `authenticated` removidos;
+- validacion: post-checks runtime OK y QA live aprobado para orden `free_pass`, QR/email, `GET /public/orders?email=...`, `GET /orders/:id`, panel orders/search/summary, check-in, activity, metrics y calendario panel;
+- los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
+- este checkpoint no toca endpoints publicos, backend, frontend ni `SUPABASE_SERVICE_ROLE`; cierra solo la exposicion directa de la tabla cruda `orders` por Data API;
+- `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y decisiones de aceptacion restantes.
 
 ## 11. Riesgos y ambigüedades que requieren validación
 

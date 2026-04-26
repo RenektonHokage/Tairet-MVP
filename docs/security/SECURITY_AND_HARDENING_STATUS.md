@@ -213,9 +213,9 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el riesgo principal sigue concentrado en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
 - los lookups públicos, `/payments/callback`, el drift SQL/env y la validación runtime de Supabase siguen abiertos como decisiones de mitigación o aceptación formal;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
-- hallazgos runtime principales: `local_daily_ops` tiene RLS off; `orders` mantiene RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
+- hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
-- la prioridad actual pasa a ser contencion focalizada de exposicion directa de datos en `local_daily_ops`, `orders` y `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- tras los checkpoints `local_daily_ops` y `orders`, la prioridad actual pasa a ser contencion focalizada de exposicion directa de datos en `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
 - `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
@@ -227,7 +227,18 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
 - QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `POST /orders` free pass con QR/email, `POST /reservations`, `GET /panel/calendar/month`, `GET /panel/calendar/day` y `PATCH /panel/calendar/day`;
 - el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, pero no cierra todavia el blast radius del service role;
-- `B5b` no queda cerrado completo: siguen pendientes `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+- tras este primer slice, seguian pendientes `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+
+### 6.4 Checkpoint `B5b-2 orders`
+
+- `public.orders` fue remediado como segundo slice de High-Risk Data Exposure Containment y versionado en `infra/sql/migrations/020_harden_orders_data_api.sql`;
+- el cambio aplicado y validado en Supabase live mantiene RLS on, elimina las policies publicas abiertas `orders_insert_by_local` / `orders_select_by_local` y remueve grants de `anon` / `authenticated`;
+- post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `POST /orders` free pass, orden creada, QR/email, `GET /public/orders?email=...`, `GET /orders/:id`, `GET /panel/orders/summary`, `GET /panel/orders/search`, `PATCH /panel/checkin/:token`, `GET /activity`, `GET /metrics/summary`, `GET /panel/calendar/month` y `GET /panel/calendar/day`;
+- los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
+- los endpoints publicos de ordenes se mantienen temporalmente y quedan para un slice posterior; este checkpoint reduce exposicion directa por Data API sobre la tabla cruda `orders`;
+- el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
+- `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
 
 ## 7. Controles visibles existentes
 
