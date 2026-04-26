@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { panelAuth } from "../middlewares/panelAuth";
+import { requireRole } from "../middlewares/requireRole";
 
 type ActivityType =
   | "order_created"
@@ -28,7 +29,8 @@ const querySchema = z.object({
 export const activityRouter = Router();
 
 // GET /activity - Requiere autenticación del panel
-activityRouter.get("/", panelAuth, async (req, res) => {
+// Roles permitidos: owner, staff
+activityRouter.get("/", panelAuth, requireRole(["owner", "staff"]), async (req, res) => {
   if (!req.panelUser) {
     return res.status(401).json({ error: "Unauthorized" });
   }

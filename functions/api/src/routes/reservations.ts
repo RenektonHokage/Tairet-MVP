@@ -4,6 +4,7 @@ import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationReceivedEmail } from "../services/emails";
 import { panelAuth } from "../middlewares/panelAuth";
+import { requireRole } from "../middlewares/requireRole";
 import {
   applyDailyOverride,
   computeOperationalDate,
@@ -228,9 +229,9 @@ reservationsRouter.patch("/:id", (_req, res) => {
 
 // GET /locals/:id/reservations
 // Esta ruta se monta en "/locals" en server.ts
-// Requiere autenticación del panel
+// Roles permitidos: owner, staff
 export const localsReservationsRouter = Router();
-localsReservationsRouter.get("/:id/reservations", panelAuth, async (req, res, next) => {
+localsReservationsRouter.get("/:id/reservations", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });

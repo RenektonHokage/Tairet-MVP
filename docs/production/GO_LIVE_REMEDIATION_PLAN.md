@@ -178,6 +178,32 @@ Estos trabajos quedan fuera del gate inicial si `B0` a `B7` se cierran:
 | `B8` | backlog crítico no bloqueante priorizado con owner | tickets/docs con owner y prioridad |
 | `B9` | backlog post go-live registrado sin bloquear release | backlog post-release separado del gate |
 
+Checkpoint `B5a-1`:
+
+- `B5a-1 Role Split Explicito` ya fue ejecutado sobre las rutas parciales identificadas por `docs/audits/B5A_APPLICATION_ACCESS_DISCOVERY.md`;
+- el resultado fue agregar `requireRole(["owner","staff"])` en backend donde faltaba role split explicito, manteniendo intactos los tenant checks existentes;
+- la validacion quedo cerrada con `pnpm -C functions/api typecheck` OK y verificaciones manuales cortas de runtime OK;
+- este checkpoint no reabre el discovery de `B5a`, no cubre automaticamente `B5a-2` ni `B5a-3`, y no modifica el alcance de `B5b`.
+
+Checkpoint `B5a-2`:
+
+- `B5a-2 Shell Auth Gating` ya fue ejecutado sobre el shell autenticado del panel;
+- el resultado fue centralizar el gate de acceso de `app/panel/(authenticated)`, usar estados uniformes de acceso y quitar la verificacion local dispersa del dashboard;
+- la validacion quedo cerrada con `pnpm -C apps/web-next typecheck` OK y verificaciones manuales cortas de runtime OK;
+- `B5a-3 Demo/Runtime Boundary` no se ejecuta en este corte por ahora: el demo vigente sigue cumpliendo su funcion comercial, no hay bypass backend confirmado y no se justifica ampliar la superficie de cambio;
+- este checkpoint no reabre el discovery de `B5a` y no modifica el alcance de `B5b`.
+
+Checkpoint `B5b`:
+
+- el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
+- `B5b` no se considera cerrado: el riesgo central sigue en `SUPABASE_SERVICE_ROLE`, blast radius backend, lookups publicos, `/payments/callback`, drift SQL/env y validacion runtime de Supabase;
+- `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
+- el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
+- la contencion inicial debe enfocarse en `local_daily_ops`, `orders` y `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- no se debe implementar todo `B5b` en una sola tanda: los lookups publicos de ordenes siguen requiriendo decision explicita, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
+- este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
+- la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
+
 ## 11. Riesgos y ambigüedades que requieren validación
 
 ### 11.1 Hallazgos de `docs/audits/**` usados para remediación

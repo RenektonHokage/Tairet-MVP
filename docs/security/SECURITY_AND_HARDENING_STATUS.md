@@ -195,8 +195,30 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el discovery final de `B5a` quedó documentado en `docs/audits/B5A_APPLICATION_ACCESS_DISCOVERY.md`;
 - el enforcement principal observado en `B5a` está en backend mediante `panelAuth`, `requireRole(...)` y tenant checks por `local_id`;
 - no se identificaron bypasses confirmados ni bloqueantes confirmados de go-live dentro de `B5a`;
-- quedan abiertos acotados en tres bordes: role split no explícito en algunas rutas, gating del shell del panel dependiente de bootstrap cliente y borde demo/runtime en frontend;
+- `B5a-1 Role Split Explicito` quedo implementado y validado para este corte: las rutas backend parciales identificadas por el discovery ahora aplican `requireRole(["owner","staff"])` sin cambiar tenant enforcement;
+- rutas cubiertas por `B5a-1`: `PATCH /panel/reservations/:id`, `GET /locals/:id/reservations`, `GET /activity`, `GET /panel/calendar/month`, `GET /panel/calendar/day` y `PATCH /panel/calendar/day`;
+- validacion de `B5a-1`: `pnpm -C functions/api typecheck` OK y verificaciones manuales cortas de runtime OK;
+- `B5a-1` queda cerrado como checkpoint implementado para este corte;
+- `B5a-2 Shell Auth Gating` quedo implementado y validado para este corte: el shell autenticado de `app/panel/(authenticated)` centraliza el gate, distingue estados uniformes de acceso y el dashboard ya no mantiene verificacion local dispersa de sesion;
+- archivos frontend cubiertos por `B5a-2`: `apps/web-next/app/panel/(authenticated)/layout.tsx`, `apps/web-next/app/panel/(authenticated)/page.tsx`, `apps/web-next/lib/panelContext.tsx` y `apps/web-next/lib/api.ts`;
+- validacion de `B5a-2`: `pnpm -C apps/web-next typecheck` OK y verificaciones manuales cortas de runtime OK para redirect sin sesion, sesion valida, refresh directo y panel live normal;
+- `B5a-2` queda cerrado como checkpoint implementado para este corte;
+- `B5a-3 Demo/Runtime Boundary` queda diferido y no prioritario en este corte: el demo actual sigue cumpliendo su funcion comercial con perfiles ficticios y numeros inflados, no hay bypass backend confirmado y no se justifica aumentar superficie de cambio ahora;
 - la separación con `B5b` sigue siendo explícita: este estado resume seguridad de aplicación y control de acceso, no policies/RLS/datos.
+
+### 6.2 Estado documental de `B5b`
+
+- el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
+- `B5b` no se considera cerrado todavía para este corte;
+- el riesgo principal sigue concentrado en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
+- los lookups públicos, `/payments/callback`, el drift SQL/env y la validación runtime de Supabase siguen abiertos como decisiones de mitigación o aceptación formal;
+- `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
+- hallazgos runtime principales: `local_daily_ops` tiene RLS off; `orders` mantiene RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
+- los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
+- la prioridad actual pasa a ser contencion focalizada de exposicion directa de datos en `local_daily_ops`, `orders` y `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
+- `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
+- `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
 
 ## 7. Controles visibles existentes
 

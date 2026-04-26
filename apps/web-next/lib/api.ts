@@ -1,6 +1,18 @@
 import { QueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
 
+export class ApiError extends Error {
+  status: number;
+  details: unknown;
+
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.details = details ?? null;
+  }
+}
+
 export function getApiBase(): string {
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 }
@@ -13,6 +25,28 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+function resolveApiErrorMessage(details: unknown, fallbackMessage: string): string {
+  if (
+    details &&
+    typeof details === "object" &&
+    "error" in details &&
+    typeof (details as { error?: unknown }).error === "string"
+  ) {
+    return (details as { error: string }).error;
+  }
+
+  return fallbackMessage;
+}
+
+async function throwApiError(response: Response): Promise<never> {
+  const details = await response.json().catch(() => null);
+  throw new ApiError(
+    response.status,
+    resolveApiErrorMessage(details, `API Error: ${response.statusText}`),
+    details
+  );
+}
 
 /**
  * Obtiene el access token de Supabase Auth para incluir en requests del panel
@@ -56,7 +90,7 @@ export async function fetcher<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -73,8 +107,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -91,8 +124,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -109,8 +141,7 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -126,8 +157,7 @@ export async function apiGetWithAuth<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -143,8 +173,7 @@ export async function apiPostWithAuth<T>(path: string, body: unknown): Promise<T
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -160,8 +189,7 @@ export async function apiPatchWithAuth<T>(path: string, body?: unknown): Promise
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 
   return response.json();
@@ -176,7 +204,6 @@ export async function apiDeleteWithAuth(path: string): Promise<void> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error || `API Error: ${response.statusText}`);
+    await throwApiError(response);
   }
 }

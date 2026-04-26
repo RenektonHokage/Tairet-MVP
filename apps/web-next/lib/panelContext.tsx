@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { ApiError } from "./api";
 import { getPanelUserInfo, type PanelUserInfo } from "./panel";
 import {
   getStoredPanelDemoRuntime,
@@ -11,12 +12,19 @@ import { getPanelDemoIdentity } from "./panel-demo/identity";
 // Re-export PanelUserInfo for convenience
 export type { PanelUserInfo } from "./panel";
 
+export type PanelAccessState =
+  | "loading"
+  | "unauthenticated"
+  | "unauthorized"
+  | "authenticated-live";
+
 export interface PanelContextValue {
   data: PanelUserInfo | null;
   loading: boolean;
   error: string | null;
   isDemo: boolean;
   demoScenario: DemoScenario | null;
+  accessState: PanelAccessState;
 }
 
 const PanelContext = createContext<PanelContextValue | null>(null);
@@ -64,6 +72,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [demoScenario, setDemoScenario] = useState<DemoScenario | null>(null);
+  const [accessState, setAccessState] = useState<PanelAccessState>("loading");
 
   useEffect(() => {
     let isMounted = true;
@@ -81,6 +90,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
             setError(null);
             setIsDemo(true);
             setDemoScenario(demoRuntime.scenario);
+            setAccessState("authenticated-live");
           }
           return;
         }
@@ -91,13 +101,28 @@ export function PanelProvider({ children }: { children: ReactNode }) {
           setError(null);
           setIsDemo(false);
           setDemoScenario(null);
+          setAccessState("authenticated-live");
         }
       } catch (err) {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : "Error al cargar contexto del panel");
           setData(null);
           setIsDemo(false);
           setDemoScenario(null);
+
+          if (err instanceof ApiError && err.status === 401) {
+            setError(null);
+            setAccessState("unauthenticated");
+            return;
+          }
+
+          if (err instanceof ApiError && err.status === 403) {
+            setError(err.message || "Tu sesión no tiene acceso autorizado al panel");
+            setAccessState("unauthorized");
+            return;
+          }
+
+          setError(err instanceof Error ? err.message : "Error al cargar contexto del panel");
+          setAccessState("unauthorized");
         }
       } finally {
         if (isMounted) {
@@ -114,7 +139,7 @@ export function PanelProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <PanelContext.Provider value={{ data, loading, error, isDemo, demoScenario }}>
+    <PanelContext.Provider value={{ data, loading, error, isDemo, demoScenario, accessState }}>
       {children}
     </PanelContext.Provider>
   );

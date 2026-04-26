@@ -659,8 +659,8 @@ panelRouter.get(
 
 // PATCH /panel/reservations/:id
 // Actualiza estado o table_note de una reserva
-// Requiere autenticación y validación de tenant
-panelRouter.patch("/reservations/:id", panelAuth, async (req, res, next) => {
+// Roles permitidos: owner, staff
+panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -1370,8 +1370,11 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
       sumOrderRevenue(usedRows) +
       sumOrderRevenue(pendingRows) +
       sumOrderRevenue(unusedRows);
-    const latestPurchaseAt = latestPurchaseRows?.[0]?.created_at ?? null;
-    const recentSalesQty = sumOrderQuantity(recentSalesRows);
+    const latestPurchaseAt =
+      (latestPurchaseRows?.[0] as unknown as { created_at: string | null } | undefined)?.created_at ?? null;
+    const recentSalesQty = sumOrderQuantity(
+      (recentSalesRows ?? []) as unknown as Array<{ quantity: number | null }>
+    );
 
     res.status(200).json({
       total_qty: totalQty,

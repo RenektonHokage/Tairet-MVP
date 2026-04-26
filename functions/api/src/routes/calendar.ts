@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { panelAuth } from "../middlewares/panelAuth";
+import { requireRole } from "../middlewares/requireRole";
 import {
   calendarMonthQuerySchema,
   calendarDayQuerySchema,
@@ -12,7 +13,7 @@ import {
 export const calendarRouter = Router();
 
 // GET /panel/calendar/month?month=YYYY-MM
-calendarRouter.get("/month", panelAuth, async (req, res) => {
+calendarRouter.get("/month", panelAuth, requireRole(["owner", "staff"]), async (req, res) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -217,7 +218,7 @@ calendarRouter.get("/month", panelAuth, async (req, res) => {
 });
 
 // GET /panel/calendar/day?day=YYYY-MM-DD
-calendarRouter.get("/day", panelAuth, async (req, res) => {
+calendarRouter.get("/day", panelAuth, requireRole(["owner", "staff"]), async (req, res) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -414,7 +415,7 @@ calendarRouter.get("/day", panelAuth, async (req, res) => {
 });
 
 // PATCH /panel/calendar/day
-calendarRouter.patch("/day", panelAuth, async (req, res) => {
+calendarRouter.patch("/day", panelAuth, requireRole(["owner", "staff"]), async (req, res) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });

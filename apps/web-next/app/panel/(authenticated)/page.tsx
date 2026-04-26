@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { usePanelContext, type PanelUserInfo } from "@/lib/panelContext";
 import { PanelLoadingState } from "./loading";
 // reservations se usa solo en /panel/reservations, no en dashboard
@@ -21,7 +20,6 @@ import {
 } from "@/lib/dashboardHelpers";
 import { getPanelDemoMetricsSummaryWithSeries } from "@/lib/panel-demo/dashboard";
 import {
-  getStoredPanelDemoRuntime,
   type DemoScenario,
 } from "@/lib/panel-demo/runtime";
 import { getPanelDemoDashboardRange } from "@/lib/panel-demo/time";
@@ -335,41 +333,9 @@ function DashboardBar({
 // Página Principal del Panel
 // ============================================================
 export default function PanelPage() {
-  const router = useRouter();
   const { data: context, loading, error, isDemo, demoScenario } = usePanelContext();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  // Verificar sesión al montar
-  useEffect(() => {
-    const demoRuntime = getStoredPanelDemoRuntime();
-    if (demoRuntime) {
-      setIsAuthenticated(true);
-      return;
-    }
-
-    const checkSession = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          router.push("/panel/login");
-          return;
-        }
-
-        setIsAuthenticated(true);
-      } catch (err) {
-        console.error("Error checking session:", err);
-        router.push("/panel/login");
-      }
-    };
-
-    void checkSession();
-  }, [router]);
-
-  // Mostrar loading mientras se verifica la sesión o se carga el contexto
-  if (isAuthenticated === null || loading) {
+  if (loading) {
     return <PanelLoadingState />;
   }
 
@@ -379,12 +345,6 @@ export default function PanelPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <p className="text-red-600">{error || "Error al cargar información del panel"}</p>
-          <button
-            onClick={() => router.push("/panel/login")}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Volver al login
-          </button>
         </div>
       </div>
     );
