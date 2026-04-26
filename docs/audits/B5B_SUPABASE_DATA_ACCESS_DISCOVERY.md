@@ -50,6 +50,24 @@ Nueva prioridad recomendada:
 - `/payments/callback` queda condicionado al alcance real de pagos;
 - hardening RLS remanente queda posterior y por slices, no como una sola tanda.
 
+### 1.2 Remediation checkpoint — `local_daily_ops`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-04-25 |
+| Estado | Primer slice de contencion de exposicion directa aplicado y validado en Supabase live |
+| Recurso | `public.local_daily_ops` |
+| Migracion versionada | `infra/sql/migrations/019_harden_local_daily_ops_data_api.sql` |
+
+Resultado confirmado:
+
+- antes de la remediacion, `public.local_daily_ops` tenia RLS off, policies abiertas `local_daily_ops_insert_by_local`, `local_daily_ops_select_by_local` y `local_daily_ops_update_by_local`, y grants amplios para `anon` / `authenticated`;
+- la remediacion live dejo RLS on, elimino esas policies y removio grants de `anon` / `authenticated`;
+- post-check runtime: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `POST /orders` free pass, QR/email, `POST /reservations`, `GET /panel/calendar/month`, `GET /panel/calendar/day` y `PATCH /panel/calendar/day`;
+- el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
+- `B5b` sigue abierto para `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
 No reabre `B5a`, no implementa mitigaciones y no modifica código, SQL, rutas, contratos ni configuración.

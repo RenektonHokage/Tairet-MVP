@@ -204,6 +204,14 @@ Checkpoint `B5b`:
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
 
+Checkpoint `B5b-1 local_daily_ops`:
+
+- `public.local_daily_ops` ya fue remediado como primer slice de contencion focalizada de exposicion directa de datos;
+- el cambio aplicado en Supabase live quedo versionado en `infra/sql/migrations/019_harden_local_daily_ops_data_api.sql`;
+- resultado: RLS on, policies abiertas previas eliminadas y grants de `anon` / `authenticated` removidos;
+- validacion: post-checks runtime OK y QA live aprobado para perfiles publicos, orden `free_pass`, QR/email, reservas y calendario panel;
+- este checkpoint cierra solo el slice `local_daily_ops`; `B5b` sigue abierto para `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE` y decisiones de aceptacion restantes.
+
 ## 11. Riesgos y ambigüedades que requieren validación
 
 ### 11.1 Hallazgos de `docs/audits/**` usados para remediación

@@ -220,6 +220,15 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
 
+### 6.3 Checkpoint `B5b-1 local_daily_ops`
+
+- `public.local_daily_ops` fue remediado como primer slice de High-Risk Data Exposure Containment y versionado en `infra/sql/migrations/019_harden_local_daily_ops_data_api.sql`;
+- el cambio aplicado y validado en Supabase live deja RLS on, elimina las policies abiertas previas y remueve grants de `anon` / `authenticated`;
+- post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `POST /orders` free pass con QR/email, `POST /reservations`, `GET /panel/calendar/month`, `GET /panel/calendar/day` y `PATCH /panel/calendar/day`;
+- el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, pero no cierra todavia el blast radius del service role;
+- `B5b` no queda cerrado completo: siguen pendientes `orders`, `locals`, `reservations`, `ticket_types` y `table_types`.
+
 ## 7. Controles visibles existentes
 
 | Control visible | Capa | Lectura operativa | Estado |
