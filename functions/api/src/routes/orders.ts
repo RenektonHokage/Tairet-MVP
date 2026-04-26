@@ -271,25 +271,10 @@ ordersRouter.post("/", async (req, res, next) => {
 });
 
 // GET /orders/:id
-ordersRouter.get("/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      logger.error("Error fetching order", { error: error.message, orderId: id });
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    res.status(200).json(data);
-  } catch (error) {
-    next(error);
-  }
+ordersRouter.get("/:id", (_req, res) => {
+  return res.status(410).json({
+    error: "Order lookup by id is no longer available",
+  });
 });
 
 // PATCH /orders/:id/use (DEPRECATED)
