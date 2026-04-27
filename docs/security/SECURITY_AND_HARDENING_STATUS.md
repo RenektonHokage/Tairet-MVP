@@ -215,7 +215,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
-- tras los checkpoints `local_daily_ops` y `orders`, la prioridad actual pasa a ser contencion focalizada de exposicion directa de datos en `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- tras los checkpoints `local_daily_ops`, `orders` y `locals`, la prioridad actual pasa a confirmacion de alcance y contencion focalizada en `reservations`, `ticket_types` y `table_types`;
 - `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
@@ -250,7 +250,8 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - validacion: backend typecheck OK y QA live aprobado para `GET /orders/:id` -> `410 Gone`, `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario;
 - no se tocaron `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
 - en ese momento, `GET /public/orders?email=...` quedaba pendiente como riesgo residual separado; el checkpoint `6.6` documenta su cierre posterior;
-- `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `locals` seguia pendiente; el checkpoint `6.7` documenta su cierre posterior;
+- `B5b` no queda cerrado completo: siguen pendientes `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ### 6.6 Checkpoint `B5b-4 GET /public/orders`
 
@@ -265,6 +266,18 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - con este checkpoint, los endpoints publicos de lectura de ordenes quedan cerrados para este corte: `GET /orders/:id` -> `410 Gone` y `GET /public/orders?email=...` -> `410 Gone`;
 - `POST /orders` sigue activo para `free_pass`;
 - `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+
+### 6.7 Checkpoint `B5b-5 locals`
+
+- `public.locals` fue remediado como siguiente slice de High-Risk Data Exposure Containment y versionado en `infra/sql/migrations/021_harden_locals_data_api.sql`;
+- antes del cambio tenia RLS on, policy publica abierta `locals_select_public` y grants amplios para `anon` / `authenticated`;
+- la tabla cruda mezclaba datos publicos legitimos con campos no necesarios para Data API directa, como `email`, `panel_handle`, `created_at` y `updated_at`;
+- el cambio aplicado y validado en Supabase live mantiene RLS on, elimina `locals_select_public` y remueve grants de `anon` / `authenticated`;
+- post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `GET /public/locals/by-slug/dlirio/catalog`, home/listados/explorar, perfil publico con mapa/contacto/galeria/horarios/promociones, `POST /orders` free pass, `POST /reservations`, bootstrap panel, `/panel/local`, soporte y edicion de perfil/galeria;
+- los endpoints publicos shapeados siguen funcionando; este checkpoint cierra solo la exposicion directa de la tabla cruda `locals` por Data API;
+- el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
+- `B5b` no queda cerrado completo: siguen pendientes `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
 
@@ -352,7 +365,7 @@ Los riesgos mas criticos que siguen visibles hoy son:
 2. Los endpoints publicos de lectura de ordenes ya no exponen datos: `GET /orders/:id` y `GET /public/orders?email=...` responden `410 Gone`. `POST /orders` sigue activo para `free_pass`.
 3. `/payments/callback` y `payment_events` son superficies criticas. El repo muestra callback e idempotencia, pero no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final.
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
-5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria.
+5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria; la exposicion directa por Data API de `local_daily_ops`, `orders` y `locals` ya fue contenida por slices.
 6. `panel.ts` sigue concentrando dominios sensibles aunque ya hubo extracciones parciales a `panelCatalog.ts` y `panelLocal.ts`.
 7. La observabilidad visible en codigo no equivale a cobertura productiva confirmada. La captura real con DSN activo sigue dependiendo de entorno.
 8. El modo demo del panel permanece como residual de hardening mientras el flag y las rutas demo sigan disponibles.

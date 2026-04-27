@@ -199,8 +199,8 @@ Checkpoint `B5b`:
 - `B5b` no se considera cerrado: el riesgo central sigue en `SUPABASE_SERVICE_ROLE`, blast radius backend, lookups publicos, `/payments/callback`, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
-- la contencion inicial empezo por `local_daily_ops` y `orders`; el siguiente foco directo queda en `locals`, con confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
-- no se debe implementar todo `B5b` en una sola tanda: los lookups publicos de ordenes siguen requiriendo decision explicita, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
+- la contencion inicial empezo por `local_daily_ops`, `orders` y `locals`; el siguiente foco queda en confirmacion de alcance sobre `reservations`, `ticket_types` y `table_types`;
+- no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
 
@@ -246,7 +246,20 @@ Checkpoint `B5b-4 GET /public/orders`:
 - este checkpoint no toca `POST /orders`, `GET /orders/:id`, panel routes, check-in, activity, metrics, calendar, frontend, SQL, migraciones, RLS, grants ni policies;
 - con esto, los endpoints publicos de lectura de ordenes quedan cerrados para este corte: `GET /orders/:id` -> `410 Gone` y `GET /public/orders?email=...` -> `410 Gone`;
 - `POST /orders` sigue activo para `free_pass`;
-- `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
+- en ese momento, `locals` seguia pendiente; el checkpoint `B5b-5` documenta su cierre posterior;
+- `B5b` sigue abierto para `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
+
+Checkpoint `B5b-5 locals`:
+
+- `public.locals` ya fue remediado como siguiente slice de contencion focalizada de exposicion directa de datos;
+- el cambio aplicado en Supabase live quedo versionado en `infra/sql/migrations/021_harden_locals_data_api.sql`;
+- antes del cambio tenia RLS on, policy publica abierta `locals_select_public` y grants amplios para `anon` / `authenticated`;
+- resultado: RLS sigue on, `locals_select_public` eliminada y grants de `anon` / `authenticated` removidos;
+- post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- validacion: QA live aprobado para `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `GET /public/locals/by-slug/dlirio/catalog`, home/listados/explorar, perfil publico con mapa/contacto/galeria/horarios/promociones, `POST /orders` free pass, `POST /reservations`, bootstrap panel, `/panel/local`, soporte y edicion de perfil/galeria;
+- este checkpoint no toca endpoints publicos, backend, frontend ni `SUPABASE_SERVICE_ROLE`; cierra solo la exposicion directa de la tabla cruda `locals` por Data API;
+- los endpoints publicos shapeados de `locals` siguen funcionando;
+- `B5b` sigue abierto para `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
 
 ## 11. Riesgos y ambigüedades que requieren validación
 
