@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { supabase } from "../services/supabase";
 import {
   applyDailyOverride,
@@ -159,11 +159,6 @@ publicRouter.get("/locals", async (req, res) => {
   }
 });
 
-// Schema para validar email en query
-const emailQuerySchema = z.object({
-  email: z.string().email(),
-});
-
 /**
  * GET /public/locals/by-slug/:slug
  * Endpoint público (sin auth) para obtener un local por su slug.
@@ -282,34 +277,13 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
 
 /**
  * GET /public/orders?email=...
- * Endpoint público para obtener historial de orders por email.
- * Usado por B2C para mostrar órdenes sin login.
- * Excluye datos sensibles (transaction_id, customer_phone).
+ * Lookup público de órdenes por email deshabilitado.
+ * "Mis Entradas" no es contrato activo del corte actual.
  */
-publicRouter.get("/orders", async (req, res, next) => {
-  try {
-    const { email } = emailQuerySchema.parse(req.query);
-    const emailLower = email.trim().toLowerCase();
-
-    const { data, error } = await supabase
-      .from("orders")
-      .select("id, local_id, checkin_token, quantity, total_amount, currency, status, payment_method, used_at, created_at")
-      .eq("customer_email_lower", emailLower)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      logger.error("Error fetching orders by email", { error: error.message });
-      return res.status(500).json({ error: "Failed to fetch orders" });
-    }
-
-    res.status(200).json(data || []);
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return res.status(400).json({ error: error.flatten() });
-    }
-    next(error);
-  }
+publicRouter.get("/orders", (_req, res) => {
+  return res.status(410).json({
+    error: "Public order lookup by email is no longer available",
+  });
 });
 
 /**
