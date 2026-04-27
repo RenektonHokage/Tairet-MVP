@@ -45,7 +45,7 @@ La postura observable hoy en Tairet es mixta:
 - existen slices endurecidas de RLS para tracking, promos y reviews;
 - el backend concentra blast radius alto porque opera con `SUPABASE_SERVICE_ROLE`;
 - la capa SQL visible sigue mostrando politicas permisivas en tablas criticas fuera de esas slices endurecidas;
-- la superficie publica B2C mantiene endpoints anonimos sensibles por diseno o por contrato preservado, en especial `POST /orders`, `POST /reservations`, `POST /reviews` y el lookup `GET /public/orders?email=...`;
+- la superficie publica B2C mantiene endpoints anonimos sensibles por diseno o por contrato preservado, en especial `POST /orders`, `POST /reservations` y `POST /reviews`; los endpoints publicos de lectura de ordenes ya responden `410 Gone`;
 - la observabilidad mejoro, pero la captura real con DSN activo y el estado productivo final siguen parcialmente no verificables desde repo;
 - el modo demo del panel sigue siendo un pendiente de hardening mientras existan flag y rutas demo.
 
@@ -107,7 +107,7 @@ Lectura operativa corta:
 
 - descubrimiento, perfiles y catalogo operan sin auth de usuario final; la sensibilidad principal esta en exposicion de datos, tracking y consistencia de respuestas publicas;
 - `POST /reservations` y `POST /orders` son superficies anonimas transaccionales;
-- `GET /public/orders?email=...` sigue existiendo como contrato/backend preservado y riesgo residual aceptado;
+- `GET /public/orders?email=...` ya no devuelve historial ni `checkin_token`; responde `410 Gone` porque `Mis Entradas` no es feature activo del corte;
 - `GET /reviews` y `POST /reviews` son publicos, con controles anti-abuso visibles pero no con cierre total demostrable desde entorno;
 - tracking y lectura publica de promos/perfiles dependen de slices SQL endurecidas y del backend.
 
@@ -169,7 +169,7 @@ Puntos mas sensibles:
 - `/panel/checkin`
 - `/payments/callback`
 - tabla `panel_users`
-- lookup publico `GET /public/orders?email=...`
+- endpoints publicos de lectura de ordenes ya contenidos con `410 Gone`
 
 Limites actuales:
 
@@ -249,8 +249,22 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el handler ya no consulta Supabase y ya no usa `select("*")`;
 - validacion: backend typecheck OK y QA live aprobado para `GET /orders/:id` -> `410 Gone`, `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario;
 - no se tocaron `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
-- `GET /public/orders?email=...` queda pendiente como riesgo residual separado;
-- `B5b` no queda cerrado completo: siguen pendientes `GET /public/orders?email=...`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `GET /public/orders?email=...` quedaba pendiente como riesgo residual separado; el checkpoint `6.6` documenta su cierre posterior;
+- `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+
+### 6.6 Checkpoint `B5b-4 GET /public/orders`
+
+- `GET /public/orders?email=...` fue contenido como segundo mini-slice de Public Orders Endpoint Containment;
+- antes del cambio era publico, validaba email, consultaba `orders` por `customer_email_lower`, devolvia hasta 50 ordenes y exponia `checkin_token`;
+- el unico consumidor visible era `MisEntradas`; esa pagina existe en codigo, pero no esta montada como ruta activa del B2C;
+- decision de producto del corte: `Mis Entradas` no es feature activo y queda diferido para futuro con usuarios reales/auth por correo y contrasena;
+- resultado: el endpoint responde `410 Gone` con `{ "error": "Public order lookup by email is no longer available" }`;
+- el handler ya no valida email, no consulta Supabase, no busca por `customer_email_lower`, no devuelve historial y no expone `checkin_token`;
+- validacion: backend typecheck OK y QA live aprobado para `GET /public/orders?email=...` -> `410 Gone`, `GET /orders/:id` -> `410 Gone`, `POST /orders` free pass, email/QR, panel orders/search/summary, check-in, activity, metrics y calendario;
+- no se tocaron `POST /orders`, `GET /orders/:id`, panel routes, check-in, activity, metrics, calendar, frontend, SQL, migraciones, RLS, grants ni policies;
+- con este checkpoint, los endpoints publicos de lectura de ordenes quedan cerrados para este corte: `GET /orders/:id` -> `410 Gone` y `GET /public/orders?email=...` -> `410 Gone`;
+- `POST /orders` sigue activo para `free_pass`;
+- `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
 
@@ -335,7 +349,7 @@ Estado del bloque: `Parcial`.
 Los riesgos mas criticos que siguen visibles hoy son:
 
 1. `SUPABASE_SERVICE_ROLE` amplifica el blast radius del backend completo. El control real esta centralizado en codigo backend y no en una capa SQL ya cerrada por tabla/flujo.
-2. `GET /orders/:id` ya no expone `select("*")` y responde `410 Gone`; `GET /public/orders?email=...` sigue existiendo como contrato/backend preservado. Aunque `MisEntradas` no este hoy en la superficie publica activa, ese endpoint sigue siendo un riesgo residual aceptado.
+2. Los endpoints publicos de lectura de ordenes ya no exponen datos: `GET /orders/:id` y `GET /public/orders?email=...` responden `410 Gone`. `POST /orders` sigue activo para `free_pass`.
 3. `/payments/callback` y `payment_events` son superficies criticas. El repo muestra callback e idempotencia, pero no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final.
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
 5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria.
