@@ -222,6 +222,18 @@ Checkpoint `B5b-2 orders`:
 - este checkpoint no toca endpoints publicos, backend, frontend ni `SUPABASE_SERVICE_ROLE`; cierra solo la exposicion directa de la tabla cruda `orders` por Data API;
 - `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y decisiones de aceptacion restantes.
 
+Checkpoint `B5b-3 GET /orders/:id`:
+
+- `GET /orders/:id` ya fue contenido como primer mini-slice de Public Orders Endpoint Containment;
+- antes del cambio era publico, usaba `select("*")` sobre `public.orders` y podia exponer la fila completa de la orden;
+- no se encontro consumidor activo real en repo; solo existia un helper legacy no importado en `apps/web-next/lib/orders.ts`;
+- resultado: el endpoint responde `410 Gone` con `{ "error": "Order lookup by id is no longer available" }`;
+- el handler ya no consulta Supabase y ya no usa `select("*")`;
+- validacion: backend typecheck OK y QA live aprobado para `GET /orders/:id` -> `410 Gone`, `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario;
+- este checkpoint no toca `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
+- `GET /public/orders?email=...` queda pendiente como riesgo residual separado;
+- `B5b` sigue abierto para `GET /public/orders?email=...`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
+
 ## 11. Riesgos y ambigüedades que requieren validación
 
 ### 11.1 Hallazgos de `docs/audits/**` usados para remediación

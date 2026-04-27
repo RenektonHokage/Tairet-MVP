@@ -84,9 +84,30 @@ Resultado confirmado:
 - post-check runtime: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
 - QA live aprobado: `POST /orders` free pass, orden creada, QR generado, email recibido, `GET /public/orders?email=...`, `GET /orders/:id`, `GET /panel/orders/summary`, `GET /panel/orders/search`, `PATCH /panel/checkin/:token`, `GET /activity`, `GET /metrics/summary`, `GET /panel/calendar/month` y `GET /panel/calendar/day`;
 - los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
-- los endpoints publicos de ordenes se mantienen temporalmente y quedan como decision posterior; este checkpoint cierra la exposicion directa de la tabla cruda por Data API, no el diseno de esos endpoints;
+- en ese momento, los endpoints publicos de ordenes se mantenian temporalmente y quedaban como decision posterior; este checkpoint cierra la exposicion directa de la tabla cruda por Data API, no el diseno de esos endpoints;
 - el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
 - `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
+
+### 1.4 Remediation checkpoint — `GET /orders/:id`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-04-26 |
+| Estado | Primer mini-slice de Public Orders Endpoint Containment aplicado y validado en produccion |
+| Recurso | `GET /orders/:id` |
+| Archivo de aplicacion | `functions/api/src/routes/orders.ts` |
+
+Resultado confirmado:
+
+- antes de la remediacion, `GET /orders/:id` era publico, usaba `select("*")` sobre `public.orders` y podia devolver la fila completa de la orden;
+- no se encontro consumidor activo real en el repo; solo existia un helper legacy no importado en `apps/web-next/lib/orders.ts`;
+- el endpoint ahora responde `410 Gone` con `{ "error": "Order lookup by id is no longer available" }`;
+- el handler ya no consulta Supabase y ya no usa `select("*")`;
+- typecheck backend quedo OK;
+- QA live aprobado: `GET /orders/:id` devuelve `410 Gone`; `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario siguen OK;
+- no se tocaron `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
+- `GET /public/orders?email=...` queda como riesgo residual separado y decision posterior;
+- `B5b` sigue abierto para `GET /public/orders?email=...`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
@@ -234,8 +255,8 @@ Este documento consume como ya cerrados:
 ## 7. Hallazgos confirmados de B5b
 
 - El backend usa un cliente global con `SUPABASE_SERVICE_ROLE`; por evidencia documental y de código debe asumirse bypass de RLS para rutas backend.
-- Hay lookups públicos de datos sensibles: `GET /public/orders?email=...` y `GET /orders/:id`.
-- `GET /orders/:id` usa `select("*")` sobre `orders` sin auth visible.
+- Hay lookup publico de datos sensibles en `GET /public/orders?email=...`; `GET /orders/:id` fue contenido despues del discovery y ya no usa `select("*")`.
+- `GET /orders/:id` historicamente usaba `select("*")` sobre `orders` sin auth visible; el checkpoint `1.4` documenta su cierre con `410 Gone`.
 - El flujo `free_pass only` igualmente toca `orders`, `locals`, `local_daily_ops` y potencialmente `ticket_types`.
 - `POST /reservations` permite escritura pública de PII de reservas por diseño.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
@@ -247,7 +268,7 @@ Este documento consume como ya cerrados:
 - `B5b-0` ya valida materialmente schema, RLS, policies principales, RPC y roles para tomar decisiones, pero no cierra `B5b`.
 - El resultado de grants recibido esta parcialmente truncado; no debe leerse como auditoria completa de grants para todas las tablas.
 - Semántica efectiva de service role frente a RLS queda confirmada a nivel de rol (`service_role.rolbypassrls=true`), pero sigue requiriendo validación fina por request path si se reduce blast radius.
-- Exposición productiva real de `GET /orders/:id` y `GET /public/orders?email=...` debe confirmarse contra host desplegado y decisión de producto.
+- Exposición productiva real de `GET /public/orders?email=...` debe confirmarse contra host desplegado y decisión de producto; `GET /orders/:id` quedo contenido con `410 Gone`.
 - `customer_email_lower` existe en runtime, pero el drift de schema/migraciones sigue documentado como deuda de reconciliacion.
 - `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` debe cerrarse como drift operativo de env.
 - Paid flows/callback quedan secundarios para `free_pass only`, pero no cerrados como seguridad de datos.
@@ -256,7 +277,6 @@ Este documento consume como ya cerrados:
 
 La evidencia runtime confirma que `B5b` no debe cerrarse sin mitigación o aceptación formal. Quedan candidatos reales del corte:
 
-- `GET /orders/:id` público con `select("*")` sobre `orders`, si la ruta está accesible en producción.
 - `GET /public/orders?email=...`, riesgo residual conocido que debe quedar aceptado explícitamente si se mantiene.
 - exposición directa a nivel tabla/Data API sobre `local_daily_ops` por RLS apagado y sobre `orders` / `locals` por policies públicas abiertas.
 - `ticket_types` y `table_types` con RLS apagado en runtime.

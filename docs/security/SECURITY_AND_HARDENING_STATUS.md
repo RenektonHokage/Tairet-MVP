@@ -236,9 +236,21 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - post-checks confirmados: `rls_enabled=true`, `force_rls=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
 - QA live aprobado: `POST /orders` free pass, orden creada, QR/email, `GET /public/orders?email=...`, `GET /orders/:id`, `GET /panel/orders/summary`, `GET /panel/orders/search`, `PATCH /panel/checkin/:token`, `GET /activity`, `GET /metrics/summary`, `GET /panel/calendar/month` y `GET /panel/calendar/day`;
 - los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
-- los endpoints publicos de ordenes se mantienen temporalmente y quedan para un slice posterior; este checkpoint reduce exposicion directa por Data API sobre la tabla cruda `orders`;
+- en ese momento, los endpoints publicos de ordenes se mantenian temporalmente y quedaban para un slice posterior; este checkpoint reduce exposicion directa por Data API sobre la tabla cruda `orders`;
 - el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
 - `B5b` no queda cerrado completo: siguen pendientes `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
+
+### 6.5 Checkpoint `B5b-3 GET /orders/:id`
+
+- `GET /orders/:id` fue contenido como primer mini-slice de Public Orders Endpoint Containment;
+- antes del cambio era publico, usaba `select("*")` sobre `public.orders` y podia exponer la fila completa de la orden;
+- no se encontro consumidor activo real en repo; solo existia un helper legacy no importado en `apps/web-next/lib/orders.ts`;
+- el endpoint ahora responde `410 Gone` con `{ "error": "Order lookup by id is no longer available" }`;
+- el handler ya no consulta Supabase y ya no usa `select("*")`;
+- validacion: backend typecheck OK y QA live aprobado para `GET /orders/:id` -> `410 Gone`, `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario;
+- no se tocaron `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
+- `GET /public/orders?email=...` queda pendiente como riesgo residual separado;
+- `B5b` no queda cerrado completo: siguen pendientes `GET /public/orders?email=...`, `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
 
@@ -323,7 +335,7 @@ Estado del bloque: `Parcial`.
 Los riesgos mas criticos que siguen visibles hoy son:
 
 1. `SUPABASE_SERVICE_ROLE` amplifica el blast radius del backend completo. El control real esta centralizado en codigo backend y no en una capa SQL ya cerrada por tabla/flujo.
-2. `GET /public/orders?email=...` sigue existiendo como contrato/backend preservado. Aunque `MisEntradas` no este hoy en la superficie publica activa, el endpoint sigue siendo un riesgo residual aceptado.
+2. `GET /orders/:id` ya no expone `select("*")` y responde `410 Gone`; `GET /public/orders?email=...` sigue existiendo como contrato/backend preservado. Aunque `MisEntradas` no este hoy en la superficie publica activa, ese endpoint sigue siendo un riesgo residual aceptado.
 3. `/payments/callback` y `payment_events` son superficies criticas. El repo muestra callback e idempotencia, pero no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final.
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
 5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria.
