@@ -86,7 +86,8 @@ Resultado confirmado:
 - los campos de ventana `intended_date`, `valid_from`, `valid_to` y `valid_window_key` siguen devolviendose correctamente;
 - en ese momento, los endpoints publicos de ordenes se mantenian temporalmente y quedaban como decision posterior; este checkpoint cierra la exposicion directa de la tabla cruda por Data API, no el diseno de esos endpoints;
 - el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
-- `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, endpoints publicos de ordenes, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
+- en ese momento, `locals`, `reservations` y endpoints publicos de ordenes seguian pendientes; checkpoints posteriores documentan sus cierres;
+- `B5b` sigue abierto para `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env.
 
 ### 1.4 Remediation checkpoint — `GET /orders/:id`
 
@@ -107,7 +108,8 @@ Resultado confirmado:
 - QA live aprobado: `GET /orders/:id` devuelve `410 Gone`; `POST /orders` free pass, email/QR, `GET /public/orders?email=...`, panel orders/search/summary, check-in, activity, metrics y calendario siguen OK;
 - no se tocaron `POST /orders`, `GET /public/orders?email=...`, panel routes, frontend, SQL, migraciones, RLS, grants ni policies;
 - en ese momento, `GET /public/orders?email=...` quedaba como riesgo residual separado y decision posterior; el checkpoint `1.5` documenta su cierre posterior;
-- `B5b` sigue abierto para `locals`, `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `locals` y `reservations` seguian pendientes; checkpoints posteriores documentan sus cierres;
+- `B5b` sigue abierto para `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ### 1.5 Remediation checkpoint — `GET /public/orders?email=...`
 
@@ -131,7 +133,8 @@ Resultado confirmado:
 - con este checkpoint, los endpoints publicos de lectura de ordenes quedan cerrados para este corte: `GET /orders/:id` -> `410 Gone` y `GET /public/orders?email=...` -> `410 Gone`;
 - `POST /orders` sigue activo para `free_pass`;
 - en ese momento, `locals` seguia pendiente; el checkpoint `1.6` documenta su cierre posterior;
-- `B5b` sigue abierto para `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `reservations` seguia pendiente; el checkpoint `1.7` documenta su cierre posterior;
+- `B5b` sigue abierto para `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ### 1.6 Remediation checkpoint — `locals`
 
@@ -151,7 +154,28 @@ Resultado confirmado:
 - QA live aprobado: `GET /public/locals`, `GET /public/locals/by-slug/dlirio`, `GET /public/locals/by-slug/dlirio/catalog`, home/listados/explorar, perfil publico con mapa/contacto/galeria/horarios/promociones, `POST /orders` free pass, `POST /reservations`, bootstrap panel, `/panel/local`, soporte y edicion de perfil/galeria;
 - los endpoints publicos shapeados siguen funcionando; este checkpoint cierra solo la exposicion directa de la tabla cruda `locals` por Data API;
 - el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
-- `B5b` sigue abierto para `reservations`, `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `reservations` seguia pendiente; el checkpoint `1.7` documenta su cierre posterior;
+- `B5b` sigue abierto para `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+
+### 1.7 Remediation checkpoint — `reservations`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-04-26 |
+| Estado | Siguiente slice de contencion de exposicion directa aplicado y validado en Supabase live |
+| Recurso | `public.reservations` |
+| Migracion versionada | `infra/sql/migrations/022_harden_reservations_data_api.sql` |
+
+Resultado confirmado:
+
+- antes de la remediacion, `public.reservations` tenia RLS on, policies publicas abiertas `reservations_insert_public` y `reservations_select_by_local`, y grants amplios para `anon` / `authenticated`;
+- la tabla contiene PII y datos operativos: `name`, `last_name`, `email`, `phone`, `date`, `guests`, `status`, `notes`, `table_note`, `created_at` y `updated_at`;
+- la remediacion live mantuvo RLS on, elimino `reservations_insert_public` / `reservations_select_by_local` y removio grants de `anon` / `authenticated`;
+- post-check runtime: `relrowsecurity=true`, `relforcerowsecurity=false`, `pg_policies` sin filas para la tabla y grants `anon` / `authenticated` en 0 filas;
+- QA live aprobado: `POST /reservations` B2C, email/notificacion de reserva, `PATCH /reservations/:id` publico en `410 Gone`, panel de reservas/listado del local, `GET /panel/reservations/search`, `PATCH /panel/reservations/:id`, `GET /panel/calendar/month`, `GET /panel/calendar/day`, `GET /metrics/summary`, `GET /activity` y exports de reservas;
+- los endpoints publicos y panel siguen funcionando via backend/API; este checkpoint cierra solo la exposicion directa de la tabla cruda `reservations` por Data API;
+- el backend sigue operando por `SUPABASE_SERVICE_ROLE`; este checkpoint reduce exposicion directa por Data API, no reduce todavia el blast radius del service role;
+- `B5b` sigue abierto para `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
@@ -303,7 +327,7 @@ Este documento consume como ya cerrados:
 - `GET /orders/:id` historicamente usaba `select("*")` sobre `orders` sin auth visible; el checkpoint `1.4` documenta su cierre con `410 Gone`.
 - `GET /public/orders?email=...` historicamente exponia historial por email y `checkin_token`; el checkpoint `1.5` documenta su cierre con `410 Gone`.
 - El flujo `free_pass only` igualmente toca `orders`, `locals`, `local_daily_ops` y potencialmente `ticket_types`; la Data API directa de esas primeras tres tablas ya fue contenida por slices.
-- `POST /reservations` permite escritura pública de PII de reservas por diseño.
+- `POST /reservations` permite escritura pública de PII de reservas por diseño, pero la Data API directa de `public.reservations` ya fue contenida por el checkpoint `1.7`.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
 - RLS hardening está confirmado solo para slices acotadas: tracking público, `promos` y `reviews`.
 - `orders`, `reservations`, `panel_users`, `payment_events`, `locals`, `local_daily_ops`, `ticket_types` y `table_types` siguen fuera del rollout RLS validado según `docs/audits/**`.
@@ -349,11 +373,11 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes y la Data API cruda de `locals`. Siguen pendientes `reservations`, `ticket_types`, `table_types`, y luego aceptar o reducir el modelo `SUPABASE_SERVICE_ROLE`.
+`B5b` no está cerrado. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals` y la Data API cruda de `reservations`. Siguen pendientes `ticket_types`, `table_types`, y luego aceptar o reducir el modelo `SUPABASE_SERVICE_ROLE`.
 
 ## 12. Backlog mínimo posterior
 
-- `B5b-1`: contencion focalizada de exposicion directa de datos pendiente en `reservations`, `ticket_types` y `table_types`.
+- `B5b-1`: contencion focalizada de exposicion directa de datos pendiente en `ticket_types` y `table_types`.
 - `B5b-2`: matriz corta de aceptación/mitigación del modelo `SUPABASE_SERVICE_ROLE` por flujo crítico.
 - `B5b-3`: reconciliar drift SQL/env: `schema.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`, `SUPABASE_SERVICE_ROLE`.
 - `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
