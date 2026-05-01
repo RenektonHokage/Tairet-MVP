@@ -217,6 +217,30 @@ Resultado confirmado:
 - con esto, el Check C del mini-check global queda resuelto y High-Risk Data Exposure Containment queda limpio para las tablas revisadas en este corte;
 - `B5b` sigue abierto para blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
+### 1.10 Decision checkpoint — `SUPABASE_SERVICE_ROLE` blast radius
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-01 |
+| Estado | Aceptacion formal temporal para este corte `free_pass only` |
+| Recurso | Cliente backend global con `SUPABASE_SERVICE_ROLE` |
+| Alcance | Decision operativa; no implementa codigo, SQL, migraciones ni cambios de entorno |
+
+Resultado confirmado:
+
+- el backend usa un cliente Supabase privilegiado con `SUPABASE_SERVICE_ROLE`;
+- `service_role.rolbypassrls=true` fue confirmado en runtime;
+- High-Risk Data Exposure Containment ya quedo limpio para las tablas revisadas en este corte;
+- el riesgo residual ya no es principalmente Data API directa, sino blast radius del backend privilegiado;
+- para `free_pass only`, no se identifico blocker inmediato por mantener el cliente backend global con `SUPABASE_SERVICE_ROLE`;
+- no se eliminara `SUPABASE_SERVICE_ROLE` en este corte;
+- la frontera efectiva queda en backend/API shapeada: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
+- la aceptacion es temporal y operativa, no una arquitectura final ni reduccion real de privilegios;
+- mitigaciones pequenas pendientes: reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`;
+- `/payments/callback` queda como validacion separada si pagos reales entran en scope;
+- refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
+- `B5b` sigue abierto para mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si aplica.
+
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
 No reabre `B5a`. Los checkpoints de remediacion registran cambios ya aplicados/versionados; este documento no cambia rutas, contratos ni configuracion.
@@ -370,6 +394,7 @@ Este documento consume como ya cerrados:
 - `POST /reservations` permite escritura pública de PII de reservas por diseño, pero la Data API directa de `public.reservations` ya fue contenida por el checkpoint `1.7`.
 - `ticket_types` y `table_types` mantienen catalogo publico legitimo via backend/API shapeada, pero la exposicion directa de tablas crudas por Data API ya fue contenida por el checkpoint `1.8`.
 - `panel_users` y `payment_events` ya tenian RLS on y 0 policies; el cleanup final de grants directos de `anon` / `authenticated` fue contenido por el checkpoint `1.9`.
+- El cliente backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para este corte `free_pass only` por el checkpoint `1.10`, sin eliminar el riesgo residual ni cerrar `B5b` completo.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
 - RLS hardening está confirmado solo para slices acotadas: tracking público, `promos`, `reviews` y contenciones Data API focalizadas documentadas en checkpoints.
 - Los flows derivados de alta criticidad siguen fuera de una reduccion de blast radius de `SUPABASE_SERVICE_ROLE`; `panel_users`, `payment_events`, `ticket_types` y `table_types` ya tienen contencion Data API por checkpoints acotados.
@@ -389,7 +414,7 @@ Este documento consume como ya cerrados:
 La evidencia runtime confirma que `B5b` no debe cerrarse sin mitigación o aceptación formal. Quedan candidatos reales del corte:
 
 - `/payments/callback`, si pagos reales quedan activos fuera de `free_pass only`.
-- Modelo backend con `SUPABASE_SERVICE_ROLE`, si no existe aceptación formal del blast radius o plan posterior por bloques.
+- Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes.
 
 ## 10. Casos mixtos que deben mantenerse separados de B5a
 
@@ -414,11 +439,11 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types` y el cleanup final de grants en `panel_users` / `payment_events`. Sigue pendiente aceptar o reducir el modelo `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types` y el cleanup final de grants en `panel_users` / `payment_events`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 12. Backlog mínimo posterior
 
-- `B5b-2`: matriz corta de aceptación/mitigación del modelo `SUPABASE_SERVICE_ROLE` por flujo crítico.
+- `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE`: DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel puntuales y `GET /events/whatsapp_clicks/count`.
 - `B5b-3`: reconciliar drift SQL/env: `schema.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`, `SUPABASE_SERVICE_ROLE`.
 - `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
 - `B5b-6`: hardening RLS remanente por slices, no como una sola tanda.

@@ -196,13 +196,14 @@ Checkpoint `B5a-2`:
 Checkpoint `B5b`:
 
 - el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado: el riesgo central sigue en `SUPABASE_SERVICE_ROLE`, blast radius backend, lookups publicos, `/payments/callback`, drift SQL/env y validacion runtime de Supabase;
+- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, mitigaciones pequenas de DTO/selects, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
-- la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`; el siguiente foco queda en blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
+- la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
+- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; los siguientes focos quedan en mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si pagos reales aplican;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
-- la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
+- la remediacion restante de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
 
 Checkpoint `B5b-1 local_daily_ops`:
 
@@ -301,6 +302,19 @@ Checkpoint `B5b-8 panel_users/payment_events grants`:
 - este checkpoint no toca backend, frontend, endpoints, otras tablas, `SUPABASE_SERVICE_ROLE` ni `/payments/callback`;
 - con esto, el mini-check global de Data API containment queda limpio para las tablas revisadas y High-Risk Data Exposure Containment queda cerrado para este corte;
 - `B5b` sigue abierto para blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
+
+Checkpoint `B5b-9 SUPABASE_SERVICE_ROLE blast radius`:
+
+- el backend usa un cliente Supabase privilegiado con `SUPABASE_SERVICE_ROLE` y la validacion runtime confirmo `service_role.rolbypassrls=true`;
+- High-Risk Data Exposure Containment ya quedo cerrado para este corte sobre las tablas revisadas: `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
+- decision operativa: para `free_pass only`, se acepta formalmente mantener el cliente backend global con `SUPABASE_SERVICE_ROLE`;
+- no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
+- controles compensatorios: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
+- esta aceptacion es temporal/operativa y no representa arquitectura final ni reduccion de privilegios;
+- quedan como proximos sub-slices las mitigaciones pequenas de DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel con `select("*")` y `GET /events/whatsapp_clicks/count`;
+- `/payments/callback` queda como validacion separada si pagos reales entran en scope;
+- refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
+- `B5b` no queda cerrado completo: siguen pendientes mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si aplica.
 
 ## 11. Riesgos y ambigüedades que requieren validación
 

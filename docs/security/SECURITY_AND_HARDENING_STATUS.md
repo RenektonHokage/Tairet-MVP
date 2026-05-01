@@ -209,14 +209,14 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 ### 6.2 Estado documental de `B5b`
 
 - el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado todavía para este corte;
-- el riesgo principal sigue concentrado en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
-- los lookups públicos, `/payments/callback`, el drift SQL/env y la validación runtime de Supabase siguen abiertos como decisiones de mitigación o aceptación formal;
+- `B5b` no se considera cerrado completo todavía para este corte;
+- el riesgo residual principal ya no queda en Data API directa de las tablas revisadas, sino en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
+- los lookups publicos de ordenes ya quedaron contenidos; `/payments/callback`, el drift SQL/env, las mitigaciones pequenas de DTO/selects y la validación runtime de Supabase siguen abiertos por bloques;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
-- tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`, High-Risk Data Exposure Containment queda limpio para las tablas revisadas y la prioridad de datos pasa a decision de blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
-- `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
+- tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`, High-Risk Data Exposure Containment queda limpio para las tablas revisadas;
+- el checkpoint `B5b-9` documenta la aceptación formal y temporal del cliente backend global con `SUPABASE_SERVICE_ROLE` para este corte `free_pass only`; no elimina el riesgo ni representa arquitectura final;
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
 
@@ -317,6 +317,19 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - no se tocaron backend, frontend, endpoints, otras tablas, `SUPABASE_SERVICE_ROLE` ni `/payments/callback`;
 - con esto, el mini-check global de Data API containment queda limpio para las tablas revisadas y High-Risk Data Exposure Containment queda cerrado para este corte;
 - `B5b` no queda cerrado completo: siguen pendientes blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+
+### 6.11 Checkpoint `B5b-9 SUPABASE_SERVICE_ROLE blast radius`
+
+- el backend usa un cliente Supabase privilegiado con `SUPABASE_SERVICE_ROLE` y `service_role.rolbypassrls=true` fue confirmado en runtime;
+- High-Risk Data Exposure Containment ya quedo cerrado para este corte sobre las tablas revisadas: `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
+- decision operativa: para `free_pass only`, no se identifico blocker inmediato por mantener el cliente backend global con `SUPABASE_SERVICE_ROLE`;
+- aceptacion formal: no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
+- controles compensatorios vigentes: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
+- la aceptacion es temporal y operativa, no una arquitectura final ni una reduccion real del privilegio del cliente backend;
+- mitigaciones pequenas pendientes como sub-slices: reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`;
+- `/payments/callback` queda como validacion separada si pagos reales entran en scope;
+- refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
+- `B5b` no queda cerrado completo: siguen pendientes mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
 
