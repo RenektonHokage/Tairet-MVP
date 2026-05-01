@@ -137,7 +137,7 @@ Estado del bloque: `Parcial`.
 
 - `panel_users`, `orders`, `reservations`, `locals`, `local_daily_ops`, `payment_events`, `ticket_types` y `table_types` son las zonas de mayor sensibilidad;
 - la evidencia SQL visible muestra coexistencia de politicas permisivas en `infra/sql/rls.sql` y migraciones endurecidas para slices acotadas;
-- las slices endurecidas confirmadas hoy son tracking, promos y reviews;
+- las slices endurecidas confirmadas hoy son tracking, promos, reviews y contenciones Data API focalizadas documentadas por checkpoints;
 - el repo no alcanza para cerrar el estado exacto del esquema ni de las policies desplegadas en produccion.
 
 Estado del bloque: `Parcial`.
@@ -215,7 +215,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
-- tras los checkpoints `local_daily_ops`, `orders`, `locals` y `reservations`, la prioridad actual pasa a confirmacion de alcance y contencion focalizada en `ticket_types` y `table_types`;
+- tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types` y `table_types`, la prioridad de datos pasa a decision de blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
 - `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
@@ -293,7 +293,19 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - QA live aprobado: `POST /reservations` B2C, email/notificacion de reserva, `PATCH /reservations/:id` publico en `410 Gone`, panel de reservas/listado del local, `GET /panel/reservations/search`, `PATCH /panel/reservations/:id`, calendario month/day, `GET /metrics/summary`, `GET /activity` y exports de reservas;
 - los endpoints publicos y panel siguen funcionando via backend/API; este checkpoint cierra solo la exposicion directa de la tabla cruda `reservations` por Data API;
 - el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
-- `B5b` no queda cerrado completo: siguen pendientes `ticket_types`, `table_types`, blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+- en ese momento, `ticket_types` y `table_types` seguian pendientes; el checkpoint `6.9` documenta su cierre posterior.
+
+### 6.9 Checkpoint `B5b-7 ticket_types/table_types`
+
+- `public.ticket_types` y `public.table_types` fueron remediadas como slice de catalog Data API containment y versionadas en `infra/sql/migrations/023_harden_catalog_types_data_api.sql`;
+- antes del cambio tenian RLS off, sin policies activas y grants amplios para `anon` / `authenticated`;
+- resultado: RLS on en ambas tablas, sin policies nuevas y grants de `anon` / `authenticated` removidos;
+- post-checks confirmados: `relrowsecurity=true`, `relforcerowsecurity=false`, `pg_policies` en 0 filas y grants `anon` / `authenticated` en 0 filas;
+- conteos conservados: `ticket_types` total 4, active 3, inactive 1; `table_types` total 3, active 3, inactive 0;
+- QA live aprobado: catalogo publico por slug, tickets/mesas, perfil publico de club, selector free pass, selector de mesas, `POST /orders` free pass con `ticket_type_id`, QR/email, WhatsApp tracking, panel catalogo tickets/mesas y metricas/lineup;
+- el catalogo publico sigue funcionando via backend/API shapeada y el panel catalogo sigue funcionando;
+- el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
+- `B5b` no queda cerrado completo: siguen pendientes blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
 
@@ -359,7 +371,7 @@ Estado del bloque: `Parcial`.
 - `reservations`: cruza reserva publica, panel y export;
 - `locals` y `local_daily_ops`: afectan disponibilidad, ventanas operativas y multiples flows;
 - `payment_events`: clave para callback e idempotencia;
-- `ticket_types` y `table_types`: contratos de catalogo criticos con cobertura SQL visible incompleta.
+- `ticket_types` y `table_types`: contratos de catalogo criticos; la Data API directa de tablas crudas ya fue contenida, pero persiste drift SQL visible.
 
 Evidencia principal:
 
