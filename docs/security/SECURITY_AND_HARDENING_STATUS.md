@@ -215,7 +215,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
-- tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types` y `table_types`, la prioridad de datos pasa a decision de blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
+- tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`, High-Risk Data Exposure Containment queda limpio para las tablas revisadas y la prioridad de datos pasa a decision de blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
 - `SUPABASE_SERVICE_ROLE` sigue siendo importante, pero la decision de blast radius queda despues de contener la exposicion directa a nivel tabla/Data API;
 - `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
@@ -305,6 +305,17 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - QA live aprobado: catalogo publico por slug, tickets/mesas, perfil publico de club, selector free pass, selector de mesas, `POST /orders` free pass con `ticket_type_id`, QR/email, WhatsApp tracking, panel catalogo tickets/mesas y metricas/lineup;
 - el catalogo publico sigue funcionando via backend/API shapeada y el panel catalogo sigue funcionando;
 - el backend sigue operando via `SUPABASE_SERVICE_ROLE`; este checkpoint no cierra el blast radius del service role;
+- en ese momento, el cleanup final de grants en `panel_users` y `payment_events` seguia pendiente; el checkpoint `6.10` documenta su cierre posterior.
+
+### 6.10 Checkpoint `B5b-8 panel_users/payment_events grants`
+
+- `public.panel_users` y `public.payment_events` fueron remediadas como mini-slice final de Data API grants cleanup y versionadas en `infra/sql/migrations/024_harden_panel_users_payment_events_grants.sql`;
+- antes del cambio ambas tablas ya tenian RLS on, `force_rls=false` y `pg_policies` en 0 filas;
+- el pendiente era grants directos amplios para `anon` / `authenticated`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES` y `TRIGGER`;
+- resultado: grants de `anon` / `authenticated` removidos en ambas tablas, sin tocar RLS y sin crear policies nuevas;
+- post-checks confirmados: RLS sigue on, `force_rls=false`, `pg_policies` sigue en 0 filas y grants `anon` / `authenticated` en 0 filas;
+- no se tocaron backend, frontend, endpoints, otras tablas, `SUPABASE_SERVICE_ROLE` ni `/payments/callback`;
+- con esto, el mini-check global de Data API containment queda limpio para las tablas revisadas y High-Risk Data Exposure Containment queda cerrado para este corte;
 - `B5b` no queda cerrado completo: siguen pendientes blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 7. Controles visibles existentes
@@ -391,9 +402,9 @@ Los riesgos mas criticos que siguen visibles hoy son:
 
 1. `SUPABASE_SERVICE_ROLE` amplifica el blast radius del backend completo. El control real esta centralizado en codigo backend y no en una capa SQL ya cerrada por tabla/flujo.
 2. Los endpoints publicos de lectura de ordenes ya no exponen datos: `GET /orders/:id` y `GET /public/orders?email=...` responden `410 Gone`. `POST /orders` sigue activo para `free_pass`.
-3. `/payments/callback` y `payment_events` son superficies criticas. El repo muestra callback e idempotencia, pero no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final.
+3. `/payments/callback` y `payment_events` son superficies criticas. Los grants directos de `payment_events` para `anon` / `authenticated` ya fueron removidos, pero el repo no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final del callback.
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
-5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria; la exposicion directa por Data API de `local_daily_ops`, `orders`, `locals` y `reservations` ya fue contenida por slices.
+5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria; la exposicion directa por Data API de las tablas revisadas en High-Risk Data Exposure Containment ya fue contenida por slices.
 6. `panel.ts` sigue concentrando dominios sensibles aunque ya hubo extracciones parciales a `panelCatalog.ts` y `panelLocal.ts`.
 7. La observabilidad visible en codigo no equivale a cobertura productiva confirmada. La captura real con DSN activo sigue dependiendo de entorno.
 8. El modo demo del panel permanece como residual de hardening mientras el flag y las rutas demo sigan disponibles.

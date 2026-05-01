@@ -196,6 +196,25 @@ Resultado confirmado:
 - QA live aprobado: `GET /public/locals/by-slug/dlirio/catalog`, tickets, mesas, perfil publico de club, selector free pass, selector de mesas, `POST /orders` free pass con `ticket_type_id`, QR/email, WhatsApp tracking, panel catalogo tickets/mesas y metricas/lineup;
 - el catalogo publico sigue funcionando via backend/API shapeada; este checkpoint cierra solo la exposicion directa de las tablas crudas de catalogo por Data API;
 - no se tocaron endpoints publicos, panel catalogo, frontend, backend, otras tablas ni `SUPABASE_SERVICE_ROLE`;
+- en ese momento, el cleanup final de grants en `panel_users` y `payment_events` seguia pendiente; el checkpoint `1.9` documenta su cierre posterior;
+- `B5b` sigue abierto para blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+
+### 1.9 Remediation checkpoint — `panel_users` / `payment_events` grants cleanup
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-01 |
+| Estado | Mini-slice final de Data API grants cleanup aplicado y validado en Supabase live |
+| Recurso | `public.panel_users`, `public.payment_events` |
+| Migracion versionada | `infra/sql/migrations/024_harden_panel_users_payment_events_grants.sql` |
+
+Resultado confirmado:
+
+- antes del cleanup, `public.panel_users` y `public.payment_events` ya tenian RLS on, `force_rls=false` y `pg_policies` en 0 filas;
+- el pendiente era grants directos amplios para `anon` / `authenticated`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES` y `TRIGGER`;
+- la remediacion live revoco grants de `anon` / `authenticated` sobre ambas tablas; no se tocaron RLS, policies, backend, endpoints ni otras tablas;
+- post-check runtime: RLS sigue on, `force_rls=false`, `pg_policies` sigue en 0 filas y grants `anon` / `authenticated` en 0 filas para ambas tablas;
+- con esto, el Check C del mini-check global queda resuelto y High-Risk Data Exposure Containment queda limpio para las tablas revisadas en este corte;
 - `B5b` sigue abierto para blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
@@ -350,9 +369,10 @@ Este documento consume como ya cerrados:
 - El flujo `free_pass only` igualmente toca `orders`, `locals`, `local_daily_ops` y `ticket_types`; la Data API directa de esas tablas ya fue contenida por slices.
 - `POST /reservations` permite escritura pública de PII de reservas por diseño, pero la Data API directa de `public.reservations` ya fue contenida por el checkpoint `1.7`.
 - `ticket_types` y `table_types` mantienen catalogo publico legitimo via backend/API shapeada, pero la exposicion directa de tablas crudas por Data API ya fue contenida por el checkpoint `1.8`.
+- `panel_users` y `payment_events` ya tenian RLS on y 0 policies; el cleanup final de grants directos de `anon` / `authenticated` fue contenido por el checkpoint `1.9`.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
 - RLS hardening está confirmado solo para slices acotadas: tracking público, `promos`, `reviews` y contenciones Data API focalizadas documentadas en checkpoints.
-- `panel_users`, `payment_events` y los flows derivados de alta criticidad siguen fuera del rollout RLS validado según `docs/audits/**`; `ticket_types` y `table_types` ya tienen contencion Data API por checkpoint acotado.
+- Los flows derivados de alta criticidad siguen fuera de una reduccion de blast radius de `SUPABASE_SERVICE_ROLE`; `panel_users`, `payment_events`, `ticket_types` y `table_types` ya tienen contencion Data API por checkpoints acotados.
 
 ## 8. Hallazgos parciales o que requieren validación
 
@@ -394,7 +414,7 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations` y la Data API cruda de `ticket_types` / `table_types`. Sigue pendiente aceptar o reducir el modelo `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
+`B5b` no está cerrado. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types` y el cleanup final de grants en `panel_users` / `payment_events`. Sigue pendiente aceptar o reducir el modelo `SUPABASE_SERVICE_ROLE`, drift SQL/env y `/payments/callback` si aplica.
 
 ## 12. Backlog mínimo posterior
 

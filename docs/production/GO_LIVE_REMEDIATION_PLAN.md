@@ -199,7 +199,7 @@ Checkpoint `B5b`:
 - `B5b` no se considera cerrado: el riesgo central sigue en `SUPABASE_SERVICE_ROLE`, blast radius backend, lookups publicos, `/payments/callback`, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
-- la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types` y `table_types`; el siguiente foco queda en blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
+- la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`; el siguiente foco queda en blast radius de `SUPABASE_SERVICE_ROLE` y drift SQL/env;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion o aceptacion formal de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -288,6 +288,18 @@ Checkpoint `B5b-7 ticket_types/table_types`:
 - validacion: QA live aprobado para `GET /public/locals/by-slug/dlirio/catalog`, tickets, mesas, perfil publico de club, selector free pass, selector de mesas, `POST /orders` free pass con `ticket_type_id`, QR/email, WhatsApp tracking, panel catalogo tickets/mesas y metricas/lineup;
 - este checkpoint no toca endpoints publicos, backend, frontend, otras tablas ni `SUPABASE_SERVICE_ROLE`; cierra solo la exposicion directa de las tablas crudas de catalogo por Data API;
 - el catalogo publico y el panel catalogo siguen funcionando via backend/API shapeada;
+- en ese momento, el cleanup final de grants en `panel_users` y `payment_events` seguia pendiente; el checkpoint `B5b-8` documenta su cierre posterior.
+
+Checkpoint `B5b-8 panel_users/payment_events grants`:
+
+- `public.panel_users` y `public.payment_events` ya fueron remediadas como mini-slice final de Data API grants cleanup;
+- el cambio aplicado en Supabase live quedo versionado en `infra/sql/migrations/024_harden_panel_users_payment_events_grants.sql`;
+- antes del cambio ambas tablas ya tenian RLS on, `force_rls=false` y `pg_policies` en 0 filas;
+- el pendiente era grants directos amplios para `anon` / `authenticated`: `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES` y `TRIGGER`;
+- resultado: grants de `anon` / `authenticated` removidos en ambas tablas, sin tocar RLS y sin crear policies nuevas;
+- post-checks confirmados: RLS sigue on, `force_rls=false`, `pg_policies` sigue en 0 filas y grants `anon` / `authenticated` en 0 filas;
+- este checkpoint no toca backend, frontend, endpoints, otras tablas, `SUPABASE_SERVICE_ROLE` ni `/payments/callback`;
+- con esto, el mini-check global de Data API containment queda limpio para las tablas revisadas y High-Risk Data Exposure Containment queda cerrado para este corte;
 - `B5b` sigue abierto para blast radius de `SUPABASE_SERVICE_ROLE`, drift SQL/env, `/payments/callback` si aplica y decisiones de aceptacion restantes.
 
 ## 11. Riesgos y ambigüedades que requieren validación
