@@ -211,7 +211,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
 - `B5b` no se considera cerrado completo todavía para este corte;
 - el riesgo residual principal ya no queda en Data API directa de las tablas revisadas, sino en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
-- los lookups publicos de ordenes ya quedaron contenidos; `/payments/callback`, el drift SQL/env, las mitigaciones pequenas de DTO/selects y la validación runtime de Supabase siguen abiertos por bloques;
+- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; `/payments/callback`, el drift SQL/env, panel mutation selects, tracking validation y la validación runtime de Supabase siguen abiertos por bloques;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
@@ -326,10 +326,23 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - aceptacion formal: no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
 - controles compensatorios vigentes: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
 - la aceptacion es temporal y operativa, no una arquitectura final ni una reduccion real del privilegio del cliente backend;
-- mitigaciones pequenas pendientes como sub-slices: reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`;
+- en ese momento quedaban como sub-slices reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`; el checkpoint `6.12` documenta el cierre posterior de los DTO/selects publicos;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- `B5b` no queda cerrado completo: siguen pendientes mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si aplica.
+- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si aplica.
+
+### 6.12 Checkpoint `B5b-10 Public DTO/selects hardening`
+
+- `POST /orders` y `POST /reservations` fueron remediados como sub-slice de Public DTO/selects hardening;
+- el cambio reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en endpoints publicos, pero no elimina `SUPABASE_SERVICE_ROLE` ni cambia reglas de negocio;
+- `POST /orders` dejo de devolver fila completa y ahora devuelve DTO publico minimo: `id`, `checkin_token`, `quantity`, `total_amount`, `currency`, `status`, `payment_method`, `created_at`, `intended_date`;
+- `POST /orders` ya no devuelve PII ni campos internos como `customer_email`, `customer_name`, `customer_last_name`, `customer_phone`, `customer_document`, `transaction_id`, `used_at`, `items`, `updated_at` o `is_window_legacy`;
+- `POST /reservations` dejo de devolver fila completa y ahora devuelve DTO publico minimo: `id`, `status`, `date`, `guests`, `created_at`;
+- `POST /reservations` ya no devuelve PII ni campos internos como `name`, `last_name`, `email`, `phone`, `notes`, `table_note`, `local_id` o `updated_at`;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
+- QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion de reserva, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendario month/day;
+- no se tocaron Data API containment, RLS, grants, policies, migraciones, panel routes, payments/callback, service role ni endpoints publicos de lectura de ordenes;
+- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 7. Controles visibles existentes
 

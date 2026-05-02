@@ -196,11 +196,11 @@ Checkpoint `B5a-2`:
 Checkpoint `B5b`:
 
 - el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, mitigaciones pequenas de DTO/selects, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
+- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, panel mutation selects, tracking validation, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
 - la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
-- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; los siguientes focos quedan en mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si pagos reales aplican;
+- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations` ya quedo documentado y validado; los siguientes focos quedan en panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion restante de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -311,10 +311,22 @@ Checkpoint `B5b-9 SUPABASE_SERVICE_ROLE blast radius`:
 - no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
 - controles compensatorios: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
 - esta aceptacion es temporal/operativa y no representa arquitectura final ni reduccion de privilegios;
-- quedan como proximos sub-slices las mitigaciones pequenas de DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel con `select("*")` y `GET /events/whatsapp_clicks/count`;
+- en ese momento quedaban como proximos sub-slices las mitigaciones pequenas de DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel con `select("*")` y `GET /events/whatsapp_clicks/count`; el checkpoint `B5b-10` documenta el cierre posterior de los DTO/selects publicos;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- `B5b` no queda cerrado completo: siguen pendientes mitigaciones pequenas de DTO/selects, drift SQL/env y `/payments/callback` si aplica.
+- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si aplica.
+
+Checkpoint `B5b-10 Public DTO/selects hardening`:
+
+- `POST /orders` y `POST /reservations` ya fueron remediados como sub-slice de reduccion de payload publico;
+- `POST /orders` dejo de usar select amplio/fila completa y ahora devuelve solo `id`, `checkin_token`, `quantity`, `total_amount`, `currency`, `status`, `payment_method`, `created_at` e `intended_date`;
+- `POST /orders` ya no devuelve PII ni campos internos: `customer_email`, `customer_name`, `customer_last_name`, `customer_phone`, `customer_document`, `transaction_id`, `used_at`, `items`, `updated_at`, `is_window_legacy`;
+- `POST /reservations` dejo de usar select amplio/fila completa y ahora devuelve solo `id`, `status`, `date`, `guests` y `created_at`;
+- `POST /reservations` ya no devuelve PII ni campos internos: `name`, `last_name`, `email`, `phone`, `notes`, `table_note`, `local_id`, `updated_at`;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
+- QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendar month/day;
+- este checkpoint no toca reglas de negocio, Data API containment, RLS, SQL, migraciones, panel, payments/callback, service role ni endpoints publicos de lectura de ordenes;
+- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 11. Riesgos y ambigüedades que requieren validación
 
