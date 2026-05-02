@@ -235,7 +235,7 @@ ordersRouter.post("/", async (req, res, next) => {
         valid_window_key: validWindowKey,
         is_window_legacy: isWindowLegacy,
       })
-      .select()
+      .select("id, checkin_token, quantity, total_amount, currency, status, payment_method, created_at, intended_date")
       .single();
 
     if (error) {
@@ -261,7 +261,17 @@ ordersRouter.post("/", async (req, res, next) => {
       });
     }
 
-    res.status(201).json(data);
+    res.status(201).json({
+      id: data.id,
+      checkin_token: data.checkin_token,
+      quantity: data.quantity,
+      total_amount: data.total_amount,
+      currency: data.currency,
+      status: data.status,
+      payment_method: data.payment_method,
+      created_at: data.created_at,
+      intended_date: data.intended_date,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return res.status(400).json({ error: error.flatten() });

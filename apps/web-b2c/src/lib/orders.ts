@@ -3,15 +3,14 @@ import { getApiBase } from "@/lib/api";
 
 export interface Order {
   id: string;
-  local_id: string;
   checkin_token: string;
   quantity: number;
   total_amount: number;
   currency: string;
   status: "pending" | "paid" | "failed" | "cancelled";
   payment_method: string | null;
-  used_at: string | null;
   created_at: string;
+  intended_date: string | null;
 }
 
 /**

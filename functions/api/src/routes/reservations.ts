@@ -191,7 +191,7 @@ reservationsRouter.post("/", async (req, res, next) => {
         notes: validated.notes ?? null,
         table_note: validated.table_note ?? null,
       })
-      .select()
+      .select("id, status, date, guests, created_at")
       .single();
 
     if (error) {
@@ -212,7 +212,13 @@ reservationsRouter.post("/", async (req, res, next) => {
       logger.error("Error sending reservation email", { error: err });
     });
 
-    res.status(201).json(data);
+    res.status(201).json({
+      id: data.id,
+      status: data.status,
+      date: data.date,
+      guests: data.guests,
+      created_at: data.created_at,
+    });
   } catch (error) {
     next(error);
   }
