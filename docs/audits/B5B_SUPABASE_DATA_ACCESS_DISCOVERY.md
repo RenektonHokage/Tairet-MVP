@@ -239,8 +239,8 @@ Resultado confirmado:
 - en ese momento quedaban como mitigaciones pequenas pendientes: reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- el checkpoint `1.11` documenta el cierre posterior de los DTO/selects publicos en `POST /orders` y `POST /reservations`;
-- `B5b` sigue abierto para panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si aplica.
+- los checkpoints `1.11` y `1.12` documentan el cierre posterior de los DTO/selects publicos y de las mutaciones panel puntuales;
+- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si aplica.
 
 ### 1.11 Remediation checkpoint — Public DTO/selects hardening
 
@@ -260,7 +260,32 @@ Resultado confirmado:
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR generado correctamente, token disponible/copiable, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion de reserva, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendario month/day;
 - el sub-slice reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en endpoints publicos, pero no elimina `SUPABASE_SERVICE_ROLE`, no cambia reglas de negocio y no toca Data API containment;
-- `B5b` sigue abierto para panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+
+### 1.12 Remediation checkpoint — Panel mutation selects hardening
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-02 |
+| Estado | Sub-slice implementado y validado en produccion |
+| Recurso | `PATCH /panel/reservations/:id`, `PATCH /panel/orders/:id/use` |
+| Alcance | Reduccion de selects/payloads en mutaciones panel puntuales; no toca SQL, RLS, migraciones, endpoints publicos, payments/callback ni service role |
+
+Resultado confirmado:
+
+- `PATCH /panel/reservations/:id` redujo fetch interno a `id`, `local_id`, `status`, `email`, `name`, `date` y `guests`;
+- `PATCH /panel/reservations/:id` redujo response/update DTO a `id`, `status`, `table_note` y `updated_at`;
+- se conservaron tenant check, validacion de estado y datos internos necesarios para email de confirmacion/cancelacion;
+- `PATCH /panel/orders/:id/use` redujo fetch interno a `id`, `local_id`, `status`, `used_at`, `valid_from`, `valid_to`, `is_window_legacy` y `created_at`;
+- `PATCH /panel/orders/:id/use` redujo response/update DTO a `id`, `status` y `used_at`;
+- se conservaron tenant check y validacion de ventana;
+- `PATCH /panel/checkin/:token` no fue modificado y queda intacto como flujo operativo real del scanner;
+- `apps/web-next/lib/reservations.ts` quedo alineado con `PanelReservationMutationResponse`; `Reservation` usado por listados no fue modificado;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK y `pnpm -C apps/web-next typecheck` OK;
+- QA live aprobado: confirmar/cancelar reserva, editar `table_note`, nota visible en UI, listar/buscar reservas, email de confirmacion/cancelacion, check-in QR/token, scanner con datos necesarios, `GET /panel/orders/search`, `GET /panel/orders/summary`, `GET /activity`, `GET /metrics/summary` y calendario month/day;
+- `PATCH /panel/orders/:id/use` no se forzo por ID porque no hay consumidor activo claro y no conviene afectar datos reales innecesariamente;
+- el sub-slice reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en mutaciones panel puntuales, pero no elimina `SUPABASE_SERVICE_ROLE`, no cambia reglas de negocio y no toca Data API containment;
+- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
@@ -417,6 +442,7 @@ Este documento consume como ya cerrados:
 - `panel_users` y `payment_events` ya tenian RLS on y 0 policies; el cleanup final de grants directos de `anon` / `authenticated` fue contenido por el checkpoint `1.9`.
 - El cliente backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para este corte `free_pass only` por el checkpoint `1.10`, sin eliminar el riesgo residual ni cerrar `B5b` completo.
 - `POST /orders` y `POST /reservations` ya no devuelven filas completas ni PII por respuesta publica; el checkpoint `1.11` documenta el DTO minimo y QA live aprobado.
+- `PATCH /panel/reservations/:id` y `PATCH /panel/orders/:id/use` ya no devuelven filas amplias; el checkpoint `1.12` documenta los DTOs minimos, que `PATCH /panel/checkin/:token` quedo intacto y que QA live aprobo.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
 - RLS hardening está confirmado solo para slices acotadas: tracking público, `promos`, `reviews` y contenciones Data API focalizadas documentadas en checkpoints.
 - Los flows derivados de alta criticidad siguen fuera de una reduccion de blast radius de `SUPABASE_SERVICE_ROLE`; `panel_users`, `payment_events`, `ticket_types` y `table_types` ya tienen contencion Data API por checkpoints acotados.
@@ -436,7 +462,7 @@ Este documento consume como ya cerrados:
 La evidencia runtime confirma que `B5b` no debe cerrarse sin mitigación o aceptación formal. Quedan candidatos reales del corte:
 
 - `/payments/callback`, si pagos reales quedan activos fuera de `free_pass only`.
-- Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes de panel mutation selects, tracking validation, drift y pagos.
+- Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes de tracking validation, drift y pagos.
 
 ## 10. Casos mixtos que deben mantenerse separados de B5a
 
@@ -461,11 +487,11 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events` y los DTO/selects publicos de `POST /orders` / `POST /reservations`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations` y las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 12. Backlog mínimo posterior
 
-- `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE`: mutaciones panel puntuales y `GET /events/whatsapp_clicks/count`; DTO/selects publicos de `POST /orders` y `POST /reservations` ya quedaron documentados en checkpoint `1.11`.
+- `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE`: `GET /events/whatsapp_clicks/count`; DTO/selects publicos de `POST /orders` y `POST /reservations` ya quedaron documentados en checkpoint `1.11`, y las mutaciones panel puntuales quedaron documentadas en checkpoint `1.12`.
 - `B5b-3`: reconciliar drift SQL/env: `schema.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`, `SUPABASE_SERVICE_ROLE`.
 - `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
 - `B5b-6`: hardening RLS remanente por slices, no como una sola tanda.

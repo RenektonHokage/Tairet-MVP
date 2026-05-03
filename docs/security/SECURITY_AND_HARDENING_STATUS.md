@@ -211,7 +211,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
 - `B5b` no se considera cerrado completo todavía para este corte;
 - el riesgo residual principal ya no queda en Data API directa de las tablas revisadas, sino en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
-- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; `/payments/callback`, el drift SQL/env, panel mutation selects, tracking validation y la validación runtime de Supabase siguen abiertos por bloques;
+- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; el checkpoint `B5b-11` reduce selects/payloads en mutaciones puntuales del panel; `/payments/callback`, el drift SQL/env, tracking validation y la validación runtime de Supabase siguen abiertos por bloques;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
@@ -326,10 +326,10 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - aceptacion formal: no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
 - controles compensatorios vigentes: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
 - la aceptacion es temporal y operativa, no una arquitectura final ni una reduccion real del privilegio del cliente backend;
-- en ese momento quedaban como sub-slices reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`; el checkpoint `6.12` documenta el cierre posterior de los DTO/selects publicos;
+- en ese momento quedaban como sub-slices reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`; los checkpoints `6.12` y `6.13` documentan el cierre posterior de los DTO/selects publicos y de las mutaciones panel puntuales;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si aplica.
+- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si aplica.
 
 ### 6.12 Checkpoint `B5b-10 Public DTO/selects hardening`
 
@@ -342,7 +342,22 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion de reserva, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendario month/day;
 - no se tocaron Data API containment, RLS, grants, policies, migraciones, panel routes, payments/callback, service role ni endpoints publicos de lectura de ordenes;
-- `B5b` no queda cerrado completo: siguen pendientes panel mutation selects, tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+
+### 6.13 Checkpoint `B5b-11 Panel mutation selects hardening`
+
+- `PATCH /panel/reservations/:id` y `PATCH /panel/orders/:id/use` fueron remediados como sub-slice de Panel mutation selects hardening;
+- el cambio reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en mutaciones puntuales del panel, pero no elimina `SUPABASE_SERVICE_ROLE` ni cambia reglas de negocio;
+- `PATCH /panel/reservations/:id` redujo el fetch interno a `id`, `local_id`, `status`, `email`, `name`, `date` y `guests`, conservando tenant check, validacion de estado y datos necesarios para email;
+- `PATCH /panel/reservations/:id` redujo la respuesta/update DTO a `id`, `status`, `table_note` y `updated_at`, sin devolver PII ni `local_id`;
+- `PATCH /panel/orders/:id/use` redujo el fetch interno a `id`, `local_id`, `status`, `used_at`, `valid_from`, `valid_to`, `is_window_legacy` y `created_at`, conservando tenant check y validacion de ventana;
+- `PATCH /panel/orders/:id/use` redujo la respuesta/update DTO a `id`, `status` y `used_at`, sin devolver PII, `checkin_token`, `items`, `transaction_id` ni campos internos de ventana;
+- `PATCH /panel/checkin/:token` no fue modificado porque es el flujo operativo real del scanner y ya usa selects explicitos para los datos que muestra;
+- `apps/web-next/lib/reservations.ts` quedo alineado con `PanelReservationMutationResponse`; el tipo `Reservation` usado por listados no fue modificado;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK y `pnpm -C apps/web-next typecheck` OK;
+- QA live aprobado: confirmar reserva, cancelar reserva, editar `table_note`, nota visible en UI, listar/buscar reservas, email de confirmacion/cancelacion, check-in QR/token por `PATCH /panel/checkin/:token`, scanner con datos necesarios, `GET /panel/orders/search`, `GET /panel/orders/summary`, `GET /activity`, `GET /metrics/summary` y calendario month/day;
+- no se tocaron Data API containment, RLS, grants, policies, SQL, migraciones, endpoints publicos, payments/callback ni service role;
+- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 7. Controles visibles existentes
 
