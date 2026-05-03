@@ -19,6 +19,10 @@ const profileViewSchema = z.object({
   source: z.string().optional(),
 });
 
+const whatsappClickCountQuerySchema = z.object({
+  localId: z.string().uuid(),
+});
+
 // POST /events/whatsapp_click
 eventsRouter.post("/whatsapp_click", async (req, res, next) => {
   try {
@@ -64,11 +68,13 @@ eventsRouter.post("/whatsapp_click", async (req, res, next) => {
 
 // GET /events/whatsapp_clicks/count
 eventsRouter.get("/whatsapp_clicks/count", async (req, res) => {
-  const { localId } = req.query;
+  const parsed = whatsappClickCountQuerySchema.safeParse(req.query);
 
-  if (!localId || typeof localId !== "string") {
-    return res.status(400).json({ error: "localId is required" });
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
   }
+
+  const { localId } = parsed.data;
 
   const { count, error } = await supabase
     .from("whatsapp_clicks")
