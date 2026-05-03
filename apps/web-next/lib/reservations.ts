@@ -83,6 +83,13 @@ export interface UpdateReservationStatusInput {
   table_note?: string | null;
 }
 
+export interface PanelReservationMutationResponse {
+  id: string;
+  status: Reservation["status"];
+  table_note: string | null;
+  updated_at: string | null;
+}
+
 export async function updateReservationStatus(
   reservationId: string,
   input: UpdateReservationStatusInput
@@ -97,6 +104,6 @@ export async function updateReservationStatus(
 export async function updatePanelReservationStatus(
   reservationId: string,
   input: UpdateReservationStatusInput
-): Promise<Reservation> {
-  return apiPatchWithAuth<Reservation>(`/panel/reservations/${reservationId}`, input);
+): Promise<PanelReservationMutationResponse> {
+  return apiPatchWithAuth<PanelReservationMutationResponse>(`/panel/reservations/${reservationId}`, input);
 }

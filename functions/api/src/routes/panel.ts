@@ -677,7 +677,7 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
     // Buscar la reserva actual
     const { data: reservation, error: fetchError } = await supabase
       .from("reservations")
-      .select("*")
+      .select("id, local_id, status, email, name, date, guests")
       .eq("id", id)
       .single();
 
@@ -737,7 +737,7 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
       .from("reservations")
       .update(updateData)
       .eq("id", id)
-      .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at")
+      .select("id, status, table_note, updated_at")
       .single();
 
     if (updateError) {
@@ -818,7 +818,7 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
     // Buscar la orden
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("*")
+      .select("id, local_id, status, used_at, valid_from, valid_to, is_window_legacy, created_at")
       .eq("id", id)
       .single();
 
@@ -882,7 +882,7 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
       .from("orders")
       .update({ used_at: new Date().toISOString() })
       .eq("id", id)
-      .select()
+      .select("id, status, used_at")
       .single();
 
     if (updateError) {
