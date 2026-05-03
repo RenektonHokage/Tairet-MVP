@@ -196,11 +196,11 @@ Checkpoint `B5a-2`:
 Checkpoint `B5b`:
 
 - el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, tracking validation, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
+- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
 - la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
-- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations` y Panel mutation selects hardening ya quedaron documentados y validados; los siguientes focos quedan en tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican;
+- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations`, Panel mutation selects hardening y `GET /events/whatsapp_clicks/count` validation ya quedaron documentados y validados; los siguientes focos quedan en drift SQL/env y `/payments/callback` si pagos reales aplican;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion restante de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -311,10 +311,10 @@ Checkpoint `B5b-9 SUPABASE_SERVICE_ROLE blast radius`:
 - no se eliminara `SUPABASE_SERVICE_ROLE` en este corte; la frontera efectiva queda en backend/API shapeada;
 - controles compensatorios: validacion de input, DTOs/payloads shapeados, `panelAuth`, `requireRole`, tenant checks y rate limits donde existen;
 - esta aceptacion es temporal/operativa y no representa arquitectura final ni reduccion de privilegios;
-- en ese momento quedaban como proximos sub-slices las mitigaciones pequenas de DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel con `select("*")` y `GET /events/whatsapp_clicks/count`; los checkpoints `B5b-10` y `B5b-11` documentan el cierre posterior de los DTO/selects publicos y de las mutaciones panel puntuales;
+- en ese momento quedaban como proximos sub-slices las mitigaciones pequenas de DTO/selects en `POST /orders`, `POST /reservations`, mutaciones panel con `select("*")` y `GET /events/whatsapp_clicks/count`; los checkpoints `B5b-10`, `B5b-11` y `B5b-12` documentan el cierre posterior de los DTO/selects publicos, de las mutaciones panel puntuales y de la validacion de tracking;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si aplica.
+- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si aplica.
 
 Checkpoint `B5b-10 Public DTO/selects hardening`:
 
@@ -326,7 +326,7 @@ Checkpoint `B5b-10 Public DTO/selects hardening`:
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendar month/day;
 - este checkpoint no toca reglas de negocio, Data API containment, RLS, SQL, migraciones, panel, payments/callback, service role ni endpoints publicos de lectura de ordenes;
-- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 Checkpoint `B5b-11 Panel mutation selects hardening`:
 
@@ -341,7 +341,21 @@ Checkpoint `B5b-11 Panel mutation selects hardening`:
 - QA live aprobado: confirmacion/cancelacion de reserva, edicion de `table_note`, nota visible en UI, listados/busqueda de reservas, emails, check-in QR/token, scanner, orders search/summary, activity, metrics y calendar month/day;
 - `PATCH /panel/orders/:id/use` no se forzo por ID porque no hay consumidor activo claro y no conviene afectar datos reales innecesariamente;
 - este checkpoint no toca reglas de negocio, Data API containment, RLS, SQL, migraciones, endpoints publicos, payments/callback ni service role;
-- `B5b` no queda cerrado completo: siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
+
+Checkpoint `B5b-12 GET /events/whatsapp_clicks/count validation`:
+
+- `GET /events/whatsapp_clicks/count` ya fue remediado como sub-slice de tracking validation;
+- en `functions/api/src/routes/events.ts` se agrego `whatsappClickCountQuerySchema` con `localId: z.string().uuid()`;
+- el handler ahora usa `safeParse(req.query)` y responde `400` cuando `localId` falta o no es UUID valido;
+- para UUIDs validos se mantiene el contrato `{ local_id: localId, count: count ?? 0 }`;
+- la consulta a Supabase no se ejecuta si `localId` es invalido;
+- no se valido existencia del local y no se agrego query a `locals`, para evitar query adicional y cambio semantico;
+- no se toco `POST /events/whatsapp_click`, metrics, activity, frontend, SQL, RLS, migraciones, payments/callback ni service role;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK y `git diff --check` OK;
+- QA live aprobado: UUID valido con clicks -> `200` y count `10`; UUID valido sin clicks -> `200` y count `0`; sin `localId` -> `400`; `localId=abc` -> `400`; `POST /events/whatsapp_click` -> OK; `GET /metrics/summary` -> OK; `GET /activity` -> OK;
+- este checkpoint reduce ruido/queries invalidas en un endpoint publico que usa backend privilegiado, sin cambiar el contrato para UUIDs validos;
+- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 11. Riesgos y ambigüedades que requieren validación
 

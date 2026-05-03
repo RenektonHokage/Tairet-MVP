@@ -239,8 +239,8 @@ Resultado confirmado:
 - en ese momento quedaban como mitigaciones pequenas pendientes: reducir DTOs/selects en `POST /orders`, reducir DTOs/selects en `POST /reservations`, reemplazar `select("*")` en mutaciones panel puntuales y validar `localId` en `GET /events/whatsapp_clicks/count`;
 - `/payments/callback` queda como validacion separada si pagos reales entran en scope;
 - refactors mayores diferidos: clientes privilegiados por dominio, roles/RPCs de menor privilegio y eliminacion del service role global;
-- los checkpoints `1.11` y `1.12` documentan el cierre posterior de los DTO/selects publicos y de las mutaciones panel puntuales;
-- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si aplica.
+- los checkpoints `1.11`, `1.12` y `1.13` documentan el cierre posterior de los DTO/selects publicos, de las mutaciones panel puntuales y de la validacion de tracking;
+- `B5b` sigue abierto para drift SQL/env y `/payments/callback` si aplica.
 
 ### 1.11 Remediation checkpoint — Public DTO/selects hardening
 
@@ -260,7 +260,7 @@ Resultado confirmado:
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR generado correctamente, token disponible/copiable, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion de reserva, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendario month/day;
 - el sub-slice reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en endpoints publicos, pero no elimina `SUPABASE_SERVICE_ROLE`, no cambia reglas de negocio y no toca Data API containment;
-- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` sigue abierto para drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ### 1.12 Remediation checkpoint — Panel mutation selects hardening
 
@@ -285,7 +285,30 @@ Resultado confirmado:
 - QA live aprobado: confirmar/cancelar reserva, editar `table_note`, nota visible en UI, listar/buscar reservas, email de confirmacion/cancelacion, check-in QR/token, scanner con datos necesarios, `GET /panel/orders/search`, `GET /panel/orders/summary`, `GET /activity`, `GET /metrics/summary` y calendario month/day;
 - `PATCH /panel/orders/:id/use` no se forzo por ID porque no hay consumidor activo claro y no conviene afectar datos reales innecesariamente;
 - el sub-slice reduce blast radius del backend con `SUPABASE_SERVICE_ROLE` en mutaciones panel puntuales, pero no elimina `SUPABASE_SERVICE_ROLE`, no cambia reglas de negocio y no toca Data API containment;
-- `B5b` sigue abierto para tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+- `B5b` sigue abierto para drift SQL/env y `/payments/callback` si pagos reales aplican.
+
+### 1.13 Remediation checkpoint — `GET /events/whatsapp_clicks/count` validation
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-02 |
+| Estado | Sub-slice implementado y validado en produccion |
+| Recurso | `GET /events/whatsapp_clicks/count` |
+| Alcance | Validacion UUID de `localId` en endpoint publico de conteo; no toca SQL, RLS, migraciones, tracking POST, metrics, activity, payments/callback ni service role |
+
+Resultado confirmado:
+
+- en `functions/api/src/routes/events.ts` se agrego `whatsappClickCountQuerySchema` con `localId: z.string().uuid()`;
+- `GET /events/whatsapp_clicks/count` ahora usa `safeParse(req.query)`;
+- si `localId` falta o no es UUID valido, responde `400` con `error.flatten()`;
+- para UUIDs validos mantiene el contrato `{ local_id: localId, count: count ?? 0 }`;
+- la consulta a Supabase no se ejecuta si `localId` es invalido;
+- no se valido existencia del local y no se agrego query a `locals`, para evitar query adicional y cambio semantico;
+- no se toco `POST /events/whatsapp_click`, metrics, activity, frontend, SQL, RLS, migraciones, payments/callback ni service role;
+- verificaciones registradas: `pnpm -C functions/api typecheck` OK y `git diff --check` OK;
+- QA live aprobado: UUID valido con clicks -> `200` y count `10`; UUID valido sin clicks -> `200` y count `0`; sin `localId` -> `400`; `localId=abc` -> `400`; `POST /events/whatsapp_click` -> OK; `GET /metrics/summary` -> OK; `GET /activity` -> OK;
+- el sub-slice reduce ruido/queries invalidas en un endpoint publico que opera via backend privilegiado con `SUPABASE_SERVICE_ROLE`, pero no elimina `SUPABASE_SERVICE_ROLE`;
+- `B5b` sigue abierto para drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
@@ -443,6 +466,7 @@ Este documento consume como ya cerrados:
 - El cliente backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para este corte `free_pass only` por el checkpoint `1.10`, sin eliminar el riesgo residual ni cerrar `B5b` completo.
 - `POST /orders` y `POST /reservations` ya no devuelven filas completas ni PII por respuesta publica; el checkpoint `1.11` documenta el DTO minimo y QA live aprobado.
 - `PATCH /panel/reservations/:id` y `PATCH /panel/orders/:id/use` ya no devuelven filas amplias; el checkpoint `1.12` documenta los DTOs minimos, que `PATCH /panel/checkin/:token` quedo intacto y que QA live aprobo.
+- `GET /events/whatsapp_clicks/count` valida `localId` como UUID antes de consultar Supabase; el checkpoint `1.13` documenta el contrato mantenido para UUIDs validos y QA live aprobado.
 - `/payments/callback` inserta `payment_events` y puede actualizar `orders`; la autenticidad del proveedor no queda cerrada por repo.
 - RLS hardening está confirmado solo para slices acotadas: tracking público, `promos`, `reviews` y contenciones Data API focalizadas documentadas en checkpoints.
 - Los flows derivados de alta criticidad siguen fuera de una reduccion de blast radius de `SUPABASE_SERVICE_ROLE`; `panel_users`, `payment_events`, `ticket_types` y `table_types` ya tienen contencion Data API por checkpoints acotados.
@@ -462,7 +486,7 @@ Este documento consume como ya cerrados:
 La evidencia runtime confirma que `B5b` no debe cerrarse sin mitigación o aceptación formal. Quedan candidatos reales del corte:
 
 - `/payments/callback`, si pagos reales quedan activos fuera de `free_pass only`.
-- Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes de tracking validation, drift y pagos.
+- Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes de drift y pagos.
 
 ## 10. Casos mixtos que deben mantenerse separados de B5a
 
@@ -487,11 +511,11 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations` y las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes tracking validation, drift SQL/env y `/payments/callback` si pagos reales aplican.
+`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations`, las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use` y la validacion UUID de `GET /events/whatsapp_clicks/count`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
 
 ## 12. Backlog mínimo posterior
 
-- `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE`: `GET /events/whatsapp_clicks/count`; DTO/selects publicos de `POST /orders` y `POST /reservations` ya quedaron documentados en checkpoint `1.11`, y las mutaciones panel puntuales quedaron documentadas en checkpoint `1.12`.
+- `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE` ya documentadas: DTO/selects publicos de `POST /orders` y `POST /reservations` en checkpoint `1.11`, mutaciones panel puntuales en checkpoint `1.12` y `GET /events/whatsapp_clicks/count` en checkpoint `1.13`.
 - `B5b-3`: reconciliar drift SQL/env: `schema.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`, `SUPABASE_SERVICE_ROLE`.
 - `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
 - `B5b-6`: hardening RLS remanente por slices, no como una sola tanda.
