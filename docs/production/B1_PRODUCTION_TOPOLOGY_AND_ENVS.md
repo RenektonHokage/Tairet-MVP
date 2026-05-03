@@ -155,7 +155,7 @@ Para este corte:
 
 - decisión de `B1`: `https://tairet.com.py` como host objetivo B2C; repo y docs SEO visibles siguen fijando `https://www.tairet.com.py`;
 - drift local `5173` vs `5174`: `apps/web-b2c/vite.config.ts` fija `5174`, mientras `docs/RUNBOOK.md` y defaults CORS siguen en `5173`;
-- mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE`;
+- mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` resuelto en `functions/api/.env.example`; `SUPABASE_SERVICE_ROLE` queda como nombre canonical del backend/API;
 - `.env.example` de API no cubre `FRONTEND_ORIGIN`, `RATE_LIMIT_PANEL`, `TRUST_PROXY_HOPS` ni `REVIEW_HASH_PEPPER`;
 - `.env.example` del panel no cubre `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ENABLE_PANEL_DEMO`, `NEXT_PUBLIC_SUPPORT_WHATSAPP` ni `NEXT_PUBLIC_SUPPORT_EMAIL`;
 - defaults CORS locales no están alineados con topología live;

@@ -200,7 +200,7 @@ No hay evidencia visible de:
 | Variable | Rol funcional | Criticidad | Estado observable |
 | --- | --- | --- | --- |
 | `SUPABASE_URL` | base URL de Supabase en backend | Alta | Confirmada en código y `.env.example` |
-| `SUPABASE_SERVICE_ROLE` | credencial privilegiada de backend | Alta | Confirmada en código, ejemplo con nombre desalineado |
+| `SUPABASE_SERVICE_ROLE` | credencial privilegiada de backend | Alta | Confirmada en código y `.env.example`; nombre canonical del backend/API |
 | `FRONTEND_ORIGIN` | allowlist CORS de frontend(s) | Alta | Confirmada en código y docs, ausente en `.env.example` |
 | `PORT` | puerto del backend | Media | Confirmada en código y `.env.example` |
 | `TRUST_PROXY_HOPS` | trust proxy en producción | Media | Confirmada en código, ausente en `.env.example` |
@@ -222,7 +222,7 @@ Notas operativas importantes:
 ### Drift documental/config visible
 
 - `apps/web-b2c/vite.config.ts` fija `5174`, pero `docs/RUNBOOK.md` y defaults CORS del backend siguen usando `5173`.
-- `functions/api/.env.example` usa `SUPABASE_SERVICE_ROLE_KEY`, pero `functions/api/src/services/supabase.ts` exige `SUPABASE_SERVICE_ROLE`.
+- `functions/api/.env.example` ya usa `SUPABASE_SERVICE_ROLE`, alineado con `functions/api/src/services/supabase.ts`; `SUPABASE_SERVICE_ROLE_KEY` queda como nombre historico/no canonical.
 - `functions/api/.env.example` no cubre `FRONTEND_ORIGIN`, `RATE_LIMIT_PANEL`, `TRUST_PROXY_HOPS` ni `REVIEW_HASH_PEPPER`.
 - `apps/web-next/.env.example` no incluye `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_ENABLE_PANEL_DEMO`, `NEXT_PUBLIC_SUPPORT_WHATSAPP` ni `NEXT_PUBLIC_SUPPORT_EMAIL`.
 - `apps/web-next/.env.example` incluye `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_GA_MEASUREMENT_ID`, pero su uso no está confirmado por código visible.

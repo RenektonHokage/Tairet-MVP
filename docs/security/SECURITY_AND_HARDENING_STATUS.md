@@ -211,7 +211,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
 - `B5b` no se considera cerrado completo todavía para este corte;
 - el riesgo residual principal ya no queda en Data API directa de las tablas revisadas, sino en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
-- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; el checkpoint `B5b-11` reduce selects/payloads en mutaciones puntuales del panel; el checkpoint `B5b-12` valida `localId` como UUID en `GET /events/whatsapp_clicks/count`; `/payments/callback`, el drift SQL/env y la validación runtime de Supabase siguen abiertos por bloques;
+- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; el checkpoint `B5b-11` reduce selects/payloads en mutaciones puntuales del panel; el checkpoint `B5b-12` valida `localId` como UUID en `GET /events/whatsapp_clicks/count`; el checkpoint `B5b-13` alinea el naming env de `SUPABASE_SERVICE_ROLE` y documenta el baseline SQL historico; `/payments/callback` y la validación runtime de Supabase siguen abiertos por bloques;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
@@ -342,7 +342,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion de reserva, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendario month/day;
 - no se tocaron Data API containment, RLS, grants, policies, migraciones, panel routes, payments/callback, service role ni endpoints publicos de lectura de ordenes;
-- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
+- en ese momento `B5b` no quedaba cerrado completo: seguian pendientes drift SQL/env y `/payments/callback` si pagos reales aplican; el checkpoint `B5b-13` documenta el cierre posterior del naming env `SUPABASE_SERVICE_ROLE`.
 
 ### 6.13 Checkpoint `B5b-11 Panel mutation selects hardening`
 
@@ -372,6 +372,17 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK y `git diff --check` OK;
 - QA live aprobado: UUID valido con clicks -> `200` y count `10`; UUID valido sin clicks -> `200` y count `0`; sin `localId` -> `400`; `localId=abc` -> `400`; `POST /events/whatsapp_click` -> OK; `GET /metrics/summary` -> OK; `GET /activity` -> OK;
 - `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
+
+### 6.15 Checkpoint `B5b-13 drift SQL/env`
+
+- `SUPABASE_SERVICE_ROLE` queda documentado como nombre canonical del backend/API para este corte;
+- `functions/api/.env.example` fue alineado con el código real y ya no declara `SUPABASE_SERVICE_ROLE_KEY` como variable activa;
+- no se agrego fallback ni compatibilidad doble: el backend sigue leyendo `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE` desde `functions/api/src/services/supabase.ts`;
+- no se tocaron runtime envs de Railway/Vercel, código funcional, frontend, SQL, RLS, grants, policies ni migraciones;
+- `infra/sql/schema.sql` e `infra/sql/rls.sql` quedan tratados como baseline histórico/desactualizado para este corte; no deben leerse como representación final del runtime endurecido;
+- las migraciones `019` a `024` siguen siendo la fuente incremental del hardening aplicado para `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
+- no se recomienda reescribir `schema.sql` / `rls.sql` dentro de este corte: cualquier reconciliación de baseline SQL debe hacerse como slice separado;
+- `B5b` no queda cerrado completo: `/payments/callback` queda condicionado a pagos reales y la validación runtime final sigue fuera de este checkpoint.
 
 ## 7. Controles visibles existentes
 
@@ -507,7 +518,7 @@ Estado del bloque: `Parcial`.
 - `docs/audits/TAIRET_TECH_AUDIT_MVP.md` se declara historico y no debe leerse como fuente operativa primaria.
 - hallazgos viejos del audit historico sobre logout ya quedaron superados por codigo actual y por docs posteriores; hoy el panel usa `supabase.auth.signOut(...)` y limpia el cookie legacy.
 - coexisten `infra/sql/rls.sql` permisivo y migraciones endurecidas para slices concretas; el repo no cierra por si solo que esta desplegado exactamente en cada entorno.
-- `docs/operations/ENVIRONMENTS_DEPLOYMENT_AND_OPERATIONS.md` ya documenta drift de entorno relevante para seguridad operativa: `5173` vs `5174`, examples de env incompletos y mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE`.
+- `docs/operations/ENVIRONMENTS_DEPLOYMENT_AND_OPERATIONS.md` documenta drift de entorno relevante para seguridad operativa: `5173` vs `5174` y examples de env incompletos; el mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` fue resuelto en `functions/api/.env.example` por el checkpoint `B5b-13`.
 - el estado final de exposicion publica productiva para panel/API y la cobertura real de Sentry siguen en `Requiere validacion`.
 - `SMOKE_TESTS_V1.md` y `MATRIZ_VALIDACION_PREVIA_V1.md` siguen siendo utiles, pero parte de su valor depende del corte runtime en que fueron ejecutados; no reemplazan verificacion productiva.
 

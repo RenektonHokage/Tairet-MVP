@@ -196,11 +196,11 @@ Checkpoint `B5a-2`:
 Checkpoint `B5b`:
 
 - el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, `/payments/callback` si pagos reales aplican, drift SQL/env y validacion runtime de Supabase;
+- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, `/payments/callback` si pagos reales aplican, baseline SQL historico/desactualizado si se requiere reconciliacion y validacion runtime de Supabase;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
 - la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
-- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations`, Panel mutation selects hardening y `GET /events/whatsapp_clicks/count` validation ya quedaron documentados y validados; los siguientes focos quedan en drift SQL/env y `/payments/callback` si pagos reales aplican;
+- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations`, Panel mutation selects hardening, `GET /events/whatsapp_clicks/count` validation y el cleanup de drift env `SUPABASE_SERVICE_ROLE` ya quedaron documentados y validados; el siguiente foco queda en `/payments/callback` si pagos reales aplican;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion restante de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -326,7 +326,7 @@ Checkpoint `B5b-10 Public DTO/selects hardening`:
 - verificaciones registradas: `pnpm -C functions/api typecheck` OK, `pnpm -C apps/web-b2c typecheck` OK y `git diff --check` OK;
 - QA live aprobado: `POST /orders` free pass, response minimo, modal de exito, QR/token, email con QR/token, compra con `ticket_type_id`, `intended_date`, `POST /reservations`, response minimo, toast/navegacion, email/notificacion, panel orders/search, check-in, panel reservas/confirmacion, activity, metrics y calendar month/day;
 - este checkpoint no toca reglas de negocio, Data API containment, RLS, SQL, migraciones, panel, payments/callback, service role ni endpoints publicos de lectura de ordenes;
-- `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
+- en ese momento `B5b` no quedaba cerrado completo: seguian pendientes drift SQL/env y `/payments/callback` si pagos reales aplican; el checkpoint `B5b-13` documenta el cierre posterior del naming env `SUPABASE_SERVICE_ROLE`.
 
 Checkpoint `B5b-11 Panel mutation selects hardening`:
 
@@ -357,6 +357,16 @@ Checkpoint `B5b-12 GET /events/whatsapp_clicks/count validation`:
 - este checkpoint reduce ruido/queries invalidas en un endpoint publico que usa backend privilegiado, sin cambiar el contrato para UUIDs validos;
 - `B5b` no queda cerrado completo: siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
 
+Checkpoint `B5b-13 drift SQL/env`:
+
+- `SUPABASE_SERVICE_ROLE` queda como nombre canonical del backend/API para este corte;
+- `functions/api/.env.example` fue alineado con `functions/api/src/services/supabase.ts` y ya no declara `SUPABASE_SERVICE_ROLE_KEY` como variable activa;
+- no se agrego fallback ni se cambio el cliente Supabase: el backend sigue leyendo `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE`;
+- no se tocaron runtime envs de Railway/Vercel, código funcional, frontend, SQL, RLS, grants, policies, migraciones ni `/payments/callback`;
+- `infra/sql/schema.sql` e `infra/sql/rls.sql` quedan documentados como baseline historico/desactualizado para este corte y no representan por si solos el runtime final endurecido;
+- las migraciones `019` a `024` quedan como fuente incremental del hardening aplicado; no se recomienda reescribir `schema.sql` / `rls.sql` dentro de este corte;
+- `B5b` no queda cerrado completo: `/payments/callback` queda condicionado a pagos reales y cualquier reconciliacion completa de baseline SQL debe tratarse como slice separado.
+
 ## 11. Riesgos y ambigüedades que requieren validación
 
 ### 11.1 Hallazgos de `docs/audits/**` usados para remediación
@@ -386,7 +396,7 @@ Checkpoint `B5b-12 GET /events/whatsapp_clicks/count validation`:
 ### 11.3 Drift ya conocido que no debe bloquear este plan
 
 - `5173` vs `5174` debe resolverse dentro de `B1`, no abrir una auditoría aparte.
-- `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` debe resolverse dentro de `B1`.
+- `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` ya fue resuelto en `functions/api/.env.example`; `SUPABASE_SERVICE_ROLE` queda como nombre canonical del backend/API.
 - `MisEntradas` preservada pero despublicada debe mantenerse como condición de `B5a`/`B5b`.
 - `/panel/metrics` reutilizando `lineup` queda como `B8`, no como bloqueante.
 - Sentry TODO legacy queda como contexto; la validación real vive en `B6`.

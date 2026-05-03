@@ -310,6 +310,28 @@ Resultado confirmado:
 - el sub-slice reduce ruido/queries invalidas en un endpoint publico que opera via backend privilegiado con `SUPABASE_SERVICE_ROLE`, pero no elimina `SUPABASE_SERVICE_ROLE`;
 - `B5b` sigue abierto para drift SQL/env y `/payments/callback` si pagos reales aplican.
 
+### 1.14 Remediation checkpoint — `drift SQL/env`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-03 |
+| Estado | Sub-slice implementado y documentado |
+| Recurso | Naming env Supabase service role y baseline SQL |
+| Alcance | Alineacion de `functions/api/.env.example`; documentacion de `schema.sql` / `rls.sql` como baseline historico; no toca SQL, migraciones, runtime envs, backend funcional, frontend, payments/callback ni service role |
+
+Resultado confirmado:
+
+- `SUPABASE_SERVICE_ROLE` queda como nombre canonical del backend/API;
+- `functions/api/.env.example` fue alineado con el codigo real y ya no declara `SUPABASE_SERVICE_ROLE_KEY` como variable activa;
+- no se agrego fallback ni variable duplicada: `functions/api/src/services/supabase.ts` sigue leyendo `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE`;
+- `apps/web-next/.env.example` ya estaba alineado con `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`;
+- `apps/web-b2c/.env.example` no usa Supabase directo;
+- `infra/sql/schema.sql` e `infra/sql/rls.sql` quedan documentados como baseline historico/desactualizado para este corte y no como fuente final del runtime endurecido;
+- las migraciones `019` a `024` son la fuente incremental del hardening aplicado para las tablas revisadas;
+- no se recomienda reescribir `schema.sql` / `rls.sql` en este corte; cualquier reconciliacion de baseline SQL debe tratarse como slice separado;
+- no se tocaron runtime envs de Railway/Vercel, SQL, RLS, grants, policies, migraciones, backend funcional, frontend, service role ni payments/callback;
+- `B5b` sigue abierto para `/payments/callback` si pagos reales aplican y para validacion runtime final si corresponde.
+
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
 No reabre `B5a`. Los checkpoints de remediacion registran cambios ya aplicados/versionados; este documento no cambia rutas, contratos ni configuracion.
@@ -369,7 +391,7 @@ Este documento consume como ya cerrados:
 - Backend: `functions/api/src/services/supabase.ts` crea un cliente global con `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE`.
 - Panel frontend: `apps/web-next/lib/supabase.ts` usa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` para Supabase Auth.
 - No se observó acceso directo de B2C a tablas Supabase; B2C consume API backend.
-- Drift env visible: `functions/api/.env.example` usa `SUPABASE_SERVICE_ROLE_KEY`, mientras el código backend exige `SUPABASE_SERVICE_ROLE`.
+- Drift env Supabase: el mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` quedo resuelto por el checkpoint `1.14`; `SUPABASE_SERVICE_ROLE` es el nombre canonical del backend/API.
 
 ### 5.2 Helpers/backend relevantes
 
@@ -430,7 +452,7 @@ Este documento consume como ya cerrados:
 | Tabla o recurso principal | Archivo + símbolo/handler/helper | Flujo | Tipo de acceso | Riesgo principal | Estado | Clasificación | Evidencia breve |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Supabase backend global | `functions/api/src/services/supabase.ts` | backend | `service_role` | blast radius transversal / bypass RLS asumido | `Confirmado` | `B5b` | Cliente único con `SUPABASE_SERVICE_ROLE`. |
-| Env Supabase backend | `functions/api/.env.example` | deploy/runtime | config | drift `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` | `Confirmado` | `B5b` | Example no coincide con nombre exigido por código. |
+| Env Supabase backend | `functions/api/.env.example` | deploy/runtime | config | naming canonical `SUPABASE_SERVICE_ROLE` | `Mitigado` | `B5b` | Example alineado con nombre exigido por código por checkpoint `1.14`. |
 | `locals`, `promos`, `local_daily_ops` | `functions/api/src/routes/public.ts` — `GET /public/locals` | público | backend privilegiado | exposición pública controlada por API, no por RLS | `Confirmado` | `B5b` | Lee locales, promociones y overrides diarios. |
 | `orders` | `functions/api/src/routes/public.ts` — `GET /public/orders` | público | backend privilegiado | lookup público historico por email, incluia `checkin_token` | `Confirmado` | `B5b` | El checkpoint `1.5` documenta su cierre con `410 Gone`. |
 | `orders` | `functions/api/src/routes/orders.ts` — `GET /orders/:id` | público | backend privilegiado | lookup público por UUID con `select("*")` | `Confirmado` | `B5b` | Devuelve la fila completa de `orders`. |
@@ -478,7 +500,7 @@ Este documento consume como ya cerrados:
 - Semántica efectiva de service role frente a RLS queda confirmada a nivel de rol (`service_role.rolbypassrls=true`), pero sigue requiriendo validación fina por request path si se reduce blast radius.
 - Exposicion productiva real de endpoints publicos de lectura de ordenes queda contenida para este corte por checkpoints `1.4` y `1.5`; cualquier reactivacion de `Mis Entradas` debe tratarse como decision futura con usuarios reales/auth.
 - `customer_email_lower` existe en runtime, pero el drift de schema/migraciones sigue documentado como deuda de reconciliacion.
-- `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` debe cerrarse como drift operativo de env.
+- `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` quedo cerrado como drift operativo de env por el checkpoint `1.14`; `SUPABASE_SERVICE_ROLE` es el nombre canonical del backend/API.
 - Paid flows/callback quedan secundarios para `free_pass only`, pero no cerrados como seguridad de datos.
 
 ## 9. Posibles bloqueantes reales de go-live dentro de B5b
@@ -511,12 +533,12 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations`, las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use` y la validacion UUID de `GET /events/whatsapp_clicks/count`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes drift SQL/env y `/payments/callback` si pagos reales aplican.
+`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations`, las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use`, la validacion UUID de `GET /events/whatsapp_clicks/count` y el naming env canonical `SUPABASE_SERVICE_ROLE`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes la reconciliacion completa de baseline SQL si se necesita y `/payments/callback` si pagos reales aplican.
 
 ## 12. Backlog mínimo posterior
 
 - `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE` ya documentadas: DTO/selects publicos de `POST /orders` y `POST /reservations` en checkpoint `1.11`, mutaciones panel puntuales en checkpoint `1.12` y `GET /events/whatsapp_clicks/count` en checkpoint `1.13`.
-- `B5b-3`: reconciliar drift SQL/env: `schema.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`, `SUPABASE_SERVICE_ROLE`.
+- `B5b-3`: el naming env de `SUPABASE_SERVICE_ROLE` ya quedo alineado por el checkpoint `1.14`; queda diferida la reconciliacion completa de baseline SQL (`schema.sql`, `rls.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`) como slice separado si se necesita.
 - `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
 - `B5b-6`: hardening RLS remanente por slices, no como una sola tanda.
 

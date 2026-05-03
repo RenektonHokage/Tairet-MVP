@@ -208,7 +208,7 @@ Estos pendientes pueden no bloquear un go-live acotado si el alcance y el riesgo
 - [ ] Validar `EMAIL_ENABLED`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS` y `B2C_BASE_URL` si se enviarán emails reales.
 - [ ] Validar `VITE_MAPBOX_TOKEN` para mapas públicos.
 - [ ] Resolver o documentar drift `5173` vs `5174`.
-- [ ] Resolver o documentar drift `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE`.
+- [x] Drift `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` resuelto en `functions/api/.env.example`; `SUPABASE_SERVICE_ROLE` queda como canonical del backend/API.
 
 ### 10.2 Seguridad y hardening
 
@@ -312,7 +312,7 @@ Estos pendientes pueden no bloquear un go-live acotado si el alcance y el riesgo
 - Hallazgos viejos sobre logout quedaron superados por código/docs posteriores.
 - El error middleware y Sentry TODO histórico están parcialmente mitigados, pero Sentry productivo sigue en `Requiere validación`.
 - `infra/sql/rls.sql` muestra policies permisivas mientras migraciones `016`, `017` y `018` endurecen slices concretas; el estado desplegado real no se puede cerrar desde repo.
-- `functions/api/.env.example` usa `SUPABASE_SERVICE_ROLE_KEY`, mientras el código documentado espera `SUPABASE_SERVICE_ROLE`.
+- `functions/api/.env.example` ya usa `SUPABASE_SERVICE_ROLE`, alineado con el código documentado; `SUPABASE_SERVICE_ROLE_KEY` queda como nombre histórico/no canonical.
 - B2C fija Vite en `5174`, pero RUNBOOK y defaults CORS todavía mencionan `5173`.
 - `apps/web-next/.env.example` no cubre todas las envs usadas por runtime del panel.
 - La raíz declara Node `>=20`, pero CI usa Node `22`.
