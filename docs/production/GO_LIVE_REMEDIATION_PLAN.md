@@ -196,11 +196,12 @@ Checkpoint `B5a-2`:
 Checkpoint `B5b`:
 
 - el discovery de `B5b` ya fue ejecutado y documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado completo: el riesgo residual sigue en blast radius backend con `SUPABASE_SERVICE_ROLE`, `/payments/callback` si pagos reales aplican, baseline SQL historico/desactualizado si se requiere reconciliacion y validacion runtime de Supabase;
+- `B5b` queda cerrado para el corte operativo `free_pass only`; no queda cerrado para paid flows;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y produjo evidencia suficiente para repriorizar el roadmap;
 - el orden actualizado de remediacion es: contencion focalizada de exposicion directa de datos; decision de blast radius de `SUPABASE_SERVICE_ROLE`; cleanup de drift SQL/env; `/payments/callback` si pagos reales aplican; hardening RLS remanente por slices;
 - la contencion focalizada de exposicion directa de datos ya cubre `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`;
-- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations`, Panel mutation selects hardening, `GET /events/whatsapp_clicks/count` validation y el cleanup de drift env `SUPABASE_SERVICE_ROLE` ya quedaron documentados y validados; el siguiente foco queda en `/payments/callback` si pagos reales aplican;
+- la decision de blast radius de `SUPABASE_SERVICE_ROLE` queda documentada como aceptacion formal y temporal para `free_pass only`; Public DTO/selects hardening de `POST /orders` y `POST /reservations`, Panel mutation selects hardening, `GET /events/whatsapp_clicks/count` validation y el cleanup de drift env `SUPABASE_SERVICE_ROLE` ya quedaron documentados y validados;
+- `/payments/callback` queda en stand by: no bloquea `free_pass only`, pero es gate obligatorio antes de activar pagos reales;
 - no se debe implementar todo `B5b` en una sola tanda: los endpoints publicos de lectura de ordenes ya quedaron contenidos con `410 Gone`, `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS remanente queda posterior por slices;
 - este checkpoint solo documenta evidencia runtime y repriorizacion; no implementa remediacion;
 - la remediacion restante de `B5b` queda pendiente por bloques y no reabre el discovery de `B5a`.
@@ -367,6 +368,15 @@ Checkpoint `B5b-13 drift SQL/env`:
 - las migraciones `019` a `024` quedan como fuente incremental del hardening aplicado; no se recomienda reescribir `schema.sql` / `rls.sql` dentro de este corte;
 - `B5b` no queda cerrado completo: `/payments/callback` queda condicionado a pagos reales y cualquier reconciliacion completa de baseline SQL debe tratarse como slice separado.
 
+Checkpoint `B5b-14 payments callback stand by`:
+
+- para el corte actual `free_pass only`, `B5b` queda cerrado sin modificar `/payments/callback`;
+- `B5b` no queda cerrado para paid flows y no se declara pagos reales como listos;
+- `/payments/callback` queda en stand by porque no hay pagos reales activos en el alcance operativo actual;
+- antes de activar pagos reales debe ejecutarse un bloque especifico sobre `/payments/callback`;
+- ese bloque debe cubrir autenticidad/firma del proveedor, idempotencia, replay, actualizacion segura de `orders`, registro en `payment_events` y QA con evento controlado/sandbox;
+- no se tocaron codigo, SQL, migraciones, runtime envs, payments, backend funcional ni service role.
+
 ## 11. Riesgos y ambigüedades que requieren validación
 
 ### 11.1 Hallazgos de `docs/audits/**` usados para remediación
@@ -386,7 +396,7 @@ Checkpoint `B5b-13 drift SQL/env`:
 - estado desplegado de Supabase, schema, migraciones y RLS;
 - semántica real de `SUPABASE_SERVICE_ROLE` frente a RLS en el entorno objetivo;
 - alcance productivo de pagos;
-- autenticidad y exposición final de `/payments/callback`;
+- autenticidad y exposición final de `/payments/callback` antes de activar paid flows;
 - captura real de Sentry con DSN activo;
 - plataforma real de logs y búsqueda por `requestId`;
 - estado final de demo mode y rutas `/panel/demo/*`;

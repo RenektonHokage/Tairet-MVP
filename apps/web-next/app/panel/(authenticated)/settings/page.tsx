@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useState, useEffect, useCallback } from "react";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase } from "@/lib/api";
@@ -13,6 +14,12 @@ import {
 // Env vars para contacto de soporte (leídas en cliente)
 const SUPPORT_WHATSAPP = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP;
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
+const SENTRY_SMOKE_TEST_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_SENTRY_TEST === "true";
+const HAS_SENTRY_CLIENT_DSN = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);
+const SENTRY_SMOKE_TEST_MESSAGE = "Tairet panel Sentry smoke test";
+
+type SentrySmokeTestStatus = "idle" | "sent" | "error";
 
 export default function SupportPage() {
   const { data: panelData, loading: panelLoading } = usePanelContext();
@@ -29,9 +36,13 @@ export default function SupportPage() {
 
   // Estado del botón copiar
   const [copied, setCopied] = useState(false);
+  const [sentrySmokeTestStatus, setSentrySmokeTestStatus] =
+    useState<SentrySmokeTestStatus>("idle");
 
   const isOwner = panelData?.role === "owner";
   const localType = panelData?.local.type ?? "bar";
+  const canShowSentrySmokeTest =
+    isOwner && SENTRY_SMOKE_TEST_ENABLED && HAS_SENTRY_CLIENT_DSN;
 
   // Fetch status
   const fetchStatus = useCallback(async () => {
@@ -105,6 +116,15 @@ export default function SupportPage() {
     }
   };
 
+  const handleSendSentrySmokeTest = () => {
+    try {
+      Sentry.captureException(new Error(SENTRY_SMOKE_TEST_MESSAGE));
+      setSentrySmokeTestStatus("sent");
+    } catch {
+      setSentrySmokeTestStatus("error");
+    }
+  };
+
   if (panelLoading) {
     return (
       <div className="space-y-6">
@@ -157,8 +177,40 @@ export default function SupportPage() {
             >
               {copied ? "Copiado" : "Copiar diagnóstico"}
             </button>
+            {canShowSentrySmokeTest && (
+              <button
+                onClick={handleSendSentrySmokeTest}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  sentrySmokeTestStatus === "sent"
+                    ? "bg-green-600 text-white"
+                    : sentrySmokeTestStatus === "error"
+                      ? "bg-red-600 text-white"
+                      : "bg-gray-900 text-white hover:bg-gray-800"
+                }`}
+              >
+                {sentrySmokeTestStatus === "sent"
+                  ? "Prueba enviada"
+                  : sentrySmokeTestStatus === "error"
+                    ? "Error Sentry"
+                    : "Enviar prueba a Sentry"}
+              </button>
+            )}
           </div>
         </div>
+
+        {canShowSentrySmokeTest && sentrySmokeTestStatus !== "idle" && (
+          <div
+            className={`mb-4 rounded-md border p-3 text-sm ${
+              sentrySmokeTestStatus === "sent"
+                ? "border-green-200 bg-green-50 text-green-800"
+                : "border-red-200 bg-red-50 text-red-800"
+            }`}
+          >
+            {sentrySmokeTestStatus === "sent"
+              ? "Prueba disparada. Confirmar recepción en Sentry antes de marcar B7 como PASS."
+              : "No se pudo disparar la prueba de Sentry desde el panel."}
+          </div>
+        )}
 
         {statusLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

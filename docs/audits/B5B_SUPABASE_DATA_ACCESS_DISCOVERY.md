@@ -332,6 +332,25 @@ Resultado confirmado:
 - no se tocaron runtime envs de Railway/Vercel, SQL, RLS, grants, policies, migraciones, backend funcional, frontend, service role ni payments/callback;
 - `B5b` sigue abierto para `/payments/callback` si pagos reales aplican y para validacion runtime final si corresponde.
 
+### 1.15 Decision checkpoint — `/payments/callback` stand by para `free_pass only`
+
+| Campo | Valor |
+| --- | --- |
+| Fecha de registro | 2026-05-03 |
+| Estado | Decision operativa documentada |
+| Recurso | `/payments/callback` |
+| Alcance | Stand by para corte `free_pass only`; gate obligatorio antes de paid flows; no toca codigo, SQL, migraciones, runtime envs ni payments |
+
+Resultado confirmado:
+
+- `B5b` queda cerrado para el corte operativo `free_pass only`;
+- `B5b` no queda cerrado para paid flows;
+- `/payments/callback` queda en stand by porque pagos reales no forman parte del alcance activo del corte;
+- `/payments/callback` no bloquea el corte actual mientras no haya pagos reales activos;
+- antes de activar pagos reales debe ejecutarse un bloque especifico que cubra autenticidad/firma del proveedor, idempotencia, replay, actualizacion segura de `orders`, registro en `payment_events` y QA con evento controlado/sandbox;
+- no se tocaron codigo, SQL, migraciones, runtime envs, backend funcional, frontend, payments ni service role;
+- no se declaran paid flows como listos.
+
 Este documento formaliza el discovery final de `B5b — Supabase, datos y políticas`.
 
 No reabre `B5a`. Los checkpoints de remediacion registran cambios ya aplicados/versionados; este documento no cambia rutas, contratos ni configuracion.
@@ -501,13 +520,13 @@ Este documento consume como ya cerrados:
 - Exposicion productiva real de endpoints publicos de lectura de ordenes queda contenida para este corte por checkpoints `1.4` y `1.5`; cualquier reactivacion de `Mis Entradas` debe tratarse como decision futura con usuarios reales/auth.
 - `customer_email_lower` existe en runtime, pero el drift de schema/migraciones sigue documentado como deuda de reconciliacion.
 - `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` quedo cerrado como drift operativo de env por el checkpoint `1.14`; `SUPABASE_SERVICE_ROLE` es el nombre canonical del backend/API.
-- Paid flows/callback quedan secundarios para `free_pass only`, pero no cerrados como seguridad de datos.
+- Paid flows/callback quedan en stand by para `free_pass only`, pero son gate obligatorio antes de activar pagos reales.
 
 ## 9. Posibles bloqueantes reales de go-live dentro de B5b
 
 La evidencia runtime confirma que `B5b` no debe cerrarse sin mitigación o aceptación formal. Quedan candidatos reales del corte:
 
-- `/payments/callback`, si pagos reales quedan activos fuera de `free_pass only`.
+- `/payments/callback`, solo si pagos reales quedan activos fuera de `free_pass only`; para el corte actual queda en stand by.
 - Modelo backend con `SUPABASE_SERVICE_ROLE`, si se intenta cerrar `B5b` completo sin ejecutar o aceptar las mitigaciones pequenas restantes de drift y pagos.
 
 ## 10. Casos mixtos que deben mantenerse separados de B5a
@@ -533,13 +552,13 @@ Queda fuera:
 
 - `panelAuth`, `requireRole`, shell gating, redirects/login, role split y demo runtime como control de acceso frontend, salvo bordes mixtos señalados.
 
-`B5b` no está cerrado completo. Parece cerrable por bloques, no como un único fix. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations`, las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use`, la validacion UUID de `GET /events/whatsapp_clicks/count` y el naming env canonical `SUPABASE_SERVICE_ROLE`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`, pero siguen pendientes la reconciliacion completa de baseline SQL si se necesita y `/payments/callback` si pagos reales aplican.
+`B5b` queda cerrado para el corte operativo `free_pass only`. Para este corte ya quedaron contenidos `local_daily_ops`, la Data API cruda de `orders`, los endpoints publicos de lectura de ordenes, la Data API cruda de `locals`, la Data API cruda de `reservations`, la Data API cruda de `ticket_types` / `table_types`, el cleanup final de grants en `panel_users` / `payment_events`, los DTO/selects publicos de `POST /orders` / `POST /reservations`, las mutaciones panel puntuales `PATCH /panel/reservations/:id` / `PATCH /panel/orders/:id/use`, la validacion UUID de `GET /events/whatsapp_clicks/count`, el naming env canonical `SUPABASE_SERVICE_ROLE` y la decision de stand by para `/payments/callback`. El modelo backend global con `SUPABASE_SERVICE_ROLE` queda aceptado formalmente para `free_pass only`. `B5b` no queda cerrado para paid flows: antes de activar pagos reales, `/payments/callback` debe pasar por el gate especifico documentado en el checkpoint `1.15`.
 
 ## 12. Backlog mínimo posterior
 
 - `B5b-2a`: mitigaciones pequenas posteriores a la aceptacion de `SUPABASE_SERVICE_ROLE` ya documentadas: DTO/selects publicos de `POST /orders` y `POST /reservations` en checkpoint `1.11`, mutaciones panel puntuales en checkpoint `1.12` y `GET /events/whatsapp_clicks/count` en checkpoint `1.13`.
 - `B5b-3`: el naming env de `SUPABASE_SERVICE_ROLE` ya quedo alineado por el checkpoint `1.14`; queda diferida la reconciliacion completa de baseline SQL (`schema.sql`, `rls.sql`, migraciones, `customer_email_lower`, `ticket_types`, `table_types`, `reviews`) como slice separado si se necesita.
-- `B5b-4`: cerrar autenticidad y exposición de `/payments/callback` si pagos reales entran en scope.
+- `B5b-4`: `/payments/callback` queda en stand by para `free_pass only`; antes de paid flows debe ejecutarse gate especifico de autenticidad/firma, idempotencia, replay, update seguro de `orders`, registro en `payment_events` y QA sandbox/controlado.
 - `B5b-6`: hardening RLS remanente por slices, no como una sola tanda.
 
 ## 13. Relación con otros documentos / siguientes pasos

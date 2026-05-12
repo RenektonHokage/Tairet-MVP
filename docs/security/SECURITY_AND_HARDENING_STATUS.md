@@ -209,15 +209,15 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 ### 6.2 Estado documental de `B5b`
 
 - el discovery final de `B5b` quedó documentado en `docs/audits/B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`;
-- `B5b` no se considera cerrado completo todavía para este corte;
+- `B5b` queda cerrado para el corte operativo `free_pass only`; no queda cerrado para paid flows;
 - el riesgo residual principal ya no queda en Data API directa de las tablas revisadas, sino en el acceso efectivo a datos con `SUPABASE_SERVICE_ROLE` y el blast radius transversal del backend;
-- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; el checkpoint `B5b-11` reduce selects/payloads en mutaciones puntuales del panel; el checkpoint `B5b-12` valida `localId` como UUID en `GET /events/whatsapp_clicks/count`; el checkpoint `B5b-13` alinea el naming env de `SUPABASE_SERVICE_ROLE` y documenta el baseline SQL historico; `/payments/callback` y la validación runtime de Supabase siguen abiertos por bloques;
+- los lookups publicos de ordenes ya quedaron contenidos; el checkpoint `B5b-10` reduce DTO/selects publicos en `POST /orders` y `POST /reservations`; el checkpoint `B5b-11` reduce selects/payloads en mutaciones puntuales del panel; el checkpoint `B5b-12` valida `localId` como UUID en `GET /events/whatsapp_clicks/count`; el checkpoint `B5b-13` alinea el naming env de `SUPABASE_SERVICE_ROLE` y documenta el baseline SQL historico; el checkpoint `B5b-14` deja `/payments/callback` en stand by para `free_pass only` y lo convierte en gate obligatorio antes de paid flows;
 - `B5b-0 Runtime Supabase Validation` ya fue ejecutado parcialmente contra Supabase real y aporta evidencia suficiente para repriorizar el bloque;
 - hallazgos runtime principales de `B5b-0`: `local_daily_ops` tenia RLS off; `orders` mantenia RLS on con policies publicas `SELECT` / `INSERT`; `locals` mantiene RLS on con `SELECT` publico; `ticket_types` y `table_types` tienen RLS off; `service_role` tiene `rolbypassrls=true`; RPC y columnas criticas existen en runtime;
 - los grants observados indican exposicion amplia para `anon` y `authenticated` al menos en parte del set, pero el resultado recibido esta parcialmente truncado y no debe leerse como auditoria completa de grants;
 - tras los checkpoints `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`, High-Risk Data Exposure Containment queda limpio para las tablas revisadas;
 - el checkpoint `B5b-9` documenta la aceptación formal y temporal del cliente backend global con `SUPABASE_SERVICE_ROLE` para este corte `free_pass only`; no elimina el riesgo ni representa arquitectura final;
-- `/payments/callback` queda condicionado al alcance real de pagos del corte y el hardening RLS amplio no debe ejecutarse como una sola tanda;
+- `/payments/callback` no bloquea el corte actual porque no hay pagos reales activos, pero no se declara listo para paid flows;
 - `B5b` debe trabajarse por bloques y mantenerse separado de `B5a`: este estado resume Supabase, datos, policies, RLS y blast radius, no auth/routing de aplicación.
 
 ### 6.3 Checkpoint `B5b-1 local_daily_ops`
@@ -384,6 +384,16 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 - no se recomienda reescribir `schema.sql` / `rls.sql` dentro de este corte: cualquier reconciliación de baseline SQL debe hacerse como slice separado;
 - `B5b` no queda cerrado completo: `/payments/callback` queda condicionado a pagos reales y la validación runtime final sigue fuera de este checkpoint.
 
+### 6.16 Checkpoint `B5b-14 payments callback stand by`
+
+- decision operativa: para el corte actual `free_pass only`, `B5b` queda cerrado sin modificar `/payments/callback`;
+- `B5b` no queda cerrado para paid flows y no se declara que pagos reales esten listos;
+- `/payments/callback` queda en stand by porque pagos reales no forman parte del alcance activo del corte;
+- antes de activar pagos reales debe ejecutarse un bloque especifico de hardening/validacion de `/payments/callback`;
+- ese bloque debe cubrir autenticidad/firma del proveedor, idempotencia, replay, actualizacion segura de `orders`, registro en `payment_events` y QA con evento controlado/sandbox;
+- no se tocaron codigo, SQL, migraciones, runtime envs, payments ni service role;
+- el cierre de `B5b` para este corte queda limitado a `free_pass only`.
+
 ## 7. Controles visibles existentes
 
 | Control visible | Capa | Lectura operativa | Estado |
@@ -468,7 +478,7 @@ Los riesgos mas criticos que siguen visibles hoy son:
 
 1. `SUPABASE_SERVICE_ROLE` amplifica el blast radius del backend completo. El control real esta centralizado en codigo backend y no en una capa SQL ya cerrada por tabla/flujo.
 2. Los endpoints publicos de lectura de ordenes ya no exponen datos: `GET /orders/:id` y `GET /public/orders?email=...` responden `410 Gone`. `POST /orders` sigue activo para `free_pass`.
-3. `/payments/callback` y `payment_events` son superficies criticas. Los grants directos de `payment_events` para `anon` / `authenticated` ya fueron removidos, pero el repo no alcanza para cerrar autenticidad del proveedor ni exposicion productiva final del callback.
+3. `/payments/callback` y `payment_events` son superficies criticas. Los grants directos de `payment_events` para `anon` / `authenticated` ya fueron removidos; para `free_pass only`, `/payments/callback` queda en stand by y no bloquea el corte actual, pero es gate obligatorio antes de activar paid flows.
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
 5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria; la exposicion directa por Data API de las tablas revisadas en High-Risk Data Exposure Containment ya fue contenida por slices.
 6. `panel.ts` sigue concentrando dominios sensibles aunque ya hubo extracciones parciales a `panelCatalog.ts` y `panelLocal.ts`.
