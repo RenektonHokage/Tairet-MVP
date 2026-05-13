@@ -18,8 +18,17 @@ const SENTRY_SMOKE_TEST_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_SENTRY_TEST === "true";
 const HAS_SENTRY_CLIENT_DSN = Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);
 const SENTRY_SMOKE_TEST_MESSAGE = "Tairet panel Sentry smoke test";
+const SENTRY_SMOKE_TEST_FLUSH_TIMEOUT_MS = 3000;
 
-type SentrySmokeTestStatus = "idle" | "sent" | "error";
+type SentrySmokeTestStatus = "idle" | "sending" | "sent" | "error";
+
+type SentrySmokeTestFeedback = {
+  status: SentrySmokeTestStatus;
+  eventId: string | null;
+  flushResult: boolean | null;
+  timestamp: string | null;
+  error: string | null;
+};
 
 export default function SupportPage() {
   const { data: panelData, loading: panelLoading } = usePanelContext();
@@ -36,13 +45,20 @@ export default function SupportPage() {
 
   // Estado del botón copiar
   const [copied, setCopied] = useState(false);
-  const [sentrySmokeTestStatus, setSentrySmokeTestStatus] =
-    useState<SentrySmokeTestStatus>("idle");
+  const [sentrySmokeTestFeedback, setSentrySmokeTestFeedback] =
+    useState<SentrySmokeTestFeedback>({
+      status: "idle",
+      eventId: null,
+      flushResult: null,
+      timestamp: null,
+      error: null,
+    });
 
   const isOwner = panelData?.role === "owner";
   const localType = panelData?.local.type ?? "bar";
   const canShowSentrySmokeTest =
     isOwner && SENTRY_SMOKE_TEST_ENABLED && HAS_SENTRY_CLIENT_DSN;
+  const sentrySmokeTestStatus = sentrySmokeTestFeedback.status;
 
   // Fetch status
   const fetchStatus = useCallback(async () => {
@@ -116,12 +132,41 @@ export default function SupportPage() {
     }
   };
 
-  const handleSendSentrySmokeTest = () => {
+  const handleSendSentrySmokeTest = async () => {
+    setSentrySmokeTestFeedback({
+      status: "sending",
+      eventId: null,
+      flushResult: null,
+      timestamp: new Date().toISOString(),
+      error: null,
+    });
+
     try {
-      Sentry.captureException(new Error(SENTRY_SMOKE_TEST_MESSAGE));
-      setSentrySmokeTestStatus("sent");
-    } catch {
-      setSentrySmokeTestStatus("error");
+      const eventId = Sentry.captureException(
+        new Error(SENTRY_SMOKE_TEST_MESSAGE)
+      );
+      const flushResult = await Sentry.flush(SENTRY_SMOKE_TEST_FLUSH_TIMEOUT_MS);
+
+      setSentrySmokeTestFeedback({
+        status: flushResult ? "sent" : "error",
+        eventId: eventId || null,
+        flushResult,
+        timestamp: new Date().toISOString(),
+        error: flushResult
+          ? null
+          : "Sentry.flush(3000) no confirmó el envío del evento.",
+      });
+    } catch (err) {
+      setSentrySmokeTestFeedback({
+        status: "error",
+        eventId: null,
+        flushResult: null,
+        timestamp: new Date().toISOString(),
+        error:
+          err instanceof Error
+            ? err.message
+            : "Error desconocido al disparar la prueba de Sentry.",
+      });
     }
   };
 
@@ -180,18 +225,23 @@ export default function SupportPage() {
             {canShowSentrySmokeTest && (
               <button
                 onClick={handleSendSentrySmokeTest}
+                disabled={sentrySmokeTestStatus === "sending"}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   sentrySmokeTestStatus === "sent"
                     ? "bg-green-600 text-white"
                     : sentrySmokeTestStatus === "error"
                       ? "bg-red-600 text-white"
-                      : "bg-gray-900 text-white hover:bg-gray-800"
+                      : sentrySmokeTestStatus === "sending"
+                        ? "bg-gray-400 text-white cursor-wait"
+                        : "bg-gray-900 text-white hover:bg-gray-800"
                 }`}
               >
                 {sentrySmokeTestStatus === "sent"
                   ? "Prueba enviada"
                   : sentrySmokeTestStatus === "error"
                     ? "Error Sentry"
+                    : sentrySmokeTestStatus === "sending"
+                      ? "Enviando..."
                     : "Enviar prueba a Sentry"}
               </button>
             )}
@@ -208,7 +258,37 @@ export default function SupportPage() {
           >
             {sentrySmokeTestStatus === "sent"
               ? "Prueba disparada. Confirmar recepción en Sentry antes de marcar B7 como PASS."
-              : "No se pudo disparar la prueba de Sentry desde el panel."}
+              : sentrySmokeTestStatus === "sending"
+                ? "Disparando prueba de Sentry y esperando flush(3000)..."
+                : "No se pudo confirmar el envío de la prueba de Sentry desde el panel."}
+            <dl className="mt-2 grid gap-1 text-xs">
+              <div>
+                <dt className="inline font-medium">eventId: </dt>
+                <dd className="inline">
+                  {sentrySmokeTestFeedback.eventId ?? "ausente"}
+                </dd>
+              </div>
+              <div>
+                <dt className="inline font-medium">flush: </dt>
+                <dd className="inline">
+                  {sentrySmokeTestFeedback.flushResult === null
+                    ? "pendiente"
+                    : String(sentrySmokeTestFeedback.flushResult)}
+                </dd>
+              </div>
+              <div>
+                <dt className="inline font-medium">timestamp: </dt>
+                <dd className="inline">
+                  {sentrySmokeTestFeedback.timestamp ?? "N/A"}
+                </dd>
+              </div>
+              {sentrySmokeTestFeedback.error && (
+                <div>
+                  <dt className="inline font-medium">error: </dt>
+                  <dd className="inline">{sentrySmokeTestFeedback.error}</dd>
+                </div>
+              )}
+            </dl>
           </div>
         )}
 
