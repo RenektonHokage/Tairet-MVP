@@ -144,7 +144,7 @@ promosRouter.post(
       const { data, error } = await supabase
         .from("promos")
         .insert(payload)
-        .select()
+        .select("id, local_id, title, description, image_url, start_date, end_date, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (error) {
@@ -211,7 +211,7 @@ promosRouter.patch(
         .from("promos")
         .update(updateData)
         .eq("id", promoId)
-        .select()
+        .select("id, local_id, title, description, image_url, start_date, end_date, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (error) {

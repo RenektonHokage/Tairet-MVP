@@ -174,7 +174,7 @@ panelCatalogRouter.post(
           is_active: willBeActive,
           sort_order: nextOrder,
         })
-        .select()
+        .select("id, name, price, description, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (insertError) {
@@ -288,7 +288,7 @@ panelCatalogRouter.patch(
         .from("ticket_types")
         .update(updateData)
         .eq("id", id)
-        .select()
+        .select("id, name, price, description, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (updateError) {
@@ -478,7 +478,7 @@ panelCatalogRouter.post(
           is_active: true,
           sort_order: nextOrder,
         })
-        .select()
+        .select("id, name, price, capacity, includes, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (insertError) {
@@ -584,7 +584,7 @@ panelCatalogRouter.patch(
         .from("table_types")
         .update(updateData)
         .eq("id", id)
-        .select()
+        .select("id, name, price, capacity, includes, is_active, sort_order, created_at, updated_at")
         .single();
 
       if (updateError) {
