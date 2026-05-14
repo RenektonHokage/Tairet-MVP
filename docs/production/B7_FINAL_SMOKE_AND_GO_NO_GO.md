@@ -41,7 +41,7 @@ Paid flows no pueden considerarse aprobados por este checklist. Antes de activar
 | API | `PASS` | API operativa en host validado. |
 | Tracking / métricas mínimas | `PASS` | Tracking, metrics y activity mínimos operativos. |
 | Demo/live | `PASS` | Demo/live validado bajo rutas aceptadas por B3. |
-| Observabilidad mínima | `PASS` con Sentry `N/A` | Se opera con fallback manual + Railway logs + `x-request-id` + diagnóstico support. |
+| Observabilidad mínima | `PASS` | Sentry panel validado con evento real; fallback manual + Railway logs + `x-request-id` + diagnóstico support queda como soporte adicional. |
 
 ### 2.2 Nota de alcance B2C
 
@@ -100,11 +100,11 @@ Estas precondiciones deben revisarse antes de ejecutar el smoke final. Si una pr
 | PRE-06 | B5b cerrado para `free_pass only` | Data API containment cerrado; endpoints sensibles contenidos; DTO/select hardening aplicado; `SUPABASE_SERVICE_ROLE` aceptado; `/payments/callback` en stand by | B5b aprobado solo para `free_pass only` | `PASS` | Evidencia en `B5B_SUPABASE_DATA_ACCESS_DISCOVERY.md`, security status y remediation plan. | `nosotros` | 2026-05-05 |
 | PRE-07 | B5b no cerrado para paid flows | Pagos reales siguen fuera del corte y no se declaran listos | Paid flows fuera del corte | `PASS` | Este B7 no aprueba paid flows ni pagos reales. | `nosotros` | 2026-05-05 |
 | PRE-08 | Gate futuro de pagos definido | Antes de paid flows: firma/autenticidad, idempotencia, replay, update seguro de `orders`, registro en `payment_events`, QA sandbox/controlado | Gate futuro requerido | `PASS` | `/payments/callback` queda en stand by y requiere gate separado. | `nosotros` | 2026-05-05 |
-| PRE-09 | B6 cerrado documentalmente | Observabilidad mínima y ruta de incidente documentadas | B6 consumido para B7 | `PASS` | Observabilidad mínima reportada `PASS` con Sentry `N/A`. | `nosotros` | 2026-05-05 |
+| PRE-09 | B6 cerrado documentalmente | Observabilidad mínima y ruta de incidente documentadas | B6 consumido para B7 | `PASS` | Observabilidad mínima reportada `PASS`; Sentry panel validado con captura real. | `nosotros` | 2026-05-12 |
 | PRE-10 | Owners disponibles | Owner de release e incidente: `nosotros` | Owners definidos | `PASS` | Owners de release/incidente: `nosotros`. | `nosotros` | 2026-05-05 |
 | PRE-11 | Hosts del corte definidos | B2C, panel y API apuntan a los hosts esperados | Hosts validados | `PASS` | B2C, redirect `www`, panel live y API reportados operativos. | `nosotros` | 2026-05-05 |
 | PRE-12 | Email/notificaciones clasificadas | Si `EMAIL_ENABLED=true` o envío real está habilitado, validar recepción; si no, registrar `N/A` sin bloquear flujo core | Condicionado a configuración vigente | `PASS` | Emails/notificaciones tratados como checks condicionados; no bloquean si están deshabilitados y flujo core pasa. | `nosotros` | 2026-05-05 |
-| PRE-13 | Sentry clasificado | Sentry panel solo se declara operativo con DSN validado; si no, fallback manual + logs + `requestId` | Sentry `N/A`; fallback manual activo | `PASS` | No se declara Sentry operativo; fallback manual + Railway logs + `x-request-id` + diagnóstico support. | `nosotros` | 2026-05-05 |
+| PRE-13 | Sentry clasificado | Sentry panel solo se declara operativo con DSN validado; si no, fallback manual + logs + `requestId` | Sentry panel operativo validado | `PASS` | Smoke real validado: `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN` activos; botón owner-only temporal disparó `Tairet panel Sentry smoke test`; UI mostró `eventId`, `flush=true` y timestamp; Network observó `ingest.sentry.io/.../envelope` `200 OK`; issue visible en Sentry asociado a `/panel/settings`; `NEXT_PUBLIC_ENABLE_SENTRY_TEST` fue apagado y el botón ya no aparece. | `nosotros` | 2026-05-12 |
 
 Estados permitidos después de ejecutar: `PASS`, `FAIL`, `N/A`, `Aceptado con riesgo`.
 
@@ -244,7 +244,7 @@ No registrar datos sensibles reales en este documento; usar evidencia segura o r
 | OBS-02 | API | `x-request-id` | Se observa en response y se puede usar para correlación | `x-request-id` disponible | `PASS` | Fallback manual usa Railway logs + `x-request-id`. | `nosotros` | 2026-05-05 |
 | OBS-03 | Backend | Logs accesibles o ruta manual definida | Existe forma mínima de buscar por timestamp/path/requestId | Railway logs como fallback manual | `PASS` | Se opera con Railway logs + `x-request-id`. | `nosotros` | 2026-05-05 |
 | OBS-04 | Panel/support | `/panel/support/status` | Diagnóstico mínimo disponible para owner/staff | Diagnóstico support disponible | `PASS` | Observabilidad mínima reportada `PASS` con diagnóstico support. | `nosotros` | 2026-05-05 |
-| OBS-05 | Sentry panel | Validación con DSN activo si se declara operativo | Si DSN está activo, se valida captura real; si no, registrar `N/A` y usar fallback manual | Sentry no operativo validado | `N/A` | No se declara Sentry operativo; se usa fallback manual + Railway logs + `x-request-id` + diagnóstico support. | `nosotros` | 2026-05-05 |
+| OBS-05 | Sentry panel | Validación con DSN activo si se declara operativo | Captura real validada en Sentry y fallback manual conservado como soporte adicional | Sentry panel operativo validado | `PASS` | Smoke real validado en producción del panel: `apps/web-next/instrumentation-client.ts` importa `./sentry.client.config`; no se duplicó `Sentry.init`, no se hardcodeó DSN, no se tocó `next.config.mjs` ni `withSentryConfig`; botón owner-only temporal llamó `Sentry.captureException(new Error("Tairet panel Sentry smoke test"))`; UI mostró `eventId`, `flush=true` y timestamp; DevTools Network observó `ingest.sentry.io/.../envelope` `200 OK`; Sentry mostró issue real asociado a `/panel/settings`; `NEXT_PUBLIC_ENABLE_SENTRY_TEST` fue apagado y el botón ya no queda expuesto. | `nosotros` | 2026-05-12 |
 | OBS-06 | Fallback manual | Ruta de incidente mínima | Owner sabe clasificar live, demo/live confusion o release regression | Fallback manual disponible | `PASS` | Fallback manual + Railway logs + `x-request-id` + diagnóstico support. | `nosotros` | 2026-05-05 |
 | OBS-07 | Release abort | Criterio de aborto conectado con B2 | Fallas críticas del smoke pueden escalar a rollback/abort | Criterio operativo disponible | `PASS` | B2/B6 consumidos para decisión final. | `nosotros` | 2026-05-05 |
 
@@ -297,11 +297,11 @@ Riesgos aceptables esperados para este corte:
 
 - `SUPABASE_SERVICE_ROLE` como riesgo residual aceptado para backend/API;
 - demo en producción por ruta no enlazada;
-- Sentry panel `N/A`, no operativo validado;
-- fallback manual con Railway logs + `x-request-id` + diagnóstico support;
 - panel host temporal;
 - B2C validado sobre build actualmente deployado, no sobre cambios visuales solo en `main`;
 - paid flows fuera del corte.
+
+Sentry panel ya no queda como riesgo `N/A`: quedó validado con captura real. El fallback manual con Railway logs + `x-request-id` + diagnóstico support se mantiene como soporte adicional de operación.
 
 Riesgos no aceptables para este corte:
 
@@ -328,7 +328,7 @@ Usar esta tabla como resumen ejecutivo después de completar los checklists ante
 | API | `PASS` | 0 | 0 | Ninguno adicional | API reportada `PASS` | `nosotros` | 2026-05-05 |
 | Tracking / métricas | `PASS` | 0 | 0 | Ninguno adicional | Tracking / métricas mínimas reportado `PASS` | `nosotros` | 2026-05-05 |
 | Demo/live | `PASS` | 0 | 0 | Demo en producción por rutas no enlazadas | Demo/live reportado `PASS` | `nosotros` | 2026-05-05 |
-| Observabilidad | `PASS` con Sentry `N/A` | 0 | Sentry panel `N/A` | Fallback manual + Railway logs + `x-request-id` + diagnóstico support | Observabilidad mínima reportada `PASS` con Sentry `N/A` | `nosotros` | 2026-05-05 |
+| Observabilidad | `PASS` | 0 | 0 | Fallback manual como soporte adicional | Observabilidad mínima reportada `PASS`; Sentry panel validado con evento real, `flush=true`, request `envelope` `200 OK` e issue visible en Sentry. | `nosotros` | 2026-05-12 |
 
 Estados permitidos:
 
@@ -350,10 +350,10 @@ Registro completado después del smoke final reportado para el corte `free_pass 
 | Fecha/hora | 2026-05-05 |
 | Entorno ejecutado | B2C `https://tairet.com.py`; redirect `https://www.tairet.com.py`; panel live `https://tairet-mvp-web-next.vercel.app`; API `https://tairetapi-production.up.railway.app` |
 | Release/build/commit evaluado | Build operativo real deployado; B2C desplegado desde branch distinta a `main` |
-| Evidencia principal | Resultado global de smoke final reportado: pasada rápida, ambientes/hosts, B2C, free pass, reservas, panel live, check-in, API, tracking/métricas, demo/live y observabilidad mínima en `PASS`; Sentry `N/A` |
-| Riesgos aceptados | `SUPABASE_SERVICE_ROLE`; demo por rutas no enlazadas; Sentry panel `N/A`; fallback manual con Railway logs + `x-request-id` + diagnóstico support; panel host temporal; B2C validado sobre build deployado, no sobre cambios visuales solo en `main`; paid flows fuera del corte |
+| Evidencia principal | Resultado global de smoke final reportado: pasada rápida, ambientes/hosts, B2C, free pass, reservas, panel live, check-in, API, tracking/métricas, demo/live y observabilidad mínima en `PASS`; Sentry panel validado con evento real `Tairet panel Sentry smoke test`, request `ingest.sentry.io/.../envelope` `200 OK` e issue asociado a `/panel/settings`. |
+| Riesgos aceptados | `SUPABASE_SERVICE_ROLE`; demo por rutas no enlazadas; panel host temporal; B2C validado sobre build deployado, no sobre cambios visuales solo en `main`; paid flows fuera del corte |
 | Checks bloqueantes fallidos | Ninguno reportado |
-| Próximos pasos inmediatos | Mantener paid flows fuera del corte; ejecutar gate futuro de `/payments/callback` antes de cualquier pago real; operar incidentes con fallback manual + Railway logs + `x-request-id` + diagnóstico support |
+| Próximos pasos inmediatos | Mantener paid flows fuera del corte; ejecutar gate futuro de `/payments/callback` antes de cualquier pago real; mantener Sentry panel activo para errores reales y fallback manual + Railway logs + `x-request-id` + diagnóstico support como soporte adicional |
 
 Declaración final:
 
@@ -369,7 +369,7 @@ Estos puntos quedan fuera del corte actual o requieren gate futuro:
 | `/payments/callback` productivo | Proveedor de pago real en scope | Validación funcional y de seguridad separada; no se hereda del cierre `free_pass only` |
 | `MisEntradas` | Reexposición pública o feature con usuarios reales | Revalidar auth, lookup, PII, tokens y contrato frontend/backend |
 | Baseline SQL completo | Necesidad de reconstrucción o auditoría SQL final | Slice separado de reconciliación `schema.sql` / `rls.sql` / migraciones / runtime |
-| Sentry operativo | Declarar Sentry como herramienta real de incidente | DSN activo y captura runtime validada |
+| Sentry panel | Mantener Sentry panel operativo | `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN` activos; botón de smoke oculto tras apagar `NEXT_PUBLIC_ENABLE_SENTRY_TEST`; fallback manual permanece como soporte adicional |
 | Demo hardening definitivo | Producción plena sin excepción demo | Apagar, aislar o rediseñar demo fuera del host live |
 
 ## 19. Confirmaciones de este documento
