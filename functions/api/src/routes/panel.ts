@@ -1209,7 +1209,17 @@ panelRouter.get("/orders/search", panelAuth, requireRole(["owner", "staff"]), as
     }
 
     const items = (orders ?? []).map((order) => ({
-      ...order,
+      id: order.id,
+      status: order.status,
+      used_at: order.used_at,
+      checkin_token: order.checkin_token,
+      customer_name: order.customer_name,
+      customer_last_name: order.customer_last_name,
+      customer_email: order.customer_email,
+      customer_phone: order.customer_phone,
+      customer_document: order.customer_document,
+      quantity: order.quantity,
+      intended_date: order.intended_date,
       checkin_state: resolveOrderState(order, now),
     }));
 

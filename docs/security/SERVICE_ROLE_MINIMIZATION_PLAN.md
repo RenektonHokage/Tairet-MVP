@@ -20,6 +20,7 @@ Hechos vigentes:
 - Data API directa fue contenida para `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`.
 - `SUPABASE_SERVICE_ROLE` fue aceptado formalmente como riesgo residual temporal para `free_pass only`.
 - El Slice 1 de minimizacion (`panelCatalog.ts` / `promos.ts`) fue implementado y validado en runtime; reduce parcialmente el blast radius de respuestas panel sin eliminar `SUPABASE_SERVICE_ROLE`.
+- El Slice 2 de minimizacion (`reviews.ts`) fue implementado y validado en runtime; remueve `user_agent` del DTO publico de reviews sin tocar anti-abuse interno ni eliminar `SUPABASE_SERVICE_ROLE`.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -81,7 +82,7 @@ Esta allowlist describe los usos permitidos temporalmente de `SUPABASE_SERVICE_R
 | Reservas publicas | `POST /reservations` | publica | `locals`, `local_daily_ops` read; `reservations` insert | Zod, rate limit, DTO minimo | permitido temporalmente |
 | Catalogo y perfiles publicos | `/public/locals*` | publica | `locals`, `local_daily_ops`, `promos`, `ticket_types`, `table_types` read | API shapeada, campos minimos por endpoint | permitido temporalmente |
 | Tracking publico | `/events/*` | publica | `whatsapp_clicks`, `events_public`, `profile_views` insert/read count | Zod, rate limit, UUID validation en count | permitido temporalmente |
-| Reviews publicas | `/reviews` | publica | `reviews`, `locals` read/insert | Zod, anti-abuse por fingerprint/ip | permitido temporalmente, reducible |
+| Reviews publicas | `/reviews` | publica | `reviews`, `locals` read/insert | Zod, anti-abuse por fingerprint/ip, DTO publico reducido en Slice 2 | permitido temporalmente |
 | Panel reservas | `/panel/reservations*`, `/locals/:id/reservations` | panel | `reservations` read/update/export | `panelAuth`, role, tenant check | permitido temporalmente |
 | Panel orders/check-in | `/panel/orders*`, `/panel/checkin/:token`, `/panel/checkins` | panel | `orders`, `locals` read/update/export | `panelAuth`, role, tenant check, validacion de ventana | permitido temporalmente |
 | Panel catalogo | `/panel/catalog/*` | panel | `ticket_types`, `table_types` CRUD | `panelAuth`, role, tenant/local checks | permitido temporalmente, reducible |
@@ -129,7 +130,7 @@ Usos que pueden mantener service role por ahora, pero devolver o seleccionar men
 
 - mutaciones de panel catalogo en `panelCatalog.ts`;
 - mutaciones de promos en `promos.ts`;
-- respuesta publica de `reviews.ts`, especialmente campos tecnicos como `user_agent`;
+- respuesta publica de `reviews.ts`, ya reducida en Slice 2 para no seleccionar ni devolver `user_agent`;
 - `GET /panel/checkins` y `GET /panel/orders/search`, sujeto a validacion de consumidores;
 - exports de reservas/orders, sujeto a decision de negocio sobre roles.
 
@@ -180,7 +181,7 @@ Orden recomendado de reduccion:
 
 1. `panelCatalog.ts`: reemplazar selects amplios en create/update de tickets y mesas por columnas explicitas. Estado: `Implementado y validado en runtime`.
 2. `promos.ts`: reducir selects y responses de create/update a DTOs necesarios. Estado: `Implementado y validado en runtime`.
-3. `reviews.ts`: revisar si el frontend necesita `user_agent`; si no, removerlo de respuestas publicas.
+3. `reviews.ts`: remover `user_agent` de respuestas publicas y evitar seleccionar `locals.type` en el join. Estado: `Implementado y validado en runtime`.
 4. `panel.ts`: auditar `GET /panel/checkins` y `GET /panel/orders/search` para remover `checkin_token`, email, phone o documento cuando no sean necesarios para la UI.
 5. exports: decidir si siguen disponibles para staff o pasan a owner-only.
 
@@ -259,20 +260,51 @@ Efecto sobre el riesgo:
 
 - reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` en respuestas panel de catalogo y promos;
 - no elimina `SUPABASE_SERVICE_ROLE`;
-- no cierra los slices pendientes de reviews, orders/checkins, exports, JWT/RLS/RPC ni paid-flow gate.
+- no cierra los slices pendientes de orders/checkins, exports, JWT/RLS/RPC ni paid-flow gate.
 
 ### Slice 2 - Reviews public DTO cleanup
+
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-14.
+
+Archivo tocado:
+
+- `functions/api/src/routes/reviews.ts`
 
 Objetivo:
 
 - remover campos tecnicos no necesarios de respuestas publicas;
 - mantener anti-abuse interno.
 
-Validacion esperada:
+Resultado implementado:
 
-- `pnpm -C functions/api typecheck`;
-- `pnpm -C apps/web-b2c typecheck` si hay consumidor B2C;
-- QA `GET /reviews` y `POST /reviews`.
+- `GET /reviews` ya no selecciona ni devuelve `user_agent`;
+- `POST /reviews` ya no selecciona ni devuelve `user_agent`;
+- el join de `locals` ya no selecciona `type`;
+- el DTO publico conserva `id`, `venue_id`, `venue_type`, `display_name`, `rating`, `title`, `comment`, `created_at`, `venue_name` y `venue_slug`;
+- `user_agent`, `fingerprint` e `ip_hash` siguen internos para anti-abuse;
+- no se tocaron SQL, RLS, migraciones, configs, paid flows ni `/payments/callback`;
+- no se cambiaron reglas de negocio de reviews.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-b2c typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime registrada:
+
+- `GET /reviews` funciona sin exponer `user_agent` -> PASS;
+- `POST /reviews` funciona sin exponer `user_agent` -> PASS;
+- B2C consume reviews sin errores visibles tras el DTO cleanup -> PASS;
+- la logica interna de anti-abuse se conserva.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` en respuestas publicas de reviews;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- no cierra los slices pendientes de orders/checkins, exports, JWT/RLS/RPC ni paid-flow gate.
 
 ### Slice 3 - Panel orders/checkins payload audit
 
@@ -383,7 +415,6 @@ Pendientes:
 - confirmar consumidores reales de campos sensibles en `GET /panel/checkins` y `GET /panel/orders/search`;
 - decidir politica de roles para exports;
 - confirmar si `PATCH /panel/orders/:id/use` conserva consumidor activo real;
-- revisar `reviews.ts` antes de remover campos de respuesta;
 - disenar modelo futuro de JWT/RLS/RPC por dominio;
 - ejecutar gate de `/payments/callback` solo si pagos reales entran en alcance.
 
