@@ -39,11 +39,9 @@ type ReviewRow = {
   title: string | null;
   comment: string;
   created_at: string;
-  user_agent: string | null;
   locals?: {
     name?: string | null;
     slug?: string | null;
-    type?: string | null;
   } | null;
 };
 
@@ -105,7 +103,6 @@ function mapReviewRow(row: ReviewRow) {
     title: row.title,
     comment: row.comment,
     created_at: row.created_at,
-    user_agent: row.user_agent,
     venue_name: row.locals?.name ?? null,
     venue_slug: row.locals?.slug ?? null,
   };
@@ -119,7 +116,7 @@ reviewsRouter.get("/", async (req, res) => {
     let query = supabase
       .from("reviews")
       .select(
-        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, user_agent, locals:venue_id(name, slug, type)"
+        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, locals:venue_id(name, slug)"
       )
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -247,7 +244,7 @@ reviewsRouter.post("/", async (req, res) => {
         user_agent: userAgent,
       })
       .select(
-        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, user_agent, locals:venue_id(name, slug, type)"
+        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, locals:venue_id(name, slug)"
       )
       .single();
 
