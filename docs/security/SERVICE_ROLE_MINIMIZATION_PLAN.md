@@ -21,6 +21,7 @@ Hechos vigentes:
 - `SUPABASE_SERVICE_ROLE` fue aceptado formalmente como riesgo residual temporal para `free_pass only`.
 - El Slice 1 de minimizacion (`panelCatalog.ts` / `promos.ts`) fue implementado y validado en runtime; reduce parcialmente el blast radius de respuestas panel sin eliminar `SUPABASE_SERVICE_ROLE`.
 - El Slice 2 de minimizacion (`reviews.ts`) fue implementado y validado en runtime; remueve `user_agent` del DTO publico de reviews sin tocar anti-abuse interno ni eliminar `SUPABASE_SERVICE_ROLE`.
+- El Slice 3B de minimizacion (`GET /panel/orders/search`) fue implementado y validado en runtime; remueve `created_at`, `valid_from` y `valid_to` del DTO normal del panel, conservando `checkin_state`, `checkin_token` y PII operativa vigente.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -131,7 +132,8 @@ Usos que pueden mantener service role por ahora, pero devolver o seleccionar men
 - mutaciones de panel catalogo en `panelCatalog.ts`;
 - mutaciones de promos en `promos.ts`;
 - respuesta publica de `reviews.ts`, ya reducida en Slice 2 para no seleccionar ni devolver `user_agent`;
-- `GET /panel/checkins` y `GET /panel/orders/search`, sujeto a validacion de consumidores;
+- `GET /panel/orders/search`, ya reducido en Slice 3B para no devolver campos internos de ventana ni `created_at`;
+- `GET /panel/checkins`, sujeto a validacion de consumidores;
 - exports de reservas/orders, sujeto a decision de negocio sobre roles.
 
 ### D. Cerrable/eliminable
@@ -182,8 +184,9 @@ Orden recomendado de reduccion:
 1. `panelCatalog.ts`: reemplazar selects amplios en create/update de tickets y mesas por columnas explicitas. Estado: `Implementado y validado en runtime`.
 2. `promos.ts`: reducir selects y responses de create/update a DTOs necesarios. Estado: `Implementado y validado en runtime`.
 3. `reviews.ts`: remover `user_agent` de respuestas publicas y evitar seleccionar `locals.type` en el join. Estado: `Implementado y validado en runtime`.
-4. `panel.ts`: auditar `GET /panel/checkins` y `GET /panel/orders/search` para remover `checkin_token`, email, phone o documento cuando no sean necesarios para la UI.
-5. exports: decidir si siguen disponibles para staff o pasan a owner-only.
+4. `panel.ts` / `GET /panel/orders/search`: remover campos internos `created_at`, `valid_from` y `valid_to` del DTO normal, conservando `checkin_state` calculado. Estado: `Implementado y validado en runtime`.
+5. `panel.ts` / `GET /panel/checkins`: confirmar consumidor activo y reducir `checkin_token`/email si no son necesarios.
+6. exports: decidir si siguen disponibles para staff o pasan a owner-only.
 
 Cada punto debe ejecutarse como slice separado, con typecheck y QA especifico.
 
@@ -308,17 +311,98 @@ Efecto sobre el riesgo:
 
 ### Slice 3 - Panel orders/checkins payload audit
 
+Estado: `Parcialmente implementado`.
+
 Objetivo:
 
 - revisar consumidores reales;
 - reducir PII/tokens no necesarios en listados o previews;
 - no tocar `PATCH /panel/checkin/:token` sin QA explicito.
 
-Validacion esperada:
+Avance:
 
-- `pnpm -C functions/api typecheck`;
-- `pnpm -C apps/web-next typecheck`;
-- QA scanner, orders search, orders summary, recent checkins.
+- Slice 3B implementado y validado en runtime para `GET /panel/orders/search`;
+- `PATCH /panel/checkin/:token`, `GET /panel/checkins` y exports quedan fuera de Slice 3B.
+
+### Slice 3B - Orders search DTO cleanup
+
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-14.
+
+Archivo tocado previamente:
+
+- `functions/api/src/routes/panel.ts`
+
+Endpoint afectado:
+
+- `GET /panel/orders/search`
+
+Resultado implementado:
+
+- se reemplazo el spread `...order` por un DTO explicito;
+- `created_at`, `valid_from` y `valid_to` ya no salen en el DTO de search;
+- `checkin_state` se mantiene y sigue calculandose en backend;
+- `checkin_token` se mantiene porque la UI actual lo muestra/copia;
+- PII visible actual se mantiene porque forma parte de la operacion vigente del panel;
+- paginacion, filtros por email/documento/fecha/estado, `panelAuth`, `requireRole(["owner", "staff"])` y tenant check se mantienen sin cambios.
+
+DTO final:
+
+- `id`;
+- `status`;
+- `used_at`;
+- `checkin_token`;
+- `customer_name`;
+- `customer_last_name`;
+- `customer_email`;
+- `customer_phone`;
+- `customer_document`;
+- `quantity`;
+- `intended_date`;
+- `checkin_state`.
+
+Campos removidos del DTO:
+
+- `created_at`;
+- `valid_from`;
+- `valid_to`.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-next typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime registrada:
+
+- login owner/staff -> PASS;
+- `GET /panel/me` -> PASS;
+- abrir ordenes/search -> PASS;
+- buscar por email -> PASS;
+- buscar por documento/cedula -> PASS;
+- buscar por nombre/telefono -> N/A, el panel solo permite busqueda por cedula y correo;
+- filtros por fecha/estado -> PASS;
+- paginacion -> N/A, no hay paginacion visible/aplicable;
+- token visible/copiable -> PASS;
+- `checkin_state` visible -> PASS;
+- orders summary -> PASS;
+- activity / metrics / calendar -> PASS;
+- scanner/check-in QR basico -> PASS;
+- `GET /health` -> 200 OK con `{ "ok": true }` y `x-request-id` presente.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` en search/listado operativo de ordenes;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- no reduce todavia `checkin_token` ni PII visible porque siguen siendo parte de la operacion vigente;
+- no toca scanner/check-in, exports, SQL, RLS, migraciones, paid flows ni `/payments/callback`.
+
+Validacion pendiente para futuros sub-slices:
+
+- `GET /panel/checkins`;
+- politica de `checkin_token` en search/export;
+- politica owner/staff para exports.
 
 ### Slice 4 - Export policy decision
 
@@ -412,7 +496,8 @@ El riesgo de `SUPABASE_SERVICE_ROLE` puede considerarse reducido, sin exigir cer
 
 Pendientes:
 
-- confirmar consumidores reales de campos sensibles en `GET /panel/checkins` y `GET /panel/orders/search`;
+- confirmar consumidores reales de campos sensibles en `GET /panel/checkins`;
+- decidir si `checkin_token` y PII visible en `GET /panel/orders/search` se mantienen como operacion vigente o pasan a endpoint mas especifico;
 - decidir politica de roles para exports;
 - confirmar si `PATCH /panel/orders/:id/use` conserva consumidor activo real;
 - disenar modelo futuro de JWT/RLS/RPC por dominio;
