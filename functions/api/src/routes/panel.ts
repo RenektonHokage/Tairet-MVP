@@ -1044,7 +1044,7 @@ panelRouter.get("/checkins", panelAuth, requireRole(["owner", "staff"]), async (
 
     const { data: checkins, error } = await supabase
       .from("orders")
-      .select("id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_document")
+      .select("id, status, used_at, customer_name, customer_last_name, customer_document")
       .eq("local_id", req.panelUser.localId)
       .not("used_at", "is", null)
       .order("used_at", { ascending: false })
