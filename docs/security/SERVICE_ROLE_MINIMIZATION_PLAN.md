@@ -19,6 +19,7 @@ Hechos vigentes:
 - High-Risk Data Exposure Containment quedo cerrado para las tablas revisadas en el corte `free_pass only`.
 - Data API directa fue contenida para `local_daily_ops`, `orders`, `locals`, `reservations`, `ticket_types`, `table_types`, `panel_users` y `payment_events`.
 - `SUPABASE_SERVICE_ROLE` fue aceptado formalmente como riesgo residual temporal para `free_pass only`.
+- El Slice 1 de minimizacion (`panelCatalog.ts` / `promos.ts`) fue implementado y validado en runtime; reduce parcialmente el blast radius de respuestas panel sin eliminar `SUPABASE_SERVICE_ROLE`.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -177,8 +178,8 @@ Mitigaciones ya aplicadas o documentadas:
 
 Orden recomendado de reduccion:
 
-1. `panelCatalog.ts`: reemplazar selects amplios en create/update de tickets y mesas por columnas explicitas.
-2. `promos.ts`: reducir selects y responses de create/update/reorder a DTOs necesarios.
+1. `panelCatalog.ts`: reemplazar selects amplios en create/update de tickets y mesas por columnas explicitas. Estado: `Implementado y validado en runtime`.
+2. `promos.ts`: reducir selects y responses de create/update a DTOs necesarios. Estado: `Implementado y validado en runtime`.
 3. `reviews.ts`: revisar si el frontend necesita `user_agent`; si no, removerlo de respuestas publicas.
 4. `panel.ts`: auditar `GET /panel/checkins` y `GET /panel/orders/search` para remover `checkin_token`, email, phone o documento cuando no sean necesarios para la UI.
 5. exports: decidir si siguen disponibles para staff o pasan a owner-only.
@@ -214,17 +215,51 @@ Objetivo:
 
 ### Slice 1 - DTO cleanup de panel catalogo y promos
 
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-14.
+
+Archivos tocados:
+
+- `functions/api/src/routes/panelCatalog.ts`
+- `functions/api/src/routes/promos.ts`
+
 Objetivo:
 
 - reducir selects amplios en mutaciones de catalogo y promos;
 - no cambiar reglas de negocio ni permisos.
 
-Validacion esperada:
+Resultado implementado:
 
-- `pnpm -C functions/api typecheck`;
-- `pnpm -C apps/web-next typecheck` si cambia contrato frontend;
-- QA panel catalogo tickets/mesas;
-- QA promos create/edit/reorder/delete si aplica.
+- reemplazo de `.select().single()` amplios por selects explicitos en mutaciones de catalogo de tickets;
+- reemplazo de `.select().single()` amplios por selects explicitos en mutaciones de catalogo de mesas;
+- reemplazo de `.select().single()` amplios por selects explicitos en mutaciones de promos;
+- no se tocaron SQL, RLS, migraciones, configs, paid flows ni `/payments/callback`;
+- no se cambiaron permisos, reglas de negocio ni `SUPABASE_SERVICE_ROLE`.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-next typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime registrada:
+
+- tickets: listar, crear, editar y activar/desactivar -> PASS;
+- mesas: listar, crear, editar y activar/desactivar -> PASS;
+- promos: listar, crear, editar y activar/desactivar -> PASS;
+- preview/listado de promos no rompe -> PASS;
+- panel consume API sin errores visibles de CORS/consola/network durante las mutaciones -> PASS;
+- `GET /public/locals/by-slug/dlirio/catalog` -> 200 OK;
+- `GET /public/locals/by-slug/mambo/catalog` -> 200 OK;
+- `GET /health` -> 200 OK con `{ "ok": true }`;
+- `x-request-id` presente.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` en respuestas panel de catalogo y promos;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- no cierra los slices pendientes de reviews, orders/checkins, exports, JWT/RLS/RPC ni paid-flow gate.
 
 ### Slice 2 - Reviews public DTO cleanup
 
@@ -358,4 +393,3 @@ Requiere validacion antes de CODE:
 - comportamiento esperado por owner/staff en exports;
 - si futuras features como `Mis Entradas` reabren endpoints o DTOs cerrados;
 - si paid flows cambian el alcance actual `free_pass only`.
-
