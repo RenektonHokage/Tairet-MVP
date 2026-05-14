@@ -923,7 +923,7 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
     // Buscar order por checkin_token
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("id, local_id, status, used_at, checkin_token, valid_from, valid_to, is_window_legacy, created_at")
+      .select("id, local_id, status, used_at, valid_from, valid_to, is_window_legacy, created_at")
       .eq("checkin_token", token)
       .single();
 
@@ -987,7 +987,7 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
       .from("orders")
       .update({ used_at: new Date().toISOString() })
       .eq("checkin_token", token)
-      .select("id, local_id, status, used_at, customer_name, customer_last_name, customer_document")
+      .select("id, status, used_at, customer_name, customer_last_name, customer_document")
       .single();
 
     if (updateError) {

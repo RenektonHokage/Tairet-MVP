@@ -9,7 +9,6 @@ import { getApiBase, getAuthHeaders } from "@/lib/api";
 
 interface CheckinSuccess {
   id: string;
-  local_id: string;
   status: string;
   used_at: string;
   customer_name?: string;
