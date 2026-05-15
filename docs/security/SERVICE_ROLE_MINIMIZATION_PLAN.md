@@ -23,6 +23,7 @@ Hechos vigentes:
 - El Slice 2 de minimizacion (`reviews.ts`) fue implementado y validado en runtime; remueve `user_agent` del DTO publico de reviews sin tocar anti-abuse interno ni eliminar `SUPABASE_SERVICE_ROLE`.
 - El Slice 3B de minimizacion (`GET /panel/orders/search`) fue implementado y validado en runtime; remueve `created_at`, `valid_from` y `valid_to` del DTO normal del panel, conservando `checkin_state`, `checkin_token` y PII operativa vigente.
 - El Slice 3C de minimizacion (`GET /panel/checkins`) fue implementado y validado en runtime para su objetivo central; remueve `checkin_token` y `customer_email` de `items`, conservando metadata y el endpoint protegido.
+- El Slice 3D de minimizacion (`PATCH /panel/checkin/:token`) fue implementado y validado en runtime; remueve `checkin_token` del fetch interno y `local_id` del success payload, conservando el scanner y las reglas vigentes.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -135,6 +136,7 @@ Usos que pueden mantener service role por ahora, pero devolver o seleccionar men
 - respuesta publica de `reviews.ts`, ya reducida en Slice 2 para no seleccionar ni devolver `user_agent`;
 - `GET /panel/orders/search`, ya reducido en Slice 3B para no devolver campos internos de ventana ni `created_at`;
 - `GET /panel/checkins`, ya reducido en Slice 3C para no devolver `checkin_token` ni `customer_email` en `items`;
+- `PATCH /panel/checkin/:token`, ya reducido en Slice 3D para no seleccionar `checkin_token` internamente ni devolver `local_id` en success;
 - exports de reservas/orders, sujeto a decision de negocio sobre roles.
 
 ### D. Cerrable/eliminable
@@ -187,7 +189,8 @@ Orden recomendado de reduccion:
 3. `reviews.ts`: remover `user_agent` de respuestas publicas y evitar seleccionar `locals.type` en el join. Estado: `Implementado y validado en runtime`.
 4. `panel.ts` / `GET /panel/orders/search`: remover campos internos `created_at`, `valid_from` y `valid_to` del DTO normal, conservando `checkin_state` calculado. Estado: `Implementado y validado en runtime`.
 5. `panel.ts` / `GET /panel/checkins`: remover `checkin_token` y `customer_email` de `items`, conservando metadata. Estado: `Implementado y validado en runtime para el objetivo central`.
-6. exports: decidir si siguen disponibles para staff o pasan a owner-only.
+6. `panel.ts` / `PATCH /panel/checkin/:token`: remover `checkin_token` del fetch interno y `local_id` del success payload, conservando scanner y validaciones. Estado: `Implementado y validado en runtime`.
+7. exports: decidir si siguen disponibles para staff o pasan a owner-only.
 
 Cada punto debe ejecutarse como slice separado, con typecheck y QA especifico.
 
@@ -324,7 +327,8 @@ Avance:
 
 - Slice 3B implementado y validado en runtime para `GET /panel/orders/search`;
 - Slice 3C implementado y validado en runtime para el objetivo central de `GET /panel/checkins`;
-- `PATCH /panel/checkin/:token` y exports quedan fuera de Slice 3B/3C.
+- Slice 3D implementado y validado en runtime para `PATCH /panel/checkin/:token`;
+- exports quedan fuera de Slice 3B/3C/3D.
 
 ### Slice 3B - Orders search DTO cleanup
 
@@ -486,6 +490,81 @@ Efecto sobre el riesgo:
 - mantiene el endpoint temporalmente por posible uso manual/legacy protegido;
 - no cierra la politica de exports ni la decision futura sobre payload sensible en otros endpoints.
 
+### Slice 3D - Scanner response cleanup
+
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-14.
+
+Archivos tocados previamente:
+
+- `functions/api/src/routes/panel.ts`;
+- `apps/web-next/app/panel/(authenticated)/checkin/page.tsx`.
+
+Endpoint afectado:
+
+- `PATCH /panel/checkin/:token`
+
+Resultado implementado:
+
+- en el fetch interno por token se removio `checkin_token` del select;
+- en el update success se removio `local_id` del select;
+- en frontend se removio `local_id` del tipo `CheckinSuccess`;
+- no se cambio UI, mensajes, camara, input manual ni mapeo de errores;
+- no se cambio validacion de ventana, tenant checks, reglas de negocio ni errores;
+- no se tocaron exports, SQL, RLS, migraciones, configs, paid flows ni `/payments/callback`.
+
+DTO final de success:
+
+- `id`;
+- `status`;
+- `used_at`;
+- `customer_name`;
+- `customer_last_name`;
+- `customer_document`.
+
+Campos removidos:
+
+- `checkin_token` del fetch interno;
+- `local_id` del success payload.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-next typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime registrada:
+
+- `PATCH /panel/checkin/:token` dentro de ventana activa con token valido -> 200 OK;
+- success payload ya no incluye `local_id`;
+- success payload mantiene `id`, `status`, `used_at`, `customer_name`, `customer_last_name` y `customer_document`;
+- repetir el mismo token despues del check-in -> 409 Conflict;
+- response de token ya usado: `Order already used` con `usedAt`;
+- token inventado -> 404 Not Found;
+- response de token invalido: `Order not found`;
+- `GET /panel/checkins` -> 200 OK;
+- `GET /panel/checkins` `items` ya no incluye `checkin_token`;
+- `GET /panel/checkins` `items` ya no incluye `customer_email`;
+- `GET /panel/checkins` mantiene `id`, `status`, `used_at`, `customer_name`, `customer_last_name` y `customer_document`;
+- `GET /panel/checkins` mantiene metadata `count`, `pending_count`, `unused_count` y `current_window`;
+- `GET /panel/orders/summary` -> 200 OK;
+- scanner UI -> PASS;
+- input manual -> PASS;
+- no hay error visual nuevo.
+
+Limitacion de QA:
+
+- token expirado/fuera de ventana no queda marcado como PASS en este cierre de Slice 3D si no hay evidencia posterior al cambio;
+- la rama expirado/fuera de ventana debe probarse en una ventana o fixture especifico antes de usarla como evidencia nueva de scanner completo.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` en el flujo operativo de scanner;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- mantiene datos de comprador necesarios para feedback de puerta;
+- no cambia reglas de negocio ni validaciones de check-in.
+
 ### Slice 4 - Export policy decision
 
 Objetivo:
@@ -579,7 +658,7 @@ El riesgo de `SUPABASE_SERVICE_ROLE` puede considerarse reducido, sin exigir cer
 Pendientes:
 
 - decidir si `checkin_token` y PII visible en `GET /panel/orders/search` se mantienen como operacion vigente o pasan a endpoint mas especifico;
-- validar scanner completo con token valido y token ya usado en ventana activa o prueba especifica futura;
+- validar rama scanner de token expirado/fuera de ventana con evidencia posterior al Slice 3D;
 - decidir mantenimiento/deprecacion formal de `GET /panel/checkins` si se confirma que no tiene consumidor operativo real;
 - decidir politica de roles para exports;
 - confirmar si `PATCH /panel/orders/:id/use` conserva consumidor activo real;
