@@ -1408,8 +1408,8 @@ panelRouter.get("/orders/summary", panelAuth, requireRole(["owner", "staff"]), a
 
 // GET /panel/exports/reservations-clients.csv?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Export CSV de reservas/clientes por local autenticado y rango de fechas
-// Roles permitidos: owner, staff
-panelRouter.get("/exports/reservations-clients.csv", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+// Roles permitidos: owner
+panelRouter.get("/exports/reservations-clients.csv", panelAuth, requireRole(["owner"]), async (req, res, next) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -1440,8 +1440,8 @@ panelRouter.get("/exports/reservations-clients.csv", panelAuth, requireRole(["ow
 
 // GET /panel/exports/reservations-clients.xlsx?from=YYYY-MM-DD&to=YYYY-MM-DD
 // Export Excel de reservas/clientes por local autenticado y rango de fechas
-// Roles permitidos: owner, staff
-panelRouter.get("/exports/reservations-clients.xlsx", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+// Roles permitidos: owner
+panelRouter.get("/exports/reservations-clients.xlsx", panelAuth, requireRole(["owner"]), async (req, res, next) => {
   try {
     if (!req.panelUser) {
       return res.status(401).json({ error: "Unauthorized" });

@@ -80,6 +80,7 @@ export default function ReservationsPage() {
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
   const isDemoBar = isDemo && demoScenario === "bar" && context?.local.type === "bar";
+  const canExport = context?.role === "owner";
   const demoDefaultDate = useMemo(
     () => (isDemoBar ? getPanelDemoBarReservationsDefaultDate() : ""),
     [isDemoBar]
@@ -174,7 +175,7 @@ export default function ReservationsPage() {
   );
 
   const handleExport = useCallback(async () => {
-    if (!exportFrom || !exportTo || exportLoading) {
+    if (!canExport || !exportFrom || !exportTo || exportLoading) {
       return;
     }
 
@@ -192,7 +193,7 @@ export default function ReservationsPage() {
     } finally {
       setExportLoading(false);
     }
-  }, [exportFrom, exportLoading, exportTo, isDemoBar]);
+  }, [canExport, exportFrom, exportLoading, exportTo, isDemoBar]);
 
   const handleRefresh = useCallback(() => {
     if (!selectedDate || loading) return;
@@ -431,6 +432,7 @@ export default function ReservationsPage() {
         }}
         onExport={handleExport}
         exportLoading={exportLoading}
+        showExport={canExport}
         loading={loading}
         hasLoadedDate={hasLoadedDate}
         isFetchingForDate={isFetchingForDate}

@@ -69,6 +69,7 @@ export interface ReservationsViewProps {
   onExportToChange: (value: string) => void;
   onExport: () => void;
   exportLoading?: boolean;
+  showExport?: boolean;
 
   // Loading state (opcional)
   loading?: boolean;
@@ -98,6 +99,7 @@ export function ReservationsView({
   onExportToChange,
   onExport,
   exportLoading,
+  showExport = true,
   loading,
   hasLoadedDate,
   isFetchingForDate,
@@ -143,7 +145,7 @@ export function ReservationsView({
         <PageHeader
           title="Reservas"
           subtitle="Gestiona confirmaciones, notas y horarios del local."
-          actions={
+          actions={showExport ? (
             <div ref={exportMenuRef} className="relative">
             <button
               type="button"
@@ -217,7 +219,7 @@ export function ReservationsView({
               </div>
             ) : null}
           </div>
-        }
+        ) : undefined}
       />
 
       {/* Stats KPIs */}

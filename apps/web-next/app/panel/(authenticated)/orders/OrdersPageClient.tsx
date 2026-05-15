@@ -147,6 +147,7 @@ export default function OrdersPageClient() {
   const isClub = context?.local.type === "club";
   const isDemoDiscoteca =
     isDemo && demoScenario === "discoteca" && context?.local.type === "club";
+  const canExport = context?.role === "owner";
   const [searchType, setSearchType] = useState<SearchType>("email");
   const [searchValue, setSearchValue] = useState("");
   const [appliedSearchValue, setAppliedSearchValue] = useState("");
@@ -458,7 +459,7 @@ export default function OrdersPageClient() {
   };
 
   const handleExportExcel = async () => {
-    if (!exportFrom || !exportTo || exportLoading) {
+    if (!canExport || !exportFrom || !exportTo || exportLoading) {
       return;
     }
 
@@ -1031,7 +1032,7 @@ export default function OrdersPageClient() {
     <div className="space-y-6">
       <PageHeader
         title="Entradas"
-        actions={
+        actions={canExport ? (
           <div ref={exportMenuRef} className="relative">
             <button
               type="button"
@@ -1109,7 +1110,7 @@ export default function OrdersPageClient() {
               </div>
             ) : null}
           </div>
-        }
+        ) : undefined}
       />
 
       {exportError ? (
