@@ -1,0 +1,4 @@
+﻿"Tipo local","Local ID","Reserva ID","Fecha reserva","Fecha reserva y hora","Estado","Nombre","Apellido","Email","Telefono","Personas","Nota cliente","Nota interna","Creada"
+"bar","550e8400-e29b-41d4-a716-446655440001","f319799b-4a0e-4222-83b9-0caf16202c19","2026-05-05","05/05/2026, 18:30:00","confirmed","Mateo","Guex","mateoguex94@gmail.com","'+595981628109","7","Test35","","02/05/2026, 20:18:26"
+"bar","550e8400-e29b-41d4-a716-446655440001","3ce31f01-f2ad-4daa-b810-621c91bfb9c9","2026-05-05","05/05/2026, 19:00:00","confirmed","Mateo","Guex","mateoguex94@gmail.com","'+595981628109","6","123123123444","tener en cuenta que sos la maquina guex","02/05/2026, 22:38:16"
+"bar","550e8400-e29b-41d4-a716-446655440001","467db561-a3fd-4db8-a153-c17e9fab931d","2026-05-09","09/05/2026, 13:30:00","en_revision","Mateo","Guex","mateoguex94@gmail.com","'+595981628109","7","asdfasdf","","03/05/2026, 17:46:08"

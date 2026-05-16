@@ -24,6 +24,7 @@ Hechos vigentes:
 - El Slice 3B de minimizacion (`GET /panel/orders/search`) fue implementado y validado en runtime; remueve `created_at`, `valid_from` y `valid_to` del DTO normal del panel, conservando `checkin_state`, `checkin_token` y PII operativa vigente.
 - El Slice 3C de minimizacion (`GET /panel/checkins`) fue implementado y validado en runtime para su objetivo central; remueve `checkin_token` y `customer_email` de `items`, conservando metadata y el endpoint protegido.
 - El Slice 3D de minimizacion (`PATCH /panel/checkin/:token`) fue implementado y validado en runtime; remueve `checkin_token` del fetch interno y `local_id` del success payload, conservando el scanner y las reglas vigentes.
+- El Slice 3E de minimizacion (exports sensibles del panel) fue implementado y validado en runtime; los exports `reservations-clients.csv` y `.xlsx` quedaron owner-only y las acciones de export se ocultan para staff.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -137,7 +138,7 @@ Usos que pueden mantener service role por ahora, pero devolver o seleccionar men
 - `GET /panel/orders/search`, ya reducido en Slice 3B para no devolver campos internos de ventana ni `created_at`;
 - `GET /panel/checkins`, ya reducido en Slice 3C para no devolver `checkin_token` ni `customer_email` en `items`;
 - `PATCH /panel/checkin/:token`, ya reducido en Slice 3D para no seleccionar `checkin_token` internamente ni devolver `local_id` en success;
-- exports de reservas/orders, sujeto a decision de negocio sobre roles.
+- exports de reservas/orders, ya restringidos a owner en Slice 3E; la reduccion de columnas queda como decision futura.
 
 ### D. Cerrable/eliminable
 
@@ -175,6 +176,7 @@ Mitigaciones ya aplicadas o documentadas:
 - endpoints publicos de lectura de ordenes cerrados con `410 Gone`;
 - `POST /orders` y `POST /reservations` devuelven DTOs minimos;
 - mutaciones panel puntuales redujeron payloads;
+- exports sensibles del panel quedaron owner-only y dejaron de estar disponibles para staff;
 - `GET /events/whatsapp_clicks/count` valida `localId` como UUID;
 - `SUPABASE_SERVICE_ROLE` fue aceptado formalmente solo para `free_pass only`;
 - `/payments/callback` quedo en stand by y no aprobado para paid flows;
@@ -190,7 +192,8 @@ Orden recomendado de reduccion:
 4. `panel.ts` / `GET /panel/orders/search`: remover campos internos `created_at`, `valid_from` y `valid_to` del DTO normal, conservando `checkin_state` calculado. Estado: `Implementado y validado en runtime`.
 5. `panel.ts` / `GET /panel/checkins`: remover `checkin_token` y `customer_email` de `items`, conservando metadata. Estado: `Implementado y validado en runtime para el objetivo central`.
 6. `panel.ts` / `PATCH /panel/checkin/:token`: remover `checkin_token` del fetch interno y `local_id` del success payload, conservando scanner y validaciones. Estado: `Implementado y validado en runtime`.
-7. exports: decidir si siguen disponibles para staff o pasan a owner-only.
+7. exports sensibles del panel: pasar CSV/XLSX a owner-only y ocultar acciones para staff. Estado: `Implementado y validado en runtime`.
+8. exports sensibles del panel: decidir si `checkin_token`, IDs internos, notas o timestamps se mantienen en export owner-only o pasan a un export separado/limitado. Estado: `Pendiente`.
 
 Cada punto debe ejecutarse como slice separado, con typecheck y QA especifico.
 
@@ -328,7 +331,7 @@ Avance:
 - Slice 3B implementado y validado en runtime para `GET /panel/orders/search`;
 - Slice 3C implementado y validado en runtime para el objetivo central de `GET /panel/checkins`;
 - Slice 3D implementado y validado en runtime para `PATCH /panel/checkin/:token`;
-- exports quedan fuera de Slice 3B/3C/3D.
+- Slice 3E implementado y validado en runtime para exports sensibles owner-only.
 
 ### Slice 3B - Orders search DTO cleanup
 
@@ -565,16 +568,101 @@ Efecto sobre el riesgo:
 - mantiene datos de comprador necesarios para feedback de puerta;
 - no cambia reglas de negocio ni validaciones de check-in.
 
-### Slice 4 - Export policy decision
+### Slice 3E - Exports sensibles owner-only
+
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-16.
+
+Archivos tocados previamente:
+
+- `functions/api/src/routes/panel.ts`;
+- `apps/web-next/app/panel/(authenticated)/orders/OrdersPageClient.tsx`;
+- `apps/web-next/app/panel/(authenticated)/reservations/page.tsx`;
+- `apps/web-next/components/panel/views/ReservationsView.tsx`.
+
+Endpoints afectados:
+
+- `GET /panel/exports/reservations-clients.csv`;
+- `GET /panel/exports/reservations-clients.xlsx`.
+
+Resultado implementado:
+
+- ambos exports sensibles del panel requieren `requireRole(["owner"])`;
+- se mantuvo `panelAuth`;
+- se mantuvo tenant filtering por `req.panelUser.localId`;
+- se mantuvo validacion `from/to`;
+- se mantuvo generacion CSV/XLSX actual;
+- se mantuvieron columnas actuales;
+- ordenes muestra export solo para owner;
+- reservas muestra export solo para owner;
+- `ReservationsView` recibio `showExport?: boolean`;
+- staff no ve export en ordenes ni reservas;
+- no se tocaron SQL, RLS, migraciones, configs, paid flows, `/payments/callback`, scanner, checkins, orders search ni orders summary.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-next typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime XLSX registrada:
+
+- export operativo UI actual: XLSX;
+- owner descarga XLSX con rango valido -> PASS;
+- archivo XLSX descarga correctamente -> PASS;
+- staff request directo al XLSX -> 403 Forbidden -> PASS;
+- sin auth al XLSX -> 401 Unauthorized -> PASS;
+- fechas mal formadas -> 400 Bad Request -> PASS;
+- rango invertido -> 400 Bad Request -> PASS;
+- owner ve export en UI -> PASS;
+- owner puede descargar export desde UI -> PASS;
+- staff no ve export en UI -> PASS;
+- no queda boton roto, menu vacio ni accion visible que devuelva 403 -> PASS.
+
+Validacion runtime CSV backend directo registrada:
+
+- CSV no esta conectado como accion UI vigente;
+- CSV existe como endpoint backend directo/legacy;
+- owner con rango valido al CSV -> 200 OK -> PASS;
+- `Content-Type: text/csv; charset=utf-8` -> PASS;
+- archivo CSV descargado correctamente -> PASS;
+- contenido corresponde al tenant/local esperado -> PASS;
+- staff directo al CSV -> 403 Forbidden -> PASS;
+- sin auth al CSV -> 401 Unauthorized -> PASS;
+- fechas mal formadas al CSV -> 400 Bad Request -> PASS;
+- rango invertido al CSV -> 400 Bad Request -> PASS.
+
+Clasificacion final:
+
+- XLSX UI/operativo: `PASS`;
+- CSV UI: `N/A`, no hay accion UI vigente real;
+- CSV backend directo/legacy: `PASS tecnico`, protegido owner-only y con validaciones correctas.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` sobre exports con PII/tokens;
+- elimina acceso staff a descargas masivas sensibles;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- no cambia columnas exportadas;
+- mantiene el export completo como capacidad owner-only.
+
+Pendiente futuro:
+
+- decidir si `checkin_token`, `Local ID`, IDs internos, notas o timestamps deben permanecer en export owner-only;
+- evaluar export limitado para staff solo si aparece una necesidad operativa formal;
+- corregir texto residual de `ReservationsView` que aun dice `Exportar CSV` aunque el flujo UI vigente descarga XLSX.
+
+### Slice 4 - Export columns policy decision
 
 Objetivo:
 
-- decidir si exports de reservas/orders siguen permitidos para staff o pasan a owner-only;
-- documentar aceptacion si se mantiene staff.
+- decidir si columnas sensibles dentro del export owner-only deben mantenerse, removerse o separarse;
+- documentar aceptacion si se mantiene `checkin_token` en export owner-only.
 
 Validacion esperada:
 
-- QA export CSV/XLSX por rol;
+- QA export CSV/XLSX por columnas;
 - confirmacion de owner del negocio.
 
 ### Slice 5 - Arquitectura JWT/RLS/RPC futura
@@ -660,7 +748,7 @@ Pendientes:
 - decidir si `checkin_token` y PII visible en `GET /panel/orders/search` se mantienen como operacion vigente o pasan a endpoint mas especifico;
 - validar rama scanner de token expirado/fuera de ventana con evidencia posterior al Slice 3D;
 - decidir mantenimiento/deprecacion formal de `GET /panel/checkins` si se confirma que no tiene consumidor operativo real;
-- decidir politica de roles para exports;
+- decidir politica de columnas para exports owner-only;
 - confirmar si `PATCH /panel/orders/:id/use` conserva consumidor activo real;
 - disenar modelo futuro de JWT/RLS/RPC por dominio;
 - ejecutar gate de `/payments/callback` solo si pagos reales entran en alcance.
@@ -668,6 +756,6 @@ Pendientes:
 Requiere validacion antes de CODE:
 
 - contratos frontend afectados por cada DTO;
-- comportamiento esperado por owner/staff en exports;
+- reduccion o separacion de columnas sensibles en exports owner-only;
 - si futuras features como `Mis Entradas` reabren endpoints o DTOs cerrados;
 - si paid flows cambian el alcance actual `free_pass only`.

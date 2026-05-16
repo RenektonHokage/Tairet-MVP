@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Cache-Control: no-store
+Content-Disposition: attachment; filename="tairet_reservas_clientes_bar_Tairet_Bar_2026-05-01_a_2026-05-15.csv"
+Content-Length: 911
+Content-Type: text/csv; charset=utf-8
+Date: Sat, 16 May 2026 19:59:13 GMT
+Etag: W/"38f-xC/4HsW0gjfM8lsGN3ITqahkFmU"
+Ratelimit-Limit: 10000
+Ratelimit-Policy: 10000;w=86400
+Ratelimit-Remaining: 9998
+Ratelimit-Reset: 86382
+Server: railway-edge
+X-Powered-By: Express
+X-Railway-Edge: railway/us-east4-eqdc4a
+X-Railway-Request-Id: NzbTAsxcQTeZn8LBPvyhXg
+X-Request-Id: 363e8b16-4236-4c7e-9237-61b831bcd3fd
+

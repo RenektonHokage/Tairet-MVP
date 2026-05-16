@@ -1,0 +1,17 @@
+HTTP/1.1 200 OK
+Cache-Control: no-store
+Content-Disposition: attachment; filename="tairet_reservas_clientes_club_Boliche_2026-05-01_a_2026-05-15.xlsx"
+Content-Length: 20898
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Date: Fri, 15 May 2026 17:15:10 GMT
+Etag: W/"51a2-rl9a2ejoZ/huX6bOP43IEg3MDCU"
+Ratelimit-Limit: 10000
+Ratelimit-Policy: 10000;w=86400
+Ratelimit-Remaining: 9982
+Ratelimit-Reset: 85325
+Server: railway-edge
+X-Powered-By: Express
+X-Railway-Edge: railway/us-east4-eqdc4a
+X-Railway-Request-Id: gaMPnCUURmGH1XM4PvyhXg
+X-Request-Id: ac04b1d2-90bb-4f72-872a-c680e1079379
+
