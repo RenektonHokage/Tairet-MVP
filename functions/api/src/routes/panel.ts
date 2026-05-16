@@ -331,10 +331,8 @@ function sanitizeFileNameSegment(value: string): string {
 
 type ExportOrderRow = {
   id: string;
-  local_id: string | null;
   status: string;
   used_at: string | null;
-  checkin_token: string | null;
   customer_name: string | null;
   customer_last_name: string | null;
   customer_email: string | null;
@@ -383,7 +381,7 @@ async function buildReservationsClientsExportPayload(
   if (local.type === "bar") {
     const { data: reservations, error: reservationsError } = await supabase
       .from("reservations")
-      .select("id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at")
+      .select("id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at")
       .eq("local_id", localId)
       .gte("date", `${fallbackFrom}T00:00:00.000Z`)
       .lt("date", `${fallbackToExclusive}T00:00:00.000Z`)
@@ -408,7 +406,6 @@ async function buildReservationsClientsExportPayload(
 
     const headers = [
       "Tipo local",
-      "Local ID",
       "Reserva ID",
       "Fecha reserva",
       "Fecha reserva y hora",
@@ -425,7 +422,6 @@ async function buildReservationsClientsExportPayload(
 
     const rows = filteredReservations.map((reservation) => [
       "bar",
-      reservation.local_id ?? localId,
       reservation.id,
       toAsuncionDateOnly(reservation.date) ?? "",
       formatDateTimeAsuncion(reservation.date),
@@ -452,7 +448,7 @@ async function buildReservationsClientsExportPayload(
 
   const { data: orders, error: ordersError } = await supabase
     .from("orders")
-    .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+    .select("id, status, used_at, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
     .eq("local_id", localId)
     .gte("intended_date", from)
     .lte("intended_date", to)
@@ -472,7 +468,7 @@ async function buildReservationsClientsExportPayload(
 
   const { data: legacyOrders, error: legacyOrdersError } = await supabase
     .from("orders")
-    .select("id, local_id, status, used_at, checkin_token, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
+    .select("id, status, used_at, customer_name, customer_last_name, customer_email, customer_phone, customer_document, quantity, created_at, intended_date, valid_from, valid_to")
     .eq("local_id", localId)
     .is("intended_date", null)
     .gte("created_at", `${fallbackFrom}T00:00:00.000Z`)
@@ -521,7 +517,6 @@ async function buildReservationsClientsExportPayload(
 
   const headers = [
     "Tipo local",
-    "Local ID",
     "Orden ID",
     "Fecha evento",
     "Estado check-in",
@@ -532,14 +527,12 @@ async function buildReservationsClientsExportPayload(
     "Telefono",
     "Documento",
     "Entradas",
-    "Token check-in",
     "Usada",
     "Creada",
   ];
 
   const rows = allOrders.map((order) => [
     "club",
-    order.local_id ?? localId,
     order.id,
     order.intended_date ?? toAsuncionDateOnly(order.created_at) ?? "",
     resolveOrderState(order, now),
@@ -550,7 +543,6 @@ async function buildReservationsClientsExportPayload(
     order.customer_phone ?? "",
     order.customer_document ?? "",
     typeof order.quantity === "number" && Number.isFinite(order.quantity) ? order.quantity : "",
-    order.checkin_token ?? "",
     formatDateTimeAsuncion(order.used_at),
     formatDateTimeAsuncion(order.created_at),
   ]);
