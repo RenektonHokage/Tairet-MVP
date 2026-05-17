@@ -1,0 +1,8 @@
+﻿"Tipo local","Orden ID","Fecha evento","Estado check-in","Estado orden","Nombre","Apellido","Email","Telefono","Documento","Entradas","Usada","Creada"
+"club","08709f00-e635-4389-b18a-677d8e6b916f","2026-05-01","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","01/05/2026, 13:21:55"
+"club","daccf76a-4b07-430d-aad7-16d06c1be82a","2026-05-03","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","02/05/2026, 20:16:38"
+"club","bb1cbb07-4fa4-4e17-80ac-acad197fc464","2026-05-03","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","03/05/2026, 17:55:51"
+"club","6b74de66-bc5d-47e7-aaa5-e81faa44dcbd","2026-05-05","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","02/05/2026, 22:37:56"
+"club","b0e37fbe-c9be-4306-ae76-2f73eb16b695","2026-05-07","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","03/05/2026, 17:31:47"
+"club","0e27b82a-f692-43a6-8cd2-62632a4d7c95","2026-05-14","unused","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","","14/05/2026, 18:00:32"
+"club","c6f47893-b4bb-4691-9cb6-430315de8be2","2026-05-14","used","paid","Mateo","Guex","mateoguex94@gmail.com","0981628109","5284083","1","14/05/2026, 23:16:16","14/05/2026, 23:15:17"

@@ -25,6 +25,7 @@ Hechos vigentes:
 - El Slice 3C de minimizacion (`GET /panel/checkins`) fue implementado y validado en runtime para su objetivo central; remueve `checkin_token` y `customer_email` de `items`, conservando metadata y el endpoint protegido.
 - El Slice 3D de minimizacion (`PATCH /panel/checkin/:token`) fue implementado y validado en runtime; remueve `checkin_token` del fetch interno y `local_id` del success payload, conservando el scanner y las reglas vigentes.
 - El Slice 3E de minimizacion (exports sensibles del panel) fue implementado y validado en runtime; los exports `reservations-clients.csv` y `.xlsx` quedaron owner-only y las acciones de export se ocultan para staff.
+- El Slice 3F-A de minimizacion (columnas sensibles en exports owner-only) fue implementado y validado en runtime; remueve `Local ID` de exports bar/club y `Token check-in` del export club, manteniendo PII comercial, notas, IDs operativos y `Creada`.
 - Paid flows siguen fuera del corte actual.
 - `/payments/callback` queda condicionado a un gate futuro antes de activar pagos reales.
 
@@ -139,6 +140,7 @@ Usos que pueden mantener service role por ahora, pero devolver o seleccionar men
 - `GET /panel/checkins`, ya reducido en Slice 3C para no devolver `checkin_token` ni `customer_email` en `items`;
 - `PATCH /panel/checkin/:token`, ya reducido en Slice 3D para no seleccionar `checkin_token` internamente ni devolver `local_id` en success;
 - exports de reservas/orders, ya restringidos a owner en Slice 3E; la reduccion de columnas queda como decision futura.
+- exports de reservas/orders, ya reducidos en Slice 3F-A para no incluir `Local ID` ni `Token check-in`.
 
 ### D. Cerrable/eliminable
 
@@ -193,7 +195,8 @@ Orden recomendado de reduccion:
 5. `panel.ts` / `GET /panel/checkins`: remover `checkin_token` y `customer_email` de `items`, conservando metadata. Estado: `Implementado y validado en runtime para el objetivo central`.
 6. `panel.ts` / `PATCH /panel/checkin/:token`: remover `checkin_token` del fetch interno y `local_id` del success payload, conservando scanner y validaciones. Estado: `Implementado y validado en runtime`.
 7. exports sensibles del panel: pasar CSV/XLSX a owner-only y ocultar acciones para staff. Estado: `Implementado y validado en runtime`.
-8. exports sensibles del panel: decidir si `checkin_token`, IDs internos, notas o timestamps se mantienen en export owner-only o pasan a un export separado/limitado. Estado: `Pendiente`.
+8. exports sensibles del panel: remover `Local ID` de bar/club y `Token check-in` de club, manteniendo consistencia CSV/XLSX. Estado: `Implementado y validado en runtime`.
+9. exports sensibles del panel: decidir si PII comercial, notas, IDs operativos o timestamps se mantienen en export owner-only o pasan a un export separado/limitado. Estado: `Pendiente`.
 
 Cada punto debe ejecutarse como slice separado, con typecheck y QA especifico.
 
@@ -649,16 +652,120 @@ Efecto sobre el riesgo:
 
 Pendiente futuro:
 
-- decidir si `checkin_token`, `Local ID`, IDs internos, notas o timestamps deben permanecer en export owner-only;
+- decidir si PII comercial, notas, IDs operativos o timestamps deben permanecer en export owner-only;
 - evaluar export limitado para staff solo si aparece una necesidad operativa formal;
 - corregir texto residual de `ReservationsView` que aun dice `Exportar CSV` aunque el flujo UI vigente descarga XLSX.
+
+### Slice 3F-A - Reduccion de columnas sensibles en exports owner-only
+
+Estado: `Implementado y validado en runtime`.
+
+Fecha de registro: 2026-05-16.
+
+Archivo tocado previamente:
+
+- `functions/api/src/routes/panel.ts`.
+
+Funcion afectada:
+
+- `buildReservationsClientsExportPayload(...)`.
+
+Resultado implementado:
+
+- se removio `Local ID` de headers y rows de exports bar y club;
+- se removio `Token check-in` de headers y rows del export club;
+- se removio `local_id` de selects cuando dejo de usarse para construir filas;
+- se removio `checkin_token` del select de `orders` usado por export club;
+- se mantuvieron `valid_from` y `valid_to` porque se usan para `resolveOrderState(...)`;
+- se mantuvieron permisos owner-only;
+- se mantuvo CSV/XLSX;
+- se mantuvo validacion `from/to`;
+- se mantuvo tenant filtering;
+- se mantuvo PII comercial actual;
+- se mantuvieron notas, `Reserva ID`, `Orden ID` y `Creada`;
+- no se tocaron SQL, RLS, migraciones, configs, paid flows, `/payments/callback`, scanner, checkins, orders search ni orders summary.
+
+Headers finales de export bar:
+
+- `Tipo local`;
+- `Reserva ID`;
+- `Fecha reserva`;
+- `Fecha reserva y hora`;
+- `Estado`;
+- `Nombre`;
+- `Apellido`;
+- `Email`;
+- `Telefono`;
+- `Personas`;
+- `Nota cliente`;
+- `Nota interna`;
+- `Creada`.
+
+Headers finales de export club:
+
+- `Tipo local`;
+- `Orden ID`;
+- `Fecha evento`;
+- `Estado check-in`;
+- `Estado orden`;
+- `Nombre`;
+- `Apellido`;
+- `Email`;
+- `Telefono`;
+- `Documento`;
+- `Entradas`;
+- `Usada`;
+- `Creada`.
+
+Columnas removidas:
+
+- `Local ID` de exports bar y club;
+- `Token check-in` de export club.
+
+Validacion tecnica registrada:
+
+- `pnpm -C functions/api typecheck` OK;
+- `pnpm -C apps/web-next typecheck` OK;
+- `git diff --check` OK.
+
+Validacion runtime registrada:
+
+- owner descarga XLSX con rango valido -> PASS;
+- owner descarga CSV directo con rango valido -> PASS;
+- staff sigue recibiendo 403 en XLSX -> PASS;
+- staff sigue recibiendo 403 en CSV -> PASS;
+- sin auth sigue recibiendo 401 -> PASS;
+- rango invalido sigue recibiendo 400 -> PASS;
+- archivo XLSX abre correctamente -> PASS;
+- archivo CSV abre correctamente -> PASS;
+- headers club no incluyen `Local ID` -> PASS;
+- headers club no incluyen `Token check-in` -> PASS;
+- headers bar no incluyen `Local ID` -> PASS;
+- contenido corresponde al tenant/local esperado -> PASS;
+- `Estado check-in` sigue calculandose correctamente -> PASS;
+- panel ordenes y reservas sin regresion -> PASS;
+- `/health` responde 200 -> PASS;
+- `x-request-id` presente -> PASS.
+
+Efecto sobre el riesgo:
+
+- reduce parcialmente el blast radius de `SUPABASE_SERVICE_ROLE` sobre exports owner-only;
+- elimina dos datos innecesarios o sensibles del export principal;
+- no elimina `SUPABASE_SERVICE_ROLE`;
+- mantiene datos comerciales necesarios para cierre/CRM.
+
+Pendiente futuro:
+
+- decidir si `Nota cliente`, `Nota interna`, PII comercial, `Reserva ID`, `Orden ID` o `Creada` deben mantenerse, removerse o separarse;
+- evaluar export tecnico owner-only separado solo si hay justificacion operativa;
+- evaluar export limitado para staff solo si aparece necesidad formal.
 
 ### Slice 4 - Export columns policy decision
 
 Objetivo:
 
-- decidir si columnas sensibles dentro del export owner-only deben mantenerse, removerse o separarse;
-- documentar aceptacion si se mantiene `checkin_token` en export owner-only.
+- decidir si columnas sensibles restantes dentro del export owner-only deben mantenerse, removerse o separarse;
+- documentar aceptacion si se mantienen notas, PII comercial, IDs operativos o timestamps.
 
 Validacion esperada:
 
@@ -748,7 +855,7 @@ Pendientes:
 - decidir si `checkin_token` y PII visible en `GET /panel/orders/search` se mantienen como operacion vigente o pasan a endpoint mas especifico;
 - validar rama scanner de token expirado/fuera de ventana con evidencia posterior al Slice 3D;
 - decidir mantenimiento/deprecacion formal de `GET /panel/checkins` si se confirma que no tiene consumidor operativo real;
-- decidir politica de columnas para exports owner-only;
+- decidir politica de columnas sensibles restantes para exports owner-only;
 - confirmar si `PATCH /panel/orders/:id/use` conserva consumidor activo real;
 - disenar modelo futuro de JWT/RLS/RPC por dominio;
 - ejecutar gate de `/payments/callback` solo si pagos reales entran en alcance.
@@ -756,6 +863,72 @@ Pendientes:
 Requiere validacion antes de CODE:
 
 - contratos frontend afectados por cada DTO;
-- reduccion o separacion de columnas sensibles en exports owner-only;
+- reduccion o separacion de PII comercial, notas, IDs operativos o timestamps en exports owner-only;
 - si futuras features como `Mis Entradas` reabren endpoints o DTOs cerrados;
 - si paid flows cambian el alcance actual `free_pass only`.
+
+## 14. Cierre para free_pass only
+
+Estado final: cerrado para el corte `free_pass only`.
+
+Resultado del cierre: delta smoke final post-B7 `PASS`, sin FAIL criticos reportados en API base, Sentry panel, catalogo publico/panel, promos, reviews, orders search, `GET /panel/checkins`, scanner/check-in, exports XLSX/CSV ni regresiones cercanas del panel.
+
+Este cierre debe leerse como riesgo reducido y aceptado para `free_pass only`. No significa que `SUPABASE_SERVICE_ROLE` haya sido eliminado ni que el backend/API haya dejado de usar cliente privilegiado.
+
+Slices cerrados:
+
+- Slice 1: DTO cleanup de panel catalogo y promos;
+- Slice 2: public reviews DTO cleanup;
+- Slice 3B: reduccion de DTO de `GET /panel/orders/search`;
+- Slice 3C: reduccion de DTO de `GET /panel/checkins`;
+- Slice 3D: scanner response cleanup en `PATCH /panel/checkin/:token`;
+- Slice 3E: exports sensibles owner-only;
+- Slice 3F-A: reduccion de columnas sensibles en exports owner-only.
+
+Reducciones aplicadas:
+
+- DTOs publicos y panel quedaron mas acotados en las superficies trabajadas;
+- payloads con campos innecesarios fueron reducidos;
+- `user_agent` dejo de exponerse en DTO publico de reviews;
+- `created_at`, `valid_from` y `valid_to` dejaron de exponerse en `GET /panel/orders/search`;
+- `checkin_token` y `customer_email` dejaron de exponerse en `GET /panel/checkins`;
+- `local_id` dejo de exponerse en el success payload de `PATCH /panel/checkin/:token`;
+- los exports sensibles quedaron restringidos a `owner`;
+- los exports bar/club dejaron de incluir `Local ID`;
+- el export club dejo de incluir `Token check-in`.
+
+Se mantiene:
+
+- `SUPABASE_SERVICE_ROLE` sigue existiendo;
+- backend/API sigue usando cliente Supabase privilegiado;
+- PII comercial sigue existiendo donde es operativamente necesaria;
+- `checkin_token` sigue visible en `GET /panel/orders/search` porque la UI vigente lo muestra/copia;
+- notas, `Reserva ID`, `Orden ID` y `Creada` se mantienen por ahora en exports owner-only.
+
+Riesgos residuales aceptados para este corte:
+
+- uso de `SUPABASE_SERVICE_ROLE` en backend/API;
+- no migracion completa a JWT/RLS/RPC por dominio;
+- demo en produccion por rutas no enlazadas;
+- panel host en Vercel;
+- paid flows fuera del corte.
+
+Fuera de alcance:
+
+- paid flows;
+- `/payments/callback` productivo;
+- firma/autenticidad/idempotencia/replay de proveedor de pagos;
+- migracion completa a JWT/RLS/RPC;
+- eliminacion completa de `SUPABASE_SERVICE_ROLE`;
+- export limitado para staff;
+- remocion futura de notas, PII comercial, `Reserva ID`, `Orden ID` o `Creada`.
+
+Criterio de reapertura:
+
+- activar pagos reales;
+- reabrir `MisEntradas` o lookup publico de ordenes;
+- exponer nuevos endpoints publicos con PII/tokens;
+- reactivar export staff;
+- cambiar modelo de auth/RLS;
+- tocar `/payments/callback`;
+- detectar regresion en DTOs hardened.

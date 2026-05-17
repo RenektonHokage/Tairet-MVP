@@ -46,7 +46,7 @@ La postura observable hoy en Tairet es mixta:
 - el backend concentra blast radius alto porque opera con `SUPABASE_SERVICE_ROLE`;
 - la capa SQL visible sigue mostrando politicas permisivas en tablas criticas fuera de esas slices endurecidas;
 - la superficie publica B2C mantiene endpoints anonimos sensibles por diseno o por contrato preservado, en especial `POST /orders`, `POST /reservations` y `POST /reviews`; los endpoints publicos de lectura de ordenes ya responden `410 Gone`;
-- la observabilidad mejoro, pero la captura real con DSN activo y el estado productivo final siguen parcialmente no verificables desde repo;
+- la observabilidad del panel quedo validada con Sentry en runtime; la cobertura general de observabilidad fuera del panel sigue siendo parcial;
 - el modo demo del panel sigue siendo un pendiente de hardening mientras existan flag y rutas demo.
 
 Lectura operativa corta:
@@ -54,8 +54,17 @@ Lectura operativa corta:
 - auth panel: `Confirmado`;
 - guardrails backend: `Parcial`;
 - RLS/data layer: `Parcial`;
-- observabilidad productiva: `Requiere validacion`;
+- observabilidad productiva: `Confirmado` para Sentry panel, `Parcial` para cobertura general;
 - despliegue hardening final: `Requiere validacion`.
+
+### 3.1 Cierre Service Role Minimization para `free_pass only`
+
+- Service Role Minimization queda cerrado para el corte `free_pass only` como riesgo reducido y aceptado;
+- `SUPABASE_SERVICE_ROLE` no fue eliminado: backend/API sigue usando cliente privilegiado y el riesgo residual queda aceptado solo para este corte;
+- el delta smoke final post-B7 quedo `PASS`, sin FAIL criticos en API base, panel, scanner/check-in, exports, reviews, catalogo/promos ni regresiones cercanas;
+- los slices post-B7 redujeron DTOs/payloads publicos y panel, removieron campos innecesarios de reviews, orders search, checkins, scanner y exports, y dejaron los exports sensibles owner-only;
+- paid flows no quedan aprobados;
+- `/payments/callback` sigue como gate futuro obligatorio antes de pagos reales.
 
 ## 4. Fuentes revisadas
 
@@ -411,7 +420,7 @@ Estado del bloque: `Confirmado` para el modelo base de authz; `Parcial` para cob
 | soporte panel con roles y logs acotados | backend/panel | `support/status` y `support/access` exigen rol y evitan loguear emails en errores de acceso | `Confirmado` |
 | demo gating por `NEXT_PUBLIC_ENABLE_PANEL_DEMO` | panel | limita demo runtime a flag explicito, pero no elimina la superficie | `Parcial` |
 | RLS endurecida para tracking/promos/reviews | SQL | backend-only para slices `016`/`017`/`018` | `Confirmado` |
-| wiring minimo de Sentry panel | panel | existe en codigo, pero captura real depende de DSN/runtime | `Parcial` |
+| Sentry panel | panel | wiring cliente/server visible y captura real validada en runtime tras smoke controlado | `Confirmado` |
 
 Evidencia principal:
 
@@ -443,7 +452,7 @@ Estado del bloque: `Parcial`.
 | `SUPABASE_SERVICE_ROLE` | backend | acceso amplio a datos y mayor blast radius transversal | `Confirmado` |
 | `RESEND_API_KEY` | backend | afecta correo transaccional y confianza operacional | `Confirmado` |
 | `REVIEW_HASH_PEPPER` | backend | impacta anti-abuso y consistencia de reviews | `Confirmado` |
-| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | panel | afecta observabilidad real de errores | `Parcial` |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | panel | afecta observabilidad real de errores; validado para panel | `Confirmado` |
 | `NEXT_PUBLIC_API_URL` / `VITE_API_URL` | panel/B2C | definen a que backend se expone cada superficie | `Confirmado` |
 | `NEXT_PUBLIC_SUPABASE_*` | panel | bootstrap de auth y acceso frontend | `Confirmado` |
 | `FRONTEND_ORIGIN` | backend | define allowlist CORS real | `Parcial` |
@@ -482,7 +491,7 @@ Los riesgos mas criticos que siguen visibles hoy son:
 4. La postura RLS general sigue `Parcial`. Las migraciones `016`/`017`/`018` endurecen slices concretas, pero `infra/sql/rls.sql` sigue mostrando politicas permisivas en zonas criticas.
 5. `orders`, `reservations`, `locals` y `local_daily_ops` tienen blast radius alto por acople transversal entre B2C, panel, metricas y operacion diaria; la exposicion directa por Data API de las tablas revisadas en High-Risk Data Exposure Containment ya fue contenida por slices.
 6. `panel.ts` sigue concentrando dominios sensibles aunque ya hubo extracciones parciales a `panelCatalog.ts` y `panelLocal.ts`.
-7. La observabilidad visible en codigo no equivale a cobertura productiva confirmada. La captura real con DSN activo sigue dependiendo de entorno.
+7. La observabilidad del panel con Sentry ya fue validada en runtime; la cobertura general de observabilidad fuera del panel sigue siendo parcial.
 8. El modo demo del panel permanece como residual de hardening mientras el flag y las rutas demo sigan disponibles.
 
 Evidencia principal:
@@ -502,13 +511,13 @@ Estado del bloque: `Parcial`.
 
 Pendientes sustentados hoy por repo y docs:
 
-- cerrar o acotar mejor el blast radius del modelo backend basado en `SUPABASE_SERVICE_ROLE`;
+- migrar o eliminar completamente el modelo backend basado en `SUPABASE_SERVICE_ROLE` si se decide una arquitectura post-corte con JWT/RLS/RPC por dominio;
 - completar o validar cobertura RLS de tablas criticas fuera de tracking/promos/reviews;
 - definir el destino final del lookup publico de ordenes y de la base preservada de `MisEntradas`;
 - validar autenticidad/proveedor y exposicion final de `/payments/callback`;
 - decidir cleanup de demo-only: flag, rutas y overrides visuales del panel demo;
 - alinear `.env.example`, CORS y despliegue visible con el runtime real;
-- validar captura real de Sentry y cobertura operativa de observabilidad;
+- mantener cobertura operativa de Sentry panel y completar observabilidad fuera del panel si el alcance crece;
 - mejorar disciplina de release/rollback y troubleshooting productivo, hoy documentada de forma parcial.
 
 Lo que no aparece sustentado como cerrado no debe venderse como hardening resuelto.
@@ -529,7 +538,7 @@ Estado del bloque: `Parcial`.
 - hallazgos viejos del audit historico sobre logout ya quedaron superados por codigo actual y por docs posteriores; hoy el panel usa `supabase.auth.signOut(...)` y limpia el cookie legacy.
 - coexisten `infra/sql/rls.sql` permisivo y migraciones endurecidas para slices concretas; el repo no cierra por si solo que esta desplegado exactamente en cada entorno.
 - `docs/operations/ENVIRONMENTS_DEPLOYMENT_AND_OPERATIONS.md` documenta drift de entorno relevante para seguridad operativa: `5173` vs `5174` y examples de env incompletos; el mismatch `SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_ROLE` fue resuelto en `functions/api/.env.example` por el checkpoint `B5b-13`.
-- el estado final de exposicion publica productiva para panel/API y la cobertura real de Sentry siguen en `Requiere validacion`.
+- el estado final de Sentry panel quedo validado; la exposicion publica productiva para panel/API y la cobertura de observabilidad fuera del panel siguen sujetas a validacion por entorno.
 - `SMOKE_TESTS_V1.md` y `MATRIZ_VALIDACION_PREVIA_V1.md` siguen siendo utiles, pero parte de su valor depende del corte runtime en que fueron ejecutados; no reemplazan verificacion productiva.
 
 Estado del bloque: `Confirmado`.
@@ -542,7 +551,7 @@ Estado del bloque: `Confirmado`.
 | Auth y autorizacion panel | `Confirmado` | el modelo base esta implementado y visible en codigo |
 | Guardrails backend | `Parcial` | request tracing, logging, CORS y limiter existen, pero no cierran por si solos la postura final |
 | SQL / RLS / acceso a datos | `Parcial` | hay endurecimiento por slices, no cierre general |
-| Observabilidad y error handling | `Parcial` | wiring visible; captura real productiva aun no demostrada |
+| Observabilidad y error handling | `Parcial` | Sentry panel confirmado; cobertura general y backend siguen parciales |
 | Demo isolation | `Parcial` | hay flag, pero la superficie demo sigue presente |
 | Entorno y despliegue | `Requiere validacion` | la topologia final y parte del wiring operativo no son cerrables solo desde repo |
 
