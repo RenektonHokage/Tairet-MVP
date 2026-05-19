@@ -60,6 +60,15 @@ interface OrdersSummaryResponse {
   } | null;
 }
 
+interface ManualCheckinResponse {
+  id: string;
+  status: string;
+  used_at: string | null;
+  customer_name: string | null;
+  customer_last_name: string | null;
+  customer_document: string | null;
+}
+
 type SearchType = "email" | "document";
 type EntryStateFilter = "all" | "used" | "pending" | "unused";
 type EntryResolvedState = "used" | "pending" | "unused" | "other";
@@ -170,6 +179,12 @@ export default function OrdersPageClient() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [manualCheckinConfirmId, setManualCheckinConfirmId] = useState<string | null>(null);
+  const [manualCheckinLoadingId, setManualCheckinLoadingId] = useState<string | null>(null);
+  const [manualCheckinNotice, setManualCheckinNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [panelTheme, setPanelTheme] = useState<PanelTheme>("dark");
   const summaryRequestIdRef = useRef(0);
   const entriesRequestIdRef = useRef(0);
@@ -486,6 +501,87 @@ export default function OrdersPageClient() {
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
       // noop
+    }
+  };
+
+  const handleManualCheckin = async (order: OrderItem) => {
+    if (isDemo || manualCheckinLoadingId) {
+      return;
+    }
+
+    if (resolveState(order) !== "pending") {
+      return;
+    }
+
+    setManualCheckinLoadingId(order.id);
+    setManualCheckinNotice(null);
+
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(
+        `${getApiBase()}/panel/orders/${encodeURIComponent(order.id)}/use`,
+        {
+          method: "PATCH",
+          credentials: "include",
+          headers,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = (await response.json().catch(() => ({}))) as {
+          error?: unknown;
+          usedAt?: unknown;
+        };
+        const rawMessage =
+          typeof errorData.error === "string" ? errorData.error : "";
+        const message =
+          response.status === 409 && errorData.usedAt
+            ? "La entrada ya fue usada."
+            : response.status === 409
+              ? "La entrada no está dentro de la ventana válida."
+              : response.status === 403
+                ? "No tenés permiso para validar esta entrada."
+                : rawMessage || `Error ${response.status}`;
+
+        throw new Error(message);
+      }
+
+      const updated = (await response.json()) as ManualCheckinResponse;
+
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.id === updated.id
+            ? {
+                ...entry,
+                status: updated.status,
+                used_at: updated.used_at,
+                customer_name: updated.customer_name ?? entry.customer_name,
+                customer_last_name:
+                  updated.customer_last_name ?? entry.customer_last_name,
+                customer_document:
+                  updated.customer_document ?? entry.customer_document,
+                checkin_state: "used",
+              }
+            : entry
+        )
+      );
+      setManualCheckinConfirmId(null);
+      setManualCheckinNotice({
+        type: "success",
+        message: "Entrada validada manualmente.",
+      });
+      void loadSummary(intendedDate || undefined);
+      void loadEntries();
+    } catch (error) {
+      setManualCheckinNotice({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo validar la entrada.",
+      });
+    } finally {
+      setManualCheckinLoadingId(null);
     }
   };
 
@@ -919,6 +1015,9 @@ export default function OrdersPageClient() {
     const stateStyle = stateStyles[resolvedState];
     const fullName = `${order.customer_name ?? ""} ${order.customer_last_name ?? ""}`.trim() || "-";
     const quantity = typeof order.quantity === "number" ? order.quantity : 0;
+    const canManualCheckin = resolvedState === "pending" && !isDemo;
+    const isManualCheckinConfirming = manualCheckinConfirmId === order.id;
+    const isManualCheckinLoading = manualCheckinLoadingId === order.id;
 
     return (
       <div
@@ -989,6 +1088,47 @@ export default function OrdersPageClient() {
             </div>
             {resolvedState === "used" ? (
               <p className="text-xs text-slate-500">Usada: {formatDateTime(order.used_at)}</p>
+            ) : null}
+            {canManualCheckin ? (
+              <div className="w-full rounded-lg border border-amber-200 bg-amber-50 p-3 lg:w-[230px]">
+                {isManualCheckinConfirming ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-amber-900">
+                      Esta acción marcará la entrada como usada.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setManualCheckinConfirmId(null)}
+                        disabled={isManualCheckinLoading}
+                        className="flex-1 rounded-md border border-amber-200 bg-white px-2 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleManualCheckin(order)}
+                        disabled={isManualCheckinLoading}
+                        className="flex-1 rounded-md bg-amber-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isManualCheckinLoading ? "Validando..." : "Confirmar"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualCheckinNotice(null);
+                      setManualCheckinConfirmId(order.id);
+                    }}
+                    disabled={manualCheckinLoadingId !== null}
+                    className="w-full rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Validar manualmente
+                  </button>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
@@ -1267,6 +1407,28 @@ export default function OrdersPageClient() {
       </section>
 
       <section className="space-y-3">
+        {manualCheckinNotice ? (
+          <div
+            className={cn(
+              "rounded-lg border p-3",
+              manualCheckinNotice.type === "success"
+                ? "border-emerald-200 bg-emerald-50"
+                : "border-red-200 bg-red-50"
+            )}
+          >
+            <p
+              className={cn(
+                "text-sm",
+                manualCheckinNotice.type === "success"
+                  ? "text-emerald-700"
+                  : "text-red-700"
+              )}
+            >
+              {manualCheckinNotice.message}
+            </p>
+          </div>
+        ) : null}
+
         {entriesError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-700">{entriesError}</p>

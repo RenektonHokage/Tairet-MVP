@@ -168,6 +168,7 @@ const ClubProfile = () => {
   if (!clubData) {
     return null; // Se redirige a 404
   }
+  const heroDisplayName = clubId === "dlirio" ? "Koala Jack" : clubData.name;
 
   const liveMusicLabel = localAdditionalInfo.find((item) => {
     const normalized = item
@@ -263,7 +264,7 @@ const ClubProfile = () => {
               hideSlideButton={true}
               overlayContent={
                 <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-4 rounded-b-lg">
-                  <h2 className="text-white text-xl font-bold mb-2">{clubData.name}</h2>
+                  <h2 className="text-white text-xl font-bold mb-2">{heroDisplayName}</h2>
                   <div className="flex flex-wrap gap-2 text-white/90 text-sm mb-2">
                     <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
                     <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>
@@ -286,7 +287,7 @@ const ClubProfile = () => {
             <>
               <img src={heroImage} alt="Galería del club" className="w-full h-[400px] sm:h-[500px] lg:h-[600px] object-cover rounded-lg" />
               <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-6 sm:p-8 rounded-b-lg">
-                <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{clubData.name}</h2>
+                <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{heroDisplayName}</h2>
                 <div className="flex flex-wrap gap-2 sm:gap-3 text-white/90 text-sm sm:text-base mb-2">
                   <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
                   <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>

@@ -840,7 +840,7 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
 
     // Validar que no fue usada previamente
     if (order.used_at !== null) {
-      return res.status(400).json({
+      return res.status(409).json({
         error: "Order already used",
         usedAt: order.used_at,
       });
@@ -874,7 +874,7 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
       .from("orders")
       .update({ used_at: new Date().toISOString() })
       .eq("id", id)
-      .select("id, status, used_at")
+      .select("id, status, used_at, customer_name, customer_last_name, customer_document")
       .single();
 
     if (updateError) {
