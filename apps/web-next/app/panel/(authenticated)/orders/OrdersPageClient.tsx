@@ -568,7 +568,7 @@ export default function OrdersPageClient() {
       setManualCheckinConfirmId(null);
       setManualCheckinNotice({
         type: "success",
-        message: "Entrada validada manualmente.",
+        message: "Entrada validada.",
       });
       void loadSummary(intendedDate || undefined);
       void loadEntries();
@@ -1027,7 +1027,7 @@ export default function OrdersPageClient() {
         className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm border-l-4 ${stateStyle.border}`}
         style={getEntryCardStyle(stateStyle)}
       >
-        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_230px] lg:items-center lg:gap-x-8">
+        <div className="flex min-w-0 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_248px] lg:items-center lg:gap-x-8">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[132px_minmax(0,1.15fr)_minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_90px] lg:gap-x-6">
             <div className="min-w-0">
               <span
@@ -1061,47 +1061,119 @@ export default function OrdersPageClient() {
             </div>
           </div>
 
-          <div className="flex min-w-0 w-full flex-col gap-2 lg:w-auto lg:items-end">
-            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
+          <div className="flex min-w-0 w-full flex-col items-stretch gap-2.5 lg:w-[248px]">
+            <div
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg border px-3 py-2.5",
+                panelTheme === "dark"
+                  ? "border-[#303030] bg-[#1F1F1F]"
+                  : "border-slate-200 bg-slate-50"
+              )}
+            >
               <div
                 data-orders-entry-indicator="true"
                 data-orders-entry-state={resolvedState}
                 className={`h-7 w-7 rounded-full ${stateStyle.iconBg}`}
               />
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Día del evento</p>
-                <p className="text-sm font-semibold text-slate-900">{formatEventDate(order.intended_date)}</p>
+              <div className="min-w-0">
+                <p
+                  className={cn(
+                    "text-[11px] font-semibold uppercase tracking-wide",
+                    panelTheme === "dark" ? "text-[#A3A3A3]" : "text-slate-500"
+                  )}
+                >
+                  Día del evento
+                </p>
+                <p
+                  className={cn(
+                    "text-sm font-semibold",
+                    panelTheme === "dark" ? "text-[#F5F5F5]" : "text-slate-900"
+                  )}
+                >
+                  {formatEventDate(order.intended_date)}
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <code className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+            <div
+              className={cn(
+                "flex w-full items-center gap-2 rounded-lg border px-2.5 py-2",
+                panelTheme === "dark"
+                  ? "border-[#303030] bg-[#171717]"
+                  : "border-slate-200 bg-white"
+              )}
+            >
+              <code
+                className={cn(
+                  "min-w-0 flex-1 truncate rounded-md px-2 py-1 text-xs font-medium",
+                  panelTheme === "dark"
+                    ? "bg-[#262626] text-[#E5E5E5]"
+                    : "bg-slate-100 text-slate-700"
+                )}
+              >
                 {formatTokenLabel(order.checkin_token)}
               </code>
               {order.checkin_token ? (
                 <button
                   onClick={() => handleCopyToken(order.checkin_token!, order.id)}
-                  className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                  className={cn(
+                    "shrink-0 rounded-md border px-2 py-1 text-xs font-medium",
+                    panelTheme === "dark"
+                      ? "border-[#3A3A3A] text-[#D4D4D4] hover:bg-[#262626]"
+                      : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                  )}
                 >
                   {copiedId === order.id ? "Copiado" : "Copiar"}
                 </button>
               ) : null}
             </div>
             {resolvedState === "used" ? (
-              <p className="text-xs text-slate-500">Usada: {formatDateTime(order.used_at)}</p>
+              <p
+                className={cn(
+                  "w-full text-xs",
+                  panelTheme === "dark" ? "text-[#A3A3A3]" : "text-slate-500"
+                )}
+              >
+                Usada: {formatDateTime(order.used_at)}
+              </p>
             ) : null}
             {canManualCheckin ? (
-              <div className="w-full rounded-lg border border-amber-200 bg-amber-50 p-3 lg:w-[230px]">
+              <div
+                className={cn(
+                  "w-full rounded-lg border p-2.5",
+                  panelTheme === "dark"
+                    ? "border-[#3A3320] bg-[#1C1710]"
+                    : "border-amber-200 bg-amber-50"
+                )}
+              >
                 {isManualCheckinConfirming ? (
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-amber-900">
+                    <p
+                      className={cn(
+                        "text-xs font-medium",
+                        panelTheme === "dark" ? "text-[#FDE68A]" : "text-amber-900"
+                      )}
+                    >
                       Esta acción marcará la entrada como usada.
+                    </p>
+                    <p
+                      className={cn(
+                        "text-[11px]",
+                        panelTheme === "dark" ? "text-[#D6B85D]" : "text-amber-800"
+                      )}
+                    >
+                      Método: validación manual.
                     </p>
                     <div className="flex gap-2">
                       <button
                         type="button"
                         onClick={() => setManualCheckinConfirmId(null)}
                         disabled={isManualCheckinLoading}
-                        className="flex-1 rounded-md border border-amber-200 bg-white px-2 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        className={cn(
+                          "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+                          panelTheme === "dark"
+                            ? "border-[#4A3A18] bg-[#141414] text-[#FDE68A] hover:bg-[#211B11]"
+                            : "border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
+                        )}
                       >
                         Cancelar
                       </button>
@@ -1109,7 +1181,12 @@ export default function OrdersPageClient() {
                         type="button"
                         onClick={() => void handleManualCheckin(order)}
                         disabled={isManualCheckinLoading}
-                        className="flex-1 rounded-md bg-amber-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className={cn(
+                          "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                          panelTheme === "dark"
+                            ? "bg-[#FACC15] text-[#171717] hover:bg-[#EAB308]"
+                            : "bg-amber-600 text-white hover:bg-amber-700"
+                        )}
                       >
                         {isManualCheckinLoading ? "Validando..." : "Confirmar"}
                       </button>
@@ -1123,9 +1200,16 @@ export default function OrdersPageClient() {
                       setManualCheckinConfirmId(order.id);
                     }}
                     disabled={manualCheckinLoadingId !== null}
-                    className="w-full rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    aria-label="Validar manualmente esta entrada"
+                    title="Validar manualmente esta entrada"
+                    className={cn(
+                      "w-full rounded-md px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                      panelTheme === "dark"
+                        ? "bg-[#FACC15] text-[#171717] hover:bg-[#EAB308]"
+                        : "bg-amber-600 text-white hover:bg-amber-700"
+                    )}
                   >
-                    Validar manualmente
+                    Validar
                   </button>
                 )}
               </div>
