@@ -241,6 +241,91 @@ Reglas:
 - si refetch ocurre durante edicion, no sobrescribir el draft;
 - si hay error de red, mantener datos actuales y mostrar aviso leve.
 
+### RT2 - Reservas near realtime implementado
+
+Estado: `Implementado y validado funcionalmente`.
+
+Archivos implementados:
+
+- `apps/web-next/app/panel/(authenticated)/reservations/page.tsx`;
+- `apps/web-next/components/panel/views/ReservationsView.tsx`.
+
+Que se implemento:
+
+- polling/refetch cada `15000ms`;
+- polling solo cuando `document.visibilityState === "visible"`;
+- pausa cuando la pestana esta oculta;
+- refetch inmediato al volver a pestana visible;
+- refetch sobre el flujo existente de reservas por fecha;
+- indicador de frescura:
+  - `Actualizado: pendiente`;
+  - `Actualizado recien`;
+  - `Actualizado hace Xs`;
+  - `Actualizado hace X min`;
+- boton manual `Actualizar`;
+- refresh manual respetando fecha, filtros, busqueda y ordenamiento actuales;
+- preservacion de `selectedDate`, `searchQuery`, `statusFilter` y `sortBy`;
+- proteccion de `table_note` durante edicion:
+  - conserva `table_note` actual en la lista local si hay reserva en edicion;
+  - no toca `noteDraft`;
+  - no cierra modal;
+  - no cambia estado de edicion;
+- guards anti-requests solapados:
+  - `reservationsInFlightRef`;
+  - `refreshInFlightRef`;
+  - control de `requestId`;
+- boton manual deshabilitado durante carga/refetch.
+
+Validacion tecnica:
+
+- `pnpm -C apps/web-next typecheck` -> `OK`;
+- `git diff --check` -> `OK`.
+
+QA runtime ejecutado:
+
+- dos sesiones/dispositivos en Reservas -> `PASS`;
+- confirmacion de reserva reflejada en otra sesion sin refresh manual -> `PASS`;
+- cancelacion de reserva reflejada en otra sesion sin refresh manual -> `PASS`;
+- nueva reserva visible sin refresh manual -> `PASS`;
+- edicion de `table_note` durante polling no se pisa -> `PASS`;
+- `table_note` guardada queda visible -> `PASS`;
+- fecha se mantiene durante auto-refetch -> `PASS`;
+- busqueda se mantiene durante auto-refetch -> `PASS`;
+- filtro de estado se mantiene durante auto-refetch -> `PASS`;
+- ordenamiento se mantiene durante auto-refetch -> `PASS`;
+- boton `Actualizar` respeta fecha/filtros/busqueda/ordenamiento -> `PASS`;
+- pestana oculta no actualiza agresivamente -> `PASS`;
+- al volver a pestana visible, actualiza -> `PASS`;
+- no hay errores visuales nuevos -> `PASS`;
+- `/health` 200 -> `PASS`;
+- `x-request-id` presente -> `PASS`;
+- smoke corto general -> `PASS`.
+
+Alcance cerrado:
+
+- solo Reservas;
+- no Entradas, porque RT1-A ya estaba cerrado;
+- no Activity/Metrics/Calendar;
+- no realtime puro;
+- no Supabase Realtime;
+- no SSE;
+- no WebSocket;
+- no backend.
+
+Lectura correcta:
+
+- RT2 queda cerrado como near realtime por polling/refetch inteligente en Reservas;
+- RT1-A y RT2 estan implementados y validados funcionalmente;
+- no significa que todo el panel tenga realtime;
+- no significa que multi-device sync perfecto este resuelto en todo el producto;
+- no reemplaza una arquitectura realtime futura si mas adelante se necesita.
+
+Siguiente paso recomendado:
+
+- cerrar un checkpoint corto de near realtime operativo para RT1-A/RT2;
+- no abrir Supabase Realtime, SSE ni WebSocket por ahora;
+- evaluar refresh lento en Activity/Metrics solo si aparece una necesidad operativa concreta.
+
 ### RT3 - Multi-device sync smoke
 
 Objetivo:
@@ -267,6 +352,13 @@ Opciones futuras:
 - WebSocket propio si existe necesidad fuerte.
 
 Cualquier opcion realtime real requiere revision explicita de seguridad, tenant isolation, RLS/exposicion, costos y operacion.
+
+Estado actualizado del roadmap:
+
+- RT1-A Entradas: `Implementado y validado funcionalmente`;
+- RT2 Reservas: `Implementado y validado funcionalmente`;
+- RT3 multi-device sync smoke: cubierto parcialmente por QA operativo de Entradas y Reservas; se toma como evidencia de sincronizacion razonable, no como realtime perfecto global;
+- RT4 realtime real: futuro; solo evaluar Supabase Realtime, SSE o WebSocket si polling/refetch inteligente deja de alcanzar.
 
 ## 7. Pantallas y endpoints involucrados
 

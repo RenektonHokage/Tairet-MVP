@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
@@ -20,6 +20,10 @@ import {
   getPanelDemoBarReservationsDefaultDate,
   updatePanelDemoBarReservation,
 } from "@/lib/panel-demo/reservations";
+
+const RESERVATIONS_AUTO_REFRESH_MS = 15000;
+
+type RefreshMode = "foreground" | "background";
 
 // Helper: parsear fecha ISO a Date
 function parseDate(dateStr: string): Date | null {
@@ -59,6 +63,10 @@ export default function ReservationsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedDate, setHasLoadedDate] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Estados de filtros UI
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,6 +84,10 @@ export default function ReservationsPage() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const reservationsRequestIdRef = useRef(0);
+  const reservationsInFlightRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
+  const editingReservationIdRef = useRef<string | null>(null);
 
   // GATING TEMPRANO
   const isBlocked = context?.local.type === "club";
@@ -85,6 +97,10 @@ export default function ReservationsPage() {
     () => (isDemoBar ? getPanelDemoBarReservationsDefaultDate() : ""),
     [isDemoBar]
   );
+
+  useEffect(() => {
+    editingReservationIdRef.current = editingReservation?.id ?? null;
+  }, [editingReservation?.id]);
 
   useEffect(() => {
     const nextDate =
@@ -114,23 +130,67 @@ export default function ReservationsPage() {
     searchParams,
   ]);
 
-  const loadReservations = useCallback(async () => {
+  const loadReservations = useCallback(async (
+    mode: RefreshMode = "foreground"
+  ) => {
     if (isBlocked || !context || !selectedDate) return;
+    if (reservationsInFlightRef.current) return;
+
+    const isBackground = mode === "background";
+    const requestId = ++reservationsRequestIdRef.current;
+    reservationsInFlightRef.current = true;
     setHasLoadedDate(true);
-    setIsFetchingForDate(true);
-    setLoading(true);
-    setError(null);
+    if (!isBackground) {
+      setIsFetchingForDate(true);
+      setLoading(true);
+      setError(null);
+    }
 
     try {
       const data = isDemoBar
         ? getPanelDemoBarReservationsByDate(selectedDate)
         : await getPanelReservationsByLocalIdAndDate(context.local.id, selectedDate);
-      setReservations(data);
+
+      if (requestId !== reservationsRequestIdRef.current) {
+        return;
+      }
+
+      setReservations((current) => {
+        const editingId = editingReservationIdRef.current;
+        if (!isBackground || !editingId) {
+          return data;
+        }
+
+        const currentEditingReservation = current.find((item) => item.id === editingId);
+        if (!currentEditingReservation) {
+          return data;
+        }
+
+        return data.map((item) =>
+          item.id === editingId
+            ? {
+                ...item,
+                table_note: currentEditingReservation.table_note,
+              }
+            : item
+        );
+      });
+      setLastRefreshAt(new Date());
+      setRefreshError(null);
     } catch (err) {
+      if (requestId !== reservationsRequestIdRef.current) {
+        return;
+      }
+      if (isBackground) {
+        throw err;
+      }
       setError(err instanceof Error ? err.message : "Error al cargar reservas");
     } finally {
-      setIsFetchingForDate(false);
-      setLoading(false);
+      reservationsInFlightRef.current = false;
+      if (requestId === reservationsRequestIdRef.current && !isBackground) {
+        setIsFetchingForDate(false);
+        setLoading(false);
+      }
     }
   }, [context, isBlocked, isDemoBar, selectedDate]);
 
@@ -150,11 +210,98 @@ export default function ReservationsPage() {
     void loadReservations();
   }, [contextLoading, isBlocked, context, selectedDate, loadReservations]);
 
+  const refreshReservationsData = useCallback(async (
+    mode: RefreshMode = "background"
+  ) => {
+    if (refreshInFlightRef.current || contextLoading || isBlocked || !context || !selectedDate) {
+      return;
+    }
+
+    refreshInFlightRef.current = true;
+    if (mode === "foreground") {
+      setRefreshLoading(true);
+    }
+
+    try {
+      await loadReservations(mode);
+      setRefreshError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo actualizar reservas.";
+      setRefreshError(
+        mode === "background"
+          ? `No se pudo actualizar en segundo plano: ${message}`
+          : message
+      );
+    } finally {
+      refreshInFlightRef.current = false;
+      if (mode === "foreground") {
+        setRefreshLoading(false);
+      }
+    }
+  }, [
+    context,
+    contextLoading,
+    isBlocked,
+    loadReservations,
+    selectedDate,
+  ]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setRefreshTick((current) => current + 1);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contextLoading || isBlocked || !context || isDemoBar || !selectedDate) {
+      return;
+    }
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      void refreshReservationsData("background");
+    };
+
+    const intervalId = window.setInterval(
+      refreshIfVisible,
+      RESERVATIONS_AUTO_REFRESH_MS
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshReservationsData("background");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    context,
+    contextLoading,
+    isBlocked,
+    isDemoBar,
+    refreshReservationsData,
+    selectedDate,
+  ]);
+
   const handleDateChange = useCallback(
     (value: string) => {
       if (value !== selectedDate) {
         setReservations([]);
         setHasLoadedDate(false);
+        setLastRefreshAt(null);
+        setRefreshError(null);
       }
       setIsFetchingForDate(Boolean(value));
       setSelectedDate(value);
@@ -196,9 +343,32 @@ export default function ReservationsPage() {
   }, [canExport, exportFrom, exportLoading, exportTo, isDemoBar]);
 
   const handleRefresh = useCallback(() => {
-    if (!selectedDate || loading) return;
-    void loadReservations();
-  }, [selectedDate, loading, loadReservations]);
+    if (!selectedDate || loading || refreshLoading) return;
+    void refreshReservationsData("foreground");
+  }, [selectedDate, loading, refreshLoading, refreshReservationsData]);
+
+  const lastRefreshLabel = useMemo(() => {
+    void refreshTick;
+
+    if (!lastRefreshAt) {
+      return "Actualizado: pendiente";
+    }
+
+    const seconds = Math.max(
+      0,
+      Math.floor((Date.now() - lastRefreshAt.getTime()) / 1000)
+    );
+
+    if (seconds < 5) {
+      return "Actualizado recién";
+    }
+
+    if (seconds < 60) {
+      return `Actualizado hace ${seconds}s`;
+    }
+
+    return `Actualizado hace ${Math.floor(seconds / 60)} min`;
+  }, [lastRefreshAt, refreshTick]);
 
   // Filtrado y ordenamiento LOCAL sobre dataset ya acotado por fecha en backend
   const filteredReservations = useMemo(() => {
@@ -436,6 +606,9 @@ export default function ReservationsPage() {
         loading={loading}
         hasLoadedDate={hasLoadedDate}
         isFetchingForDate={isFetchingForDate}
+        refreshLoading={refreshLoading}
+        lastRefreshLabel={lastRefreshLabel}
+        refreshError={refreshError}
       />
 
       {editingReservation && (

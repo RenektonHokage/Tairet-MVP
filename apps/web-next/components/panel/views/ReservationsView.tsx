@@ -75,6 +75,9 @@ export interface ReservationsViewProps {
   loading?: boolean;
   hasLoadedDate?: boolean;
   isFetchingForDate?: boolean;
+  refreshLoading?: boolean;
+  lastRefreshLabel?: string;
+  refreshError?: string | null;
 }
 
 export function ReservationsView({
@@ -103,6 +106,9 @@ export function ReservationsView({
   loading,
   hasLoadedDate,
   isFetchingForDate,
+  refreshLoading = false,
+  lastRefreshLabel = "Actualizado: pendiente",
+  refreshError,
 }: ReservationsViewProps) {
   const showDateLoadingState =
     Boolean(selectedDate) &&
@@ -370,7 +376,9 @@ export function ReservationsView({
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-neutral-600">Datos</span>
+              <span className="text-xs font-medium text-neutral-600">
+                {lastRefreshLabel}
+              </span>
               <button
                 className={cn(
                   "inline-flex h-[38px] items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 disabled:cursor-not-allowed disabled:opacity-50",
@@ -378,15 +386,26 @@ export function ReservationsView({
                 )}
                 type="button"
                 onClick={onRefresh}
-                disabled={!selectedDate || loading}
+                disabled={!selectedDate || loading || refreshLoading}
               >
-                <RefreshCw className={cn("h-4 w-4", loading ? "animate-spin" : "")} />
-                {loading ? "Actualizando..." : "Refresh"}
+                <RefreshCw
+                  className={cn(
+                    "h-4 w-4",
+                    loading || refreshLoading ? "animate-spin" : ""
+                  )}
+                />
+                {loading || refreshLoading ? "Actualizando..." : "Actualizar"}
               </button>
             </div>
           </div>
         }
       />
+
+      {refreshError ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">{refreshError}</p>
+        </div>
+      ) : null}
 
       {/* Sort bar + count badge */}
       <div className="flex flex-wrap items-center justify-between gap-3">
