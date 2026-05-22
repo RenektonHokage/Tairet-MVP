@@ -142,6 +142,84 @@ Reglas:
 - no disparar multiples requests simultaneos;
 - errores de refetch deben mostrarse sin bloquear operacion previa.
 
+### RT1-A - Entradas near realtime implementado
+
+Estado: `Implementado y validado funcionalmente`.
+
+Archivo implementado:
+
+- `apps/web-next/app/panel/(authenticated)/orders/OrdersPageClient.tsx`.
+
+Que se implemento:
+
+- polling/refetch cada `5000ms`;
+- polling solo cuando `document.visibilityState === "visible"`;
+- pausa cuando la pestana esta oculta;
+- refetch inmediato al volver a pestana visible;
+- refetch de `GET /panel/orders/search`;
+- refetch de `GET /panel/orders/summary` en locales tipo `club`;
+- demo mode sin polling real;
+- indicador de frescura:
+  - `Actualizado recien`;
+  - `Actualizado hace Xs`;
+  - `Actualizado hace X min`;
+  - `Actualizado: pendiente`;
+- boton manual `Actualizar`;
+- refresh manual respetando busqueda, filtros y fecha actuales;
+- preservacion de `searchType`, input escrito, busqueda aplicada, `intendedDate`, `stateFilter`, `entriesOffset` y paginacion;
+- guards anti-requests solapados:
+  - `entriesInFlightRef`;
+  - `summaryInFlightRef`;
+  - `refreshInFlightRef`.
+
+Validacion tecnica:
+
+- `pnpm -C apps/web-next typecheck` -> `OK`;
+- `git diff --check` -> `OK`.
+
+QA runtime ejecutado:
+
+- nueva entrada/free pass aparece en Entradas sin refresh manual -> `PASS`;
+- scanner + Entradas sincronizan correctamente -> `PASS`;
+- el input no se borra durante auto-refetch -> `PASS`;
+- escritura parcial no aplicada como busqueda activa: no se detecto borrado de input -> `PASS`;
+- filtros y fechas no se rompen durante auto-refetch -> `PASS`;
+- boton `Actualizar` respeta busqueda/filtros/fecha actuales -> `PASS`;
+- pestana oculta no actualiza agresivamente -> `PASS`;
+- al volver a pestana visible, actualiza -> `PASS`;
+- `GET /panel/checkins` sin regresion -> `PASS`;
+- `/health` 200 -> `PASS`;
+- `x-request-id` presente -> `PASS`;
+- smoke corto general -> `PASS`.
+
+N/A:
+
+- error no bloqueante por refetch fallido -> `N/A`, no simulado en este QA;
+- no bloquea el cierre de RT1-A.
+
+Alcance cerrado:
+
+- solo Entradas;
+- no Reservas;
+- no Activity/Metrics/Calendar;
+- no realtime puro;
+- no Supabase Realtime;
+- no SSE;
+- no WebSocket;
+- no backend.
+
+Lectura correcta:
+
+- RT1-A queda cerrado como near realtime por polling/refetch inteligente en Entradas;
+- no significa que todo el panel tenga realtime;
+- no significa que multi-device sync este completamente resuelto en todo el producto;
+- no reemplaza una arquitectura realtime futura si mas adelante se necesita.
+
+Siguiente paso recomendado:
+
+- RT2 Reservas near realtime usando el patron validado de RT1-A;
+- antes de RT2, mantener el mismo criterio: polling visible-only, preservacion de filtros/fecha/busqueda y no pisar edicion de nota interna.
+
 ### RT2 - Reservas near realtime
 
 Objetivo:

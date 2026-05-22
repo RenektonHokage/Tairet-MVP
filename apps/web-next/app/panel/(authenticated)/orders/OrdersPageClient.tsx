@@ -93,6 +93,9 @@ type PanelTheme = "dark" | "light";
 const PANEL_THEME_STORAGE_KEY = "tairet.panel.theme";
 const PANEL_THEME_EVENT_NAME = "tairet:panel-theme-change";
 const ORDERS_PAGE_SIZE = 20;
+const ORDERS_AUTO_REFRESH_MS = 5000;
+
+type RefreshMode = "foreground" | "background";
 
 function getDateKey(date: Date): string {
   const year = date.getFullYear();
@@ -172,6 +175,10 @@ export default function OrdersPageClient() {
   const [summary, setSummary] = useState<OrdersSummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [refreshLoading, setRefreshLoading] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [lastRefreshAt, setLastRefreshAt] = useState<Date | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [exportFrom, setExportFrom] = useState("");
   const [exportTo, setExportTo] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
@@ -188,6 +195,9 @@ export default function OrdersPageClient() {
   const [panelTheme, setPanelTheme] = useState<PanelTheme>("dark");
   const summaryRequestIdRef = useRef(0);
   const entriesRequestIdRef = useRef(0);
+  const summaryInFlightRef = useRef(false);
+  const entriesInFlightRef = useRef(false);
+  const refreshInFlightRef = useRef(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -286,16 +296,27 @@ export default function OrdersPageClient() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const loadSummary = useCallback(async (dateValue?: string): Promise<OrdersSummaryResponse | null> => {
+  const loadSummary = useCallback(async (
+    dateValue?: string,
+    mode: RefreshMode = "foreground"
+  ): Promise<OrdersSummaryResponse | null> => {
     if (!isClub) {
       setSummary(null);
       setSummaryError(null);
       return null;
     }
 
+    if (summaryInFlightRef.current) {
+      return null;
+    }
+
+    const isBackground = mode === "background";
     const requestId = ++summaryRequestIdRef.current;
-    setSummaryLoading(true);
-    setSummaryError(null);
+    summaryInFlightRef.current = true;
+    if (!isBackground) {
+      setSummaryLoading(true);
+      setSummaryError(null);
+    }
 
     try {
       const data: OrdersSummaryResponse = isDemoDiscoteca
@@ -332,16 +353,24 @@ export default function OrdersPageClient() {
       if (requestId !== summaryRequestIdRef.current) {
         return null;
       }
+      if (isBackground) {
+        throw error;
+      }
       setSummaryError(error instanceof Error ? error.message : "Error al cargar resumen");
       return null;
     } finally {
+      summaryInFlightRef.current = false;
       if (requestId === summaryRequestIdRef.current) {
-        setSummaryLoading(false);
+        if (!isBackground) {
+          setSummaryLoading(false);
+        }
       }
     }
   }, [isClub, isDemoDiscoteca]);
 
-  const loadEntries = useCallback(async () => {
+  const loadEntries = useCallback(async (
+    mode: RefreshMode = "foreground"
+  ) => {
     if (contextLoading || !context) {
       return;
     }
@@ -350,9 +379,17 @@ export default function OrdersPageClient() {
       return;
     }
 
+    if (entriesInFlightRef.current) {
+      return;
+    }
+
+    const isBackground = mode === "background";
     const requestId = ++entriesRequestIdRef.current;
-    setEntriesLoading(true);
-    setEntriesError(null);
+    entriesInFlightRef.current = true;
+    if (!isBackground) {
+      setEntriesLoading(true);
+      setEntriesError(null);
+    }
 
     try {
       const referenceNow = isDemoDiscoteca ? getPanelDemoNow("discoteca") : new Date();
@@ -408,15 +445,23 @@ export default function OrdersPageClient() {
       }
       setEntries(data.items ?? []);
       setEntriesHasMore(Boolean(data.hasMore));
+      setLastRefreshAt(new Date());
+      setRefreshError(null);
     } catch (error) {
       if (requestId !== entriesRequestIdRef.current) {
         return;
       }
+      if (isBackground) {
+        throw error;
+      }
       setEntriesError(error instanceof Error ? error.message : "Error al cargar entradas");
       setEntriesHasMore(false);
     } finally {
+      entriesInFlightRef.current = false;
       if (requestId === entriesRequestIdRef.current) {
-        setEntriesLoading(false);
+        if (!isBackground) {
+          setEntriesLoading(false);
+        }
       }
     }
   }, [
@@ -429,6 +474,63 @@ export default function OrdersPageClient() {
     entriesOffset,
     searchType,
     stateFilter,
+  ]);
+
+  const refreshOrdersData = useCallback(async (
+    mode: RefreshMode = "background"
+  ) => {
+    if (refreshInFlightRef.current || contextLoading || !context) {
+      return;
+    }
+
+    if (isClub && !intendedDate) {
+      return;
+    }
+
+    refreshInFlightRef.current = true;
+    if (mode === "foreground") {
+      setRefreshLoading(true);
+    }
+
+    try {
+      const results = await Promise.allSettled([
+        isClub
+          ? loadSummary(intendedDate || undefined, mode)
+          : Promise.resolve(null),
+        loadEntries(mode),
+      ]);
+
+      const failed = results.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      );
+      if (failed) {
+        throw failed.reason;
+      }
+
+      setRefreshError(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar entradas.";
+      setRefreshError(
+        mode === "background"
+          ? `No se pudo actualizar en segundo plano: ${message}`
+          : message
+      );
+    } finally {
+      refreshInFlightRef.current = false;
+      if (mode === "foreground") {
+        setRefreshLoading(false);
+      }
+    }
+  }, [
+    context,
+    contextLoading,
+    intendedDate,
+    isClub,
+    loadEntries,
+    loadSummary,
   ]);
 
   useEffect(() => {
@@ -462,6 +564,59 @@ export default function OrdersPageClient() {
   useEffect(() => {
     void loadEntries();
   }, [loadEntries]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setRefreshTick((current) => current + 1);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (contextLoading || !context || isDemo) {
+      return;
+    }
+
+    if (isClub && !intendedDate) {
+      return;
+    }
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      void refreshOrdersData("background");
+    };
+
+    const intervalId = window.setInterval(
+      refreshIfVisible,
+      ORDERS_AUTO_REFRESH_MS
+    );
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshOrdersData("background");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    context,
+    contextLoading,
+    intendedDate,
+    isClub,
+    isDemo,
+    refreshOrdersData,
+  ]);
 
   const handleSearch = () => {
     setEntriesOffset(0);
@@ -941,6 +1096,33 @@ export default function OrdersPageClient() {
     ];
   }, [currentReferenceDate, summary, temporalContext]);
 
+  const lastRefreshLabel = useMemo(() => {
+    void refreshTick;
+
+    if (!lastRefreshAt) {
+      return "Actualizado: pendiente";
+    }
+
+    const seconds = Math.max(
+      0,
+      Math.floor((Date.now() - lastRefreshAt.getTime()) / 1000)
+    );
+
+    if (seconds < 5) {
+      return "Actualizado recién";
+    }
+
+    if (seconds < 60) {
+      return `Actualizado hace ${seconds}s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    return `Actualizado hace ${minutes} min`;
+  }, [lastRefreshAt, refreshTick]);
+
+  const canRefreshOrders =
+    Boolean(context) && !contextLoading && (!isClub || Boolean(intendedDate));
+
   const getSummaryCardShellClasses = (
     card: OrdersSummaryCard,
     active: boolean
@@ -1404,21 +1586,37 @@ export default function OrdersPageClient() {
       ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 space-y-1">
-          <h2 className="text-xl font-semibold text-slate-900">
-            {isClub
-              ? temporalContext === "future"
-                ? "Buscar preventa para esta fecha"
-                : "Buscar entradas para esta fecha"
-              : "Buscar Entradas"}
-          </h2>
-          {isClub ? (
-            <p className="text-sm text-slate-600">
-              {temporalContext === "future"
-                ? "La fecha elegida define el estado de preventa y el listado operativo."
-                : "La fecha elegida define el resumen superior y el listado operativo."}
-            </p>
-          ) : null}
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold text-slate-900">
+              {isClub
+                ? temporalContext === "future"
+                  ? "Buscar preventa para esta fecha"
+                  : "Buscar entradas para esta fecha"
+                : "Buscar Entradas"}
+            </h2>
+            {isClub ? (
+              <p className="text-sm text-slate-600">
+                {temporalContext === "future"
+                  ? "La fecha elegida define el estado de preventa y el listado operativo."
+                  : "La fecha elegida define el resumen superior y el listado operativo."}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <span className="text-xs font-medium text-slate-500">
+              {lastRefreshLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => void refreshOrdersData("foreground")}
+              disabled={!canRefreshOrders || refreshLoading}
+              className="inline-flex h-8 items-center justify-center rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {refreshLoading ? "Actualizando..." : "Actualizar"}
+            </button>
+          </div>
         </div>
         <div className="grid gap-3 lg:grid-cols-[220px_1fr_200px_120px]">
           <div>
@@ -1487,6 +1685,9 @@ export default function OrdersPageClient() {
 
         {summaryError ? (
           <p className="mt-3 text-sm text-amber-700">{summaryError}</p>
+        ) : null}
+        {refreshError ? (
+          <p className="mt-3 text-xs text-amber-700">{refreshError}</p>
         ) : null}
       </section>
 
