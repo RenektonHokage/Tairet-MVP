@@ -574,12 +574,13 @@ Estado actualizado del roadmap:
 - Slice 1 - Modelo/helper backend: implementado y validado;
 - Slice 2 - Eventos de Entradas/check-in: implementado y validado;
 - Slice 3 - Eventos de Reservas: implementado y validado;
-- Slice 4 - UI historial por registro: proximo paso recomendado;
+- Slice 4A - Endpoint historial por entidad: implementado y validado;
+- Slice 4B - UI historial por registro: proximo paso recomendado;
 - Slice 5 - Vista "Ultimas acciones": posterior/opcional.
 
 Siguiente paso recomendado:
 
-- Slice 4 - UI historial por registro, sin reemplazar `GET /activity` actual y sin cargar historiales de todas las cards por defecto.
+- Slice 4B - UI historial por registro, sin reemplazar `GET /activity` actual y sin cargar historiales de todas las cards por defecto.
 
 ### Slice 4 - UI historial por registro
 
@@ -587,19 +588,130 @@ Objetivo:
 
 - mostrar historial dentro de una entrada o reserva especifica.
 
-Endpoint sugerido:
+#### Slice 4A - Endpoint historial por entidad
+
+Estado: `Implementado y validado en runtime`.
+
+Endpoint:
 
 ```http
 GET /panel/activity/entity?entity_type=order|reservation&entity_id=<uuid>
+```
+
+Contrato de respuesta:
+
+```json
+{
+  "items": [
+    {
+      "id": "...",
+      "entity_type": "order|reservation",
+      "entity_id": "...",
+      "event_type": "...",
+      "actor_type": "panel_user|customer|system",
+      "actor_role": "owner|staff|null",
+      "message": "...",
+      "metadata": {},
+      "created_at": "..."
+    }
+  ]
+}
 ```
 
 Controles:
 
 - `panelAuth`;
 - `requireRole(["owner", "staff"])`;
-- filtro por `local_id = req.panelUser.localId`;
-- validacion de `entity_type` y UUID;
-- response sin PII sensible ni tokens.
+- `entity_type` requerido y validado como `order | reservation`;
+- `entity_id` requerido y validado como UUID;
+- filtro obligatorio por `local_id = req.panelUser.localId`;
+- no acepta `local_id` por query;
+- entidad sin eventos devuelve `200` con `items: []`.
+
+Campos y datos no expuestos:
+
+- `local_id`;
+- `actor_user_id`;
+- `checkin_token`;
+- emails;
+- telefonos;
+- documentos;
+- nombres;
+- apellidos;
+- `notes`;
+- `table_note`;
+- payment data;
+- datos completos de cliente.
+
+Metadata:
+
+- se devuelve filtrada por claves permitidas por `event_type`;
+- no se exponen claves sensibles aunque existieran por error en metadata.
+
+QA runtime ejecutado:
+
+- Owner correcto de Dlirio:
+  - `GET /panel/me` confirmo `role = owner`, `local_id = 550e8400-e29b-41d4-a716-446655440006`, `slug = dlirio`, `type = club`;
+  - `ORDER_ID d8c5eea2-c284-4a8c-9b6f-81a9a5842b90` -> `200 OK`;
+  - eventos devueltos: `order_created`, `order_checked_in`, `order_already_used_attempt`;
+  - `ORDER_ID 59864b03-ded8-4a94-a53c-3848c757df05` -> `200 OK`;
+  - eventos devueltos: `order_created`, `order_checked_in`, `order_already_used_attempt`.
+- Tenant isolation:
+  - token de Mckharthys Bar consultando orden de Dlirio Club devolvio `200` con `items: []`;
+  - no expuso eventos de otro tenant.
+- Campos sensibles en ordenes:
+  - scan sensible sin resultados;
+  - no aparece `local_id`;
+  - no aparece `actor_user_id`;
+  - no aparece `checkin_token`;
+  - no aparecen `customer_email`, `customer_phone`, `customer_document`, `customer_name`, `customer_last_name`;
+  - no aparecen `checkin_method`, `checkin_source` ni `used_method`.
+- Reservas:
+  - owner consulto historial de `RESERVATION_ID d40edf43-975e-41e8-9675-94480b69071b` -> `PASS`;
+  - response `200 OK`;
+  - eventos devueltos: `reservation_created`, `reservation_confirmed`, `reservation_table_note_updated`;
+  - staff del mismo local pudo consultar historial de reserva -> `PASS`;
+  - staff order history en Dlirio queda `N/A no blocker`, porque el rol staff fue validado en el mismo endpoint para reservas del mismo tenant y ordenes quedaron validadas con owner del tenant correcto.
+- Campos sensibles en reservas:
+  - scan sensible sin resultados;
+  - no aparece `local_id`;
+  - no aparece `actor_user_id`;
+  - no aparece PII;
+  - no aparecen `notes` ni `table_note`.
+- Seguridad y errores:
+  - sin auth -> `401` y no devuelve eventos;
+  - `entity_type` invalido -> `400 Invalid entity_type`;
+  - `entity_id` invalido -> `400 Invalid entity_id`;
+  - parametros faltantes -> `400`;
+  - UUID valido sin eventos -> `200` con `items: []`.
+- Regresiones cercanas:
+  - `GET /activity` actual sigue funcionando -> `PASS`;
+  - `/health` -> `200 OK`;
+  - body `{"ok":true}`;
+  - `x-request-id` presente.
+
+Alcance cerrado:
+
+- no se creo UI de historial;
+- no se reemplazo `GET /activity` actual;
+- no se creo vista "Ultimas acciones";
+- no se tocaron eventos nuevos de escritura;
+- no se tocaron paid flows ni `/payments/callback`.
+
+Estado actualizado del roadmap:
+
+- Slice 1 - Modelo/helper backend: implementado y validado;
+- Slice 2 - Eventos de Entradas/check-in: implementado y validado;
+- Slice 3 - Eventos de Reservas: implementado y validado;
+- Slice 4A - Endpoint historial por entidad: implementado y validado;
+- Slice 4B - UI historial por registro: proximo paso recomendado;
+- Slice 5 - Vista "Ultimas acciones": posterior/opcional.
+
+#### Slice 4B - UI historial por registro
+
+Objetivo:
+
+- mostrar historial dentro de una entrada o reserva especifica usando el endpoint validado de Slice 4A.
 
 Reglas UI:
 
