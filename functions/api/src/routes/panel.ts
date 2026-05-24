@@ -18,6 +18,74 @@ function getOperationalActivityActorRole(role: string): "owner" | "staff" | null
   return role === "owner" || role === "staff" ? role : null;
 }
 
+type OperationalActivityEntityType = "order" | "reservation";
+
+interface OperationalActivityEventRow {
+  id: string;
+  entity_type: OperationalActivityEntityType;
+  entity_id: string;
+  event_type: string;
+  actor_type: "panel_user" | "customer" | "system";
+  actor_role: "owner" | "staff" | null;
+  message: string;
+  metadata: unknown;
+  created_at: string;
+}
+
+const OPERATIONAL_ACTIVITY_ENTITY_TYPES: readonly OperationalActivityEntityType[] = ["order", "reservation"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const OPERATIONAL_ACTIVITY_METADATA_KEYS: Record<string, readonly string[]> = {
+  order_created: ["status", "quantity", "intended_date", "payment_method"],
+  order_checked_in: ["status", "used_at"],
+  order_already_used_attempt: ["status", "used_at"],
+  reservation_created: ["status", "guests", "date"],
+  reservation_confirmed: ["status"],
+  reservation_cancelled: ["status"],
+  reservation_table_note_updated: ["table_note_updated"],
+};
+
+function isOperationalActivityEntityType(value: string): value is OperationalActivityEntityType {
+  return OPERATIONAL_ACTIVITY_ENTITY_TYPES.includes(value as OperationalActivityEntityType);
+}
+
+function readRequiredSingleQueryParam(value: unknown, name: string):
+  | { ok: true; value: string }
+  | { ok: false; status: 400; error: string } {
+  if (value === undefined || value === null || value === "") {
+    return { ok: false, status: 400, error: `Missing ${name}` };
+  }
+
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return { ok: false, status: 400, error: `Invalid ${name}` };
+  }
+
+  return { ok: true, value: value.trim() };
+}
+
+function isSafeActivityMetadataValue(value: unknown): boolean {
+  return value === null || ["string", "number", "boolean"].includes(typeof value);
+}
+
+function filterOperationalActivityMetadata(eventType: string, metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+
+  const source = metadata as Record<string, unknown>;
+  const allowedKeys = OPERATIONAL_ACTIVITY_METADATA_KEYS[eventType] ?? [];
+  const safeMetadata: Record<string, unknown> = {};
+
+  for (const key of allowedKeys) {
+    const value = source[key];
+    if (isSafeActivityMetadataValue(value)) {
+      safeMetadata[key] = value;
+    }
+  }
+
+  return safeMetadata;
+}
+
 function buildCheckinWindowErrorPayload(validation: Extract<CheckinWindowValidationResult, { allowed: false }>) {
   if (validation.reason === "not_yet_valid") {
     return {
@@ -610,6 +678,74 @@ panelRouter.get("/me", panelAuth, async (req, res) => {
 });
 
 panelRouter.use("/local", panelLocalRouter);
+
+// GET /panel/activity/entity?entity_type=order|reservation&entity_id=<uuid>
+// Historial operativo por entidad para el local autenticado
+// Roles permitidos: owner, staff
+panelRouter.get("/activity/entity", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    if (!req.panelUser) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const entityTypeParam = readRequiredSingleQueryParam(req.query.entity_type, "entity_type");
+    if (!entityTypeParam.ok) {
+      return res.status(entityTypeParam.status).json({ error: entityTypeParam.error });
+    }
+
+    if (!isOperationalActivityEntityType(entityTypeParam.value)) {
+      return res.status(400).json({ error: "Invalid entity_type" });
+    }
+
+    const entityIdParam = readRequiredSingleQueryParam(req.query.entity_id, "entity_id");
+    if (!entityIdParam.ok) {
+      return res.status(entityIdParam.status).json({ error: entityIdParam.error });
+    }
+
+    if (!UUID_PATTERN.test(entityIdParam.value)) {
+      return res.status(400).json({ error: "Invalid entity_id" });
+    }
+
+    const localId = req.panelUser.localId;
+    const requestId = getRequestId(req);
+
+    const { data, error } = await supabase
+      .from("operational_activity_events")
+      .select("id, entity_type, entity_id, event_type, actor_type, actor_role, message, metadata, created_at")
+      .eq("local_id", localId)
+      .eq("entity_type", entityTypeParam.value)
+      .eq("entity_id", entityIdParam.value)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      logger.error("Error fetching operational activity entity history", {
+        requestId,
+        localId,
+        entityType: entityTypeParam.value,
+        entityId: entityIdParam.value,
+        error: error.message,
+      });
+      return res.status(500).json({ error: "Failed to load activity history" });
+    }
+
+    const rows = (data ?? []) as OperationalActivityEventRow[];
+    const items = rows.map((row) => ({
+      id: row.id,
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      event_type: row.event_type,
+      actor_type: row.actor_type,
+      actor_role: row.actor_role,
+      message: row.message,
+      metadata: filterOperationalActivityMetadata(row.event_type, row.metadata),
+      created_at: row.created_at,
+    }));
+
+    return res.status(200).json({ items });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // GET /panel/reservations/search?q=<term>
 // Buscar reservas por email, phone, name o last_name
