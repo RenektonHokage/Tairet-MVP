@@ -218,6 +218,81 @@ Reglas:
 - no cambiar contratos existentes;
 - helper best-effort para no romper flujos core.
 
+Estado: `Implementado y validado`.
+
+Archivos creados en Slice 1:
+
+- `infra/sql/migrations/025_create_operational_activity_events.sql`;
+- `functions/api/src/services/operationalActivity.ts`.
+
+Que se creo:
+
+- tabla `public.operational_activity_events`;
+- primary key `operational_activity_events_pkey`;
+- indices:
+  - `idx_operational_activity_events_entity`;
+  - `idx_operational_activity_events_local_created`;
+  - `idx_operational_activity_events_type_created`;
+- RLS activado;
+- acceso directo de `anon` y `authenticated` revocado;
+- helper backend `recordOperationalActivity(...)`.
+
+Campos de la tabla:
+
+- `id`;
+- `local_id`;
+- `entity_type`;
+- `entity_id`;
+- `event_type`;
+- `actor_type`;
+- `actor_user_id`;
+- `actor_role`;
+- `message`;
+- `metadata`;
+- `created_at`.
+
+Checks y constraints:
+
+- `entity_type in ('order', 'reservation')`;
+- `actor_type in ('panel_user', 'customer', 'system')`;
+- `actor_role is null or actor_role in ('owner', 'staff')`;
+- `event_type` no vacio;
+- `message` no vacio;
+- `local_id references public.locals(id) on delete cascade`.
+
+Validacion tecnica ejecutada:
+
+- `pnpm -C functions/api typecheck` -> `OK`;
+- `git diff --check` -> `OK`.
+
+Validacion DB ejecutada:
+
+- `table_exists` -> `operational_activity_events`;
+- indices esperados presentes;
+- primary key index `operational_activity_events_pkey` presente;
+- RLS `relrowsecurity` -> `true`;
+- grants para `anon` y `authenticated` -> `0 rows`;
+- sin policies publicas.
+
+Comportamiento del helper:
+
+- `recordOperationalActivity(...)` inserta eventos en `operational_activity_events`;
+- opera en modo best-effort;
+- no lanza error al caller si falla el insert;
+- loguea warning controlado;
+- acepta `requestId` opcional;
+- normaliza/sanitiza metadata minima;
+- no debe usarse para guardar `checkin_token` ni PII sensible por defecto.
+
+Alcance cerrado:
+
+- no se conectaron eventos todavia;
+- no se tocaron rutas de `orders`, `reservations` ni check-in;
+- no se toco UI;
+- no se toco `GET /activity` actual;
+- no se tocaron paid flows ni `/payments/callback`;
+- Slice 1 deja la base persistente y helper best-effort listo para Slice 2.
+
 ### Slice 2 - Eventos de Entradas/check-in
 
 Objetivo:
