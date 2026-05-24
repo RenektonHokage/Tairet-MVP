@@ -426,7 +426,7 @@ Alcance cerrado:
 - no se tocaron paid flows ni `/payments/callback`;
 - no existe trazabilidad QR/manual.
 
-Siguiente paso recomendado:
+Siguiente paso recomendado al cierre de Slice 2, ya ejecutado en Slice 3:
 
 - Slice 3 - Eventos de Reservas:
   - `reservation_created`;
@@ -443,7 +443,7 @@ Objetivo:
 - registrar `reservation_cancelled`;
 - registrar `reservation_table_note_updated`.
 
-Rutas candidatas:
+Rutas implementadas:
 
 - `POST /reservations`;
 - `PATCH /panel/reservations/:id`.
@@ -454,6 +454,132 @@ Reglas:
 - no guardar PII comercial en metadata;
 - no cambiar emails ni reglas de estado;
 - no romper near realtime de Reservas.
+
+Estado: `Implementado y validado en runtime`.
+
+Archivos de codigo modificados en Slice 3:
+
+- `functions/api/src/routes/reservations.ts`;
+- `functions/api/src/routes/panel.ts`.
+
+Eventos conectados:
+
+- `reservation_created`;
+- `reservation_confirmed`;
+- `reservation_cancelled`;
+- `reservation_table_note_updated`.
+
+Rutas que registran eventos:
+
+- `POST /reservations` registra `reservation_created` despues de crear una reserva exitosamente;
+- `PATCH /panel/reservations/:id` registra `reservation_confirmed` cuando cambia estado a `confirmed`;
+- `PATCH /panel/reservations/:id` registra `reservation_cancelled` cuando cambia estado a `cancelled`;
+- `PATCH /panel/reservations/:id` registra `reservation_table_note_updated` cuando se actualiza `table_note`.
+
+Metadata final:
+
+- `reservation_created`: `status`, `guests`, `date`;
+- `reservation_confirmed`: `status`;
+- `reservation_cancelled`: `status`;
+- `reservation_table_note_updated`: `table_note_updated: true`.
+
+Datos que no se guardan:
+
+- `name`;
+- `last_name`;
+- `email`;
+- `phone`;
+- `document`;
+- `customer_name`;
+- `customer_email`;
+- `customer_phone`;
+- `notes`;
+- `table_note`;
+- contenido de nota interna;
+- datos completos del cliente.
+
+QA runtime ejecutado:
+
+- Reserva A, creacion, confirmacion y nota interna:
+  - `reservation_created` -> `PASS`;
+  - `actor_type = customer`;
+  - `message = Reserva creada`;
+  - metadata contiene `date`, `guests`, `status`;
+  - `reservation_confirmed` -> `PASS`;
+  - `actor_type = panel_user`;
+  - `actor_role = owner`;
+  - `message = Reserva confirmada`;
+  - metadata contiene `status = confirmed`;
+  - `reservation_table_note_updated` -> `PASS`;
+  - `actor_type = panel_user`;
+  - `actor_role = owner`;
+  - `message = Nota interna actualizada`;
+  - metadata contiene `table_note_updated = true`.
+- Metadata sensible de Reserva A:
+  - `has_name = false`;
+  - `has_last_name = false`;
+  - `has_email = false`;
+  - `has_phone = false`;
+  - `has_document = false`;
+  - `has_customer_name = false`;
+  - `has_customer_email = false`;
+  - `has_customer_phone = false`;
+  - `has_notes = false`;
+  - `has_table_note = false`.
+- Observacion de Reserva A:
+  - un segundo cambio efectivo de nota interna genero un segundo evento `reservation_table_note_updated`;
+  - esto no es fail porque hubo un cambio efectivo de nota;
+  - guardar exactamente la misma nota sin cambios queda `N/A / no validado` porque la UI no expone claramente ese flujo sin cambio relevante.
+- Reserva B, creacion y cancelacion:
+  - `reservation_created` -> `PASS`;
+  - `actor_type = customer`;
+  - `message = Reserva creada`;
+  - metadata contiene `date`, `guests`, `status`;
+  - `reservation_cancelled` -> `PASS`;
+  - `actor_type = panel_user`;
+  - `actor_role = owner`;
+  - `message = Reserva cancelada`;
+  - metadata contiene `status = cancelled`.
+- Metadata sensible de Reserva B:
+  - `has_name = false`;
+  - `has_last_name = false`;
+  - `has_email = false`;
+  - `has_phone = false`;
+  - `has_document = false`;
+  - `has_customer_name = false`;
+  - `has_customer_email = false`;
+  - `has_customer_phone = false`;
+  - `has_notes = false`;
+  - `has_table_note = false`.
+- Smoke final:
+  - `/health` -> `200 OK`;
+  - body `{"ok":true}`;
+  - `x-request-id` presente;
+  - confirmar reserva desde panel -> `PASS`;
+  - editar nota interna desde panel -> `PASS`;
+  - cancelar reserva desde panel -> `PASS`;
+  - listado de reservas operativo durante las pruebas -> `PASS`.
+
+Alcance cerrado:
+
+- no se tocaron Entradas/check-in;
+- no se creo UI de historial;
+- no se modifico `GET /activity` actual;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se tocaron SQL/RLS/migraciones;
+- no se guardo PII sensible ni contenido de `table_note` en metadata.
+
+Estado actualizado del roadmap:
+
+- Slice 1 - Modelo/helper backend: implementado y validado;
+- Slice 2 - Eventos de Entradas/check-in: implementado y validado;
+- Slice 3 - Eventos de Reservas: implementado y validado;
+- Slice 4 - UI historial por registro: proximo paso recomendado;
+- Slice 5 - Vista "Ultimas acciones": posterior/opcional.
+
+Siguiente paso recomendado:
+
+- Slice 4 - UI historial por registro, sin reemplazar `GET /activity` actual y sin cargar historiales de todas las cards por defecto.
 
 ### Slice 4 - UI historial por registro
 
