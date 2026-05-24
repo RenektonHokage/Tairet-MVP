@@ -675,7 +675,7 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
     // Buscar la reserva actual
     const { data: reservation, error: fetchError } = await supabase
       .from("reservations")
-      .select("id, local_id, status, email, name, date, guests")
+      .select("id, local_id, status, email, name, date, guests, table_note")
       .eq("id", id)
       .single();
 
@@ -748,6 +748,57 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
 
     const statusChanged =
       validated.status !== undefined && validated.status !== reservation.status;
+    const tableNoteChanged =
+      validated.table_note !== undefined && updated.table_note !== reservation.table_note;
+
+    if (statusChanged && updated.status === "confirmed") {
+      void recordOperationalActivity({
+        localId: req.panelUser.localId,
+        entityType: "reservation",
+        entityId: updated.id,
+        eventType: "reservation_confirmed",
+        actorType: "panel_user",
+        actorUserId: req.panelUser.userId,
+        actorRole: getOperationalActivityActorRole(req.panelUser.role),
+        message: "Reserva confirmada",
+        metadata: {
+          status: updated.status,
+        },
+        requestId: getRequestId(req),
+      });
+    } else if (statusChanged && updated.status === "cancelled") {
+      void recordOperationalActivity({
+        localId: req.panelUser.localId,
+        entityType: "reservation",
+        entityId: updated.id,
+        eventType: "reservation_cancelled",
+        actorType: "panel_user",
+        actorUserId: req.panelUser.userId,
+        actorRole: getOperationalActivityActorRole(req.panelUser.role),
+        message: "Reserva cancelada",
+        metadata: {
+          status: updated.status,
+        },
+        requestId: getRequestId(req),
+      });
+    }
+
+    if (tableNoteChanged) {
+      void recordOperationalActivity({
+        localId: req.panelUser.localId,
+        entityType: "reservation",
+        entityId: updated.id,
+        eventType: "reservation_table_note_updated",
+        actorType: "panel_user",
+        actorUserId: req.panelUser.userId,
+        actorRole: getOperationalActivityActorRole(req.panelUser.role),
+        message: "Nota interna actualizada",
+        metadata: {
+          table_note_updated: true,
+        },
+        requestId: getRequestId(req),
+      });
+    }
 
     if (statusChanged && (updated.status === "confirmed" || updated.status === "cancelled")) {
       let localName: string | undefined;

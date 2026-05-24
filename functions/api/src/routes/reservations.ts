@@ -3,6 +3,8 @@ import { createReservationSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationReceivedEmail } from "../services/emails";
+import { recordOperationalActivity } from "../services/operationalActivity";
+import { getRequestId } from "../middlewares/requestId";
 import { panelAuth } from "../middlewares/panelAuth";
 import { requireRole } from "../middlewares/requireRole";
 import {
@@ -198,6 +200,21 @@ reservationsRouter.post("/", async (req, res, next) => {
       logger.error("Error creating reservation", { error: error.message });
       return res.status(400).json({ error: error.message });
     }
+
+    void recordOperationalActivity({
+      localId: validated.local_id,
+      entityType: "reservation",
+      entityId: data.id,
+      eventType: "reservation_created",
+      actorType: "customer",
+      message: "Reserva creada",
+      metadata: {
+        status: data.status,
+        guests: data.guests,
+        date: data.date,
+      },
+      requestId: getRequestId(req),
+    });
 
     const localName = localData.name ?? undefined;
 

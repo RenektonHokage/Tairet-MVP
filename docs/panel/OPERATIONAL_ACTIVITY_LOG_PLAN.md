@@ -315,6 +315,125 @@ Reglas:
 - no cambiar reglas del scanner ni validacion manual;
 - no romper near realtime de Entradas.
 
+Estado: `Implementado y validado en runtime`.
+
+Archivos de codigo modificados en Slice 2:
+
+- `functions/api/src/routes/orders.ts`;
+- `functions/api/src/routes/panel.ts`.
+
+Eventos conectados:
+
+- `order_created`;
+- `order_checked_in`;
+- `order_already_used_attempt`.
+
+Rutas que registran eventos:
+
+- `POST /orders` registra `order_created` despues de crear una orden/free pass exitosamente;
+- `PATCH /panel/orders/:id/use` registra `order_checked_in` al validar manualmente desde Entradas;
+- `PATCH /panel/orders/:id/use` registra `order_already_used_attempt` si la orden ya estaba usada;
+- `PATCH /panel/checkin/:token` registra `order_checked_in` al validar por scanner/token;
+- `PATCH /panel/checkin/:token` registra `order_already_used_attempt` si la orden ya estaba usada;
+- token invalido o inexistente no crea evento.
+
+Metadata final:
+
+- `order_created`: `status`, `quantity`, `intended_date`, `payment_method`;
+- `order_checked_in`: `status`, `used_at`;
+- `order_already_used_attempt`: `status`, `used_at`.
+
+Datos que no se guardan:
+
+- `checkin_token`;
+- email;
+- telefono;
+- documento;
+- nombre;
+- apellido;
+- datos completos de cliente;
+- metodo QR/manual;
+- `checkin_method`;
+- `checkin_source`;
+- `used_method`.
+
+QA runtime ejecutado:
+
+- Entrada A, validacion manual desde Entradas:
+  - orden creada -> `order_created` registrado correctamente;
+  - `actor_type = customer`;
+  - `message = Entrada creada`;
+  - metadata contiene `status`, `quantity`, `intended_date`, `payment_method`;
+  - validacion manual desde Entradas -> `PASS`;
+  - `order_checked_in` registrado correctamente;
+  - `actor_type = panel_user`;
+  - `actor_role = owner`;
+  - `message = Entrada validada`;
+  - metadata contiene `status`, `used_at`;
+  - reintento manual por `PATCH /panel/orders/:id/use` -> `409 Conflict`;
+  - response `Order already used` con `usedAt` presente;
+  - `order_already_used_attempt` registrado correctamente;
+  - `message = Intento de validacion duplicado`;
+  - metadata contiene `status`, `used_at`.
+- Entrada B, validacion por scanner/token:
+  - orden creada -> `order_created` registrado correctamente;
+  - `actor_type = customer`;
+  - `message = Entrada creada`;
+  - metadata contiene `status`, `quantity`, `intended_date`, `payment_method`;
+  - `PATCH /panel/checkin/:token` -> `200 OK`;
+  - success payload mantiene `id`, `status`, `used_at`, `customer_name`, `customer_last_name` y `customer_document`;
+  - success payload no incluye `local_id`;
+  - `order_checked_in` registrado correctamente;
+  - `actor_type = panel_user`;
+  - `actor_role = owner`;
+  - `message = Entrada validada`;
+  - metadata contiene `status`, `used_at`;
+  - reintento con el mismo token -> `409 Conflict`;
+  - response `Order already used` con `usedAt` presente;
+  - `order_already_used_attempt` registrado correctamente;
+  - `message = Intento de validacion duplicado`;
+  - metadata contiene `status`, `used_at`.
+- Token invalido:
+  - token inventado devuelve error controlado;
+  - query posterior en `operational_activity_events` devuelve `0 rows`;
+  - token invalido no crea evento -> `PASS`.
+- Metadata sensible:
+  - `has_checkin_token = false`;
+  - `has_email = false`;
+  - `has_phone = false`;
+  - `has_document = false`;
+  - `has_name = false`;
+  - `has_last_name = false`;
+  - `has_checkin_method = false`;
+  - `has_checkin_source = false`;
+  - `has_used_method = false`;
+  - no se guarda PII en metadata;
+  - no se guarda `checkin_token` en metadata;
+  - no se registra distincion QR/manual en metadata.
+- Smoke final:
+  - `/health` -> `PASS`;
+  - `x-request-id` presente -> `PASS`;
+  - `GET /panel/orders/search` sigue funcionando -> `PASS`;
+  - near realtime de Entradas sigue funcionando -> `PASS`;
+  - `PATCH /panel/orders/:id/use` funciona -> `PASS`;
+  - `PATCH /panel/checkin/:token` funciona -> `PASS`.
+
+Alcance cerrado:
+
+- no se conectaron eventos de Reservas todavia;
+- no se creo UI de historial;
+- no se modifico `GET /activity` actual;
+- no se tocaron paid flows ni `/payments/callback`;
+- no existe trazabilidad QR/manual.
+
+Siguiente paso recomendado:
+
+- Slice 3 - Eventos de Reservas:
+  - `reservation_created`;
+  - `reservation_confirmed`;
+  - `reservation_cancelled`;
+  - `reservation_table_note_updated`.
+
 ### Slice 3 - Eventos de Reservas
 
 Objetivo:
