@@ -4,6 +4,8 @@ import { createOrderSchema } from "../schemas/orders";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendOrderConfirmationEmail } from "../services/emails";
+import { recordOperationalActivity } from "../services/operationalActivity";
+import { getRequestId } from "../middlewares/requestId";
 import { getNightWindow, getWeekendWindow, shouldMarkLegacyOrder, validateIntendedDateRange } from "../services/weekendWindow";
 import {
   applyDailyOverride,
@@ -242,6 +244,22 @@ ordersRouter.post("/", async (req, res, next) => {
       logger.error("Error creating order", { error: error.message });
       return res.status(400).json({ error: error.message });
     }
+
+    void recordOperationalActivity({
+      localId: validated.local_id,
+      entityType: "order",
+      entityId: data.id,
+      eventType: "order_created",
+      actorType: "customer",
+      message: "Entrada creada",
+      metadata: {
+        status: data.status,
+        quantity: data.quantity,
+        intended_date: data.intended_date,
+        payment_method: data.payment_method,
+      },
+      requestId: getRequestId(req),
+    });
 
     // Enviar email de confirmación (best-effort, no bloquea compra)
     if (validated.customer_email && data.checkin_token) {

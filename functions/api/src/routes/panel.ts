@@ -10,7 +10,13 @@ import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { sendReservationCancelledEmail, sendReservationConfirmedEmail } from "../services/emails";
+import { recordOperationalActivity } from "../services/operationalActivity";
+import { getRequestId } from "../middlewares/requestId";
 import { CheckinWindowValidationResult, getActiveNightWindow, getNightWindow, validateOrderWindowForCheckin } from "../services/weekendWindow";
+
+function getOperationalActivityActorRole(role: string): "owner" | "staff" | null {
+  return role === "owner" || role === "staff" ? role : null;
+}
 
 function buildCheckinWindowErrorPayload(validation: Extract<CheckinWindowValidationResult, { allowed: false }>) {
   if (validation.reason === "not_yet_valid") {
@@ -840,6 +846,22 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
 
     // Validar que no fue usada previamente
     if (order.used_at !== null) {
+      void recordOperationalActivity({
+        localId: req.panelUser.localId,
+        entityType: "order",
+        entityId: order.id,
+        eventType: "order_already_used_attempt",
+        actorType: "panel_user",
+        actorUserId: req.panelUser.userId,
+        actorRole: getOperationalActivityActorRole(req.panelUser.role),
+        message: "Intento de validación duplicado",
+        metadata: {
+          status: order.status,
+          used_at: order.used_at,
+        },
+        requestId: getRequestId(req),
+      });
+
       return res.status(409).json({
         error: "Order already used",
         usedAt: order.used_at,
@@ -889,6 +911,22 @@ panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]),
       orderId: id,
       localId: req.panelUser.localId,
       checkedInBy: req.panelUser.role,
+    });
+
+    void recordOperationalActivity({
+      localId: req.panelUser.localId,
+      entityType: "order",
+      entityId: updated.id,
+      eventType: "order_checked_in",
+      actorType: "panel_user",
+      actorUserId: req.panelUser.userId,
+      actorRole: getOperationalActivityActorRole(req.panelUser.role),
+      message: "Entrada validada",
+      metadata: {
+        status: updated.status,
+        used_at: updated.used_at,
+      },
+      requestId: getRequestId(req),
     });
 
     res.status(200).json(updated);
@@ -945,6 +983,22 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
 
     // Validar que no fue usada previamente
     if (order.used_at !== null) {
+      void recordOperationalActivity({
+        localId: req.panelUser.localId,
+        entityType: "order",
+        entityId: order.id,
+        eventType: "order_already_used_attempt",
+        actorType: "panel_user",
+        actorUserId: req.panelUser.userId,
+        actorRole: getOperationalActivityActorRole(req.panelUser.role),
+        message: "Intento de validación duplicado",
+        metadata: {
+          status: order.status,
+          used_at: order.used_at,
+        },
+        requestId: getRequestId(req),
+      });
+
       return res.status(409).json({
         error: "Order already used",
         usedAt: order.used_at,
@@ -994,6 +1048,22 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
       orderId: updated.id,
       localId: req.panelUser.localId,
       checkedInBy: req.panelUser.role,
+    });
+
+    void recordOperationalActivity({
+      localId: req.panelUser.localId,
+      entityType: "order",
+      entityId: updated.id,
+      eventType: "order_checked_in",
+      actorType: "panel_user",
+      actorUserId: req.panelUser.userId,
+      actorRole: getOperationalActivityActorRole(req.panelUser.role),
+      message: "Entrada validada",
+      metadata: {
+        status: updated.status,
+        used_at: updated.used_at,
+      },
+      requestId: getRequestId(req),
     });
 
     res.status(200).json(updated);
