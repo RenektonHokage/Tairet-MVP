@@ -314,17 +314,111 @@ Alcance cerrado:
 
 Proximo paso:
 
-- Slice 3 - UI historial:
-  - `apps/web-next/lib/activity.ts` debe aceptar `actor_label`;
-  - `OperationalActivityHistory` debe mostrar `actor_label` si viene;
-  - si `actor_label` es `null`, debe mantener fallback actual `Owner`/`Staff`/`Cliente`/`Sistema`/`Panel`.
+- Slice 3 - UI historial, ya implementado y validado;
+- el siguiente paso recomendado es cerrar el MVP de actor label y no abrir gestion de nombres visibles hasta que exista necesidad operativa.
 
 ### Slice 3 - UI historial
 
-- Actualizar `OperationalActivityHistory`.
-- Mostrar `actor_label` si viene.
-- Mantener fallback actual si no viene.
-- No mostrar email, `actor_user_id`, `local_id` ni metadata cruda.
+Estado: `Implementado y validado en runtime`.
+
+Que se implemento:
+
+- `apps/web-next/lib/activity.ts` acepta `actor_label?: string | null` en `OperationalActivityItem`;
+- `OperationalActivityHistory` prioriza `item.actor_label?.trim()` cuando viene con contenido;
+- si `actor_label` falta, es `null` o esta vacio, mantiene fallback actual por `actor_type` y `actor_role`.
+
+Comportamiento visual validado:
+
+- `Entrada creada` muestra `Actor: Cliente`;
+- `Entrada validada` muestra `Actor: Owner Martin` o `Actor: Staff Martin` cuando existe `display_name`;
+- `Reserva creada` muestra `Actor: Cliente`;
+- `Reserva confirmada`, `Reserva cancelada` y `Nota interna actualizada` muestran `Actor: Owner Martin` o `Actor: Staff Martin` cuando existe `display_name`;
+- sin `display_name`, los eventos panel vuelven al fallback `Actor: Owner` o `Actor: Staff`;
+- el historial sigue mostrando solo fecha/hora, `message` y actor legible.
+
+Seguridad visual:
+
+- no se muestra email;
+- no se muestra `actor_user_id`;
+- no se muestra `local_id`;
+- no se muestra metadata cruda;
+- no se muestra `checkin_token`;
+- no se muestra `table_note`;
+- no se muestra `notes`;
+- no se muestra metodo QR/manual;
+- no se muestra PII.
+
+QA runtime ejecutado:
+
+- preparacion de `display_name`:
+  - `owner.dlirio@tairet.com.py` -> `display_name = Martin`;
+  - `owner.mckharthys@tairet.com.py` -> `display_name = Martin`;
+  - resultado -> `PASS`.
+- Entradas con `actor_label`:
+  - `Entrada creada` muestra `Actor: Cliente`;
+  - `Entrada validada` muestra `Actor: Owner Martin`;
+  - resultado -> `PASS`.
+- Reservas con `actor_label`:
+  - `Reserva creada` muestra `Actor: Cliente`;
+  - `Reserva confirmada` muestra `Actor: Owner Martin`;
+  - `Nota interna actualizada` muestra `Actor: Owner Martin`;
+  - `Reserva cancelada` muestra `Actor: Owner Martin` cuando aplica;
+  - resultado -> `PASS`.
+- fallback sin `display_name`:
+  - se probo `owner.dlirio@tairet.com.py` con `display_name = null`;
+  - el historial no se rompio;
+  - eventos panel volvieron a `Actor: Owner`;
+  - resultado -> `PASS`.
+- seguridad visual:
+  - no aparece email;
+  - no aparece `actor_user_id`;
+  - no aparece `local_id`;
+  - no aparece metadata cruda;
+  - no aparece `checkin_token`;
+  - no aparece `table_note`;
+  - no aparece `notes`;
+  - no aparece metodo QR/manual;
+  - no aparece PII;
+  - resultado -> `PASS`.
+- comportamiento del historial:
+  - sigue cerrado por defecto;
+  - lazy-load sigue funcionando;
+  - no llama `/panel/activity/entity` antes de abrir `Historial`;
+  - al abrir `Historial` hace request;
+  - boton `Actualizar historial` sigue funcionando;
+  - empty state muestra `Sin actividad registrada todavia.`;
+  - no volvio el loading infinito;
+  - resultado -> `PASS`.
+- regresiones rapidas:
+  - Entradas/listado sigue funcionando;
+  - Reservas/listado sigue funcionando;
+  - near realtime sigue funcionando;
+  - edicion de `table_note` sigue funcionando;
+  - resultado -> `PASS`.
+
+Alcance cerrado:
+
+- no se toco backend;
+- no se tocaron SQL/RLS/migraciones;
+- no se tocaron endpoints;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se agrego gestion UI de `display_name`;
+- no se agregaron reportes por staff;
+- no se agrego export de activity.
+
+Estado actualizado del roadmap:
+
+- Slice 1: `display_name` en `panel_users` implementado y validado;
+- Slice 2: `actor_label` en `GET /panel/activity/entity` implementado y validado;
+- Slice 3: UI usa `actor_label` implementado y validado;
+- Slice 4: gestion futura de nombres visibles en panel owner-only queda posterior/opcional;
+- Slice futuro opcional: snapshot `actor_label` en `operational_activity_events` queda posterior si se requiere historico inmutable.
+
+Proximo paso recomendado:
+
+- cerrar el MVP de actor label;
+- no abrir reportes por staff ni export de activity todavia;
+- evaluar gestion owner-only de `display_name` solo cuando haya necesidad operativa.
 
 ### Slice 4 - Gestion futura de nombre visible
 

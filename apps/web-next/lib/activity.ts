@@ -41,6 +41,7 @@ export interface OperationalActivityItem {
   event_type: string;
   actor_type: "panel_user" | "customer" | "system";
   actor_role: "owner" | "staff" | null;
+  actor_label?: string | null;
   message: string;
   metadata: Record<string, unknown>;
   created_at: string;

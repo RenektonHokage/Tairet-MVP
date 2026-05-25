@@ -18,6 +18,12 @@ interface OperationalActivityHistoryProps {
 }
 
 function getActorLabel(item: OperationalActivityItem): string {
+  const actorLabel = item.actor_label?.trim();
+
+  if (actorLabel) {
+    return actorLabel;
+  }
+
   if (item.actor_type === "customer") {
     return "Cliente";
   }
