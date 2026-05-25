@@ -189,19 +189,135 @@ Alcance cerrado:
 
 Proximo paso:
 
-- Slice 2 - Backend de lectura: `GET /panel/activity/entity` debe resolver `actor_label` internamente desde `panel_users.display_name` usando `actor_user_id`/`auth_user_id` y `local_id` del tenant;
-- debe devolver `actor_label` seguro;
-- no debe exponer `actor_user_id`, email ni `local_id`;
-- la UI seguira usando fallback `Owner`/`Staff` hasta que Slice 2 y Slice 3 se implementen.
+- Slice 2 - Backend de lectura, ya implementado y validado;
+- la UI seguira usando fallback `Owner`/`Staff` hasta que Slice 3 se implemente.
 
 ### Slice 2 - Backend de lectura
 
-- Actualizar `GET /panel/activity/entity`.
-- Seleccionar `actor_user_id` internamente, sin devolverlo.
-- Resolver `actor_label` por tenant contra `panel_users`.
-- Devolver `actor_label: string | null`.
-- Mantener metadata filtrada.
-- Mantener response sin email, `local_id`, PII ni IDs internos.
+Estado: `Implementado y validado en runtime`.
+
+Que se implemento:
+
+- `GET /panel/activity/entity` devuelve `actor_label`;
+- `actor_label` se resuelve usando `panel_users.display_name`;
+- lookup seguro por:
+  - `panel_users.auth_user_id = operational_activity_events.actor_user_id`;
+  - `panel_users.local_id = req.panelUser.localId`;
+- no se usa email completo ni parcial como label;
+- no se persiste `actor_label` en `operational_activity_events`.
+
+Formato:
+
+- `actor_type = customer` -> `actor_label = Cliente`;
+- `actor_type = system` -> `actor_label = Sistema`;
+- `actor_type = panel_user`, `actor_role = owner` y `display_name` presente -> `Owner <display_name>`;
+- `actor_type = panel_user`, `actor_role = staff` y `display_name` presente -> `Staff <display_name>`;
+- `actor_type = panel_user` sin `display_name` -> `actor_label = null`.
+
+Contrato actualizado de `GET /panel/activity/entity`:
+
+- `id`;
+- `entity_type`;
+- `entity_id`;
+- `event_type`;
+- `actor_type`;
+- `actor_role`;
+- `actor_label`;
+- `message`;
+- `metadata`;
+- `created_at`.
+
+Campos que no se exponen:
+
+- `actor_user_id`;
+- `panel_users.id`;
+- email;
+- `local_id`;
+- PII;
+- tokens;
+- `checkin_token`;
+- `notes`;
+- `table_note`;
+- payment data;
+- metodo QR/manual.
+
+QA runtime ejecutado:
+
+- `display_name` preparado:
+  - `owner.dlirio@tairet.com.py` -> `display_name = Martin`;
+  - `owner.mckharthys@tairet.com.py` -> `display_name = Martin`;
+  - resultado -> `PASS`.
+- tenants confirmados por `/panel/me`:
+  - owner Dlirio: `local_id = 550e8400-e29b-41d4-a716-446655440006`, `slug = dlirio`, `type = club`;
+  - owner Mckharthys: `local_id = 550e8400-e29b-41d4-a716-446655440001`, `slug = mckharthys-bar`, `type = bar`;
+  - resultado -> `PASS`.
+- historial de orden con actor label:
+  - `order_created` devuelve `actor_label = Cliente`;
+  - `order_checked_in` devuelve `actor_label = Owner Martin`;
+  - `order_already_used_attempt` devuelve `actor_label = Owner Martin`;
+  - resultado -> `PASS`.
+- campos sensibles en historial de orden:
+  - scan sensible sin resultados;
+  - no aparece `actor_user_id`;
+  - no aparece email;
+  - no aparece `local_id`;
+  - no aparece `panel_users`;
+  - no aparece `checkin_token`;
+  - no aparece PII del cliente;
+  - no aparece metodo QR/manual;
+  - resultado -> `PASS`.
+- historial de reserva con actor label:
+  - `reservation_created` devuelve `actor_label = Cliente`;
+  - `reservation_confirmed` devuelve `actor_label = Owner Martin`;
+  - `reservation_table_note_updated` devuelve `actor_label = Owner Martin`;
+  - resultado -> `PASS`.
+- campos sensibles en historial de reserva:
+  - scan sensible sin resultados;
+  - no aparece `actor_user_id`;
+  - no aparece email;
+  - no aparece `local_id`;
+  - no aparece `panel_users`;
+  - no aparece PII;
+  - no aparece `notes`;
+  - no aparece `table_note`;
+  - resultado -> `PASS`.
+- fallback sin `display_name`:
+  - se limpio temporalmente `display_name` de owner Dlirio;
+  - `order_created` mantuvo `actor_label = Cliente`;
+  - eventos `panel_user` devolvieron `actor_label = null`;
+  - resultado -> `PASS`;
+  - esto permite que la UI use fallback `Owner`/`Staff` en Slice 3.
+- tenant isolation:
+  - token de Mckharthys consultando orden de Dlirio devolvio `200 OK` con `items: []`;
+  - no ve eventos ni resuelve actores de otro tenant;
+  - resultado -> `PASS`.
+- activity actual:
+  - endpoint actual de activity respondio `200`;
+  - dashboard/metricas sigue cargando actividad;
+  - resultado -> `PASS`.
+- smoke:
+  - `/health` -> `200 OK`;
+  - body `{"ok":true}`;
+  - `x-request-id` presente;
+  - resultado -> `PASS`.
+- `git diff --check` -> `PASS`.
+
+Alcance cerrado:
+
+- no se toco frontend;
+- no se toco UI;
+- no se tocaron SQL/RLS/migraciones;
+- no se tocaron eventos de escritura;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se agregaron reportes por staff;
+- no se agrego export de activity.
+
+Proximo paso:
+
+- Slice 3 - UI historial:
+  - `apps/web-next/lib/activity.ts` debe aceptar `actor_label`;
+  - `OperationalActivityHistory` debe mostrar `actor_label` si viene;
+  - si `actor_label` es `null`, debe mantener fallback actual `Owner`/`Staff`/`Cliente`/`Sistema`/`Panel`.
 
 ### Slice 3 - UI historial
 
