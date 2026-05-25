@@ -143,10 +143,56 @@ No usar email parcial ni completo como label visible. No exponer `actor_user_id`
 
 ### Slice 1 - Modelo de datos para nombre visible
 
-- Crear migracion pequena para `panel_users.display_name text null`.
-- Agregar check de longitud y trim si aplica.
-- No hacer backfill desde email.
-- Mantener `panel_users` backend-only como esta hoy.
+Estado: `Implementado y validado en DB`.
+
+Que se creo:
+
+- migracion `infra/sql/migrations/026_add_panel_users_display_name.sql`;
+- columna `public.panel_users.display_name text null`;
+- constraint `panel_users_display_name_chk`.
+
+Reglas del campo:
+
+- permite `NULL`;
+- permite nombres operativos validos;
+- rechaza string vacio o solo espacios;
+- limite por constraint: 1 a 80 caracteres despues de `trim`;
+- no se hizo backfill desde email;
+- no hay default;
+- no hay `NOT NULL`;
+- no hay `UNIQUE`.
+
+QA DB ejecutado:
+
+- `public.panel_users.display_name` existe -> `PASS`;
+- tipo `text` -> `PASS`;
+- nullable `YES` -> `PASS`;
+- constraint `panel_users_display_name_chk` existe -> `PASS`;
+- `display_name = null` aceptado para usuario de prueba -> `PASS`;
+- `display_name = 'Martin'` aceptado -> `PASS`;
+- `display_name = '   '` rechazado por constraint -> `PASS`;
+- el valor invalido no quedo guardado -> `PASS`;
+- usuario de prueba restaurado a `display_name = null` -> `PASS`;
+- login panel sigue funcionando -> `PASS`;
+- `GET /panel/me` con owner de Dlirio devuelve `200 OK` con `role`, `email` y `local` -> `PASS`;
+- `git diff --check` -> `PASS`.
+
+Alcance cerrado:
+
+- no se toco backend;
+- no se toco frontend;
+- no se tocaron endpoints;
+- no se toco UI;
+- no se toco activity runtime;
+- no se tocaron paid flows ni `/payments/callback`;
+- Slice 1 deja lista la base de datos para nombres visibles.
+
+Proximo paso:
+
+- Slice 2 - Backend de lectura: `GET /panel/activity/entity` debe resolver `actor_label` internamente desde `panel_users.display_name` usando `actor_user_id`/`auth_user_id` y `local_id` del tenant;
+- debe devolver `actor_label` seguro;
+- no debe exponer `actor_user_id`, email ni `local_id`;
+- la UI seguira usando fallback `Owner`/`Staff` hasta que Slice 2 y Slice 3 se implementen.
 
 ### Slice 2 - Backend de lectura
 

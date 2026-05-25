@@ -26,10 +26,17 @@ interface OperationalActivityEventRow {
   entity_id: string;
   event_type: string;
   actor_type: "panel_user" | "customer" | "system";
+  actor_user_id: string | null;
   actor_role: "owner" | "staff" | null;
   message: string;
   metadata: unknown;
   created_at: string;
+}
+
+interface PanelUserActorLabelRow {
+  auth_user_id: string;
+  role: "owner" | "staff" | string;
+  display_name: string | null;
 }
 
 const OPERATIONAL_ACTIVITY_ENTITY_TYPES: readonly OperationalActivityEntityType[] = ["order", "reservation"];
@@ -84,6 +91,45 @@ function filterOperationalActivityMetadata(eventType: string, metadata: unknown)
   }
 
   return safeMetadata;
+}
+
+function formatOperationalActivityRoleLabel(role: string | null): "Owner" | "Staff" | null {
+  if (role === "owner") {
+    return "Owner";
+  }
+
+  if (role === "staff") {
+    return "Staff";
+  }
+
+  return null;
+}
+
+function buildOperationalActivityActorLabel(
+  row: OperationalActivityEventRow,
+  panelUserLabels: Map<string, PanelUserActorLabelRow>
+): string | null {
+  if (row.actor_type === "customer") {
+    return "Cliente";
+  }
+
+  if (row.actor_type === "system") {
+    return "Sistema";
+  }
+
+  if (row.actor_type !== "panel_user" || !row.actor_user_id) {
+    return null;
+  }
+
+  const panelUser = panelUserLabels.get(row.actor_user_id);
+  const roleLabel = formatOperationalActivityRoleLabel(row.actor_role ?? panelUser?.role ?? null);
+  const displayName = panelUser?.display_name?.trim();
+
+  if (!roleLabel || !displayName) {
+    return null;
+  }
+
+  return `${roleLabel} ${displayName}`;
 }
 
 function buildCheckinWindowErrorPayload(validation: Extract<CheckinWindowValidationResult, { allowed: false }>) {
@@ -711,7 +757,7 @@ panelRouter.get("/activity/entity", panelAuth, requireRole(["owner", "staff"]), 
 
     const { data, error } = await supabase
       .from("operational_activity_events")
-      .select("id, entity_type, entity_id, event_type, actor_type, actor_role, message, metadata, created_at")
+      .select("id, entity_type, entity_id, event_type, actor_type, actor_user_id, actor_role, message, metadata, created_at")
       .eq("local_id", localId)
       .eq("entity_type", entityTypeParam.value)
       .eq("entity_id", entityIdParam.value)
@@ -729,6 +775,38 @@ panelRouter.get("/activity/entity", panelAuth, requireRole(["owner", "staff"]), 
     }
 
     const rows = (data ?? []) as OperationalActivityEventRow[];
+    const panelActorUserIds = Array.from(
+      new Set(
+        rows
+          .filter((row) => row.actor_type === "panel_user" && row.actor_user_id)
+          .map((row) => row.actor_user_id as string)
+      )
+    );
+
+    const panelUserLabels = new Map<string, PanelUserActorLabelRow>();
+    if (panelActorUserIds.length > 0) {
+      const { data: panelUsers, error: panelUsersError } = await supabase
+        .from("panel_users")
+        .select("auth_user_id, role, display_name")
+        .eq("local_id", localId)
+        .in("auth_user_id", panelActorUserIds);
+
+      if (panelUsersError) {
+        logger.error("Error resolving operational activity actor labels", {
+          requestId,
+          localId,
+          entityType: entityTypeParam.value,
+          entityId: entityIdParam.value,
+          error: panelUsersError.message,
+        });
+        return res.status(500).json({ error: "Failed to load activity history" });
+      }
+
+      for (const panelUser of (panelUsers ?? []) as PanelUserActorLabelRow[]) {
+        panelUserLabels.set(panelUser.auth_user_id, panelUser);
+      }
+    }
+
     const items = rows.map((row) => ({
       id: row.id,
       entity_type: row.entity_type,
@@ -736,6 +814,7 @@ panelRouter.get("/activity/entity", panelAuth, requireRole(["owner", "staff"]), 
       event_type: row.event_type,
       actor_type: row.actor_type,
       actor_role: row.actor_role,
+      actor_label: buildOperationalActivityActorLabel(row, panelUserLabels),
       message: row.message,
       metadata: filterOperationalActivityMetadata(row.event_type, row.metadata),
       created_at: row.created_at,
