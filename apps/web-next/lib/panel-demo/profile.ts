@@ -6,6 +6,7 @@ import type {
   OpeningHoursV1,
 } from "@/lib/panel";
 import type { DemoScenario } from "./runtime";
+import { demoBar, demoClub } from "./variants";
 
 export interface PanelDemoProfileData {
   profile: LocalProfile;
@@ -256,10 +257,10 @@ const CLUB_GALLERY: LocalGalleryItem[] = [
 ];
 
 const BAR_PROFILE: LocalProfile = {
-  id: "demo-bar",
-  name: "Demo Bar Tairet",
-  slug: "demo-bar",
-  type: "bar",
+  id: demoBar.localId,
+  name: demoBar.name,
+  slug: demoBar.slug,
+  type: demoBar.type,
   address: "Av. Demo 1234",
   location: "Villa Morra",
   city: "Asuncion",
@@ -292,10 +293,10 @@ const BAR_PROFILE: LocalProfile = {
 };
 
 const CLUB_PROFILE: LocalProfile = {
-  id: "demo-discoteca",
-  name: "Demo Discoteca Tairet",
-  slug: "demo-discoteca",
-  type: "club",
+  id: demoClub.localId,
+  name: demoClub.name,
+  slug: demoClub.slug,
+  type: demoClub.type,
   address: "Av. Central 4321",
   location: "Carmelitas",
   city: "Asuncion",
