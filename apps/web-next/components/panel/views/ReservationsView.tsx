@@ -78,6 +78,7 @@ export interface ReservationsViewProps {
   refreshLoading?: boolean;
   lastRefreshLabel?: string;
   refreshError?: string | null;
+  showActivityHistory?: boolean;
 }
 
 export function ReservationsView({
@@ -109,6 +110,7 @@ export function ReservationsView({
   refreshLoading = false,
   lastRefreshLabel = "Actualizado: pendiente",
   refreshError,
+  showActivityHistory = true,
 }: ReservationsViewProps) {
   const showDateLoadingState =
     Boolean(selectedDate) &&
@@ -486,6 +488,7 @@ export function ReservationsView({
               onConfirm={onConfirm}
               onCancel={onCancel}
               onEdit={onEdit}
+              showActivityHistory={showActivityHistory}
             />
           ))}
         </div>

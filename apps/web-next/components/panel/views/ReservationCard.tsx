@@ -2,6 +2,7 @@ import * as React from "react";
 import { Clock, Mail, Phone, Users } from "lucide-react";
 import { formatTimePy } from "@/lib/time";
 
+import { OperationalActivityHistory } from "@/components/panel/OperationalActivityHistory";
 import { Badge, Card, CardContent, CardFooter, CardHeader, CardTitle, cn, panelUi } from "../ui";
 
 export type ReservationStatus = "en_revision" | "confirmed" | "cancelled";
@@ -25,6 +26,7 @@ export interface ReservationCardProps {
   onConfirm?: (reservation: Reservation) => void;
   onCancel?: (reservation: Reservation) => void;
   onEdit?: (reservation: Reservation) => void;
+  showActivityHistory?: boolean;
 }
 
 const statusMap: Record<
@@ -41,7 +43,13 @@ function formatDateLabel(value: string) {
   return datePart?.trim() ?? value;
 }
 
-export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: ReservationCardProps) {
+export function ReservationCard({
+  reservation,
+  onConfirm,
+  onCancel,
+  onEdit,
+  showActivityHistory = true,
+}: ReservationCardProps) {
   const status = statusMap[reservation.status];
   const timeLabel = formatTimePy(reservation.date);
   const dateLabel = formatDateLabel(reservation.date);
@@ -154,6 +162,13 @@ export function ReservationCard({ reservation, onConfirm, onCancel, onEdit }: Re
             </div>
           </div>
         </div>
+
+        {showActivityHistory ? (
+          <OperationalActivityHistory
+            entityType="reservation"
+            entityId={reservation.id}
+          />
+        ) : null}
       </CardContent>
       {showActionFooter ? (
         <CardFooter>

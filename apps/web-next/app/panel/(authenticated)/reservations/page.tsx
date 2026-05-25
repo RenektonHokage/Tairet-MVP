@@ -609,6 +609,7 @@ export default function ReservationsPage() {
         refreshLoading={refreshLoading}
         lastRefreshLabel={lastRefreshLabel}
         refreshError={refreshError}
+        showActivityHistory={!isDemoBar}
       />
 
       {editingReservation && (

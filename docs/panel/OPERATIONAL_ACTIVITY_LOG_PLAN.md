@@ -575,7 +575,7 @@ Estado actualizado del roadmap:
 - Slice 2 - Eventos de Entradas/check-in: implementado y validado;
 - Slice 3 - Eventos de Reservas: implementado y validado;
 - Slice 4A - Endpoint historial por entidad: implementado y validado;
-- Slice 4B - UI historial por registro: proximo paso recomendado;
+- Slice 4B - UI historial por registro: implementado y validado;
 - Slice 5 - Vista "Ultimas acciones": posterior/opcional.
 
 Siguiente paso recomendado:
@@ -712,6 +712,116 @@ Estado actualizado del roadmap:
 Objetivo:
 
 - mostrar historial dentro de una entrada o reserva especifica usando el endpoint validado de Slice 4A.
+
+Estado: `Implementado y validado en runtime`.
+
+Archivos de codigo modificados en Slice 4B:
+
+- `apps/web-next/lib/activity.ts`;
+- `apps/web-next/components/panel/OperationalActivityHistory.tsx`;
+- `apps/web-next/app/panel/(authenticated)/orders/OrdersPageClient.tsx`;
+- `apps/web-next/components/panel/views/ReservationCard.tsx`;
+- `apps/web-next/components/panel/views/ReservationsView.tsx`;
+- `apps/web-next/app/panel/(authenticated)/reservations/page.tsx`.
+
+Donde aparece:
+
+- Entradas: historial dentro de cada card de entrada;
+- Reservas: historial dentro de cada card/reserva.
+
+Funcionamiento:
+
+- el historial esta cerrado por defecto;
+- usa lazy-load y consulta `GET /panel/activity/entity` solo al abrir;
+- reutiliza datos ya cargados mientras el bloque sigue montado;
+- permite `Actualizar historial`;
+- no hace polling de historial;
+- no carga historiales de todas las cards por defecto.
+
+Datos visibles en UI:
+
+- fecha/hora;
+- `message`;
+- actor legible:
+  - Cliente;
+  - Sistema;
+  - Owner;
+  - Staff;
+  - Panel como fallback.
+
+Datos que no se muestran:
+
+- metadata cruda;
+- PII;
+- `checkin_token`;
+- `table_note`;
+- `notes`;
+- `actor_user_id`;
+- `local_id`;
+- metodo QR/manual.
+
+Bug corregido:
+
+- el historial quedaba en `Cargando historial...` aunque el endpoint respondia `200 OK` con `items`;
+- causa encontrada: `mountedRef.current` podia quedar en `false` por cleanup/remount de React Strict Mode en desarrollo;
+- fix aplicado: `OperationalActivityHistory` vuelve a setear `mountedRef.current = true` al montar;
+- `getPanelEntityActivity(...)` normaliza la respuesta para devolver siempre `{ items: [...] }`, usando `[]` si no viene un array.
+
+QA runtime ejecutado:
+
+- Historial en Reservas renderiza eventos correctamente -> `PASS`;
+- Historial en Entradas renderiza eventos correctamente -> `PASS`;
+- loading infinito corregido -> `PASS`;
+- lazy-load -> `PASS`:
+  - no llama `/panel/activity/entity` antes de abrir Historial;
+  - llama al endpoint recien al abrir el bloque;
+- cerrar y volver a abrir Historial -> `PASS`;
+- boton `Actualizar historial` -> `PASS`;
+- historial no muestra metadata cruda ni datos sensibles -> `PASS`:
+  - no muestra PII;
+  - no muestra `checkin_token`;
+  - no muestra `table_note`;
+  - no muestra `notes`;
+  - no muestra `actor_user_id`;
+  - no muestra `local_id`;
+  - no muestra metodo QR/manual;
+- empty state -> `PASS`;
+- Reservas/listado sigue funcionando -> `PASS`;
+- Entradas/listado sigue funcionando -> `PASS`;
+- near realtime sigue funcionando -> `PASS`;
+- edicion de `table_note` sigue funcionando -> `PASS`;
+- `pnpm -C apps/web-next typecheck` -> `PASS`;
+- `git diff --check` -> `PASS`.
+
+N/A operativo menor:
+
+- error state no se valido en runtime;
+- queda como `N/A operativo menor/no bloqueante` porque el flujo principal, empty state, lazy-load y render de eventos quedaron validados.
+
+Alcance cerrado:
+
+- no se toco backend;
+- no se tocaron SQL/RLS/migraciones;
+- no se tocaron endpoints;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se creo vista "Ultimas acciones";
+- no se reemplazo `GET /activity` actual;
+- no se convirtio en CRM ni auditoria completa.
+
+Estado actualizado del roadmap:
+
+- Slice 1 - Modelo/helper backend: implementado y validado;
+- Slice 2 - Eventos de Entradas/check-in: implementado y validado;
+- Slice 3 - Eventos de Reservas: implementado y validado;
+- Slice 4A - Endpoint historial por entidad: implementado y validado;
+- Slice 4B - UI historial por registro: implementado y validado;
+- Slice 5 - Vista "Ultimas acciones": posterior/opcional.
+
+Siguiente paso recomendado:
+
+- cerrar el MVP de activity log operativo por registro;
+- no abrir Slice 5 salvo necesidad operativa concreta;
+- si se continua, Slice 5 debe ser opcional y separado.
 
 Reglas UI:
 

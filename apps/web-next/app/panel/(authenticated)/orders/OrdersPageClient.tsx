@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, cn, panelSuccessTone, panelUi } from "@/components/panel/ui";
+import { OperationalActivityHistory } from "@/components/panel/OperationalActivityHistory";
 import { usePanelContext } from "@/lib/panelContext";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 import { downloadPanelReservationsClientsExcel } from "@/lib/panelExport";
@@ -1395,6 +1396,13 @@ export default function OrdersPageClient() {
                   </button>
                 )}
               </div>
+            ) : null}
+            {!isDemo ? (
+              <OperationalActivityHistory
+                entityType="order"
+                entityId={order.id}
+                tone={panelTheme}
+              />
             ) : null}
           </div>
         </div>
