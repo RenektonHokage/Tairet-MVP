@@ -24,19 +24,21 @@ Datos del evento:
 - Panel propio reducido: sí.
 - Venta: externa por WhatsApp + transferencia.
 - Pasarela de pago integrada: fuera de alcance.
-- Mesas: fuera de alcance; solo tickets.
+- Mesas VIP: dentro del piloto como paquetes comerciales de 10 accesos, sin seating map.
 
-Capacidad/stock inicial:
+Capacidad comercial actualizada:
 
-- VIP: 200.
-- General: 3000.
-- Total estimado: 3200.
+- General: 2.400 accesos QR.
+- VIP individual: 600 accesos QR.
+- Mesas VIP: 20 mesas x 10 accesos = 200 accesos QR.
+- Total máximo: 3.200 accesos QR.
 
-Precios:
+Productos comerciales:
 
-- VIP: pendiente.
-- General: pendiente.
-- Ambos deben quedar como campos configurables/editables.
+- 9 productos/ticket types: 3 fases General, 3 fases VIP y 3 fases Mesa VIP.
+- General/VIP individual se venden como `single_entry` con `entries_per_unit = 1`.
+- Mesa VIP se vende como `package` con `entries_per_unit = 10`.
+- Los precios deben quedar como campos configurables/editables.
 
 Operación esperada:
 
@@ -46,6 +48,43 @@ Operación esperada:
 - Se necesita export de compradores/asistentes.
 - No se venderá por otro sistema.
 - El plazo de implementación depende de Tairet.
+
+### Distribución comercial actualizada
+
+General: 2.400 entradas/accesos en total.
+
+| Producto | Stock comercial | Accesos por unidad | Precio |
+| --- | ---: | ---: | ---: |
+| General Preventa 1 | 900 | 1 | 140000 PYG |
+| General Preventa 2 | 1000 | 1 | 180000 PYG |
+| General Precio Final | 500 | 1 | 220000 PYG |
+
+VIP individual: 600 entradas/accesos en total.
+
+| Producto | Stock comercial | Accesos por unidad | Precio |
+| --- | ---: | ---: | ---: |
+| VIP Preventa 1 | 200 | 1 | 350000 PYG |
+| VIP Preventa 2 | 250 | 1 | 440000 PYG |
+| VIP Precio Final | 150 | 1 | 520000 PYG |
+
+Mesas VIP: 20 mesas en total. Cada mesa se vende como paquete de 10 accesos.
+
+| Producto | Stock comercial | Accesos por unidad | Precio comercial | Precio equivalente por acceso |
+| --- | ---: | ---: | ---: | ---: |
+| Mesa VIP Preventa 1 | 6 | 10 | 3200000 PYG | 320000 PYG |
+| Mesa VIP Preventa 2 | 8 | 10 | 3800000 PYG | 380000 PYG |
+| Mesa VIP Precio Final | 6 | 10 | 4500000 PYG | 450000 PYG |
+
+Totales:
+
+- General: 2.400 accesos QR.
+- VIP individual: 600 accesos QR.
+- Mesas VIP: 200 accesos QR.
+- Total accesos QR: 3.200.
+- Total máximo comercial estimado General: 416000000 PYG.
+- Total máximo comercial estimado VIP: 258000000 PYG.
+- Total máximo comercial estimado Mesas VIP: 76600000 PYG.
+- Total máximo comercial estimado: 750600000 PYG.
 
 ## 3. Decisiones de producto documentadas
 
@@ -58,6 +97,8 @@ Decisiones para Ibiza:
 - El pago externo por transferencia debe modelarse como flujo manual temporal.
 - El flujo manual no debe bloquear un futuro checkout online.
 - Cada entrada/persona debe tener QR propio.
+- Producto comercial vendido no es lo mismo que unidad validable en puerta.
+- Mesas VIP deben modelarse como paquetes comerciales que generan QRs individuales.
 - El panel debe ser reducido y enfocado en evento.
 - El B2C público del evento queda fuera por ahora.
 - La pasarela de pago queda fuera de este piloto.
@@ -86,7 +127,7 @@ Reglas:
 Flujo manual del piloto:
 
 1. Cliente escribe por WhatsApp al organizador.
-2. Cliente indica tipo y cantidad de entradas.
+2. Cliente indica producto comercial y cantidad: General, VIP o Mesa VIP por fase de preventa.
 3. Cliente transfiere fuera de Tairet.
 4. Cliente envía comprobante y datos de asistentes al organizador.
 5. Organizador confirma el pago fuera de Tairet.
@@ -120,6 +161,14 @@ Compra de varias entradas:
 - Se deben generar 4 QRs.
 - No se recomienda QR grupal para este piloto.
 
+Compra de mesas:
+
+- Una Mesa VIP se vende como una unidad comercial.
+- Cada Mesa VIP genera 10 accesos/QRs individuales.
+- Si compra 2 Mesas VIP, se deben generar 20 `event_order_entries`.
+- No se debe modelar una mesa como 10 entradas sueltas sin vínculo comercial.
+- El vínculo comercial debe vivir en `event_order_items`.
+
 ## 6. Modelo recomendado para el piloto
 
 Recomendación principal:
@@ -127,6 +176,7 @@ Recomendación principal:
 - `events`
 - `event_ticket_types`
 - `event_orders`
+- `event_order_items`
 - `event_order_entries`
 - `event_panel_users`
 
@@ -154,12 +204,19 @@ Campos conceptuales para Ibiza:
 
 ### `event_ticket_types`
 
-Representa los tipos de entrada.
+Representa los productos comerciales vendidos.
 
-Tipos iniciales:
+Tipos actualizados para Ibiza:
 
-- VIP, stock 200, precio pendiente.
-- General, stock 3000, precio pendiente.
+- General Preventa 1.
+- General Preventa 2.
+- General Precio Final.
+- VIP Preventa 1.
+- VIP Preventa 2.
+- VIP Precio Final.
+- Mesa VIP Preventa 1.
+- Mesa VIP Preventa 2.
+- Mesa VIP Precio Final.
 
 Campos conceptuales:
 
@@ -168,17 +225,25 @@ Campos conceptuales:
 - `name`
 - `description`
 - `price`
+- `currency`
 - `stock`
 - `active`
 - `sales_start`
 - `sales_end`
+- `sales_unit_type`: `single_entry | package`
+- `entries_per_unit`
 - `created_at`
 - `updated_at`
 
 Reglas:
 
 - Stock y precios deben ser configurables.
-- El backend/DB debe impedir superar stock.
+- `stock` mide unidades comerciales, no QRs.
+- `price` mide el precio de la unidad comercial.
+- `single_entry` implica `entries_per_unit = 1`.
+- `package` implica `entries_per_unit > 1`.
+- Para Mesas VIP, `stock` mide mesas y `entries_per_unit = 10`.
+- El backend/DB debe impedir superar stock comercial.
 - No depender del frontend para evitar sobreventa.
 - `sold_count` solo debe persistirse si se mantiene transaccionalmente; si no, calcular desde entradas emitidas válidas.
 
@@ -210,6 +275,39 @@ Campos conceptuales:
 - `created_at`
 - `updated_at`
 
+### `event_order_items`
+
+Representa cada línea comercial dentro de una orden.
+
+Ejemplos:
+
+- 1 Mesa VIP Preventa 1.
+- 4 General Preventa 2.
+- 2 VIP Precio Final.
+
+Campos conceptuales:
+
+- `id`
+- `event_id`
+- `event_order_id`
+- `event_ticket_type_id`
+- `quantity`
+- `unit_price_amount`
+- `currency`
+- `entries_per_unit`
+- `total_amount`
+- `created_at`
+- `updated_at`
+
+Reglas:
+
+- Producto comercial vendido no es lo mismo que unidad validable.
+- `event_order_items` conserva el snapshot comercial de lo vendido.
+- `total_amount = quantity * unit_price_amount`.
+- Las mesas deben quedar vinculadas a su línea comercial.
+- Para 1 Mesa VIP Preventa 1: `quantity = 1`, `entries_per_unit = 10`, `total_amount = 3200000`.
+- Para 4 General Preventa 2: `quantity = 4`, `entries_per_unit = 1`, `total_amount = 720000`.
+
 ### `event_order_entries`
 
 Representa cada entrada/QR individual. Es la unidad validable.
@@ -217,6 +315,7 @@ Representa cada entrada/QR individual. Es la unidad validable.
 Punto clave:
 
 - Una orden puede agrupar varias entradas.
+- Una línea comercial puede generar una o varias entradas.
 - El check-in debe validar entradas individuales.
 - Cada `event_order_entry` debe tener su propio QR.
 
@@ -245,6 +344,9 @@ Reglas:
 - Preferir un QR por persona para mejor control de puerta.
 - No usar QR grupal en el piloto.
 - Validar por `event_order_entry`, no por orden completa.
+- Para entradas individuales, `quantity 4` genera 4 entries.
+- Para mesas, `quantity 1` genera 10 entries y `quantity 2` genera 20 entries.
+- `unit_price_amount` en entries puede guardar el precio equivalente por acceso.
 - No exponer `checkin_token` en export ni activity metadata.
 
 ### `event_panel_users`
@@ -362,6 +464,7 @@ Futuro con pasarela:
 Principio:
 
 - La forma de pago crea la orden.
+- La línea comercial queda en `event_order_items`.
 - La entrada individual sigue siendo `event_order_entry`.
 - El QR y check-in funcionan igual.
 - El historial y export funcionan igual.
@@ -377,6 +480,8 @@ Debe mostrar:
 - total emitidas;
 - VIP emitidas;
 - General emitidas;
+- Mesas VIP vendidas;
+- accesos generados por mesas;
 - usadas/check-ins;
 - pendientes;
 - stock restante;
@@ -390,7 +495,7 @@ Debe permitir:
 - emitir entrada;
 - emitir varias entradas;
 - buscar por nombre/email/documento;
-- filtrar por tipo VIP/General;
+- filtrar por producto/tipo General/VIP/Mesa VIP;
 - filtrar por usada/no usada;
 - ver QR;
 - reenviar email;
@@ -444,6 +549,7 @@ Debe permitir configurar:
 - tipos de entrada;
 - stock;
 - precios;
+- paquetes y accesos por unidad;
 - ventana de validación.
 
 ## 10. Email QR, WhatsApp y export
@@ -486,7 +592,8 @@ Campos candidatos:
 - email;
 - teléfono;
 - documento;
-- tipo de entrada;
+- producto comercial;
+- tipo de acceso;
 - estado de emisión/pago externo;
 - estado de check-in;
 - fecha de emisión;
@@ -591,6 +698,19 @@ Decisión:
 
 - Deben ser configurables.
 - Debe existir protección contra sobreventa.
+- Stock se descuenta por unidades comerciales, no por cantidad de QRs.
+
+### Mesas como paquetes
+
+Riesgo:
+
+- Tratar una Mesa VIP como 10 entradas sueltas perdería métricas comerciales de mesas vendidas.
+
+Decisión:
+
+- Modelar Mesa VIP como producto comercial `package`.
+- Generar 10 QRs individuales por mesa.
+- Mantener vínculo comercial con `event_order_items`.
 
 ### QR por persona
 
@@ -614,11 +734,23 @@ Cerrar `event_orders`, `event_order_entries`, `event_panel_users`, activity y te
 
 ### Slice 2 - DB mínima para evento Ibiza
 
-Crear modelo mínimo de eventos, tipos de entrada, órdenes, entradas validables y membresías.
+Estado: Slice 1B aplicado y validado para base mínima.
+
+### Slice 2.1 - Ajuste preventas, paquetes y order items
+
+Estado: aplicado y validado en Slice 1B.2 / migración 028.
+
+Se agrego soporte DB para:
+
+- agregar `sales_unit_type` a `event_ticket_types`;
+- agregar `entries_per_unit` a `event_ticket_types`;
+- crear `event_order_items`;
+- vincular `event_order_entries` con `event_order_items`;
+- mantener `event_order_entries` como unidad validable.
 
 ### Slice 3 - Provisioning Ibiza
 
-Crear evento Ibiza, tickets VIP/General, stocks, precios configurables y usuarios owner/staff.
+Proximo paso recomendado. Crear evento Ibiza, 9 productos/ticket types, stocks, precios configurables y usuarios owner/staff, sin crear orders, order items, entries ni QRs.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
@@ -662,7 +794,10 @@ Casos mínimos:
 
 - Crear entrada VIP.
 - Crear entrada General.
+- Crear producto Mesa VIP.
 - Emitir varias entradas.
+- Emitir 1 Mesa VIP y generar 10 QRs.
+- Emitir 2 Mesas VIP y generar 20 QRs.
 - Stock decrementa.
 - No permite superar stock.
 - Email se envía.
@@ -682,6 +817,9 @@ Casos mínimos:
 QA operativo adicional:
 
 - Emisión múltiple de 4 entradas genera 4 QRs.
+- Emisión de paquetes respeta `entries_per_unit`.
+- `event_order_items` conserva cantidad, precio comercial y total vendido.
+- `event_order_entries` conserva QRs individuales para puerta.
 - Cada QR valida una sola persona.
 - Reenvío de email queda registrado.
 - Intento duplicado queda registrado.
@@ -697,7 +835,8 @@ Fuera del piloto Ibiza:
 - Comprobantes subidos al panel.
 - B2C público del evento.
 - Marketplace de eventos.
-- Mesas.
+- Seating map.
+- Mesas complejas fuera del modelo de paquete simple.
 - Cupones.
 - Promociones.
 - Liquidaciones/payouts.

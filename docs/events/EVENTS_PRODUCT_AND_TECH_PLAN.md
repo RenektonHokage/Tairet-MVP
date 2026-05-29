@@ -43,6 +43,7 @@ Un evento puede:
 - existir sin local;
 - estar asociado a un local existente;
 - tener varios tipos de entrada;
+- vender productos comerciales simples o paquetes;
 - vender o emitir entradas;
 - generar QR de acceso;
 - validar entradas por scanner o manualmente;
@@ -105,6 +106,12 @@ También se revisaron áreas de backend, DB, panel `web-next` y B2C `web-b2c`, i
 - Near realtime actual usa polling/refetch visible-only, no Supabase Realtime.
 - Panel auth actual depende de `panel_users.local_id`; no sirve tal cual para un tenant de evento independiente.
 
+Actualización posterior:
+
+- La migración `027_create_event_pilot_tables.sql` creó la base DB de Eventos y fue validada para Slice 1B.
+- La migración `028_add_event_packages_and_order_items.sql` agregó productos comerciales `single_entry/package`, `entries_per_unit`, `event_order_items` y el vínculo directo entre entries e items.
+- La base DB de Eventos queda lista para provisioning de Ibiza sin crear órdenes, entries ni QRs todavía.
+
 ### Qué significa hoy `events_public`
 
 `events_public` hoy significa tracking de actividad pública, no evento comercial.
@@ -147,6 +154,8 @@ Consiste en crear entidades completamente separadas:
 - `events`
 - `event_ticket_types`
 - `event_orders`
+- `event_order_items`
+- `event_order_entries`
 - `event_panel_users`
 - `event_activity_events` o equivalente
 
@@ -196,6 +205,7 @@ Decisiones recomendadas:
 - No tratar eventos como promos.
 - Mantener un panel reducido por evento.
 - Reutilizar patrones existentes solo cuando no comprometan tenant/security.
+- Separar productos comerciales (`event_ticket_types`), líneas vendidas (`event_order_items`) y unidades validables (`event_order_entries`).
 - Resolver `event_orders` vs reutilizar `orders` en un slice separado, con foco en seguridad, reporting y check-in.
 
 La decisión prudente es separar el concepto de evento desde el inicio y reutilizar componentes por contrato, no por acoplamiento accidental a locales.
@@ -234,7 +244,9 @@ Notas:
 
 ### `event_ticket_types`
 
-Tipos de entradas del evento.
+Productos comerciales vendidos para el evento.
+
+Pueden representar una entrada individual o un paquete que incluye varios accesos. Por ejemplo: `General Preventa 1`, `VIP Preventa 2` o `Mesa VIP Precio Final`.
 
 Campos conceptuales:
 
@@ -242,16 +254,23 @@ Campos conceptuales:
 - `event_id`
 - `name`
 - `description`
-- `price`
+- `price_amount`
+- `currency`
 - `stock`
 - `active`
 - `sales_start`
 - `sales_end`
+- `sales_unit_type`: `single_entry | package`
+- `entries_per_unit`
 - `created_at`
 - `updated_at`
 
 Notas:
 
+- `stock` representa unidades comerciales disponibles, no necesariamente cantidad de QRs.
+- `price_amount` representa el precio de la unidad comercial.
+- `single_entry` implica `entries_per_unit = 1`.
+- `package` implica `entries_per_unit > 1`.
 - `sold_count` puede ser calculado o persistido solo si se mantiene transaccionalmente.
 - El control de stock debe evitar sobreventa en backend/DB, no depender del frontend.
 
@@ -274,6 +293,31 @@ Alternativa `orders` extendido:
 
 Recomendación preliminar: para MVP, preferir tabla/event-flow propio o una extensión muy explícita con `event_id`, validada en slice separado.
 
+### `event_order_items`
+
+Líneas comerciales dentro de una orden de evento.
+
+Campos conceptuales:
+
+- `id`
+- `event_id`
+- `event_order_id`
+- `event_ticket_type_id`
+- `quantity`
+- `unit_price_amount`
+- `currency`
+- `entries_per_unit`
+- `total_amount`
+- `created_at`
+- `updated_at`
+
+Notas:
+
+- Permite saber qué producto comercial se vendió, con snapshot de precio y cantidad.
+- Es necesario para paquetes como mesas, donde una unidad comercial genera varios accesos.
+- Prepara carrito/checkout online futuro sin depender solo de `event_order_entries`.
+- `total_amount` debe representar `quantity * unit_price_amount`.
+
 ### Unidad validable
 
 La unidad validable debe definirse temprano.
@@ -288,7 +332,9 @@ Recomendación:
 
 - Preferir un QR por entrada/persona si el objetivo es mejor control de puerta.
 - Evaluar `event_order_entries` o equivalente antes de implementar compra/check-in.
-- Evitar lanzar con `quantity > 1` si no está definido si la validación será parcial, total o por persona.
+- Diferenciar producto comercial vendido de unidad validable en puerta.
+- Para paquetes, `quantity * entries_per_unit` debe generar esa cantidad de `event_order_entries`.
+- Evitar lanzar ventas múltiples o paquetes si no está definido cómo se crean y validan las entradas individuales.
 
 ### `event_panel_users`
 
@@ -499,9 +545,9 @@ Definir si se crean `event_orders`/`event_order_entries` o se extiende `orders`.
 
 Conectar listado y detalle a una fuente real de eventos publicados. Reutilizar la UI/mock existente solo como referencia visual.
 
-### Slice 4 - Tickets, stock y órdenes de evento
+### Slice 4 - Tickets, stock, order items y órdenes de evento
 
-Implementar tipos de entrada, stock, ventana de venta, emisión/compra y protección contra sobreventa.
+Implementar productos comerciales, paquetes, `event_order_items`, stock por unidad comercial, ventana de venta, emisión/compra y protección contra sobreventa.
 
 ### Slice 5 - Panel reducido de evento
 
@@ -592,6 +638,7 @@ QA compra/emisión:
 
 - Compra/registro exitoso.
 - Stock decrementa correctamente.
+- Paquete vendido genera la cantidad correcta de accesos/QRs individuales.
 - Sin sobreventa con solicitudes concurrentes.
 - Ventana de venta activa/inactiva.
 - QR generado para la unidad validable.
@@ -653,10 +700,11 @@ Fuera del MVP:
 Decisiones pendientes:
 
 - Resolver `event_orders` vs reutilizar `orders`.
+- Resolver `event_order_items` como tabla de líneas comerciales.
 - Resolver si habrá `event_order_entries` o equivalente.
 - Definir si MVP permite quantity mayor a 1.
 - Definir si habrá un QR por persona o QR grupal.
-- Definir si mesas entran en MVP o quedan fuera.
+- Definir alcance de paquetes/mesas por evento, sin confundir mesa comercial con unidad validable.
 - Definir estrategia de pagos cuando paid flows estén habilitados.
 - Definir reportes por staff.
 - Definir liquidaciones/payouts.
@@ -664,4 +712,3 @@ Decisiones pendientes:
 - Definir demo comercial de eventos.
 - Definir si activity será tabla propia o extensión de la actual.
 - Definir si el panel de evento vive bajo ruta separada o dentro del panel actual con tenant selector.
-
