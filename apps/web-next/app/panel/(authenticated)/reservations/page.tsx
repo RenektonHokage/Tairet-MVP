@@ -20,6 +20,7 @@ import {
   getPanelDemoBarReservationsDefaultDate,
   updatePanelDemoBarReservation,
 } from "@/lib/panel-demo/reservations";
+import { getPanelDemoReservationActivityItems } from "@/lib/panel-demo/operationalActivity";
 
 const RESERVATIONS_AUTO_REFRESH_MS = 15000;
 
@@ -609,7 +610,10 @@ export default function ReservationsPage() {
         refreshLoading={refreshLoading}
         lastRefreshLabel={lastRefreshLabel}
         refreshError={refreshError}
-        showActivityHistory={!isDemoBar}
+        showActivityHistory
+        getActivityHistoryItems={
+          isDemoBar ? getPanelDemoReservationActivityItems : undefined
+        }
       />
 
       {editingReservation && (

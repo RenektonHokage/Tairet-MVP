@@ -11,6 +11,7 @@ import {
   getPanelDemoDiscotecaOrdersSummary,
   searchPanelDemoDiscotecaOrders,
 } from "@/lib/panel-demo/orders";
+import { getPanelDemoOrderActivityItems } from "@/lib/panel-demo/operationalActivity";
 import { getPanelDemoNow } from "@/lib/panel-demo/time";
 
 interface OrderItem {
@@ -661,7 +662,7 @@ export default function OrdersPageClient() {
   };
 
   const handleManualCheckin = async (order: OrderItem) => {
-    if (isDemo || manualCheckinLoadingId) {
+    if ((isDemo && !isDemoDiscoteca) || manualCheckinLoadingId) {
       return;
     }
 
@@ -673,6 +674,40 @@ export default function OrdersPageClient() {
     setManualCheckinNotice(null);
 
     try {
+      if (isDemoDiscoteca) {
+        const usedAt = getPanelDemoNow("discoteca").toISOString();
+        const quantity = typeof order.quantity === "number" ? order.quantity : 0;
+
+        setEntries((current) =>
+          current.map((entry) =>
+            entry.id === order.id
+              ? {
+                  ...entry,
+                  used_at: usedAt,
+                  checkin_state: "used",
+                }
+              : entry
+          )
+        );
+        setSummary((current) =>
+          current
+            ? {
+                ...current,
+                used_qty: current.used_qty + quantity,
+                pending_qty: Math.max(0, current.pending_qty - quantity),
+                used_count: current.used_count + 1,
+                pending_count: Math.max(0, current.pending_count - 1),
+              }
+            : current
+        );
+        setManualCheckinConfirmId(null);
+        setManualCheckinNotice({
+          type: "success",
+          message: "Entrada validada.",
+        });
+        return;
+      }
+
       const headers = await getAuthHeaders();
       const response = await fetch(
         `${getApiBase()}/panel/orders/${encodeURIComponent(order.id)}/use`,
@@ -1198,7 +1233,9 @@ export default function OrdersPageClient() {
     const stateStyle = stateStyles[resolvedState];
     const fullName = `${order.customer_name ?? ""} ${order.customer_last_name ?? ""}`.trim() || "-";
     const quantity = typeof order.quantity === "number" ? order.quantity : 0;
-    const canManualCheckin = resolvedState === "pending" && !isDemo;
+    const canManualCheckin =
+      resolvedState === "pending" &&
+      (!isDemo || (isDemoDiscoteca && temporalContext === "today"));
     const isManualCheckinConfirming = manualCheckinConfirmId === order.id;
     const isManualCheckinLoading = manualCheckinLoadingId === order.id;
 
@@ -1338,14 +1375,16 @@ export default function OrdersPageClient() {
                     >
                       Esta acción marcará la entrada como usada.
                     </p>
-                    <p
-                      className={cn(
-                        "text-[11px]",
-                        panelTheme === "dark" ? "text-[#D6B85D]" : "text-amber-800"
-                      )}
-                    >
-                      Método: validación manual.
-                    </p>
+                    {!isDemoDiscoteca ? (
+                      <p
+                        className={cn(
+                          "text-[11px]",
+                          panelTheme === "dark" ? "text-[#D6B85D]" : "text-amber-800"
+                        )}
+                      >
+                        Método: validación manual.
+                      </p>
+                    ) : null}
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -1397,11 +1436,16 @@ export default function OrdersPageClient() {
                 )}
               </div>
             ) : null}
-            {!isDemo ? (
+            {!isDemo || isDemoDiscoteca ? (
               <OperationalActivityHistory
                 entityType="order"
                 entityId={order.id}
                 tone={panelTheme}
+                demoItems={
+                  isDemoDiscoteca
+                    ? getPanelDemoOrderActivityItems(order)
+                    : undefined
+                }
               />
             ) : null}
           </div>

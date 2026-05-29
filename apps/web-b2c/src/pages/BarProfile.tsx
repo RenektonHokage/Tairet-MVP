@@ -25,6 +25,7 @@ import { getCover, getHero, getBarGalleryImages, getBarCategory } from "@/lib/ga
 import { useNavigate } from "react-router-dom";
 import { mockBarData } from "@/lib/mocks/bars";
 import type { ContactInfo } from "@/lib/contact";
+import { getDemoBrand, getDemoBrandDisplayName } from "@/lib/demoBrands";
 
 const BarProfile = () => {
   const isMobile = useIsMobile();
@@ -151,6 +152,8 @@ const BarProfile = () => {
   if (!barData) {
     return null; // Se redirige a 404
   }
+  const demoBrand = getDemoBrand(barId, "bar");
+  const venueDisplayName = getDemoBrandDisplayName(barId, barData.name, "bar");
 
   // ==========================================================================
   // Galería DB-first con fallback a mocks
@@ -211,21 +214,21 @@ const BarProfile = () => {
   const heroImage = (() => {
     // 1. Si existe hero, usarlo
     if (heroImageItem) {
-      return { src: heroImageItem.url, alt: barData.name };
+      return { src: heroImageItem.url, alt: venueDisplayName };
     }
     // 2. Si existe alguna imagen que no sea cover ni hero, usar la primera
     const firstNonCover = galleryWithoutCover.find(g => g.kind !== "hero");
     if (firstNonCover) {
-      return { src: firstNonCover.url, alt: barData.name };
+      return { src: firstNonCover.url, alt: venueDisplayName };
     }
     // 3. Fallback a mock
-    return { src: barData.images[0], alt: barData.name };
+    return { src: barData.images[0], alt: venueDisplayName };
   })();
 
   // Galería para TouchSlideGallery (mobile) - SIN cover, incluye hero
   const galleryImages = galleryWithoutCover.length > 0
     ? galleryWithoutCover.map(g => ({ src: g.url, alt: GALLERY_KIND_LABELS[g.kind] }))
-    : barData.images.map((src, i) => ({ src, alt: `${barData.name} ${i + 1}` }));
+    : barData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
 
   const categoryTitles = ["Comida", "Interior", "Carta", "Tragos"] as const;
   
@@ -236,7 +239,7 @@ const BarProfile = () => {
     
     // Filtrar imágenes de la galería por kind (excluye cover automáticamente)
     const kindImages = getBarCategory(localGallery, kind)
-      .map(g => ({ src: g.url, alt: `${barData.name} - ${GALLERY_KIND_LABELS[kind]}` }));
+      .map(g => ({ src: g.url, alt: `${venueDisplayName} - ${GALLERY_KIND_LABELS[kind]}` }));
     
     // Si hay imágenes para ese kind, usarlas
     if (kindImages.length > 0) {
@@ -247,7 +250,7 @@ const BarProfile = () => {
     const fallbackIndex = Object.keys(categoryToKind).indexOf(category);
     return [{ 
       src: barData.images[fallbackIndex % barData.images.length], 
-      alt: `${barData.name} - ${category}` 
+      alt: `${venueDisplayName} - ${category}`
     }];
   };
   return <div className="min-h-screen bg-background">
@@ -277,6 +280,11 @@ const BarProfile = () => {
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              {demoBrand ? (
+                <div className="absolute bottom-6 left-6">
+                  <h2 className="text-white text-xl font-bold drop-shadow-md">{venueDisplayName}</h2>
+                </div>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={() => setShowGalleryMenu(true)}
@@ -295,6 +303,16 @@ const BarProfile = () => {
                   alt={heroImage.alt}
                   className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />
+                {demoBrand ? (
+                  <>
+                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 to-transparent" />
+                    <div className="absolute bottom-6 left-6">
+                      <h2 className="text-white text-2xl sm:text-3xl font-bold drop-shadow-md">
+                        {venueDisplayName}
+                      </h2>
+                    </div>
+                  </>
+                ) : null}
               </div>
               
               {/* Imágenes pequeñas con categorías - DB-first por kind */}
@@ -320,7 +338,7 @@ const BarProfile = () => {
         </section>
 
         {/* Reservation Section */}
-        {localId && <BarReservation localId={localId} venueName={barData.name} contactInfo={contactInfo} />}
+        {localId && <BarReservation localId={localId} venueName={venueDisplayName} contactInfo={contactInfo} />}
 
         {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
         {localId && (
@@ -333,7 +351,7 @@ const BarProfile = () => {
         {/* Map - DB-first con fallback */}
         <LazyMapSection
           venueId={localId || undefined}
-          venue={barData.name}
+          venue={venueDisplayName}
           location={localLocation || "Centro, Asuncion"}
           address={localAddress || "Palma 123 esq. Chile"}
           city={localCity}
@@ -353,7 +371,7 @@ const BarProfile = () => {
       <Dialog open={showGalleryMenu} onOpenChange={setShowGalleryMenu}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Galería de {barData.name}</DialogTitle>
+            <DialogTitle>Galería de {venueDisplayName}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-4">
             {categoryTitles.map((category) => (
@@ -384,7 +402,7 @@ const BarProfile = () => {
       <Dialog open={selectedCategory !== null} onOpenChange={() => setSelectedCategory(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Galería de {selectedCategory} - {barData.name}</DialogTitle>
+            <DialogTitle>Galería de {selectedCategory} - {venueDisplayName}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
             {selectedCategory && getCategoryImages(selectedCategory).map((image, index) => (

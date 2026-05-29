@@ -45,8 +45,8 @@ Problemas detectados:
 - Promociones demo tiene contenido funcional, pero todavia debe conectarse con assets y narrativa comercial por variante;
 - Perfil del Local demo usa nombres, direccion y telefonos claramente ficticios;
 - hay superficies graficas con textos como `Superficie demo para Perfil del Local`;
-- el historial operativo por registro existe en el panel live, pero no esta integrado al runtime demo;
-- algunas mejoras recientes del panel operativo, como activity log y actor label, no se reflejan todavia en demo;
+- el historial operativo por registro ya quedo integrado al runtime demo en Slice 5;
+- las mejoras visibles del panel operativo deben revisarse contra la politica de paridad demo para evitar que la demo vuelva a quedar atrasada;
 - existen overrides temporales sobre `dlirio` y `mckharthys-bar` que pueden confundirse con estrategia demo si no se documentan;
 - el alias B2C `D'Lirio -> Koala Jack` es parcial y puede mezclar nombres dentro de la misma pantalla;
 - el B2C de bar todavia no esta coordinado con `Tairet Bar`;
@@ -91,7 +91,6 @@ Fuera de demo-ready actual:
 
 - Check-in/scanner real;
 - Soporte/Settings;
-- historial operativo por registro dentro del runtime demo;
 - paid flows.
 
 Brechas puntuales:
@@ -100,8 +99,10 @@ Brechas puntuales:
 - `apps/web-next/lib/panel-demo/identity.ts` y `apps/web-next/lib/panel-demo/profile.ts` ya consumen la identidad base `Koala Jack` / `Tairet Bar`;
 - `apps/web-next/lib/panel-demo/profile.ts` todavia usa `Av. Demo 1234` y superficies demo;
 - `apps/web-next/lib/panel-demo/promos.ts` tiene fixtures demo, pero falta conectarlos con assets comerciales coordinados B2C+B2B;
-- Entradas oculta `OperationalActivityHistory` cuando `isDemo`;
-- Reservas pasa `showActivityHistory={!isDemoBar}`;
+- Slice 5 corrigio la paridad visible de Entradas/Reservas demo:
+  - Entradas demo discoteca muestra `Validar` demo-only e `Historial`;
+  - Reservas demo bar muestra `Historial`;
+  - ambos historiales usan datos locales/mock y no endpoints.
 - `apps/web-next/lib/panel-demo/activity.ts` alimenta actividad global de metricas/lineup, no historial por registro;
 - `apps/web-next/lib/panelContext.tsx` tiene overrides visuales temporales para `dlirio` y `mckharthys-bar`;
 - `apps/web-next/app/panel/(authenticated)/marketing/promos/page.tsx` tiene overrides temporales de vistas para `dlirio` y `mckharthys-bar`.
@@ -243,7 +244,82 @@ apps/web-next/public/demo/tairet-bar/
 
 Si B2C necesita servir los mismos assets desde su propia app, el slice de assets debe definir una ruta equivalente en `apps/web-b2c` o una estrategia compartida segura. La regla importante es que los assets demo queden separados del seed operativo.
 
-## 8. Pantallas a pulir
+## 8. Politica de assets demo
+
+Decision vigente:
+
+- no se usara el panel operativo para subir imagenes del runtime demo comercial en este bloque;
+- el panel operativo no sera usado como CMS de la demo;
+- las imagenes comerciales de la demo se manejaran como assets versionados en el repo;
+- el runtime demo consumira esas rutas por mapping central;
+- los reemplazos de imagenes deben mantener nombres/rutas estables para evitar cambios de codigo.
+
+Motivos:
+
+- subir desde el panel puede modificar datos operativos/seed;
+- puede mezclar demo con live/QA;
+- requiere storage, persistencia y permisos si se quiere hacer correctamente;
+- agrega scope innecesario para una demo comercial;
+- puede hacer que la demo dependa de datos externos o estado mutable;
+- dificulta reproducir la demo en deploys y reuniones.
+
+Estructura recomendada:
+
+```text
+apps/web-next/public/demo/koala-jack/
+  cover.jpg
+  gallery-01.jpg
+  gallery-02.jpg
+  gallery-03.jpg
+  promo-01.jpg
+  promo-02.jpg
+  promo-03.jpg
+  promo-04.jpg
+
+apps/web-next/public/demo/tairet-bar/
+  cover.jpg
+  gallery-01.jpg
+  gallery-02.jpg
+  gallery-03.jpg
+  promo-01.jpg
+  promo-02.jpg
+  promo-03.jpg
+  promo-04.jpg
+```
+
+Notas:
+
+- los nombres pueden ajustarse si el mapping real usa otra convencion;
+- lo importante es mantener rutas estables;
+- si se reemplaza una imagen, mantener el nombre cuando sea posible;
+- si hace falta agregar una nueva ruta, actualizar primero el mapping central;
+- no usar D'Lirio ni McKarthy's como fuente viva de imagenes demo;
+- no usar Supabase Storage ni uploads del panel para esta demo comercial.
+
+## 9. Politica de paridad demo
+
+Cada nuevo feature visible del panel debe clasificarse al cierre:
+
+1. Demo-required:
+   - debe aparecer en la demo comercial;
+   - requiere fixture/demo adapter;
+   - requiere QA en `/panel/demo/bar` y/o `/panel/demo/discoteca`.
+2. Demo-optional:
+   - puede quedar fuera hasta que sea util comercialmente;
+   - se documenta como pendiente.
+3. Demo-excluded:
+   - no corresponde a la demo comercial;
+   - ejemplos: paid flows, `/payments/callback`, configuraciones sensibles, operaciones backend internas.
+
+Reglas:
+
+- si un feature visible se vende o se muestra en reuniones, debe tener soporte demo;
+- si no se actualiza el runtime demo, este documento debe registrar el gap;
+- no asumir que los features live se reflejan automaticamente en demo;
+- aunque el runtime demo reutilice componentes reales, puede necesitar fixtures nuevos;
+- paid flows y `/payments/callback` quedan excluidos salvo decision futura explicita.
+
+## 10. Pantallas a pulir
 
 B2C visual:
 
@@ -288,7 +364,7 @@ Entradas y Reservas:
 - evitar acciones reales en demo;
 - no reactivar scanner/check-in real en este bloque.
 
-## 9. B2C y alias visual Koala Jack
+## 11. B2C y alias visual Koala Jack
 
 Estado detectado:
 
@@ -315,7 +391,7 @@ Objetivo para el journey:
 - B2C muestra la experiencia del cliente;
 - B2B muestra la operacion de ese mismo local demo.
 
-## 10. Roadmap por slices
+## 12. Roadmap por slices
 
 ### Slice 0 - Discovery/documentacion
 
@@ -452,6 +528,9 @@ El mapping cubre:
 Confirmaciones:
 
 - los assets son copias demo separadas;
+- los assets se manejan como archivos versionados en el repo;
+- el panel operativo no se usa para subir ni mantener imagenes del runtime demo;
+- el runtime demo debe consumirlos por `apps/web-next/lib/panel-demo/assets.ts`;
 - no se leen como seed operativo vivo;
 - no se modificaron D'Lirio ni McKarthy's;
 - no se toco B2C;
@@ -473,35 +552,155 @@ Proximo paso:
 
 ### Slice 3 - B2C demo visual coordinado
 
-- Alinear nombre visible, galeria, promociones, informacion, ubicacion y CTA.
-- Evitar alias parcial que mezcle `Koala Jack` con `DLirio`.
-- Evitar mezcla de `Tairet Bar` con `Mckharthys Bar`.
-- Mantener el alcance como demo visual coordinado.
-- No crear modo demo B2C completo salvo decision futura separada.
+Estado: `Implementado y validado`.
+
+Que se creo:
+
+- `apps/web-b2c/src/lib/demoBrands.ts` como capa centralizada de display demo en B2C;
+- `getDemoBrand(...)`;
+- `getDemoBrandDisplayName(...)`.
+
+Que se alineo:
+
+- `dlirio` resuelve visualmente como `Koala Jack`;
+- `mckharthys-bar` resuelve visualmente como `Tairet Bar`;
+- no se mutan datos base;
+- no se modifica identidad operativa de D'Lirio ni McKarthy's;
+- la resolucion ocurre en render/display.
+
+Superficies cubiertas:
+
+- hero/titulo visible;
+- alt text de galeria;
+- titulos de dialogos de galeria;
+- compra/mesas;
+- reservas;
+- mapa/ubicacion.
+
+Validaciones:
+
+- `pnpm -C apps/web-b2c typecheck` -> `OK`;
+- `git diff --check` -> `OK`;
+- QA runtime B2C `dlirio` / `Koala Jack` -> `PASS`;
+- QA runtime B2C `mckharthys-bar` / `Tairet Bar` -> `PASS`;
+- cards/listados de locales no se tocaron -> `PASS`;
+- otros perfiles no cambiaron -> `PASS`;
+- imagenes siguen cargando -> `PASS`;
+- navegacion B2C sin regresiones visibles -> `PASS`.
+
+Alcance protegido:
+
+- no se toco backend;
+- no se tocaron SQL/RLS/migraciones;
+- no se tocaron endpoints;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se toco panel B2B;
+- no se modificaron datos operativos/seed;
+- no se cambio identidad interna de D'Lirio ni McKarthy's.
+
+Proximo paso:
+
+- Slice 4 - Promociones demo B2B con assets;
+- objetivo: conectar los assets demo ya preparados en `/demo/koala-jack` y `/demo/tairet-bar` al runtime demo de Promociones.
 
 ### Slice 4 - Promociones demo B2B con assets
 
 - Pulir promociones para `demoClub` y `demoBar`.
 - Reemplazar placeholders y copy interno.
 - Alinear preview, estados y metricas demo.
-- Reemplazar SVGs/preview genericos por assets demo cuando esten disponibles.
+- Consumir assets demo desde `apps/web-next/lib/panel-demo/assets.ts`.
+- Reemplazar SVGs/preview genericos por assets demo versionados.
 - No usar overrides sobre `dlirio` o `mckharthys-bar` como estrategia nueva.
 
-### Slice 5 - Perfil del Local demo B2B
+### Slice 5 - Parity UI Entradas/Reservas demo con Validar + Historial
+
+Estado: `Implementado y validado`.
+
+Que se implemento:
+
+- Entradas demo discoteca puede simular `Validar`;
+- la simulacion de `Validar` no llama backend;
+- la simulacion actualiza estado local de la card;
+- la simulacion actualiza resumen usado/pendiente cuando corresponde;
+- Entradas demo muestra `Historial` por registro;
+- Reservas demo bar muestra `Historial` por registro;
+- `OperationalActivityHistory` acepta `demoItems`;
+- si `demoItems` viene, `OperationalActivityHistory` no llama `GET /panel/activity/entity`;
+- en live/operativo, el historial sigue usando el endpoint actual;
+- en live/operativo, `Validar` mantiene su `PATCH` existente.
+
+Discovery que cerro el slice:
+
+- Entradas ocultaba `OperationalActivityHistory` cuando `isDemo`;
+- Entradas bloqueaba `Validar` con `isDemo`;
+- Reservas pasaba `showActivityHistory={!isDemoBar}`;
+- el runtime demo necesitaba paridad UI para reflejar features recientes del panel.
+
+Comportamiento en Entradas demo:
+
+- 20/03 mantiene narrativa de dia anterior;
+- 21/03 mantiene narrativa de operacion en vivo;
+- 22/03 mantiene narrativa de preventa;
+- en el dia operativo, `Validar` simula validacion local;
+- el historial puede mostrar `Entrada creada`, `Entrada validada` y `Entrada no utilizada`;
+- actores visibles: `Cliente`, `Staff Martin`, `Sistema`.
+
+Comportamiento en Reservas demo:
+
+- Reservas demo muestra `Historial` por registro;
+- el historial puede mostrar `Reserva creada`, `Reserva confirmada`, `Reserva cancelada` y `Nota interna actualizada`;
+- actores visibles: `Cliente`, `Owner Martin` o `Staff Martin`.
+
+Seguridad visual:
+
+- no se muestra metadata cruda;
+- no se muestra PII;
+- no se muestra `checkin_token`;
+- no se muestra `local_id`;
+- no se muestra `actor_user_id`;
+- no se muestra `notes`;
+- no se muestra `table_note` completo;
+- no se muestra metodo QR/manual.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> `OK`;
+- `git diff --check` -> `OK`;
+- QA runtime `/panel/demo/discoteca` Entradas -> `PASS`;
+- QA runtime fechas 20/03, 21/03 y 22/03 -> `PASS`;
+- QA runtime `Validar` demo sin backend -> `PASS`;
+- QA runtime Historial demo de Entradas -> `PASS`;
+- QA runtime `/panel/demo/bar` Reservas -> `PASS`;
+- QA runtime Historial demo de Reservas -> `PASS`;
+- QA runtime sin datos sensibles visibles -> `PASS`.
+
+Alcance protegido:
+
+- no se toco backend;
+- no se tocaron SQL/RLS/migraciones;
+- no se tocaron endpoints;
+- no se toco B2C;
+- no se tocaron paid flows ni `/payments/callback`;
+- no se modificaron datos operativos/seed;
+- no se modifico identidad operativa de D'Lirio ni McKarthy's;
+- demo no se conecto a `GET /panel/activity/entity`;
+- demo no se conecto a `PATCH /panel/orders/:id/use`;
+- demo no se conecto a `PATCH /panel/checkin/:token`.
+
+Proximo paso:
+
+- QA comercial completo B2C -> B2B;
+- validar flujo de reunion `B2C Koala Jack -> /panel/demo/discoteca`;
+- validar flujo de reunion `B2C Tairet Bar -> /panel/demo/bar`;
+- revisar promociones, perfil, entradas/reservas, metricas e historial como una historia comercial coherente.
+
+### Slice 6 - Perfil del Local demo B2B
 
 - Pulir nombre, descripcion, zona, direccion, horarios, categorias, imagenes y preview.
+- Consumir assets demo desde `apps/web-next/lib/panel-demo/assets.ts`.
 - Alinear catalogo visible de entradas/mesas para discoteca.
 - Alinear reservas/capacidad para bar.
 - Evitar `Av. Demo`, telefonos obviamente ficticios y superficies genericas.
-
-### Slice 6 - Activity log demo
-
-- Agregar historial operativo mock por registro dentro del runtime demo.
-- Entradas demo: `Entrada creada`, `Entrada validada`, `Intento de validacion duplicado` si aplica.
-- Reservas demo: `Reserva creada`, `Reserva confirmada`, `Reserva cancelada`, `Nota interna actualizada`.
-- Mostrar actores seguros tipo `Owner Martin` / `Staff Martin`.
-- No mostrar PII, tokens, `table_note`, `notes` ni metodo QR/manual.
-- No usar `GET /panel/activity/entity` para demo mock.
 
 ### Slice 7 - QA comercial B2C -> B2B
 
@@ -512,7 +711,14 @@ Proximo paso:
 - Confirmar que no se alteran datos operativos/seed.
 - Confirmar salida limpia con `/panel/demo/off`.
 
-## 11. Riesgos y mitigaciones
+### Slice futuro opcional - Asset manager demo
+
+- Evaluar una herramienta interna para administrar imagenes demo solo si aparece necesidad operativa concreta.
+- No usar el panel operativo como CMS de la demo.
+- Si se implementa, debe tener storage, permisos, persistencia y separacion demo/live explicitos.
+- No forma parte del MVP de demo comercial.
+
+## 13. Riesgos y mitigaciones
 
 | Riesgo | Impacto | Mitigacion |
 | --- | --- | --- |
@@ -533,7 +739,7 @@ Proximo paso:
 | Seguir agregando overrides sueltos | Aumenta deuda y comportamiento dificil de auditar | Centralizar demo brands y fixtures; no ampliar overrides sobre slugs operativos. |
 | Panel demo pulido pero B2C desalineado | Menor impacto comercial | Tratar B2C como primer paso del flujo de reunion. |
 
-## 12. QA comercial recomendado
+## 14. QA comercial recomendado
 
 Discoteca / Koala Jack:
 
@@ -576,7 +782,7 @@ Transversal:
 - confirmar que no se toca SQL/RLS/backend/endpoints;
 - confirmar que los overrides B2C quedan reemplazados o documentados como parciales hasta que el slice B2C cierre.
 
-## 13. Fuera de alcance
+## 15. Fuera de alcance
 
 Queda fuera de este plan o de este ajuste documental:
 
@@ -591,6 +797,12 @@ Queda fuera de este plan o de este ajuste documental:
 - cambiar identidad real de D'Lirio;
 - cambiar identidad real de McKarthy's;
 - conectar demo con datos productivos;
+- usar el panel operativo como fuente de imagenes demo;
+- subir imagenes demo desde el panel en este bloque;
+- Supabase Storage para assets del runtime demo comercial;
+- asset manager demo;
+- demo CMS;
+- almacenamiento dinamico de assets demo;
 - redisenar completo el panel;
 - reescribir completo el B2C;
 - crear modo demo B2C completo en este paso;
@@ -601,13 +813,15 @@ Queda fuera de este plan o de este ajuste documental:
 - service role;
 - configs/env vars.
 
-## 14. Decisiones futuras
+## 16. Decisiones futuras
 
 Decisiones que pueden reabrirse despues:
 
 - si B2C tendra un modo demo formal separado;
 - si la demo necesita selector comercial visible para el equipo;
 - si se agregan assets propios de Koala Jack y Tairet Bar;
+- si se crea un asset manager demo interno;
+- si se habilita gestion de imagenes demo desde una herramienta separada del panel operativo;
 - si se hace guion de venta por flujo;
 - si se generan screenshots oficiales o video demo;
 - si el demo se aisla en host/origin propio;

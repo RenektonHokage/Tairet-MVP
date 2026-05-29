@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Clock, Mail, Phone, Users } from "lucide-react";
 import { formatTimePy } from "@/lib/time";
+import type { OperationalActivityItem } from "@/lib/activity";
 
 import { OperationalActivityHistory } from "@/components/panel/OperationalActivityHistory";
 import { Badge, Card, CardContent, CardFooter, CardHeader, CardTitle, cn, panelUi } from "../ui";
@@ -19,6 +20,8 @@ export interface Reservation {
   status: ReservationStatus;
   notes?: string | null;
   table_note?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
 }
 
 export interface ReservationCardProps {
@@ -27,6 +30,7 @@ export interface ReservationCardProps {
   onCancel?: (reservation: Reservation) => void;
   onEdit?: (reservation: Reservation) => void;
   showActivityHistory?: boolean;
+  activityHistoryItems?: OperationalActivityItem[];
 }
 
 const statusMap: Record<
@@ -49,6 +53,7 @@ export function ReservationCard({
   onCancel,
   onEdit,
   showActivityHistory = true,
+  activityHistoryItems,
 }: ReservationCardProps) {
   const status = statusMap[reservation.status];
   const timeLabel = formatTimePy(reservation.date);
@@ -167,6 +172,7 @@ export function ReservationCard({
           <OperationalActivityHistory
             entityType="reservation"
             entityId={reservation.id}
+            demoItems={activityHistoryItems}
           />
         ) : null}
       </CardContent>

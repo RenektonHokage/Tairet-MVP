@@ -6,49 +6,47 @@ export interface PanelDemoAssets {
   promos: string[];
   profile: {
     cover: string;
+    hero?: string;
     gallery: string[];
   };
 }
 
 export const demoClubAssets: PanelDemoAssets = {
-  cover: "/demo/koala-jack/cover.jpg",
-  gallery: [
-    "/demo/koala-jack/gallery-01.jpg",
-    "/demo/koala-jack/gallery-02.jpg",
-    "/demo/koala-jack/gallery-03.jpg",
-  ],
+  cover: "/demo/koala-jack/cover.png",
+  gallery: [],
   promos: [
-    "/demo/koala-jack/promo-01.jpg",
-    "/demo/koala-jack/promo-02.jpg",
-    "/demo/koala-jack/promo-03.jpg",
+    "/demo/koala-jack/promo-01.png",
+    "/demo/koala-jack/promo-02.png",
+    "/demo/koala-jack/promo-03.png",
   ],
   profile: {
-    cover: "/demo/koala-jack/cover.jpg",
-    gallery: [
-      "/demo/koala-jack/gallery-01.jpg",
-      "/demo/koala-jack/gallery-02.jpg",
-      "/demo/koala-jack/gallery-03.jpg",
-    ],
+    cover: "/demo/koala-jack/cover.png",
+    hero: "/demo/koala-jack/cover.png",
+    gallery: [],
   },
 };
 
 export const demoBarAssets: PanelDemoAssets = {
-  cover: "/demo/tairet-bar/cover.jpg",
+  cover: "/demo/tairet-bar/cover.png",
   gallery: [
-    "/demo/tairet-bar/gallery-01.jpg",
-    "/demo/tairet-bar/gallery-02.jpg",
-    "/demo/tairet-bar/gallery-03.jpg",
+    "/demo/tairet-bar/gallery-01.webp",
+    "/demo/tairet-bar/gallery-02.png",
+    "/demo/tairet-bar/gallery-03.png",
+    "/demo/tairet-bar/gallery-04.webp",
   ],
   promos: [
-    "/demo/tairet-bar/promo-01.jpg",
-    "/demo/tairet-bar/promo-02.jpg",
+    "/demo/tairet-bar/promo-01.jpeg",
+    "/demo/tairet-bar/promo-02.jpeg",
+    "/demo/tairet-bar/promo-03.jpeg",
   ],
   profile: {
-    cover: "/demo/tairet-bar/cover.jpg",
+    cover: "/demo/tairet-bar/cover.png",
+    hero: "/demo/tairet-bar/cover-02.png",
     gallery: [
-      "/demo/tairet-bar/gallery-01.jpg",
-      "/demo/tairet-bar/gallery-02.jpg",
-      "/demo/tairet-bar/gallery-03.jpg",
+      "/demo/tairet-bar/gallery-01.webp",
+      "/demo/tairet-bar/gallery-02.png",
+      "/demo/tairet-bar/gallery-03.png",
+      "/demo/tairet-bar/gallery-04.webp",
     ],
   },
 };

@@ -15,6 +15,7 @@ interface OperationalActivityHistoryProps {
   entityType: OperationalActivityEntityType;
   entityId: string;
   tone?: ActivityHistoryTone;
+  demoItems?: OperationalActivityItem[];
 }
 
 function getActorLabel(item: OperationalActivityItem): string {
@@ -62,6 +63,7 @@ export function OperationalActivityHistory({
   entityType,
   entityId,
   tone = "light",
+  demoItems,
 }: OperationalActivityHistoryProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [items, setItems] = React.useState<OperationalActivityItem[]>([]);
@@ -71,6 +73,7 @@ export function OperationalActivityHistory({
   const mountedRef = React.useRef(true);
 
   const isDark = tone === "dark";
+  const isDemoHistory = Array.isArray(demoItems);
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -89,6 +92,12 @@ export function OperationalActivityHistory({
     setError(null);
 
     try {
+      if (isDemoHistory) {
+        setItems(demoItems ?? []);
+        setHasLoaded(true);
+        return;
+      }
+
       const response = await getPanelEntityActivity({ entityType, entityId });
       if (!mountedRef.current) {
         return;
@@ -105,7 +114,13 @@ export function OperationalActivityHistory({
         setLoading(false);
       }
     }
-  }, [entityId, entityType, loading]);
+  }, [demoItems, entityId, entityType, isDemoHistory, loading]);
+
+  React.useEffect(() => {
+    if (isDemoHistory && hasLoaded) {
+      setItems(demoItems ?? []);
+    }
+  }, [demoItems, hasLoaded, isDemoHistory]);
 
   const handleToggle = () => {
     const nextOpen = !isOpen;

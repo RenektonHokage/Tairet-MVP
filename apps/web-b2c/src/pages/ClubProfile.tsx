@@ -27,6 +27,7 @@ import { parseBenefits } from "@/lib/parseBenefits";
 import { useNavigate } from "react-router-dom";
 import { mockClubData } from "@/lib/mocks/clubs";
 import type { ContactInfo } from "@/lib/contact";
+import { getDemoBrandDisplayName } from "@/lib/demoBrands";
 
 const ClubProfile = () => {
   const isMobile = useIsMobile();
@@ -168,7 +169,7 @@ const ClubProfile = () => {
   if (!clubData) {
     return null; // Se redirige a 404
   }
-  const heroDisplayName = clubId === "dlirio" ? "Koala Jack" : clubData.name;
+  const venueDisplayName = getDemoBrandDisplayName(clubId, clubData.name, "club");
 
   const liveMusicLabel = localAdditionalInfo.find((item) => {
     const normalized = item
@@ -218,7 +219,7 @@ const ClubProfile = () => {
   // Si hay carousel en DB, usar solo esos. Si no, fallback a mocks.
   const galleryImages = carouselImages.length > 0
     ? carouselImages.map(g => ({ src: g.url, alt: "Galería" }))
-    : clubData.images.map((src, i) => ({ src, alt: `${clubData.name} ${i + 1}` }));
+    : clubData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
 
   // Mobile gallery: hero como primera imagen + carousel (NUNCA cover)
   const mobileGalleryImages = (() => {
@@ -235,7 +236,7 @@ const ClubProfile = () => {
     });
     // Fallback a mocks si no hay nada
     if (images.length === 0) {
-      return clubData.images.map((src, i) => ({ src, alt: `${clubData.name} ${i + 1}` }));
+      return clubData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
     }
     return images;
   })();
@@ -264,7 +265,7 @@ const ClubProfile = () => {
               hideSlideButton={true}
               overlayContent={
                 <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-4 rounded-b-lg">
-                  <h2 className="text-white text-xl font-bold mb-2">{heroDisplayName}</h2>
+                  <h2 className="text-white text-xl font-bold mb-2">{venueDisplayName}</h2>
                   <div className="flex flex-wrap gap-2 text-white/90 text-sm mb-2">
                     <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
                     <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>
@@ -285,9 +286,9 @@ const ClubProfile = () => {
             />
           ) : (
             <>
-              <img src={heroImage} alt="Galería del club" className="w-full h-[400px] sm:h-[500px] lg:h-[600px] object-cover rounded-lg" />
+              <img src={heroImage} alt={`Galería de ${venueDisplayName}`} className="w-full h-[400px] sm:h-[500px] lg:h-[600px] object-cover rounded-lg" />
               <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-6 sm:p-8 rounded-b-lg">
-                <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{heroDisplayName}</h2>
+                <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{venueDisplayName}</h2>
                 <div className="flex flex-wrap gap-2 sm:gap-3 text-white/90 text-sm sm:text-base mb-2">
                   <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
                   <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>
@@ -316,7 +317,7 @@ const ClubProfile = () => {
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Galería de {clubData.name}</DialogTitle>
+                    <DialogTitle>Galería de {venueDisplayName}</DialogTitle>
                   </DialogHeader>
                   {galleryImages.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
@@ -396,7 +397,7 @@ const ClubProfile = () => {
             onCheckout={() => {}} 
             contactInfo={contactInfo} 
             localId={localId} 
-            venueName={clubData.name}
+            venueName={venueDisplayName}
           />
         )}
         
@@ -426,7 +427,7 @@ const ClubProfile = () => {
         {/* Map - DB-first con fallback */}
         <LazyMapSection
           venueId={localId || undefined}
-          venue={clubData.name}
+          venue={venueDisplayName}
           location={localLocation || "Villa Morra, Asuncion"}
           address={localAddress || "Av. Mariscal Lopez 1234"}
           city={localCity}

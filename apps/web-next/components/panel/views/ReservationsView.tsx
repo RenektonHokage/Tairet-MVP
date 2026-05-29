@@ -5,6 +5,7 @@ import { BarChart3, CalendarDays, CheckCircle2, Clock, Filter, RefreshCw, Search
 
 import { Badge, EmptyState, PageHeader, StatCard, Toolbar, cn, panelSuccessTone, panelUi } from "../ui";
 import { ReservationCard, type Reservation, type ReservationStatus } from "./ReservationCard";
+import type { OperationalActivityItem } from "@/lib/activity";
 
 // Re-export para conveniencia de la page
 export type { Reservation, ReservationStatus };
@@ -79,6 +80,7 @@ export interface ReservationsViewProps {
   lastRefreshLabel?: string;
   refreshError?: string | null;
   showActivityHistory?: boolean;
+  getActivityHistoryItems?: (reservation: Reservation) => OperationalActivityItem[];
 }
 
 export function ReservationsView({
@@ -111,6 +113,7 @@ export function ReservationsView({
   lastRefreshLabel = "Actualizado: pendiente",
   refreshError,
   showActivityHistory = true,
+  getActivityHistoryItems,
 }: ReservationsViewProps) {
   const showDateLoadingState =
     Boolean(selectedDate) &&
@@ -489,6 +492,7 @@ export function ReservationsView({
               onCancel={onCancel}
               onEdit={onEdit}
               showActivityHistory={showActivityHistory}
+              activityHistoryItems={getActivityHistoryItems?.(reservation)}
             />
           ))}
         </div>

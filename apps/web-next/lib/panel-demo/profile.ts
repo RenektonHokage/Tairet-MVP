@@ -6,6 +6,7 @@ import type {
   OpeningHoursV1,
 } from "@/lib/panel";
 import type { DemoScenario } from "./runtime";
+import { demoBarAssets, demoClubAssets } from "./assets";
 import { demoBar, demoClub } from "./variants";
 
 export interface PanelDemoProfileData {
@@ -123,73 +124,37 @@ const BAR_GALLERY: LocalGalleryItem[] = [
     id: "demo-bar-cover",
     kind: "cover",
     order: 0,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "BAR DEMO",
-      title: "Foto de Perfil",
-      accentFrom: "#f59e0b",
-      accentTo: "#ea580c",
-      background: "#1f2937",
-    }),
+    url: demoBarAssets.profile.cover,
   }),
   createGalleryItem("demo-bar", {
     id: "demo-bar-hero",
     kind: "hero",
     order: 1,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "HERO",
-      title: "After Office",
-      accentFrom: "#06b6d4",
-      accentTo: "#2563eb",
-      background: "#111827",
-    }),
+    url: demoBarAssets.profile.hero ?? demoBarAssets.profile.cover,
   }),
   createGalleryItem("demo-bar", {
     id: "demo-bar-food",
     kind: "food",
     order: 2,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "FOOD",
-      title: "Kitchen",
-      accentFrom: "#f97316",
-      accentTo: "#f59e0b",
-      background: "#1f2937",
-    }),
+    url: demoBarAssets.profile.gallery[0] ?? demoBarAssets.profile.cover,
   }),
   createGalleryItem("demo-bar", {
     id: "demo-bar-menu",
     kind: "menu",
-    order: 3,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "MENU",
-      title: "Carta",
-      accentFrom: "#8b5cf6",
-      accentTo: "#7c3aed",
-      background: "#172554",
-    }),
+    order: 4,
+    url: demoBarAssets.profile.gallery[1] ?? demoBarAssets.profile.cover,
   }),
   createGalleryItem("demo-bar", {
     id: "demo-bar-drinks",
     kind: "drinks",
-    order: 4,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "DRINKS",
-      title: "Cocktails",
-      accentFrom: "#22c55e",
-      accentTo: "#14b8a6",
-      background: "#0f172a",
-    }),
+    order: 5,
+    url: demoBarAssets.profile.gallery[2] ?? demoBarAssets.profile.cover,
   }),
   createGalleryItem("demo-bar", {
     id: "demo-bar-interior",
     kind: "interior",
-    order: 5,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "INTERIOR",
-      title: "Salon",
-      accentFrom: "#ec4899",
-      accentTo: "#8b5cf6",
-      background: "#111827",
-    }),
+    order: 3,
+    url: demoBarAssets.profile.gallery[3] ?? demoBarAssets.profile.cover,
   }),
 ];
 
@@ -198,25 +163,13 @@ const CLUB_GALLERY: LocalGalleryItem[] = [
     id: "demo-club-cover",
     kind: "cover",
     order: 0,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "CLUB DEMO",
-      title: "Foto de Perfil",
-      accentFrom: "#ec4899",
-      accentTo: "#8b5cf6",
-      background: "#111827",
-    }),
+    url: demoClubAssets.profile.cover,
   }),
   createGalleryItem("demo-discoteca", {
     id: "demo-club-hero",
     kind: "hero",
     order: 1,
-    url: buildSurfaceImageDataUrl({
-      eyebrow: "MAIN HERO",
-      title: "Cabina Central",
-      accentFrom: "#3b82f6",
-      accentTo: "#06b6d4",
-      background: "#0f172a",
-    }),
+    url: demoClubAssets.profile.hero ?? demoClubAssets.profile.cover,
   }),
   createGalleryItem("demo-discoteca", {
     id: "demo-club-carousel-01",
