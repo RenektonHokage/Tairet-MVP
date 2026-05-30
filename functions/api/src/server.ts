@@ -21,6 +21,7 @@ import { metricsRouter } from "./routes/metrics";
 import { eventsRouter } from "./routes/events";
 import { activityRouter } from "./routes/activity";
 import { panelRouter } from "./routes/panel";
+import { panelEventsRouter } from "./routes/panelEvents";
 import { publicRouter } from "./routes/public";
 import { supportRouter } from "./routes/support";
 import { reviewsRouter } from "./routes/reviews";
@@ -65,9 +66,11 @@ app.use("/reviews", reviewsRouter);
 
 // Panel: rate limit opcional (RATE_LIMIT_PANEL=true)
 if (isPanelRateLimitEnabled()) {
+  app.use("/panel/events", panelMinuteLimiter, panelDayLimiter, panelEventsRouter);
   app.use("/panel", panelMinuteLimiter, panelDayLimiter, panelRouter);
   app.use("/panel/support", panelMinuteLimiter, panelDayLimiter, supportRouter);
 } else {
+  app.use("/panel/events", panelEventsRouter);
   app.use("/panel", panelRouter);
   app.use("/panel/support", supportRouter);
 }
