@@ -750,7 +750,24 @@ Se agrego soporte DB para:
 
 ### Slice 3 - Provisioning Ibiza
 
-Proximo paso recomendado. Crear evento Ibiza, 9 productos/ticket types, stocks, precios configurables y usuarios owner/staff, sin crear orders, order items, entries ni QRs.
+Estado: aplicado y validado.
+
+Se creo/aseguro evento Ibiza, 9 productos/ticket types y `event_panel_users` owner/staff, sin crear orders, order items, entries ni QRs.
+
+QA registrado:
+
+- auth users requeridos existen;
+- evento Ibiza correcto;
+- 9 productos con stocks, precios, `sales_unit_type` y `entries_per_unit` correctos;
+- total de accesos potenciales = 3200;
+- total comercial estimado = 750600000 PYG;
+- 1 owner y 4 staff vinculados al evento;
+- `event_orders = 0`;
+- `event_order_items = 0`;
+- `event_order_entries = 0`;
+- re-ejecucion no duplica evento, tickets ni memberships.
+
+Próximo paso técnico recomendado: Slice 2 - `eventPanelAuth`, `requireEventRole` y rutas protegidas de evento.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

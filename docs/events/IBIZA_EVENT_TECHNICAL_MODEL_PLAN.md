@@ -101,7 +101,7 @@ Estado importante:
 - La migracion 027 ya fue aplicada y validada con QA estructural PASS y QA de comportamiento PASS.
 - La migracion 028 ya fue aplicada y validada con QA estructural PASS y QA de comportamiento PASS.
 - La base DB de Eventos ya soporta `event_order_items`, `sales_unit_type`, `entries_per_unit` y el vinculo directo entre `event_order_entries` y `event_order_items`.
-- Slice 1C queda listo para provisioning Ibiza actualizado.
+- Slice 1C ya fue aplicado y validado: Ibiza, 9 productos comerciales y `event_panel_users` owner/staff quedaron provisionados sin crear orders, order items, entries ni QRs.
 
 ### 5.1 `events`
 
@@ -834,34 +834,118 @@ Casos cubiertos -> `PASS`:
 - entry sin `event_order_item_id` rechazada;
 - entry con item incompatible rechazada.
 
+### Estado Slice 1C - Provisioning Ibiza aplicado y validado
+
+Estado: **aplicado con QA principal PASS e idempotency PASS**.
+
+Provisioning aplicado:
+
+- `infra/sql/provisioning/ibiza_event_seed.sql`
+
+Alcance provisionado:
+
+- evento Ibiza;
+- 9 `event_ticket_types`;
+- `event_panel_users` owner/staff.
+
+### QA auth users Slice 1C validado
+
+Auth users requeridos -> `PASS`:
+
+- `owner.ibiza@tairet.com.py`
+- `staff1.ibiza@tairet.com.py`
+- `staff2.ibiza@tairet.com.py`
+- `staff3.ibiza@tairet.com.py`
+- `staff4.ibiza@tairet.com.py`
+
+Todos tienen `auth_user_id` no nulo.
+
+### QA evento Slice 1C validado
+
+Evento Ibiza -> `PASS`:
+
+- `title = Ibiza`;
+- `slug = ibiza`;
+- `local_id = null`;
+- `status = draft`;
+- `organizer_name = Tahiel`;
+- `timezone = America/Asuncion`;
+- `location_name = Centro de Eventos de Mariscal López`;
+- `starts_at`, `ends_at` y ventanas de check-in correctas considerando almacenamiento `timestamptz`/UTC.
+
+### QA ticket types Slice 1C validado
+
+Productos creados/asegurados -> `PASS`:
+
+- General Preventa 1;
+- General Preventa 2;
+- General Precio Final;
+- VIP Preventa 1;
+- VIP Preventa 2;
+- VIP Precio Final;
+- Mesa VIP Preventa 1;
+- Mesa VIP Preventa 2;
+- Mesa VIP Precio Final.
+
+Validaciones -> `PASS`:
+
+- stocks correctos;
+- precios correctos;
+- `currency = PYG`;
+- `active = true`;
+- `sort_order` 1 a 9;
+- General/VIP como `single_entry`;
+- Mesas VIP como `package`;
+- Mesas VIP con `entries_per_unit = 10`.
+
+Totales -> `PASS`:
+
+- `total_qr_accesses = 3200`;
+- `total_commercial_amount = 750600000`.
+
+### QA event_panel_users Slice 1C validado
+
+Memberships -> `PASS`:
+
+- 1 owner;
+- 4 staff;
+- roles correctos;
+- `display_name` correcto;
+- todos vinculados al evento `ibiza`.
+
+### QA alcance protegido Slice 1C validado
+
+Datos fuera de alcance -> `PASS`:
+
+- `event_orders = 0`;
+- `event_order_items = 0`;
+- `event_order_entries = 0`.
+
+Idempotency / re-ejecucion -> `PASS`:
+
+- `events_count = 1`;
+- `ticket_types_count = 9`;
+- `panel_users_count = 5`;
+- re-ejecutar provisioning no duplico evento, tickets ni memberships.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Ibiza Slice 1C - Provisioning Ibiza actualizado.
+- avanzar a Slice 2 - `eventPanelAuth`, `requireEventRole` y rutas protegidas de evento.
 
-Alcance recomendado de Slice 1C:
+Alcance recomendado de Slice 2:
 
-- crear evento Ibiza;
-- crear 9 `event_ticket_types`:
-  - General Preventa 1;
-  - General Preventa 2;
-  - General Precio Final;
-  - VIP Preventa 1;
-  - VIP Preventa 2;
-  - VIP Precio Final;
-  - Mesa VIP Preventa 1;
-  - Mesa VIP Preventa 2;
-  - Mesa VIP Precio Final;
-- crear event_panel_users owner/staff;
-- no crear entradas;
-- no crear event_orders;
-- no crear event_order_items;
-- no crear event_order_entries;
-- no generar QRs;
-- no crear endpoints;
-- no tocar frontend;
+- crear middleware `eventPanelAuth`;
+- crear `requireEventRole`;
+- validar Bearer token;
+- resolver membresia en `event_panel_users` por `event_id + auth_user_id`;
+- adjuntar contexto de evento al request;
+- crear endpoints minimos de prueba protegidos si corresponde;
+- no crear emision manual todavia;
+- no crear QRs;
 - no tocar pagos;
+- no tocar B2C;
 - no tocar `/payments/callback`.
 
 ## 12. Roadmap tecnico ajustado
@@ -908,11 +992,13 @@ Se completo:
 
 ### Slice 1C - Provisioning Ibiza
 
-Proximo paso recomendado. Crear Ibiza, los 9 productos comerciales, stocks, precios configurables y usuarios owner/staff mediante seed o script controlado, sin crear entradas, ordenes, order items, QRs, endpoints, frontend ni pagos.
+Estado: aplicado con QA principal PASS e idempotency PASS.
+
+Se creo/aseguro Ibiza, los 9 productos comerciales y usuarios owner/staff mediante `infra/sql/provisioning/ibiza_event_seed.sql`, sin crear entradas, ordenes, order items, QRs, endpoints, frontend ni pagos.
 
 ### Slice 2 - eventPanelAuth / rutas protegidas
 
-Crear middleware de evento y role guard sin tocar `panelAuth` local.
+Proximo paso recomendado. Crear middleware de evento y role guard sin tocar `panelAuth` local.
 
 ### Slice 3 - Endpoints de lectura/resumen/entradas
 
@@ -1068,7 +1154,7 @@ Fuera de este ASK / DOCS:
 
 ## 16. Criterio de cierre
 
-Este documento queda listo para pasar a Slice 1C - Provisioning Ibiza cuando queden registrados:
+Este documento queda listo para pasar a Slice 2 - `eventPanelAuth` cuando queden registrados:
 
 - campos nuevos en `event_ticket_types`;
 - tabla `event_order_items`;
@@ -1077,6 +1163,9 @@ Este documento queda listo para pasar a Slice 1C - Provisioning Ibiza cuando que
 - RLS/grants;
 - QA estructural PASS;
 - QA de comportamiento PASS;
+- provisioning Ibiza aplicado;
+- QA principal Slice 1C PASS;
+- idempotency Slice 1C PASS;
 - tenant model;
 - unidad validable;
 - estrategia de stock;
