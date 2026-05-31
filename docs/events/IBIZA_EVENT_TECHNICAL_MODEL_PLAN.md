@@ -1099,27 +1099,84 @@ Comportamiento validado:
 - no deja datos parciales ante errores;
 - el rollback del QA dejo la base limpia.
 
+### Estado Slice 3B.2 - endpoint manual-issue deployado y QA runtime PASS
+
+Slice 3B.2 queda registrado como implementado, deployado y validado:
+
+- endpoint `POST /panel/events/:eventId/orders/manual-issue` implementado;
+- endpoint validado para `event_id = aed4cb4a-b297-4093-98e1-b3474f3b399c`;
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- llama a RPC `issue_event_manual_order`;
+- TypeScript valida input, protege tenant, llama RPC y mapea errores;
+- RPC sigue siendo la fuente de stock y transaccion;
+- no duplica logica transaccional/stock en TS;
+- no se toco frontend;
+- no se tocaron pagos ni `/payments/callback`.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- pre-check `/summary`: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`;
+- pre-check General Preventa 1: `id = d89499b3-eb49-4b74-b8c8-48b2d5a55dbe`, `price_amount = 140000`, `stock = 900`, `sales_unit_type = single_entry`, `entries_per_unit = 1`;
+- pre-check Mesa VIP Preventa 1: `id = 58234842-9956-4f63-8e30-cc8bcd60dda2`, `price_amount = 3200000`, `stock = 6`, `sales_unit_type = package`, `entries_per_unit = 10`;
+- owner Ibiza emitio 1 General Preventa 1 con `201 Created`, `order.source = manual_issue`, `order.total_amount = 140000`, `payment_method = manual_transfer`, `payment_status = confirmed_externally`, `items.length = 1`, `entries.length = 1`, entry `issued/unused`, `qr_status = pending_qr_resource`;
+- staff Ibiza emitio 1 Mesa VIP Preventa 1 con `201 Created`, `order.total_amount = 3200000`, `items.length = 1`, `entries.length = 10`, `sales_unit_type = package`, `entries_per_unit = 10`, `unit_price_amount` por entry = `320000`;
+- post-summary despues de 3 ordenes QA: `orders_count = 3`, `order_items_count = 3`, `entries_count = 12`, `issued_commercial_amount = 3480000`;
+- post-ticket-types: General Preventa 1 `issued_commercial_units = 2`, `issued_qr_accesses = 2`, `remaining_commercial_units = 898`;
+- post-ticket-types: Mesa VIP Preventa 1 `issued_commercial_units = 1`, `issued_qr_accesses = 10`, `remaining_commercial_units = 5`;
+- Mesa VIP con 9 attendees respondio `400` con `code = invalid_attendees_count`;
+- ticket UUID valido inexistente/no perteneciente al evento respondio `404` con `code = ticket_type_not_found`;
+- owner local de D'Lirio sin membership respondio `403 User not authorized for event access`;
+- request sin `Authorization` respondio `401 Missing or invalid Authorization header`;
+- token invalido respondio `401 Invalid or expired token`;
+- `/panel/events/not-a-uuid/orders/manual-issue` respondio `400 Invalid eventId`;
+- sobreventa Mesa VIP Preventa 1 `quantity = 6` con 60 attendees respondio `409` con `code = insufficient_stock`;
+- despues del `409`, summary siguio en `orders_count = 3`, `order_items_count = 3`, `entries_count = 12`, `issued_commercial_amount = 3480000`;
+- despues del `409`, ticket-types siguio en General Preventa 1 `issued = 2`, `remaining = 898`, y Mesa VIP Preventa 1 `issued = 1`, `remaining = 5`;
+- SQL adicional valido `stock_qa_orders = 0`;
+- evento inexistente `00000000-0000-4000-8000-000000000000` por POST respondio `404 Event not found`;
+- regresion panel local: `/panel/me` y `/panel/orders/summary` con owner local respondieron `200 OK`.
+
+No exposicion sensible validada en respuestas `201`:
+
+- no aparece `checkin_token`;
+- no aparece `buyer_email`;
+- no aparece `buyer_phone`;
+- no aparece `buyer_document`;
+- no aparece `attendee_email`;
+- no aparece `attendee_phone`;
+- no aparece `auth_user_id`;
+- no aparece `local_id`;
+- no aparece metadata cruda;
+- si aparecen `attendee.name`, `attendee.last_name` y `attendee.document`, permitido por contrato.
+
+Limpieza QA validada:
+
+- se identificaron 3 ordenes QA: `58ff3763-efc3-4a4b-888c-d08c362db17e`, `20c031f5-55e7-44f7-b139-50d2afa25385`, `acf7a539-6f8a-4c87-bad9-90f73323eec4`;
+- todas estaban marcadas con `buyer_email = qa.slice3b2...`, `buyer_document = QA-SLICE-3B2...`, `notes = QA Slice 3B.2...`;
+- despues de la limpieza, `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`;
+- General Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 900`;
+- Mesa VIP Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 6`.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3B.2 - endpoint TS manual issue.
+- avanzar a Slice 3C - lectura operativa de ordenes/entradas emitidas de evento.
 
-Alcance recomendado de Slice 3B.2:
+Alcance recomendado de Slice 3C:
 
-- crear `POST /panel/events/:eventId/orders/manual-issue`;
+- endpoint read-only para listar/search entries emitidas;
+- filtros por ticket type, `checkin_status`, `status`, email/documento/nombre;
 - usar `eventPanelAuth`;
 - usar `requireEventRole(["owner", "staff"])`;
-- validar input estricto;
-- rechazar campos prohibidos;
-- llamar a `public.issue_event_manual_order`;
-- mapear errores de RPC a HTTP;
-- devolver `201` en exito;
-- no exponer `checkin_token`;
-- no crear logica paralela de stock en TS;
-- no tocar pagos;
+- sin QR visual todavia;
+- sin email QR;
+- sin check-in;
+- sin export;
+- sin activity;
 - no tocar frontend;
-- no tocar B2C;
+- no tocar pagos;
 - no tocar `/payments/callback`.
 
 ## 12. Roadmap tecnico ajustado
@@ -1220,7 +1277,27 @@ Se completo:
 
 ### Slice 3B.2 - Endpoint TS manual issue
 
-Proximo paso recomendado. Implementar `POST /panel/events/:eventId/orders/manual-issue` con `eventPanelAuth`, `requireEventRole(["owner", "staff"])`, validacion estricta de input, llamada a la RPC y mapeo de errores a HTTP, sin crear logica paralela de stock en TS.
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se completo:
+
+- crear `POST /panel/events/:eventId/orders/manual-issue`;
+- usar `eventPanelAuth`;
+- usar `requireEventRole(["owner", "staff"])`;
+- validar input estricto en TS;
+- rechazar campos prohibidos;
+- llamar a `public.issue_event_manual_order`;
+- mapear errores de RPC a HTTP;
+- devolver `201` en exito;
+- no exponer `checkin_token`;
+- no crear logica paralela de stock en TS;
+- validar escritura HTTP owner/staff;
+- validar errores `401`, `403`, `400`, `404`, `409`;
+- limpiar datos QA y dejar Ibiza nuevamente sin ordenes emitidas.
+
+### Slice 3C - Lectura operativa de ordenes/entradas emitidas
+
+Proximo paso recomendado. Implementar endpoints read-only para listar y buscar entries emitidas por evento, con filtros operativos y proteccion `eventPanelAuth + requireEventRole(["owner", "staff"])`, sin QR visual, email QR, check-in, export, activity, frontend ni pagos.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -1376,7 +1453,7 @@ Fuera de este ASK / DOCS:
 
 ## 16. Criterio de cierre
 
-Este documento queda listo para pasar a Slice 3B.2 - endpoint TS manual issue cuando queden registrados:
+Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/entradas emitidas cuando queden registrados:
 
 - campos nuevos en `event_ticket_types`;
 - tabla `event_order_items`;
@@ -1404,6 +1481,13 @@ Este documento queda listo para pasar a Slice 3B.2 - endpoint TS manual issue cu
 - QA DB Slice 3B.1 PASS;
 - permisos de RPC validados;
 - rollback/limpieza QA validados;
+- Slice 3B.2 endpoint TS manual issue implementado;
+- Slice 3B.2 deployado;
+- Slice 3B.2 QA runtime PASS completo;
+- endpoint manual-issue validado como primera operacion HTTP de escritura para Eventos;
+- RPC confirmada como fuente de stock/transaccion;
+- limpieza QA Slice 3B.2 validada;
+- regresion de panel local validada despues de manual issue;
 - tenant model;
 - unidad validable;
 - estrategia de stock;

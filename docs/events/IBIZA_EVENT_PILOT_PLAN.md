@@ -905,22 +905,67 @@ Comportamiento validado:
 - no exposicion de `checkin_token`, PII de asistentes, `auth_user_id`, `local_id` ni metadata cruda;
 - rollback limpio sin datos parciales.
 
-Proximo paso tecnico recomendado: Slice 3B.2 - endpoint TS manual issue.
+### Slice 3B.2 - endpoint manual-issue
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Endpoint validado:
+
+- `POST /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/orders/manual-issue`
+
+Se valido que:
+
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- llama a RPC `issue_event_manual_order`;
+- crea `event_orders`, `event_order_items` y `event_order_entries`;
+- no duplica logica transaccional/stock en TS;
+- devuelve respuesta segura sin `checkin_token` ni PII sensible no permitida.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente;
+- pre-check summary en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`;
+- owner Ibiza emitio 1 General Preventa 1 con `201 Created`, `order.total_amount = 140000`, `items.length = 1`, `entries.length = 1`;
+- staff Ibiza emitio 1 Mesa VIP Preventa 1 con `201 Created`, `order.total_amount = 3200000`, `items.length = 1`, `entries.length = 10`, `unit_price_amount` por entry = `320000`;
+- despues de 3 ordenes QA, summary mostro `orders_count = 3`, `order_items_count = 3`, `entries_count = 12`, `issued_commercial_amount = 3480000`;
+- General Preventa 1 mostro `issued_commercial_units = 2`, `issued_qr_accesses = 2`, `remaining_commercial_units = 898`;
+- Mesa VIP Preventa 1 mostro `issued_commercial_units = 1`, `issued_qr_accesses = 10`, `remaining_commercial_units = 5`;
+- Mesa con 9 attendees -> `400 invalid_attendees_count`;
+- ticket inexistente/no perteneciente -> `404 ticket_type_not_found`;
+- owner local de D'Lirio sin membership -> `403`;
+- sin auth -> `401`;
+- token invalido -> `401`;
+- eventId invalido -> `400 Invalid eventId`;
+- stock insuficiente -> `409 insufficient_stock`;
+- evento inexistente -> `404 Event not found`;
+- `/panel/me` y `/panel/orders/summary` local siguieron en `200 OK`.
+
+No exposicion sensible registrada:
+
+- respuestas `201` no exponen `checkin_token`, buyer email/phone/document, attendee email/phone, `auth_user_id`, `local_id` ni metadata;
+- `attendee.name`, `attendee.last_name` y `attendee.document` aparecen y quedan permitidos por contrato.
+
+Limpieza QA registrada:
+
+- se limpiaron las 3 ordenes QA marcadas;
+- summary volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`;
+- General Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 900`;
+- Mesa VIP Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 6`.
+
+Proximo paso tecnico recomendado: Slice 3C - lectura operativa de ordenes/entradas emitidas.
 
 Alcance sugerido:
 
-- crear `POST /panel/events/:eventId/orders/manual-issue`;
-- usar `eventPanelAuth`;
-- usar `requireEventRole(["owner", "staff"])`;
-- validar input estricto;
-- rechazar campos prohibidos;
-- llamar a `public.issue_event_manual_order`;
-- mapear errores de RPC a HTTP;
-- devolver `201` en exito;
-- no exponer `checkin_token`;
-- no crear logica paralela de stock en TS;
-- no tocar frontend;
-- no tocar pagos ni `/payments/callback`.
+- endpoint read-only para listar/search entries emitidas;
+- filtros por ticket type, `checkin_status`, `status`, email/documento/nombre;
+- protegido con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
+- sin QR visual todavia;
+- sin email QR;
+- sin check-in;
+- sin export;
+- sin activity;
+- sin frontend;
+- sin pagos.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
