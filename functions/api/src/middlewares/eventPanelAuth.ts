@@ -3,7 +3,7 @@ import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 import { getRequestId } from "./requestId";
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface EventPanelUser {
   eventId: string;
