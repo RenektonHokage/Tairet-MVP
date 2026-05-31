@@ -102,6 +102,7 @@ Estado importante:
 - La migracion 028 ya fue aplicada y validada con QA estructural PASS y QA de comportamiento PASS.
 - La base DB de Eventos ya soporta `event_order_items`, `sales_unit_type`, `entries_per_unit` y el vinculo directo entre `event_order_entries` y `event_order_items`.
 - Slice 1C ya fue aplicado y validado: Ibiza, 9 productos comerciales y `event_panel_users` owner/staff quedaron provisionados sin crear orders, order items, entries ni QRs.
+- Slice 2A ya fue implementado, deployado y validado con QA runtime PASS: `eventPanelAuth`, `requireEventRole` y `GET /panel/events/:eventId/me`.
 
 ### 5.1 `events`
 
@@ -425,8 +426,8 @@ No asumir que `panelAuth` sirve para eventos. `panelAuth` actual resuelve `panel
 
 Recomendacion:
 
-- crear `eventPanelAuth` en un slice futuro;
-- crear `requireEventRole` o abstraccion equivalente;
+- mantener `eventPanelAuth` separado de `panelAuth`;
+- mantener `requireEventRole` separado de `requireRole`;
 - usar rutas con `eventId` en path;
 - mantener `panelAuth` actual intacto para bares/discotecas.
 
@@ -451,6 +452,7 @@ Reglas de autorizacion:
 - Owner/staff de otro evento no accede a Ibiza.
 - Export requiere rol `owner`.
 - Staff puede emitir/validar solo si el contrato del endpoint lo permite.
+- Slice 2A valido en runtime que `panel_users`/`local_id` no otorgan acceso a eventos.
 
 ## 10. Contratos futuros
 
@@ -928,22 +930,64 @@ Idempotency / re-ejecucion -> `PASS`:
 - `panel_users_count = 5`;
 - re-ejecutar provisioning no duplico evento, tickets ni memberships.
 
+### Estado Slice 2A - eventPanelAuth deployado y QA runtime PASS
+
+Estado: **implementado, fix de regex UUID aplicado, deployado y validado con QA runtime PASS**.
+
+Backend implementado:
+
+- `eventPanelAuth`;
+- `requireEventRole`;
+- `GET /panel/events/:eventId/me`.
+
+Endpoint validado:
+
+- `GET /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/me`
+
+Evento validado:
+
+- `event.id = aed4cb4a-b297-4093-98e1-b3474f3b399c`;
+- `event.slug = ibiza`;
+- `event.title = Ibiza`;
+- `event.status = draft`.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- owner Ibiza respondio `200 OK`, `membership.role = owner` y `membership.display_name = Owner Ibiza`;
+- staff Ibiza respondio `200 OK`, `membership.role = staff` y `membership.display_name = Staff Ibiza 1`;
+- respuestas `200` no expusieron `auth_user_id`, email, token, `access_token`, `refresh_token`, `local_id`, orders, order items, entries ni `checkin_token`;
+- request sin `Authorization` respondio `401` con `Missing or invalid Authorization header`;
+- token invalido respondio `401` con `Invalid or expired token`;
+- `/panel/events/not-a-uuid/me` respondio `400` con `Invalid eventId`;
+- owner local de D'Lirio sin membership de evento respondio `403` con `User not authorized for event access`;
+- evento inexistente `00000000-0000-4000-8000-000000000000` respondio `404` con `Event not found`;
+- regresion panel local: `/panel/me` y `/panel/orders/summary` con owner local respondieron `200 OK`.
+
+Tenant safety validado:
+
+- `eventPanelAuth` valida membresia por `event_id + auth_user_id`;
+- `requireEventRole` valida roles `owner | staff` por evento;
+- `GET /panel/events/:eventId/me` queda como endpoint minimo protegido validado;
+- `panel_users` y `local_id` no otorgan acceso a eventos;
+- el panel local existente no se rompio.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 2 - `eventPanelAuth`, `requireEventRole` y rutas protegidas de evento.
+- avanzar a Slice 2B - endpoints read-only de evento.
 
-Alcance recomendado de Slice 2:
+Alcance recomendado de Slice 2B:
 
-- crear middleware `eventPanelAuth`;
-- crear `requireEventRole`;
-- validar Bearer token;
-- resolver membresia en `event_panel_users` por `event_id + auth_user_id`;
-- adjuntar contexto de evento al request;
-- crear endpoints minimos de prueba protegidos si corresponde;
+- `GET /panel/events/:eventId/summary`;
+- `GET /panel/events/:eventId/ticket-types`;
+- ambos protegidos con `eventPanelAuth` + `requireEventRole(["owner", "staff"])`;
 - no crear emision manual todavia;
 - no crear QRs;
+- no crear check-in;
+- no crear export;
+- no crear activity log;
 - no tocar pagos;
 - no tocar B2C;
 - no tocar `/payments/callback`.
@@ -996,13 +1040,27 @@ Estado: aplicado con QA principal PASS e idempotency PASS.
 
 Se creo/aseguro Ibiza, los 9 productos comerciales y usuarios owner/staff mediante `infra/sql/provisioning/ibiza_event_seed.sql`, sin crear entradas, ordenes, order items, QRs, endpoints, frontend ni pagos.
 
-### Slice 2 - eventPanelAuth / rutas protegidas
+### Slice 2A - eventPanelAuth / rutas protegidas
 
-Proximo paso recomendado. Crear middleware de evento y role guard sin tocar `panelAuth` local.
+Estado: implementado, deployado y QA runtime PASS.
 
-### Slice 3 - Endpoints de lectura/resumen/entradas
+Se completo:
 
-Lectura de evento, resumen, listado y busqueda de entries scoped por `event_id`.
+- `eventPanelAuth`;
+- `requireEventRole`;
+- `GET /panel/events/:eventId/me`;
+- fix de regex UUID para formato `8-4-4-4-12`;
+- validacion de owner/staff Ibiza;
+- validacion de usuario local sin acceso a evento;
+- regresion de panel local.
+
+### Slice 2B - Endpoints read-only de evento
+
+Proximo paso recomendado. Crear `GET /panel/events/:eventId/summary` y `GET /panel/events/:eventId/ticket-types`, protegidos por `eventPanelAuth` + `requireEventRole(["owner", "staff"])`, sin emision manual, QR, check-in, export, activity, pagos ni frontend.
+
+### Slice 3 - Endpoints de lectura/listado de entradas
+
+Lectura de evento, resumen extendido, listado y busqueda de entries scoped por `event_id`.
 
 ### Slice 4 - Emision manual individual/multiple
 
@@ -1154,7 +1212,7 @@ Fuera de este ASK / DOCS:
 
 ## 16. Criterio de cierre
 
-Este documento queda listo para pasar a Slice 2 - `eventPanelAuth` cuando queden registrados:
+Este documento queda listo para pasar a Slice 2B - endpoints read-only de evento cuando queden registrados:
 
 - campos nuevos en `event_ticket_types`;
 - tabla `event_order_items`;
@@ -1166,6 +1224,11 @@ Este documento queda listo para pasar a Slice 2 - `eventPanelAuth` cuando queden
 - provisioning Ibiza aplicado;
 - QA principal Slice 1C PASS;
 - idempotency Slice 1C PASS;
+- Slice 2A implementado, deployado y QA runtime PASS;
+- `eventPanelAuth` y `requireEventRole` validados;
+- `GET /panel/events/:eventId/me` validado;
+- tenant safety por `event_id + auth_user_id` validada;
+- regresion de panel local validada;
 - tenant model;
 - unidad validable;
 - estrategia de stock;

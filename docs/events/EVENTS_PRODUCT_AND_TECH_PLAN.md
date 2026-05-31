@@ -111,7 +111,8 @@ Actualización posterior:
 - La migración `027_create_event_pilot_tables.sql` creó la base DB de Eventos y fue validada para Slice 1B.
 - La migración `028_add_event_packages_and_order_items.sql` agregó productos comerciales `single_entry/package`, `entries_per_unit`, `event_order_items` y el vínculo directo entre entries e items.
 - El provisioning controlado `infra/sql/provisioning/ibiza_event_seed.sql` creó/aseguró Ibiza, 9 productos comerciales y `event_panel_users` owner/staff.
-- Ibiza quedó lista para el siguiente slice técnico de `eventPanelAuth`, sin crear órdenes, order items, entries ni QRs todavía.
+- Slice 2A implementó y validó en runtime `eventPanelAuth`, `requireEventRole` y `GET /panel/events/:eventId/me`.
+- Ibiza quedó lista para endpoints read-only de evento, sin crear órdenes, order items, entries ni QRs todavía.
 
 ### Qué significa hoy `events_public`
 
@@ -426,6 +427,8 @@ Recomendación MVP:
 
 - Usar `event_panel_users` o equivalente separado.
 - Mantener roles simples `owner | staff`.
+- Validar rutas de panel de evento con `eventPanelAuth` por `event_id + auth_user_id`.
+- No usar `panel_users` ni `local_id` para autorizar Eventos.
 - Tratar emails tipo `owner.<event_handle>@tairet.com.py` o `staff.<event_handle>@tairet.com.py` como convención operativa/demo, no como fuente real de autorización.
 
 ## 12. Reutilización de piezas existentes

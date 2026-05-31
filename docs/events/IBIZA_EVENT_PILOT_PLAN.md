@@ -767,7 +767,55 @@ QA registrado:
 - `event_order_entries = 0`;
 - re-ejecucion no duplica evento, tickets ni memberships.
 
-Próximo paso técnico recomendado: Slice 2 - `eventPanelAuth`, `requireEventRole` y rutas protegidas de evento.
+### Slice 2A - eventPanelAuth, requireEventRole y endpoint protegido mínimo
+
+Estado: implementado, fix de regex UUID aplicado, deployado y QA runtime PASS.
+
+Se implemento:
+
+- `eventPanelAuth`;
+- `requireEventRole`;
+- `GET /panel/events/:eventId/me`.
+
+Endpoint validado:
+
+- `GET /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/me`
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}` y `x-request-id` presente;
+- owner Ibiza -> `200 OK`, `event.slug = ibiza`, `membership.role = owner`, `membership.display_name = Owner Ibiza`;
+- staff Ibiza -> `200 OK`, `event.slug = ibiza`, `membership.role = staff`, `membership.display_name = Staff Ibiza 1`;
+- respuestas `200` sin `auth_user_id`, email, token, `access_token`, `refresh_token`, `local_id`, orders, order items, entries ni `checkin_token`;
+- sin `Authorization` -> `401`;
+- token invalido -> `401`;
+- `not-a-uuid` -> `400 Invalid eventId`;
+- owner local de D'Lirio sin membership de evento -> `403 User not authorized for event access`;
+- evento inexistente con UUID valido -> `404 Event not found`;
+- regresion panel local: `/panel/me` y `/panel/orders/summary` con owner local -> `200 OK`.
+
+Tenant safety registrado:
+
+- `eventPanelAuth` valida membresia por `event_id + auth_user_id`;
+- `requireEventRole` valida roles `owner | staff` por evento;
+- `panel_users` y `local_id` no otorgan acceso a eventos;
+- panel local existente no se rompio.
+
+Próximo paso técnico recomendado: Slice 2B - endpoints read-only de evento.
+
+Alcance sugerido:
+
+- `GET /panel/events/:eventId/summary`;
+- `GET /panel/events/:eventId/ticket-types`;
+- ambos protegidos con `eventPanelAuth` + `requireEventRole(["owner", "staff"])`;
+- sin emisión manual;
+- sin QR;
+- sin check-in;
+- sin export;
+- sin activity log;
+- sin pagos;
+- sin `/payments/callback`;
+- sin frontend.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
