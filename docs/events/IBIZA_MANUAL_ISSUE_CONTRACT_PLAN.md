@@ -436,3 +436,80 @@ Casos minimos para el CODE posterior:
 - Evento `paused` y `finished` bloquean emision con `409`.
 - La generacion visual/envio de QR se disena en slice posterior.
 - El primer CODE de emision no implementa anulacion ni correccion.
+
+## 14. Estado Slice 3B.1: RPC transaccional aplicada y QA DB PASS
+
+Estado registrado:
+
+- Slice 3A: contrato de emision manual aprobado.
+- Slice 3B.1: migracion `029_create_issue_event_manual_order_rpc.sql` aplicada.
+- Slice 3B.1: RPC `public.issue_event_manual_order` creada.
+- Slice 3B.1: QA DB PASS.
+- Endpoint TS todavia no implementado.
+
+RPC creada:
+
+```sql
+public.issue_event_manual_order(
+  p_event_id uuid,
+  p_actor_auth_user_id uuid,
+  p_buyer jsonb,
+  p_items jsonb,
+  p_notes text default null
+)
+returns jsonb
+```
+
+QA DB validado:
+
+- RPC encontrada: `issue_event_manual_order(uuid,uuid,jsonb,jsonb,text)`.
+- Permisos validados:
+  - `anon_can_execute = false`
+  - `authenticated_can_execute = false`
+  - `service_role_can_execute = true`
+- Se ejecuto QA transaccional grande con `begin; ... rollback;`.
+- Resultado Supabase: `Success. No rows returned`.
+- No hubo errores `FAIL`.
+
+Comportamiento validado:
+
+- La RPC permite emitir una orden manual General.
+- La RPC permite emitir una Mesa/package generando la cantidad correcta de entries.
+- Bloquea cantidad invalida de asistentes.
+- Bloquea sobreventa por stock.
+- Bloquea ticket types de otro evento.
+- Bloquea actores sin membership del evento.
+- Bloquea eventos no operables.
+- No expone `checkin_token`.
+- No expone PII de asistentes.
+- No expone `auth_user_id`.
+- No expone `local_id`.
+- No expone metadata cruda.
+- No deja datos parciales ante errores.
+
+Limpieza/rollback validado:
+
+- El QA termino con rollback.
+- Ibiza quedo `slug = ibiza`, `title = Ibiza`, `status = draft`.
+- `qa_orders = 0`.
+- No quedaron ordenes QA persistidas.
+
+Proximo paso recomendado:
+
+- Slice 3B.2 - Endpoint TS manual issue.
+
+Alcance sugerido:
+
+- crear `POST /panel/events/:eventId/orders/manual-issue`;
+- usar `eventPanelAuth`;
+- usar `requireEventRole(["owner", "staff"])`;
+- validar input estricto;
+- rechazar campos prohibidos;
+- llamar a `public.issue_event_manual_order`;
+- mapear errores de RPC a HTTP;
+- devolver `201` en exito;
+- no exponer `checkin_token`;
+- no crear logica paralela de stock en TS;
+- no tocar pagos;
+- no tocar `/payments/callback`;
+- no tocar frontend.

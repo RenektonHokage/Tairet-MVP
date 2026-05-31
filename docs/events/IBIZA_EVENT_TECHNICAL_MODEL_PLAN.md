@@ -1048,28 +1048,77 @@ Alcance protegido:
 - no se crean ni modifican datos operativos;
 - no se crean orders, order items, entries, QRs, emails, activity ni exports.
 
+### Estado Slice 3B.1 - RPC issue_event_manual_order aplicada y QA DB PASS
+
+Slice 3B.1 queda registrado como aplicado y validado:
+
+- migracion `029_create_issue_event_manual_order_rpc.sql` aplicada;
+- RPC `public.issue_event_manual_order(uuid, uuid, jsonb, jsonb, text)` creada;
+- RPC validada como motor transaccional para emision manual/backoffice de ordenes de evento;
+- endpoint TS todavia no implementado.
+
+Firma validada:
+
+```sql
+public.issue_event_manual_order(
+  p_event_id uuid,
+  p_actor_auth_user_id uuid,
+  p_buyer jsonb,
+  p_items jsonb,
+  p_notes text default null
+)
+returns jsonb
+```
+
+QA DB -> `PASS`:
+
+- RPC encontrada como `issue_event_manual_order(uuid,uuid,jsonb,jsonb,text)`;
+- `anon_can_execute = false`;
+- `authenticated_can_execute = false`;
+- `service_role_can_execute = true`;
+- se ejecuto QA transaccional grande con `begin; ... rollback;`;
+- resultado Supabase: `Success. No rows returned`;
+- no hubo errores `FAIL`;
+- despues del rollback, Ibiza quedo `slug = ibiza`, `title = Ibiza`, `status = draft`;
+- limpieza validada: `qa_orders = 0`.
+
+Comportamiento validado:
+
+- permite emitir una orden manual General;
+- permite emitir una Mesa/package generando la cantidad correcta de entries;
+- bloquea cantidad invalida de asistentes;
+- bloquea sobreventa por stock;
+- bloquea ticket types de otro evento;
+- bloquea actores sin membership del evento;
+- bloquea eventos no operables;
+- no expone `checkin_token`;
+- no expone PII de asistentes;
+- no expone `auth_user_id`;
+- no expone `local_id`;
+- no expone metadata cruda;
+- no deja datos parciales ante errores;
+- el rollback del QA dejo la base limpia.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3A - diseno/contrato de emision manual de entradas de evento.
+- avanzar a Slice 3B.2 - endpoint TS manual issue.
 
-Alcance recomendado de Slice 3A:
+Alcance recomendado de Slice 3B.2:
 
-- definir endpoint de emision manual;
-- definir input buyer + items + attendees;
-- definir calculo de total de orden;
-- definir creacion de `event_order`;
-- definir creacion de `event_order_items`;
-- definir creacion de `event_order_entries`;
-- definir proteccion de stock;
-- definir generacion de un QR por entry;
-- dejar fuera email QR;
-- no crear QRs;
-- no crear check-in;
-- no crear export;
-- no crear activity log;
+- crear `POST /panel/events/:eventId/orders/manual-issue`;
+- usar `eventPanelAuth`;
+- usar `requireEventRole(["owner", "staff"])`;
+- validar input estricto;
+- rechazar campos prohibidos;
+- llamar a `public.issue_event_manual_order`;
+- mapear errores de RPC a HTTP;
+- devolver `201` en exito;
+- no exponer `checkin_token`;
+- no crear logica paralela de stock en TS;
 - no tocar pagos;
+- no tocar frontend;
 - no tocar B2C;
 - no tocar `/payments/callback`.
 
@@ -1151,7 +1200,27 @@ Se completo:
 
 ### Slice 3A - Diseno/contrato de emision manual
 
-Proximo paso recomendado. Preparar ASK/DOCS o ASK/DISCOVERY antes de implementar emision manual, definiendo endpoint, input buyer + items + attendees, calculo de total, creacion de order/items/entries, proteccion de stock y QR por entry, dejando fuera email QR, check-in, export, activity, frontend y pagos.
+Estado: cerrado. Contrato de emision manual aprobado en `docs/events/IBIZA_MANUAL_ISSUE_CONTRACT_PLAN.md`.
+
+Se definio endpoint futuro, input buyer + items + attendees, reglas de precios, creacion de order/items/entries, proteccion de stock, no exposicion de `checkin_token` y no-goals de email QR, check-in, export, activity, frontend y pagos.
+
+### Slice 3B.1 - RPC transaccional issue_event_manual_order
+
+Estado: migracion 029 aplicada y QA DB PASS.
+
+Se completo:
+
+- crear `public.issue_event_manual_order`;
+- validar evento, actor, buyer, items, attendees, stock y precios;
+- bloquear productos con `FOR UPDATE`;
+- crear `event_order`, `event_order_items` y `event_order_entries` en una operacion atomica;
+- devolver JSON seguro sin `checkin_token`;
+- revocar ejecucion a `anon` y `authenticated`;
+- dejar ejecucion solo para `service_role`.
+
+### Slice 3B.2 - Endpoint TS manual issue
+
+Proximo paso recomendado. Implementar `POST /panel/events/:eventId/orders/manual-issue` con `eventPanelAuth`, `requireEventRole(["owner", "staff"])`, validacion estricta de input, llamada a la RPC y mapeo de errores a HTTP, sin crear logica paralela de stock en TS.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -1307,7 +1376,7 @@ Fuera de este ASK / DOCS:
 
 ## 16. Criterio de cierre
 
-Este documento queda listo para pasar a Slice 3A - diseno/contrato de emision manual cuando queden registrados:
+Este documento queda listo para pasar a Slice 3B.2 - endpoint TS manual issue cuando queden registrados:
 
 - campos nuevos en `event_ticket_types`;
 - tabla `event_order_items`;
@@ -1329,6 +1398,12 @@ Este documento queda listo para pasar a Slice 3A - diseno/contrato de emision ma
 - `/ticket-types` validado;
 - calculos de catalogo y operaciones validados;
 - no exposicion sensible validada;
+- Slice 3A contrato de emision manual aprobado;
+- Slice 3B.1 migracion 029 aplicada;
+- `issue_event_manual_order` creada;
+- QA DB Slice 3B.1 PASS;
+- permisos de RPC validados;
+- rollback/limpieza QA validados;
 - tenant model;
 - unidad validable;
 - estrategia de stock;

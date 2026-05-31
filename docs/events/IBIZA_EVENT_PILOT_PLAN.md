@@ -859,24 +859,68 @@ Alcance protegido:
 - no se crean ni modifican datos operativos;
 - no se crean orders, order items, entries, QRs, emails, activity ni exports.
 
-Próximo paso técnico recomendado: Slice 3A - diseño/contrato de emisión manual de entradas de evento.
+### Slice 3A - contrato de emision manual
+
+Estado: cerrado.
+
+Se creo `docs/events/IBIZA_MANUAL_ISSUE_CONTRACT_PLAN.md` y quedo definido:
+
+- endpoint futuro `POST /panel/events/:eventId/orders/manual-issue`;
+- input buyer + items + attendees;
+- reglas de precios y snapshots;
+- stock por unidades comerciales;
+- QR/acceso individual por `event_order_entry`;
+- no exposicion de `checkin_token`;
+- no-goals de email QR, check-in, export, activity, frontend, pagos y `/payments/callback`.
+
+### Slice 3B.1 - RPC issue_event_manual_order
+
+Estado: migracion 029 aplicada y QA DB PASS.
+
+Se creo la RPC:
+
+- `public.issue_event_manual_order(uuid, uuid, jsonb, jsonb, text)`
+
+QA DB registrado:
+
+- RPC encontrada;
+- `anon_can_execute = false`;
+- `authenticated_can_execute = false`;
+- `service_role_can_execute = true`;
+- QA transaccional grande ejecutado con `begin; ... rollback;`;
+- resultado `Success. No rows returned`;
+- sin errores `FAIL`;
+- Ibiza quedo `slug = ibiza`, `title = Ibiza`, `status = draft`;
+- `qa_orders = 0`.
+
+Comportamiento validado:
+
+- emision manual General;
+- emision Mesa/package con cantidad correcta de entries;
+- bloqueo de attendees invalidos;
+- bloqueo de sobreventa;
+- bloqueo de ticket type de otro evento;
+- bloqueo de actor sin membership;
+- bloqueo de evento no operable;
+- no exposicion de `checkin_token`, PII de asistentes, `auth_user_id`, `local_id` ni metadata cruda;
+- rollback limpio sin datos parciales.
+
+Proximo paso tecnico recomendado: Slice 3B.2 - endpoint TS manual issue.
 
 Alcance sugerido:
 
-- definir endpoint de emisión manual;
-- definir input buyer + items + attendees;
-- definir cálculo de total de orden;
-- definir creación de `event_order`;
-- definir creación de `event_order_items`;
-- definir creación de `event_order_entries`;
-- definir protección de stock;
-- definir generación de un QR por entry;
-- dejar fuera email QR;
-- dejar fuera check-in;
-- dejar fuera export;
-- dejar fuera activity log;
-- dejar fuera frontend;
-- dejar fuera pagos y `/payments/callback`.
+- crear `POST /panel/events/:eventId/orders/manual-issue`;
+- usar `eventPanelAuth`;
+- usar `requireEventRole(["owner", "staff"])`;
+- validar input estricto;
+- rechazar campos prohibidos;
+- llamar a `public.issue_event_manual_order`;
+- mapear errores de RPC a HTTP;
+- devolver `201` en exito;
+- no exponer `checkin_token`;
+- no crear logica paralela de stock en TS;
+- no tocar frontend;
+- no tocar pagos ni `/payments/callback`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
