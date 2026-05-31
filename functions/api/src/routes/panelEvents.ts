@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
+import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
@@ -28,6 +29,39 @@ type EventOrderItemMetricRow = {
 
 type EventOrderEntryMetricRow = {
   event_ticket_type_id: string;
+};
+
+type ManualIssueRpcResult =
+  | {
+      ok: true;
+      data: {
+        order: Record<string, unknown>;
+        items: Array<Record<string, unknown>>;
+        entries: Array<Record<string, unknown>>;
+      };
+    }
+  | {
+      ok: false;
+      error?: {
+        code?: string;
+        message?: string;
+      };
+    };
+
+const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
+  invalid_input: 400,
+  invalid_buyer: 400,
+  invalid_items: 400,
+  invalid_quantity: 400,
+  invalid_attendees_count: 400,
+  invalid_attendee: 400,
+  forbidden: 403,
+  event_not_found: 404,
+  ticket_type_not_found: 404,
+  event_not_operable: 409,
+  insufficient_stock: 409,
+  non_divisible_package_price: 409,
+  manual_issue_failed: 500,
 };
 
 function toFiniteNumber(value: number | string | null | undefined): number {
@@ -97,6 +131,69 @@ panelEventsRouter.get("/:eventId/me", eventPanelAuth, requireEventRole(["owner",
       display_name: req.eventPanelUser.displayName,
     },
   });
+});
+
+panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    const eventId = requireEventContext(req, res);
+    if (!eventId || !req.eventPanelUser) return;
+
+    const parsedBody = eventManualIssueSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        error: parsedBody.error.flatten(),
+        code: "invalid_input",
+      });
+    }
+
+    const requestId = getRequestId(req);
+    const manualIssueInput = parsedBody.data;
+    const { data: rpcData, error: rpcError } = await supabase.rpc("issue_event_manual_order", {
+      p_event_id: req.eventPanelUser.eventId,
+      p_actor_auth_user_id: req.eventPanelUser.authUserId,
+      p_buyer: manualIssueInput.buyer,
+      p_items: manualIssueInput.items,
+      p_notes: manualIssueInput.notes && manualIssueInput.notes.length > 0 ? manualIssueInput.notes : null,
+    });
+
+    if (rpcError) {
+      logger.error("Failed to call event manual issue RPC", {
+        requestId,
+        eventId,
+        error: rpcError.message,
+      });
+      return res.status(500).json({
+        error: "Manual issue failed",
+        code: "manual_issue_failed",
+      });
+    }
+
+    const result = rpcData as ManualIssueRpcResult | null;
+    if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
+      logger.error("Unexpected event manual issue RPC response", {
+        requestId,
+        eventId,
+      });
+      return res.status(500).json({
+        error: "Manual issue failed",
+        code: "manual_issue_failed",
+      });
+    }
+
+    if (result.ok === false) {
+      const code = result.error?.code ?? "manual_issue_failed";
+      const status = MANUAL_ISSUE_RPC_ERROR_STATUS[code] ?? 500;
+
+      return res.status(status).json({
+        error: result.error?.message ?? "Manual issue failed",
+        code,
+      });
+    }
+
+    return res.status(201).json(result.data);
+  } catch (error) {
+    next(error);
+  }
 });
 
 panelEventsRouter.get("/:eventId/summary", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
