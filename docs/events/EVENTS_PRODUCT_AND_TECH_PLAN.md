@@ -112,7 +112,8 @@ Actualización posterior:
 - La migración `028_add_event_packages_and_order_items.sql` agregó productos comerciales `single_entry/package`, `entries_per_unit`, `event_order_items` y el vínculo directo entre entries e items.
 - El provisioning controlado `infra/sql/provisioning/ibiza_event_seed.sql` creó/aseguró Ibiza, 9 productos comerciales y `event_panel_users` owner/staff.
 - Slice 2A implementó y validó en runtime `eventPanelAuth`, `requireEventRole` y `GET /panel/events/:eventId/me`.
-- Ibiza quedó lista para endpoints read-only de evento, sin crear órdenes, order items, entries ni QRs todavía.
+- Slice 2B implementó y validó en runtime `GET /panel/events/:eventId/summary` y `GET /panel/events/:eventId/ticket-types`.
+- Ibiza quedó lista para diseñar el contrato de emisión manual, sin crear órdenes, order items, entries ni QRs todavía.
 
 ### Qué significa hoy `events_public`
 

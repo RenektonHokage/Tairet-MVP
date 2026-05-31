@@ -103,6 +103,7 @@ Estado importante:
 - La base DB de Eventos ya soporta `event_order_items`, `sales_unit_type`, `entries_per_unit` y el vinculo directo entre `event_order_entries` y `event_order_items`.
 - Slice 1C ya fue aplicado y validado: Ibiza, 9 productos comerciales y `event_panel_users` owner/staff quedaron provisionados sin crear orders, order items, entries ni QRs.
 - Slice 2A ya fue implementado, deployado y validado con QA runtime PASS: `eventPanelAuth`, `requireEventRole` y `GET /panel/events/:eventId/me`.
+- Slice 2B ya fue implementado, deployado y validado con QA runtime PASS: `GET /panel/events/:eventId/summary` y `GET /panel/events/:eventId/ticket-types`.
 
 ### 5.1 `events`
 
@@ -972,18 +973,98 @@ Tenant safety validado:
 - `panel_users` y `local_id` no otorgan acceso a eventos;
 - el panel local existente no se rompio.
 
+### Estado Slice 2B - endpoints read-only deployados y QA runtime PASS
+
+Estado: **implementado, deployado y validado con QA runtime PASS**.
+
+Endpoints implementados:
+
+- `GET /panel/events/:eventId/summary`;
+- `GET /panel/events/:eventId/ticket-types`.
+
+Ambos usan:
+
+- `eventPanelAuth`;
+- `requireEventRole(["owner", "staff"])`.
+
+Evento validado:
+
+- `event.id = aed4cb4a-b297-4093-98e1-b3474f3b399c`;
+- `event.slug = ibiza`;
+- `event.title = Ibiza`;
+- `event.status = draft`.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- `/summary` con owner Ibiza respondio `200 OK`;
+- `/summary` con staff Ibiza respondio `200 OK`;
+- `/ticket-types` con owner Ibiza respondio `200 OK`;
+- `/ticket-types` con staff Ibiza respondio `200 OK`;
+- `/summary` sin `Authorization` respondio `401`;
+- `/ticket-types` sin `Authorization` respondio `401`;
+- token invalido respondio `401` en ambos endpoints;
+- `/panel/events/not-a-uuid/summary` y `/panel/events/not-a-uuid/ticket-types` respondieron `400 Invalid eventId`;
+- owner local de D'Lirio sin membership de evento respondio `403` en ambos endpoints;
+- evento inexistente `00000000-0000-4000-8000-000000000000` respondio `404 Event not found` en ambos endpoints;
+- regresion panel local: `/panel/me` y `/panel/orders/summary` con owner local respondieron `200 OK`.
+
+Cálculos validados en `/summary`:
+
+- `catalog.ticket_type_count = 9`;
+- `catalog.commercial_units_stock = 3020`;
+- `catalog.potential_qr_accesses = 3200`;
+- `catalog.potential_commercial_amount = 750600000`;
+- `catalog.currency = PYG`;
+- `operations.orders_count = 0`;
+- `operations.order_items_count = 0`;
+- `operations.entries_count = 0`;
+- `operations.issued_commercial_amount = 0`.
+
+Cálculos validados en `/ticket-types`:
+
+- `items.length = 9`;
+- `summary.ticket_type_count = 9`;
+- `summary.potential_qr_accesses = 3200`;
+- `summary.potential_commercial_amount = 750600000`;
+- `summary.currency = PYG`;
+- General Preventa 1: `stock = 900`, `potential_qr_accesses = 900`, `potential_commercial_amount = 126000000`;
+- VIP Preventa 1: `stock = 200`, `potential_qr_accesses = 200`, `potential_commercial_amount = 70000000`;
+- Mesa VIP Preventa 1: `stock = 6`, `sales_unit_type = package`, `entries_per_unit = 10`, `potential_qr_accesses = 60`, `potential_commercial_amount = 19200000`.
+
+No exposicion sensible validada:
+
+- `/summary` y `/ticket-types` no exponen `auth_user_id`, email, token, `access_token`, `refresh_token`, `checkin_token`, `local_id`, buyer PII, attendee PII ni metadata.
+
+Tenant safety validado:
+
+- ambos endpoints validan acceso por `event_id + auth_user_id`;
+- owner/staff de Ibiza pueden acceder;
+- usuarios locales sin membership de evento no acceden;
+- `panel_users` y `local_id` no otorgan acceso a Eventos.
+
+Alcance protegido:
+
+- no se crean ni modifican datos operativos;
+- no se crean orders, order items, entries, QRs, emails, activity ni exports.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 2B - endpoints read-only de evento.
+- avanzar a Slice 3A - diseno/contrato de emision manual de entradas de evento.
 
-Alcance recomendado de Slice 2B:
+Alcance recomendado de Slice 3A:
 
-- `GET /panel/events/:eventId/summary`;
-- `GET /panel/events/:eventId/ticket-types`;
-- ambos protegidos con `eventPanelAuth` + `requireEventRole(["owner", "staff"])`;
-- no crear emision manual todavia;
+- definir endpoint de emision manual;
+- definir input buyer + items + attendees;
+- definir calculo de total de orden;
+- definir creacion de `event_order`;
+- definir creacion de `event_order_items`;
+- definir creacion de `event_order_entries`;
+- definir proteccion de stock;
+- definir generacion de un QR por entry;
+- dejar fuera email QR;
 - no crear QRs;
 - no crear check-in;
 - no crear export;
@@ -1056,7 +1137,21 @@ Se completo:
 
 ### Slice 2B - Endpoints read-only de evento
 
-Proximo paso recomendado. Crear `GET /panel/events/:eventId/summary` y `GET /panel/events/:eventId/ticket-types`, protegidos por `eventPanelAuth` + `requireEventRole(["owner", "staff"])`, sin emision manual, QR, check-in, export, activity, pagos ni frontend.
+Estado: implementado, deployado y QA runtime PASS.
+
+Se completo:
+
+- `GET /panel/events/:eventId/summary`;
+- `GET /panel/events/:eventId/ticket-types`;
+- validacion owner/staff Ibiza;
+- bloqueo de usuario local sin membership;
+- calculos de catalogo y operaciones;
+- no exposicion sensible;
+- regresion de panel local.
+
+### Slice 3A - Diseno/contrato de emision manual
+
+Proximo paso recomendado. Preparar ASK/DOCS o ASK/DISCOVERY antes de implementar emision manual, definiendo endpoint, input buyer + items + attendees, calculo de total, creacion de order/items/entries, proteccion de stock y QR por entry, dejando fuera email QR, check-in, export, activity, frontend y pagos.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -1212,7 +1307,7 @@ Fuera de este ASK / DOCS:
 
 ## 16. Criterio de cierre
 
-Este documento queda listo para pasar a Slice 2B - endpoints read-only de evento cuando queden registrados:
+Este documento queda listo para pasar a Slice 3A - diseno/contrato de emision manual cuando queden registrados:
 
 - campos nuevos en `event_ticket_types`;
 - tabla `event_order_items`;
@@ -1229,6 +1324,11 @@ Este documento queda listo para pasar a Slice 2B - endpoints read-only de evento
 - `GET /panel/events/:eventId/me` validado;
 - tenant safety por `event_id + auth_user_id` validada;
 - regresion de panel local validada;
+- Slice 2B implementado, deployado y QA runtime PASS;
+- `/summary` validado;
+- `/ticket-types` validado;
+- calculos de catalogo y operaciones validados;
+- no exposicion sensible validada;
 - tenant model;
 - unidad validable;
 - estrategia de stock;

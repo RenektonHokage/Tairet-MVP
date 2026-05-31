@@ -801,21 +801,82 @@ Tenant safety registrado:
 - `panel_users` y `local_id` no otorgan acceso a eventos;
 - panel local existente no se rompio.
 
-Próximo paso técnico recomendado: Slice 2B - endpoints read-only de evento.
+### Slice 2B - endpoints read-only de evento
+
+Estado: implementado, deployado y QA runtime PASS.
+
+Endpoints implementados:
+
+- `GET /panel/events/:eventId/summary`;
+- `GET /panel/events/:eventId/ticket-types`.
+
+Ambos usan:
+
+- `eventPanelAuth`;
+- `requireEventRole(["owner", "staff"])`.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}` y `x-request-id` presente;
+- `/summary` owner Ibiza -> `200 OK`;
+- `/summary` staff Ibiza -> `200 OK`;
+- `/ticket-types` owner Ibiza -> `200 OK`;
+- `/ticket-types` staff Ibiza -> `200 OK`;
+- sin `Authorization` -> `401` en ambos endpoints;
+- token invalido -> `401` en ambos endpoints;
+- `not-a-uuid` -> `400 Invalid eventId` en ambos endpoints;
+- owner local de D'Lirio sin membership de evento -> `403` en ambos endpoints;
+- evento inexistente con UUID valido -> `404 Event not found` en ambos endpoints;
+- regresion panel local: `/panel/me` y `/panel/orders/summary` con owner local -> `200 OK`.
+
+Cálculos registrados:
+
+- `catalog.ticket_type_count = 9`;
+- `catalog.commercial_units_stock = 3020`;
+- `catalog.potential_qr_accesses = 3200`;
+- `catalog.potential_commercial_amount = 750600000`;
+- `catalog.currency = PYG`;
+- `operations.orders_count = 0`;
+- `operations.order_items_count = 0`;
+- `operations.entries_count = 0`;
+- `operations.issued_commercial_amount = 0`;
+- General Preventa 1: `stock = 900`, `potential_qr_accesses = 900`, `potential_commercial_amount = 126000000`;
+- VIP Preventa 1: `stock = 200`, `potential_qr_accesses = 200`, `potential_commercial_amount = 70000000`;
+- Mesa VIP Preventa 1: `stock = 6`, `sales_unit_type = package`, `entries_per_unit = 10`, `potential_qr_accesses = 60`, `potential_commercial_amount = 19200000`.
+
+No exposicion sensible registrada:
+
+- `/summary` y `/ticket-types` no exponen `auth_user_id`, email, token, `access_token`, `refresh_token`, `checkin_token`, `local_id`, buyer PII, attendee PII ni metadata.
+
+Tenant safety registrado:
+
+- owner/staff de Ibiza pueden acceder;
+- usuarios locales sin membership no acceden;
+- `panel_users` y `local_id` no otorgan acceso a Eventos.
+
+Alcance protegido:
+
+- no se crean ni modifican datos operativos;
+- no se crean orders, order items, entries, QRs, emails, activity ni exports.
+
+Próximo paso técnico recomendado: Slice 3A - diseño/contrato de emisión manual de entradas de evento.
 
 Alcance sugerido:
 
-- `GET /panel/events/:eventId/summary`;
-- `GET /panel/events/:eventId/ticket-types`;
-- ambos protegidos con `eventPanelAuth` + `requireEventRole(["owner", "staff"])`;
-- sin emisión manual;
-- sin QR;
-- sin check-in;
-- sin export;
-- sin activity log;
-- sin pagos;
-- sin `/payments/callback`;
-- sin frontend.
+- definir endpoint de emisión manual;
+- definir input buyer + items + attendees;
+- definir cálculo de total de orden;
+- definir creación de `event_order`;
+- definir creación de `event_order_items`;
+- definir creación de `event_order_entries`;
+- definir protección de stock;
+- definir generación de un QR por entry;
+- dejar fuera email QR;
+- dejar fuera check-in;
+- dejar fuera export;
+- dejar fuera activity log;
+- dejar fuera frontend;
+- dejar fuera pagos y `/payments/callback`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
