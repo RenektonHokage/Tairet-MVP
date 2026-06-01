@@ -1158,24 +1158,72 @@ Limpieza QA validada:
 - General Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 900`;
 - Mesa VIP Preventa 1 volvio a `issued_commercial_units = 0`, `issued_qr_accesses = 0`, `remaining_commercial_units = 6`.
 
+### Estado Slice 3C.2 - endpoint `/entries` deployado y QA runtime PASS
+
+Slice 3C.2 queda registrado como implementado, deployado y validado:
+
+- endpoint `GET /panel/events/:eventId/entries` implementado;
+- endpoint validado para `event_id = aed4cb4a-b297-4093-98e1-b3474f3b399c`;
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- lista entries emitidas por evento;
+- permite busqueda, filtros y paginacion;
+- devuelve `entry`, `attendee`, `buyer`, `order` e `item`;
+- no expone `checkin_token`;
+- no expone `auth_user_id`;
+- no expone `local_id`;
+- no expone metadata cruda;
+- no crea ni modifica datos.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- estado inicial sin entries: owner Ibiza recibio `200 OK`, `items = []`, `pagination.page = 1`, `pagination.page_size = 25`, `pagination.total = 0`, `pagination.total_pages = 0`;
+- se creo una orden QA con `POST /panel/events/:eventId/orders/manual-issue`, `201 Created`, generando 1 entry `General Preventa 1`, `status = issued`, `checkin_status = unused`, `qr_status = pending_qr_resource`;
+- owner Ibiza y staff Ibiza listaron `/entries` con `200 OK`, `pagination.total = 1`;
+- la entry incluyo `entry`, `attendee`, `buyer`, `order` e `item` segun contrato;
+- busquedas `q=QA-SLICE-3C2`, `q=qa.slice3c2.entries@example.com` y `q=Entry` encontraron la entry QA;
+- filtros `ticket_type_id`, `status=issued` y `checkin_status=unused` respondieron `200 OK`;
+- paginacion `page=1&page_size=1` respondio `200 OK`, `pagination.total = 1`, `pagination.total_pages = 1`;
+- query params invalidos `status=bad`, `checkin_status=bad`, `page_size=101`, `q=a` y `unknown=1` respondieron `400` con `code = invalid_query`;
+- sin `Authorization` respondio `401`;
+- token invalido respondio `401`;
+- owner local sin membership del evento respondio `403`;
+- `/panel/events/not-a-uuid/entries` respondio `400 Invalid eventId`;
+- evento inexistente `00000000-0000-4000-8000-000000000000` respondio `404 Event not found`;
+- regresion: `/summary`, `/ticket-types`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+
+No exposicion sensible validada:
+
+- no aparece `checkin_token`;
+- no aparece `used_by_auth_user_id`;
+- no aparece `created_by_auth_user_id`;
+- no aparece `auth_user_id`;
+- no aparece `local_id`;
+- no aparece metadata cruda.
+
+Limpieza QA validada:
+
+- se limpio la orden QA del slice;
+- despues de la limpieza, `GET /entries` volvio a `items = []`;
+- `pagination.total = 0`;
+- `pagination.total_pages = 0`;
+- Ibiza quedo nuevamente sin ordenes emitidas.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3C - lectura operativa de ordenes/entradas emitidas de evento.
+- avanzar a Slice 3D.1 - contrato de QR visual / recurso QR para entries.
 
-Alcance recomendado de Slice 3C:
+Alcance recomendado de Slice 3D.1:
 
-- endpoint read-only para listar/search entries emitidas;
-- filtros por ticket type, `checkin_status`, `status`, email/documento/nombre;
-- usar `eventPanelAuth`;
-- usar `requireEventRole(["owner", "staff"])`;
-- sin QR visual todavia;
-- sin email QR;
-- sin check-in;
-- sin export;
-- sin activity;
-- no tocar frontend;
+- definir como obtener o mostrar QR por entry;
+- decidir si el endpoint devuelve imagen/base64, SVG, PNG o URL/recurso seguro;
+- definir si se usa `entry.id` como identificador publico o si se requiere recurso firmado;
+- no exponer `checkin_token` raw;
+- preparar compatibilidad con WhatsApp y email QR;
+- sin check-in todavia;
+- sin frontend todavia;
 - no tocar pagos;
 - no tocar `/payments/callback`.
 
@@ -1297,7 +1345,22 @@ Se completo:
 
 ### Slice 3C - Lectura operativa de ordenes/entradas emitidas
 
-Proximo paso recomendado. Implementar endpoints read-only para listar y buscar entries emitidas por evento, con filtros operativos y proteccion `eventPanelAuth + requireEventRole(["owner", "staff"])`, sin QR visual, email QR, check-in, export, activity, frontend ni pagos.
+Estado: contrato aprobado, endpoint implementado, deployado y QA runtime PASS.
+
+Se completo:
+
+- contrato Slice 3C.1 en `docs/events/IBIZA_EVENT_ENTRIES_READ_CONTRACT_PLAN.md`;
+- endpoint `GET /panel/events/:eventId/entries`;
+- listado/search de entries emitidas por evento;
+- filtros por ticket type, `status` y `checkin_status`;
+- paginacion y sort estable;
+- proteccion `eventPanelAuth + requireEventRole(["owner", "staff"])`;
+- no exposicion de `checkin_token`, `auth_user_id`, `local_id` ni metadata cruda;
+- limpieza QA y regresiones PASS.
+
+### Slice 3D.1 - Contrato de QR visual / recurso QR para entries
+
+Proximo paso recomendado. Definir contrato para obtener/mostrar QR por entry sin exponer `checkin_token` raw, preparando compatibilidad con WhatsApp/email QR, sin check-in, frontend, pagos ni `/payments/callback`.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

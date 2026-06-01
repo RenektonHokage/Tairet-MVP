@@ -330,17 +330,82 @@ Casos minimos para el CODE posterior:
 - no rompe `manual-issue`.
 - no rompe `/panel/me` ni `/panel/orders/summary` del panel local.
 
-## 13. Proximo CODE recomendado
+## 13. Estado Slice 3C.2: endpoint `/entries` QA runtime PASS
 
-Slice 3C.2 - endpoint read-only de entries:
+Estado final:
 
-- crear schema estricto para query params.
-- agregar `GET /panel/events/:eventId/entries`.
-- usar `eventPanelAuth`.
-- usar `requireEventRole(["owner", "staff"])`.
-- consultar `event_order_entries` scoped por `req.eventPanelUser.eventId`.
-- unir `event_order_items` y `event_orders` por FKs alineadas con `event_id`.
-- aplicar filtros y busqueda.
-- devolver response paginado y seguro.
-- no exponer `checkin_token`.
-- no tocar QR, email, check-in, export, activity, frontend ni pagos.
+- Slice 3C.1: contrato de lectura operativa aprobado.
+- Slice 3C.2: endpoint `GET /panel/events/:eventId/entries` implementado.
+- Slice 3C.2: deployado.
+- Slice 3C.2: QA runtime PASS.
+- Lectura operativa de entries lista como base para QR visual, check-in, export y activity futuros.
+- Ibiza quedo nuevamente sin ordenes emitidas despues de la limpieza QA.
+
+Endpoint validado:
+
+- `GET /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/entries`
+
+Comportamiento validado:
+
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- lista entries emitidas por evento;
+- permite busqueda, filtros y paginacion;
+- devuelve `entry`, `attendee`, `buyer`, `order` e `item`;
+- no expone `checkin_token`;
+- no expone `auth_user_id`;
+- no expone `local_id`;
+- no expone metadata cruda;
+- no crea ni modifica datos.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
+- Estado inicial sin entries: owner Ibiza recibio `200 OK`, `items = []`, `pagination.page = 1`, `pagination.page_size = 25`, `pagination.total = 0`, `pagination.total_pages = 0`.
+- Emision QA: se creo una orden QA con `POST /panel/events/:eventId/orders/manual-issue`, `201 Created`, generando 1 entry `General Preventa 1`, `status = issued`, `checkin_status = unused`, `qr_status = pending_qr_resource`.
+- Listado owner/staff: owner Ibiza y staff Ibiza recibieron `200 OK`, `pagination.total = 1`, con `entry`, `attendee`, `buyer`, `order` e `item` segun contrato.
+- Busquedas: `q=QA-SLICE-3C2`, `q=qa.slice3c2.entries@example.com` y `q=Entry` encontraron la entry QA.
+- Filtros validos: `ticket_type_id`, `status=issued` y `checkin_status=unused` respondieron `200 OK`.
+- Paginacion: `page=1&page_size=1` respondio `200 OK`, `pagination.page = 1`, `pagination.page_size = 1`, `pagination.total = 1`, `pagination.total_pages = 1`.
+- Query params invalidos: `status=bad`, `checkin_status=bad`, `page_size=101`, `q=a` y `unknown=1` respondieron `400` con `code = invalid_query`.
+- Auth/permisos: sin `Authorization` -> `401`, token invalido -> `401`, owner local sin membership del evento -> `403`.
+- `eventId` invalido: `/panel/events/not-a-uuid/entries` -> `400 Invalid eventId`.
+- Evento inexistente: `/panel/events/00000000-0000-4000-8000-000000000000/entries` -> `404 Event not found`.
+
+No exposicion sensible validada:
+
+- no aparece `checkin_token`;
+- no aparece `used_by_auth_user_id`;
+- no aparece `created_by_auth_user_id`;
+- no aparece `auth_user_id`;
+- no aparece `local_id`;
+- no aparece metadata cruda.
+
+Regresiones validadas:
+
+- `GET /panel/events/:eventId/summary` -> `200 OK`;
+- `GET /panel/events/:eventId/ticket-types` -> `200 OK`;
+- `GET /panel/me` con owner local -> `200 OK`;
+- `GET /panel/orders/summary` con owner local -> `200 OK`.
+
+Limpieza QA:
+
+- se limpio la orden QA del slice;
+- despues de la limpieza, `GET /entries` volvio a `items = []`;
+- `pagination.total = 0`;
+- `pagination.total_pages = 0`.
+
+## 14. Proximo paso recomendado
+
+Slice 3D.1 - contrato de QR visual / recurso QR para entries.
+
+Alcance sugerido:
+
+- definir como obtener o mostrar QR por entry;
+- decidir si el endpoint devuelve imagen/base64, SVG, PNG o URL/recurso seguro;
+- definir si se usa `entry.id` como identificador publico o si se requiere recurso firmado;
+- no exponer `checkin_token` raw;
+- preparar compatibilidad con WhatsApp y email QR;
+- sin check-in todavia;
+- sin frontend todavia;
+- sin pagos;
+- sin `/payments/callback`.
