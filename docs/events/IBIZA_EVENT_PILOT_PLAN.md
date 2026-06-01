@@ -1058,16 +1058,73 @@ Limpieza QA registrada:
 - `pagination.total_pages = 0`;
 - Ibiza quedo nuevamente sin ordenes emitidas.
 
-Proximo paso tecnico recomendado: Slice 3D.3 - contrato/implementacion de email QR por entry.
+### Slice 3D.3A - send-email QR por entry
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Endpoint validado:
+
+- `POST /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/entries/:entryId/send-email`
+
+Se valido que:
+
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- busca la entry por `id + event_id`;
+- genera QR PNG internamente;
+- envia email con Resend/`sendEmail`;
+- actualiza `email_sent_at` solo si el envio termina correctamente;
+- no expone `checkin_token`;
+- no expone QR payload;
+- no revierte order/item/entry si falla email;
+- no implementa check-in;
+- no toca pagos ni `/payments/callback`.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente;
+- estado inicial limpio: `/entries` -> `200 OK`, `items = []`, `pagination.total = 0`;
+- se creo una entry QA via `manual-issue`, `201 Created`, con entry `9b029baa-325d-4afb-8abb-6701ce8cf8de`, `General Preventa 1`, `issued/unused`, `qr_status = pending_qr_resource`;
+- owner Ibiza envio email QR con `200 OK`, `ok = true`, `email.status = sent`, `email.to = mateoguex94@gmail.com`, `entry.email_sent_at = 2026-06-01T20:14:03.488+00:00`;
+- email recibido en Gmail con evento `Ibiza`, fecha `sabado, 1 de agosto de 2026, 09:00 p. m.`, lugar `Centro de Eventos de Mariscal Lopez`, entrada `General Preventa 1`, asistente `QA Email` y QR visible;
+- staff Ibiza reenvio email QR con `200 OK`, `email.status = sent`, `entry.email_sent_at = 2026-06-01T20:15:08.593+00:00`;
+- `entryId` invalido -> `400 invalid_entry_id`;
+- entry inexistente -> `404 entry_not_found`;
+- owner local de D'Lirio sin membership -> `403`;
+- sin auth -> `401`;
+- token invalido -> `401`;
+- eventId invalido -> `400 Invalid eventId`;
+- evento inexistente -> `404 Event not found`;
+- QR endpoint siguio funcionando con `200 OK` y `Content-Type = image/png`;
+- `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local siguieron en `200 OK`.
+
+No exposicion sensible registrada:
+
+- email visible sin `checkin_token`, `/events/checkin/<valor-opaco>`, documento, telefono ni metadata;
+- response sin `checkin_token`, QR payload, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata;
+- `email.to` aparece en response y queda permitido por contrato.
+
+Fallo de email:
+
+- no se forzo fallo de email en produccion para no tocar configuracion Resend ni provocar falsos errores operativos;
+- estado: `N/A` justificado.
+
+Limpieza QA registrada:
+
+- se limpio la orden QA del slice;
+- `/entries` volvio a `items = []`;
+- `pagination.total = 0`;
+- `pagination.total_pages = 0`;
+- Ibiza quedo nuevamente sin ordenes emitidas.
+
+Proximo paso tecnico recomendado: Slice 3D.3B - email automatico post manual-issue.
 
 Alcance sugerido:
 
-- definir si el email se dispara automaticamente despues de `manual-issue` o mediante endpoint controlado;
-- reutilizar Resend, `sendEmail` y `qrcode` donde corresponda;
-- email por entry, no por order;
-- actualizar `email_sent_at` solo si el envio fue correcto;
-- fallo de email no revierte la entry;
-- no incluir `checkin_token` como texto;
+- despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
+- fallo de email no debe revertir la emision;
+- actualizar `email_sent_at` solo para entries enviadas correctamente;
+- devolver en `manual-issue` un resumen de entrega por email, sin tokens ni payload QR;
+- mantener `send-email` por entry como reenvio operativo;
 - no tocar check-in todavia;
 - sin pagos;
 - sin `/payments/callback`.

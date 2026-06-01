@@ -1263,20 +1263,75 @@ Limpieza QA validada:
 - `pagination.total_pages = 0`;
 - Ibiza quedo nuevamente sin ordenes emitidas.
 
+### Estado Slice 3D.3A - send-email QR por entry deployado y QA runtime PASS
+
+Slice 3D.3A queda registrado como implementado, deployado y validado:
+
+- endpoint `POST /panel/events/:eventId/entries/:entryId/send-email` implementado;
+- endpoint validado para `event_id = aed4cb4a-b297-4093-98e1-b3474f3b399c`;
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- busca la entry por `id + event_id`;
+- genera QR PNG internamente;
+- envia email con Resend/`sendEmail`;
+- actualiza `email_sent_at` solo si el envio termina correctamente;
+- permite reenvio controlado por owner/staff;
+- no expone `checkin_token`;
+- no expone QR payload;
+- no revierte ni borra order/item/entry si falla email;
+- no implementa check-in;
+- no toca pagos ni `/payments/callback`.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- estado inicial limpio: `GET /panel/events/:eventId/entries` respondio `200 OK`, `items = []`, `pagination.total = 0`;
+- se creo una entry QA via `manual-issue`, `201 Created`, entry `9b029baa-325d-4afb-8abb-6701ce8cf8de`, `ticket_name = General Preventa 1`, `status = issued`, `checkin_status = unused`, `qr_status = pending_qr_resource`;
+- owner Ibiza envio email QR con `200 OK`, `ok = true`, `email.status = sent`, `email.to = mateoguex94@gmail.com`, `entry.email_sent_at = 2026-06-01T20:14:03.488+00:00`;
+- email recibido en Gmail con `Tu entrada para Ibiza`, evento `Ibiza`, fecha `sabado, 1 de agosto de 2026, 09:00 p. m.`, lugar `Centro de Eventos de Mariscal Lopez`, entrada `General Preventa 1`, asistente `QA Email` y QR visible;
+- staff Ibiza reenvio email QR con `200 OK`, `email.status = sent`, `entry.email_sent_at = 2026-06-01T20:15:08.593+00:00`;
+- `entryId` invalido respondio `400`, `code = invalid_entry_id`;
+- entry inexistente respondio `404`, `code = entry_not_found`;
+- owner local de D'Lirio sin membership respondio `403 User not authorized for event access`;
+- sin auth y token invalido respondieron `401`;
+- `eventId` invalido respondio `400 Invalid eventId`;
+- evento inexistente respondio `404 Event not found`;
+- QR endpoint siguio operativo con `200 OK` y `Content-Type = image/png`;
+- regresion: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+
+No exposicion sensible validada:
+
+- email visible no contiene `checkin_token`;
+- email visible no contiene `/events/checkin/<valor-opaco>`;
+- email visible no contiene documento, telefono ni metadata;
+- response no contiene `checkin_token`, QR payload, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata;
+- `email.to` aparece en response y queda permitido por contrato.
+
+Fallo de email:
+
+- no se forzo fallo de email en produccion para no tocar configuracion Resend ni provocar falsos errores operativos;
+- estado: `N/A` justificado.
+
+Limpieza QA validada:
+
+- se limpio la orden QA del slice;
+- despues de la limpieza, `/entries` volvio a `items = []`;
+- `pagination.total = 0`;
+- `pagination.total_pages = 0`;
+- Ibiza quedo nuevamente sin ordenes emitidas.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3D.3 - contrato/implementacion de email QR por entry.
+- avanzar a Slice 3D.3B - email automatico post manual-issue.
 
-Alcance recomendado de Slice 3D.3:
+Alcance recomendado de Slice 3D.3B:
 
-- definir si el email se dispara automaticamente despues de `manual-issue` o mediante endpoint controlado;
-- reutilizar Resend, `sendEmail` y `qrcode` donde corresponda;
-- email por entry, no por order;
-- actualizar `email_sent_at` solo si el envio fue correcto;
-- fallo de email no revierte la entry;
-- no incluir `checkin_token` como texto;
+- despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
+- fallo de email no revierte la emision;
+- actualizar `email_sent_at` solo para entries enviadas correctamente;
+- devolver en `manual-issue` un resumen de entrega por email, sin tokens ni payload QR;
+- mantener `send-email` por entry como reenvio operativo;
 - no tocar check-in todavia;
 - no tocar pagos;
 - no tocar `/payments/callback`.
@@ -1442,9 +1497,24 @@ Se completo:
 - no modificacion de datos;
 - regresiones y limpieza QA PASS.
 
-### Slice 3D.3 - Email QR por entry
+### Slice 3D.3A - Send-email QR por entry
 
-Proximo paso recomendado. Definir e implementar email QR por entry, con Resend/`sendEmail`/`qrcode`, actualizando `email_sent_at` solo si el envio fue correcto, sin exponer `checkin_token` como texto, sin check-in, pagos ni `/payments/callback`.
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se completo:
+
+- endpoint `POST /panel/events/:eventId/entries/:entryId/send-email`;
+- envio/reenvio controlado por owner/staff;
+- generacion interna de QR PNG;
+- uso de Resend/`sendEmail`;
+- actualizacion de `email_sent_at` solo en envio exitoso;
+- no exposicion de `checkin_token`, QR payload, base64, `auth_user_id`, `local_id` ni metadata;
+- email visible con evento, fecha, lugar, entrada, asistente y QR;
+- regresiones y limpieza QA PASS.
+
+### Slice 3D.3B - Email automatico post manual-issue
+
+Proximo paso recomendado. Despues de una emision manual exitosa, intentar enviar email QR por cada entry creada, sin revertir la emision si falla email, actualizando `email_sent_at` solo para entries enviadas correctamente y manteniendo `send-email` por entry como reenvio operativo.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -1635,6 +1705,10 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - RPC confirmada como fuente de stock/transaccion;
 - limpieza QA Slice 3B.2 validada;
 - regresion de panel local validada despues de manual issue;
+- Slice 3D.2 QR visual PNG por entry implementado, deployado y QA runtime PASS;
+- Slice 3D.3A send-email QR por entry implementado, deployado y QA runtime PASS completo;
+- email QR con Resend/`sendEmail` validado para reenvio controlado por owner/staff;
+- `email_sent_at` validado como marca de envio exitoso;
 - tenant model;
 - unidad validable;
 - estrategia de stock;
