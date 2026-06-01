@@ -1003,17 +1003,72 @@ Limpieza QA registrada:
 - `pagination.total_pages = 0`;
 - Ibiza quedo nuevamente sin ordenes emitidas.
 
-Proximo paso tecnico recomendado: Slice 3D.1 - contrato de QR visual / recurso QR para entries.
+### Slice 3D.2 - endpoint QR visual PNG por entry
+
+Estado: implementado, deployado y QA runtime PASS.
+
+Endpoint validado:
+
+- `GET /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/entries/:entryId/qr`
+
+Se valido que:
+
+- usa `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- valida `entryId` como UUID;
+- busca la entry por `id + event_id`;
+- genera QR visual PNG server-side;
+- responde `image/png`;
+- no devuelve JSON con `checkin_token`;
+- no modifica datos;
+- no implementa email;
+- no implementa check-in.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente;
+- estado inicial limpio: `/entries` -> `200 OK`, `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`;
+- se creo una orden QA via `manual-issue`, `201 Created`, con entry `b790e704-0c39-4d14-88e3-864a0975545d`, `General Preventa 1`, `issued/unused`, `qr_status = pending_qr_resource`;
+- owner Ibiza obtuvo QR PNG con `200 OK`, `Content-Type = image/png`, `Cache-Control = no-store`, `X-Content-Type-Options = nosniff`, `Content-Disposition = inline; filename="tairet-event-entry-qr.png"`, `Content-Length = 3940`;
+- archivo `qa-3d2-owner-qr.png` se abrio correctamente como QR;
+- staff Ibiza obtuvo QR PNG con `200 OK`, `Content-Type = image/png`, `Content-Length = 3940`, archivo `qa-3d2-staff-qr.png`;
+- `entryId` invalido -> `400 invalid_entry_id`;
+- entry inexistente -> `404 entry_not_found`;
+- owner local de D'Lirio sin membership -> `403`;
+- sin auth -> `401`;
+- token invalido -> `401`;
+- eventId invalido -> `400 Invalid eventId`;
+- evento inexistente -> `404 Event not found`;
+- QR GET no modifico la entry: `status = issued`, `checkin_status = unused`, `used_at = null`, `pagination.total = 1`;
+- `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local siguieron en `200 OK`.
+
+No exposicion sensible registrada:
+
+- respuesta exitosa es PNG, no JSON;
+- no aparece `checkin_token`;
+- no aparece `auth_user_id`;
+- no aparece `local_id`;
+- no aparece metadata cruda;
+- no aparece email, phone, document ni token como texto.
+
+Limpieza QA registrada:
+
+- se limpio la orden QA del slice;
+- `/entries` volvio a `items = []`;
+- `pagination.total = 0`;
+- `pagination.total_pages = 0`;
+- Ibiza quedo nuevamente sin ordenes emitidas.
+
+Proximo paso tecnico recomendado: Slice 3D.3 - contrato/implementacion de email QR por entry.
 
 Alcance sugerido:
 
-- definir como obtener/mostrar QR por entry;
-- decidir si el endpoint devuelve imagen/base64, SVG, PNG o URL/recurso seguro;
-- definir si se usa `entry.id` como identificador publico o si se requiere recurso firmado;
-- no exponer `checkin_token` raw;
-- preparar compatibilidad con WhatsApp y email QR;
-- sin check-in todavia;
-- sin frontend todavia;
+- definir si el email se dispara automaticamente despues de `manual-issue` o mediante endpoint controlado;
+- reutilizar Resend, `sendEmail` y `qrcode` donde corresponda;
+- email por entry, no por order;
+- actualizar `email_sent_at` solo si el envio fue correcto;
+- fallo de email no revierte la entry;
+- no incluir `checkin_token` como texto;
+- no tocar check-in todavia;
 - sin pagos;
 - sin `/payments/callback`.
 

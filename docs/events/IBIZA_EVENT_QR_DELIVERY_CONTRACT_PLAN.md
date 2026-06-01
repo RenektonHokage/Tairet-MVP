@@ -309,16 +309,25 @@ Este documento ASK / DOCS.
 
 ### Slice 3D.2 - QR visual / recurso QR para entry
 
-Alcance:
+Estado: implementado, deployado y QA runtime PASS.
+
+Endpoint validado:
+
+- `GET /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/entries/:entryId/qr`
+
+Se completo:
 
 - endpoint `GET /panel/events/:eventId/entries/:entryId/qr`;
-- protegido con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
-- devuelve PNG;
-- genera QR server-side;
-- no devuelve `checkin_token` en JSON;
-- no email todavia;
-- no check-in todavia;
-- no frontend todavia.
+- proteccion `eventPanelAuth + requireEventRole(["owner", "staff"])`;
+- validacion de `entryId` como UUID;
+- busqueda de entry por `id + event_id`;
+- generacion de QR visual PNG server-side;
+- respuesta `image/png`;
+- headers `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` y `Content-Disposition: inline; filename="tairet-event-entry-qr.png"`;
+- no devolver JSON con `checkin_token`;
+- no modificar datos;
+- no implementar email;
+- no implementar check-in.
 
 ### Slice 3D.3 - Email QR
 
@@ -374,18 +383,26 @@ Fuera de este documento y del primer CODE posterior:
 
 ## 15. QA futuro
 
-QR visual:
+QR visual - QA runtime PASS:
 
-- owner Ibiza obtiene QR de entry propia.
-- staff Ibiza obtiene QR de entry propia.
-- owner local sin membership recibe `403`.
-- entry de otro evento queda bloqueada.
-- entry inexistente devuelve `404`.
-- respuesta no incluye `checkin_token` en JSON.
-- respuesta es `image/png`.
-- QR se puede descargar/mostrar.
-- QR no incluye PII visible.
-- QR escaneado produce valor compatible con check-in futuro.
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
+- Estado inicial limpio: `GET /panel/events/:eventId/entries` -> `200 OK`, `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`.
+- Se creo una orden QA via `POST /panel/events/:eventId/orders/manual-issue`, `201 Created`, con entry `b790e704-0c39-4d14-88e3-864a0975545d`, `ticket_name = General Preventa 1`, `status = issued`, `checkin_status = unused`, `qr_status = pending_qr_resource`.
+- Owner Ibiza obtuvo QR PNG con `200 OK`, `Content-Type = image/png`, `Cache-Control = no-store`, `X-Content-Type-Options = nosniff`, `Content-Disposition = inline; filename="tairet-event-entry-qr.png"`, `Content-Length = 3940`.
+- Archivo owner generado: `qa-3d2-owner-qr.png`; el PNG se abrio correctamente como QR.
+- Staff Ibiza obtuvo QR PNG con `200 OK`, `Content-Type = image/png`, `Content-Length = 3940`.
+- Archivo staff generado: `qa-3d2-staff-qr.png`.
+- `entryId` invalido `/entries/not-a-uuid/qr` -> `400 Bad Request`, `error = Invalid entryId`, `code = invalid_entry_id`.
+- Entry inexistente con UUID valido -> `404 Not Found`, `error = Entry not found`, `code = entry_not_found`.
+- Owner local de D'Lirio sin membership -> `403 User not authorized for event access`.
+- Sin `Authorization` -> `401`.
+- Token invalido -> `401`.
+- `eventId` invalido -> `400 Invalid eventId`.
+- Evento inexistente `00000000-0000-4000-8000-000000000000` -> `404 Event not found`.
+- Respuesta exitosa no es JSON y no expone `checkin_token`, `auth_user_id`, `local_id`, metadata, email, phone, document ni token.
+- `GET /entries` despues de pedir QR confirmo que la entry no cambio: `status = issued`, `checkin_status = unused`, `used_at = null`, `pagination.total = 1`.
+- Regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+- Limpieza QA: se limpio la orden QA del slice y `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`.
 
 Email:
 
@@ -414,11 +431,14 @@ Regresiones:
 
 ## 16. Proximo paso recomendado
 
-Slice 3D.2 - QR visual / recurso QR para entry:
+Slice 3D.3 - contrato/implementacion de email QR por entry:
 
-- implementar `GET /panel/events/:eventId/entries/:entryId/qr`;
-- generar PNG server-side;
-- proteger con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
-- validar tenant por `event_id`;
-- no devolver JSON con token;
-- no tocar email, WhatsApp API, check-in, export, activity, frontend ni pagos.
+- definir si el email se dispara automaticamente despues de `manual-issue` o mediante endpoint controlado;
+- reutilizar Resend, `sendEmail` y `qrcode` donde corresponda;
+- email por entry, no por order;
+- actualizar `email_sent_at` solo si el envio fue correcto;
+- fallo de email no revierte la entry;
+- no incluir `checkin_token` como texto;
+- no tocar check-in todavia;
+- no tocar pagos;
+- no tocar `/payments/callback`.
