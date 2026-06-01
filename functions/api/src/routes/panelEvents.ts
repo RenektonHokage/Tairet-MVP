@@ -1,10 +1,11 @@
 import { Request, Response, Router } from "express";
-import QRCode from "qrcode";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
 import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
 import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
+import { sendEventEntryQrEmail } from "../services/eventEmails";
+import { generateEventEntryQrPng } from "../services/eventQr";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 
@@ -38,6 +39,25 @@ type EventEntryQrRow = {
   event_id: string;
   status: string;
   checkin_token: string;
+};
+
+type EventEntryEmailRow = EventEntryQrRow & {
+  event_order_item_id: string;
+  attendee_name: string;
+  attendee_last_name: string;
+  attendee_email: string;
+};
+
+type EventEntryEmailEventRow = {
+  title: string;
+  starts_at: string | null;
+  timezone: string | null;
+  location_name: string | null;
+};
+
+type EventEntryEmailItemRow = {
+  ticket_name: string;
+  sales_unit_type: string;
 };
 
 type EventEntryReadRelatedItem = {
@@ -118,7 +138,7 @@ const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DEFAULT_QR_BASE_URL = "https://tairet.com.py";
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const EVENT_ENTRY_SELECT = `
   id,
@@ -231,15 +251,6 @@ function firstRelated<T>(value: T | T[] | null | undefined): T | null {
 
 function escapeIlikeTerm(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
-}
-
-function getQrBaseUrl(): string {
-  const configuredBaseUrl = process.env.B2C_BASE_URL?.trim();
-  return configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl.replace(/\/+$/, "") : DEFAULT_QR_BASE_URL;
-}
-
-function buildEventEntryQrPayload(checkinToken: string): string {
-  return `${getQrBaseUrl()}/events/checkin/${encodeURIComponent(checkinToken)}`;
 }
 
 async function findEventEntryIdsBySearch(eventId: string, searchTerm: string) {
@@ -385,6 +396,171 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
   }
 });
 
+panelEventsRouter.post("/:eventId/entries/:entryId/send-email", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    const eventId = requireEventContext(req, res);
+    if (!eventId || !req.eventPanelUser) return;
+
+    const entryId = typeof req.params.entryId === "string" ? req.params.entryId.trim() : "";
+    if (!UUID_PATTERN.test(entryId)) {
+      return res.status(400).json({
+        error: "Invalid entryId",
+        code: "invalid_entry_id",
+      });
+    }
+
+    const requestId = getRequestId(req);
+    const { data: entry, error: entryError } = await supabase
+      .from("event_order_entries")
+      .select("id, event_id, event_order_item_id, status, checkin_token, attendee_name, attendee_last_name, attendee_email")
+      .eq("event_id", req.eventPanelUser.eventId)
+      .eq("id", entryId)
+      .maybeSingle();
+
+    if (entryError) {
+      logger.error("Failed to fetch event entry for email", {
+        requestId,
+        eventId,
+        entryId,
+        error: entryError.message,
+      });
+      return res.status(500).json({
+        error: "Failed to send entry email",
+        code: "event_entry_email_failed",
+      });
+    }
+
+    if (!entry) {
+      return res.status(404).json({
+        error: "Entry not found",
+        code: "entry_not_found",
+      });
+    }
+
+    const eventEntry = entry as EventEntryEmailRow;
+    if (eventEntry.status !== "issued") {
+      return res.status(409).json({
+        error: "Entry is not issuable",
+        code: "entry_not_issuable",
+      });
+    }
+
+    const attendeeEmail = eventEntry.attendee_email.trim().toLowerCase();
+    if (!EMAIL_PATTERN.test(attendeeEmail)) {
+      return res.status(409).json({
+        error: "Attendee email unavailable",
+        code: "attendee_email_unavailable",
+      });
+    }
+
+    const [{ data: event, error: eventError }, { data: orderItem, error: itemError }] = await Promise.all([
+      supabase
+        .from("events")
+        .select("title, starts_at, timezone, location_name")
+        .eq("id", req.eventPanelUser.eventId)
+        .maybeSingle(),
+      supabase
+        .from("event_order_items")
+        .select("ticket_name, sales_unit_type")
+        .eq("event_id", req.eventPanelUser.eventId)
+        .eq("id", eventEntry.event_order_item_id)
+        .maybeSingle(),
+    ]);
+
+    if (eventError || itemError || !event || !orderItem) {
+      logger.error("Failed to fetch event entry email context", {
+        requestId,
+        eventId,
+        entryId,
+        error: eventError?.message ?? itemError?.message ?? "Missing event email context",
+      });
+      return res.status(500).json({
+        error: "Failed to send entry email",
+        code: "event_entry_email_failed",
+      });
+    }
+
+    let qrBuffer: Buffer;
+    try {
+      qrBuffer = await generateEventEntryQrPng(eventEntry.checkin_token);
+    } catch (qrError) {
+      logger.error("Failed to generate event entry QR for email", {
+        requestId,
+        eventId,
+        entryId,
+        error: qrError instanceof Error ? qrError.message : String(qrError),
+      });
+      return res.status(500).json({
+        error: "Failed to send entry email",
+        code: "event_entry_email_failed",
+      });
+    }
+
+    const eventRow = event as EventEntryEmailEventRow;
+    const itemRow = orderItem as EventEntryEmailItemRow;
+    try {
+      await sendEventEntryQrEmail({
+        to: attendeeEmail,
+        eventTitle: eventRow.title,
+        startsAt: eventRow.starts_at,
+        timezone: eventRow.timezone,
+        locationName: eventRow.location_name,
+        ticketName: itemRow.ticket_name,
+        attendeeName: eventEntry.attendee_name,
+        attendeeLastName: eventEntry.attendee_last_name,
+        qrPngBuffer: qrBuffer,
+      });
+    } catch (emailError) {
+      logger.error("Failed to send event entry QR email", {
+        requestId,
+        eventId,
+        entryId,
+        error: emailError instanceof Error ? emailError.message : String(emailError),
+      });
+      return res.status(502).json({
+        error: "Failed to send entry email",
+        code: "email_send_failed",
+      });
+    }
+
+    const sentAt = new Date().toISOString();
+    const { data: updatedEntry, error: updateError } = await supabase
+      .from("event_order_entries")
+      .update({ email_sent_at: sentAt })
+      .eq("event_id", req.eventPanelUser.eventId)
+      .eq("id", entryId)
+      .select("id, email_sent_at")
+      .maybeSingle();
+
+    if (updateError || !updatedEntry) {
+      logger.error("Failed to update event entry email_sent_at", {
+        requestId,
+        eventId,
+        entryId,
+        error: updateError?.message ?? "Missing updated entry",
+      });
+      return res.status(500).json({
+        error: "Failed to update email status",
+        code: "email_update_failed",
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      entry: {
+        id: updatedEntry.id,
+        email_sent_at: updatedEntry.email_sent_at,
+      },
+      email: {
+        to: attendeeEmail,
+        status: "sent",
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 panelEventsRouter.get("/:eventId/entries/:entryId/qr", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
   try {
     const eventId = requireEventContext(req, res);
@@ -435,12 +611,7 @@ panelEventsRouter.get("/:eventId/entries/:entryId/qr", eventPanelAuth, requireEv
     }
 
     try {
-      const qrBuffer = await QRCode.toBuffer(buildEventEntryQrPayload(eventEntry.checkin_token), {
-        type: "png",
-        errorCorrectionLevel: "M",
-        margin: 2,
-        width: 512,
-      });
+      const qrBuffer = await generateEventEntryQrPng(eventEntry.checkin_token);
 
       res.setHeader("Content-Type", "image/png");
       res.setHeader("Cache-Control", "no-store");
