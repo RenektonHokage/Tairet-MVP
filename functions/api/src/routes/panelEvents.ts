@@ -1,4 +1,5 @@
 import { Request, Response, Router } from "express";
+import QRCode from "qrcode";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
 import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
@@ -30,6 +31,13 @@ type EventOrderItemMetricRow = {
 
 type EventOrderEntryMetricRow = {
   event_ticket_type_id: string;
+};
+
+type EventEntryQrRow = {
+  id: string;
+  event_id: string;
+  status: string;
+  checkin_token: string;
 };
 
 type EventEntryReadRelatedItem = {
@@ -108,6 +116,9 @@ const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   non_divisible_package_price: 409,
   manual_issue_failed: 500,
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEFAULT_QR_BASE_URL = "https://tairet.com.py";
 
 const EVENT_ENTRY_SELECT = `
   id,
@@ -220,6 +231,15 @@ function firstRelated<T>(value: T | T[] | null | undefined): T | null {
 
 function escapeIlikeTerm(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function getQrBaseUrl(): string {
+  const configuredBaseUrl = process.env.B2C_BASE_URL?.trim();
+  return configuredBaseUrl && configuredBaseUrl.length > 0 ? configuredBaseUrl.replace(/\/+$/, "") : DEFAULT_QR_BASE_URL;
+}
+
+function buildEventEntryQrPayload(checkinToken: string): string {
+  return `${getQrBaseUrl()}/events/checkin/${encodeURIComponent(checkinToken)}`;
 }
 
 async function findEventEntryIdsBySearch(eventId: string, searchTerm: string) {
@@ -360,6 +380,85 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
     }
 
     return res.status(201).json(result.data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+panelEventsRouter.get("/:eventId/entries/:entryId/qr", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    const eventId = requireEventContext(req, res);
+    if (!eventId || !req.eventPanelUser) return;
+
+    const entryId = typeof req.params.entryId === "string" ? req.params.entryId.trim() : "";
+    if (!UUID_PATTERN.test(entryId)) {
+      return res.status(400).json({
+        error: "Invalid entryId",
+        code: "invalid_entry_id",
+      });
+    }
+
+    const requestId = getRequestId(req);
+    const { data: entry, error: entryError } = await supabase
+      .from("event_order_entries")
+      .select("id, event_id, status, checkin_token")
+      .eq("event_id", req.eventPanelUser.eventId)
+      .eq("id", entryId)
+      .maybeSingle();
+
+    if (entryError) {
+      logger.error("Failed to fetch event entry for QR", {
+        requestId,
+        eventId,
+        entryId,
+        error: entryError.message,
+      });
+      return res.status(500).json({
+        error: "Failed to generate entry QR",
+        code: "qr_generation_failed",
+      });
+    }
+
+    if (!entry) {
+      return res.status(404).json({
+        error: "Entry not found",
+        code: "entry_not_found",
+      });
+    }
+
+    const eventEntry = entry as EventEntryQrRow;
+    if (eventEntry.status !== "issued") {
+      return res.status(409).json({
+        error: "Entry is not issuable",
+        code: "entry_not_issuable",
+      });
+    }
+
+    try {
+      const qrBuffer = await QRCode.toBuffer(buildEventEntryQrPayload(eventEntry.checkin_token), {
+        type: "png",
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 512,
+      });
+
+      res.setHeader("Content-Type", "image/png");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Disposition", 'inline; filename="tairet-event-entry-qr.png"');
+      return res.status(200).send(qrBuffer);
+    } catch (qrError) {
+      logger.error("Failed to generate event entry QR", {
+        requestId,
+        eventId,
+        entryId,
+        error: qrError instanceof Error ? qrError.message : String(qrError),
+      });
+      return res.status(500).json({
+        error: "Failed to generate entry QR",
+        code: "qr_generation_failed",
+      });
+    }
   } catch (error) {
     next(error);
   }
