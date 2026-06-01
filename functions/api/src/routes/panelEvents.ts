@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
+import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
 import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
 import { supabase } from "../services/supabase";
@@ -29,6 +30,50 @@ type EventOrderItemMetricRow = {
 
 type EventOrderEntryMetricRow = {
   event_ticket_type_id: string;
+};
+
+type EventEntryReadRelatedItem = {
+  id: string;
+  ticket_name: string;
+  sales_unit_type: string;
+  quantity: number | null;
+  entries_per_unit: number | null;
+  total_amount: number | string | null;
+};
+
+type EventEntryReadRelatedOrder = {
+  id: string;
+  total_amount: number | string | null;
+  currency: string;
+  source: string;
+  payment_method: string;
+  payment_status: string;
+  buyer_name: string;
+  buyer_last_name: string;
+  buyer_email: string;
+  buyer_phone: string;
+  buyer_document: string;
+  created_at: string;
+};
+
+type EventEntryReadRow = {
+  id: string;
+  event_order_id: string;
+  event_order_item_id: string;
+  event_ticket_type_id: string;
+  unit_price_amount: number | string | null;
+  currency: string;
+  attendee_name: string;
+  attendee_last_name: string;
+  attendee_email: string;
+  attendee_phone: string;
+  attendee_document: string;
+  status: string;
+  checkin_status: string;
+  used_at: string | null;
+  created_at: string;
+  event_order_item: EventEntryReadRelatedItem | EventEntryReadRelatedItem[] | null;
+  event_order: EventEntryReadRelatedOrder | EventEntryReadRelatedOrder[] | null;
 };
 
 type ManualIssueRpcResult =
@@ -63,6 +108,60 @@ const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   non_divisible_package_price: 409,
   manual_issue_failed: 500,
 };
+
+const EVENT_ENTRY_SELECT = `
+  id,
+  event_order_id,
+  event_order_item_id,
+  event_ticket_type_id,
+  unit_price_amount,
+  currency,
+  attendee_name,
+  attendee_last_name,
+  attendee_email,
+  attendee_phone,
+  attendee_document,
+  status,
+  checkin_status,
+  used_at,
+  created_at,
+  event_order_item:event_order_items!event_order_entries_order_item_alignment_fk (
+    id,
+    ticket_name,
+    sales_unit_type,
+    quantity,
+    entries_per_unit,
+    total_amount
+  ),
+  event_order:event_orders!event_order_entries_order_event_fk (
+    id,
+    total_amount,
+    currency,
+    source,
+    payment_method,
+    payment_status,
+    buyer_name,
+    buyer_last_name,
+    buyer_email,
+    buyer_phone,
+    buyer_document,
+    created_at
+  )
+`;
+
+const ENTRY_SEARCH_FIELDS = [
+  "attendee_name",
+  "attendee_last_name",
+  "attendee_email",
+  "attendee_document",
+] as const;
+
+const ORDER_SEARCH_FIELDS = [
+  "buyer_name",
+  "buyer_last_name",
+  "buyer_email",
+  "buyer_document",
+] as const;
 
 function toFiniteNumber(value: number | string | null | undefined): number {
   if (typeof value === "number") {
@@ -112,6 +211,76 @@ function buildCatalogSummary(ticketTypes: EventTicketTypeRow[]) {
 
 function addToMap(map: Map<string, number>, key: string, value: number) {
   map.set(key, (map.get(key) ?? 0) + value);
+}
+
+function firstRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function escapeIlikeTerm(value: string): string {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+async function findEventEntryIdsBySearch(eventId: string, searchTerm: string) {
+  const ilikePattern = `%${escapeIlikeTerm(searchTerm)}%`;
+  const entryIds = new Set<string>();
+
+  const entrySearchResults = await Promise.all(
+    ENTRY_SEARCH_FIELDS.map((field) =>
+      supabase
+        .from("event_order_entries")
+        .select("id")
+        .eq("event_id", eventId)
+        .ilike(field, ilikePattern)
+        .range(0, 9999)
+    )
+  );
+
+  for (const result of entrySearchResults) {
+    if (result.error) return { entryIds, error: result.error };
+
+    for (const row of result.data ?? []) {
+      entryIds.add(row.id);
+    }
+  }
+
+  const orderIds = new Set<string>();
+  const orderSearchResults = await Promise.all(
+    ORDER_SEARCH_FIELDS.map((field) =>
+      supabase
+        .from("event_orders")
+        .select("id")
+        .eq("event_id", eventId)
+        .ilike(field, ilikePattern)
+        .range(0, 9999)
+    )
+  );
+
+  for (const result of orderSearchResults) {
+    if (result.error) return { entryIds, error: result.error };
+
+    for (const row of result.data ?? []) {
+      orderIds.add(row.id);
+    }
+  }
+
+  if (orderIds.size > 0) {
+    const { data, error } = await supabase
+      .from("event_order_entries")
+      .select("id")
+      .eq("event_id", eventId)
+      .in("event_order_id", Array.from(orderIds))
+      .range(0, 9999);
+
+    if (error) return { entryIds, error };
+
+    for (const row of data ?? []) {
+      entryIds.add(row.id);
+    }
+  }
+
+  return { entryIds };
 }
 
 panelEventsRouter.get("/:eventId/me", eventPanelAuth, requireEventRole(["owner", "staff"]), (req, res) => {
@@ -191,6 +360,160 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
     }
 
     return res.status(201).json(result.data);
+  } catch (error) {
+    next(error);
+  }
+});
+
+panelEventsRouter.get("/:eventId/entries", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    const eventId = requireEventContext(req, res);
+    if (!eventId || !req.eventPanelUser) return;
+
+    const parsedQuery = eventEntriesReadQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return res.status(400).json({
+        error: parsedQuery.error.flatten(),
+        code: "invalid_query",
+      });
+    }
+
+    const requestId = getRequestId(req);
+    const query = parsedQuery.data;
+    const offset = (query.page - 1) * query.page_size;
+    const rangeEnd = offset + query.page_size - 1;
+    let matchedEntryIds: string[] | null = null;
+
+    if (query.q) {
+      const searchResult = await findEventEntryIdsBySearch(req.eventPanelUser.eventId, query.q);
+
+      if (searchResult.error) {
+        logger.error("Failed to search event entries", {
+          requestId,
+          eventId,
+          error: searchResult.error.message,
+        });
+        return res.status(500).json({
+          error: "Failed to fetch event entries",
+          code: "entries_read_failed",
+        });
+      }
+
+      matchedEntryIds = Array.from(searchResult.entryIds);
+      if (matchedEntryIds.length === 0) {
+        return res.status(200).json({
+          items: [],
+          pagination: {
+            page: query.page,
+            page_size: query.page_size,
+            total: 0,
+            total_pages: 0,
+          },
+        });
+      }
+    }
+
+    let entriesQuery = supabase
+      .from("event_order_entries")
+      .select(EVENT_ENTRY_SELECT, { count: "exact" })
+      .eq("event_id", req.eventPanelUser.eventId);
+
+    if (matchedEntryIds) {
+      entriesQuery = entriesQuery.in("id", matchedEntryIds);
+    }
+
+    if (query.ticket_type_id) {
+      entriesQuery = entriesQuery.eq("event_ticket_type_id", query.ticket_type_id);
+    }
+
+    if (query.status) {
+      entriesQuery = entriesQuery.eq("status", query.status);
+    }
+
+    if (query.checkin_status) {
+      entriesQuery = entriesQuery.eq("checkin_status", query.checkin_status);
+    }
+
+    const ascending = query.sort === "created_at_asc";
+    const { data: entries, count, error } = await entriesQuery
+      .order("created_at", { ascending })
+      .order("id", { ascending })
+      .range(offset, rangeEnd);
+
+    if (error) {
+      logger.error("Failed to fetch event entries", {
+        requestId,
+        eventId,
+        error: error.message,
+      });
+      return res.status(500).json({
+        error: "Failed to fetch event entries",
+        code: "entries_read_failed",
+      });
+    }
+
+    const total = count ?? 0;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / query.page_size);
+    const items = ((entries ?? []) as EventEntryReadRow[]).map((entry) => {
+      const item = firstRelated(entry.event_order_item);
+      const order = firstRelated(entry.event_order);
+
+      return {
+        entry: {
+          id: entry.id,
+          event_order_id: entry.event_order_id,
+          event_order_item_id: entry.event_order_item_id,
+          ticket_type_id: entry.event_ticket_type_id,
+          ticket_name: item?.ticket_name ?? "",
+          sales_unit_type: item?.sales_unit_type ?? "",
+          status: entry.status,
+          checkin_status: entry.checkin_status,
+          unit_price_amount: toFiniteNumber(entry.unit_price_amount),
+          currency: entry.currency,
+          created_at: entry.created_at,
+          used_at: entry.used_at,
+        },
+        attendee: {
+          name: entry.attendee_name,
+          last_name: entry.attendee_last_name,
+          email: entry.attendee_email,
+          phone: entry.attendee_phone,
+          document: entry.attendee_document,
+        },
+        buyer: {
+          name: order?.buyer_name ?? "",
+          last_name: order?.buyer_last_name ?? "",
+          email: order?.buyer_email ?? "",
+          phone: order?.buyer_phone ?? "",
+          document: order?.buyer_document ?? "",
+        },
+        order: {
+          id: order?.id ?? entry.event_order_id,
+          total_amount: toFiniteNumber(order?.total_amount),
+          currency: order?.currency ?? "PYG",
+          source: order?.source ?? "",
+          payment_method: order?.payment_method ?? "",
+          payment_status: order?.payment_status ?? "",
+          created_at: order?.created_at ?? entry.created_at,
+        },
+        item: {
+          id: item?.id ?? entry.event_order_item_id,
+          quantity: toFiniteNumber(item?.quantity),
+          entries_per_unit: toFiniteNumber(item?.entries_per_unit),
+          total_amount: toFiniteNumber(item?.total_amount),
+        },
+      };
+    });
+
+    return res.status(200).json({
+      items,
+      pagination: {
+        page: query.page,
+        page_size: query.page_size,
+        total,
+        total_pages: totalPages,
+      },
+    });
   } catch (error) {
     next(error);
   }
