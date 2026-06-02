@@ -104,6 +104,35 @@ type EventEntryReadRow = {
   event_order: EventEntryReadRelatedOrder | EventEntryReadRelatedOrder[] | null;
 };
 
+type EventEntryEmailDeliveryStatus = "sent" | "failed";
+type EventEntryEmailDeliveryErrorCode =
+  | "entry_not_found"
+  | "entry_not_issuable"
+  | "attendee_email_unavailable"
+  | "event_entry_email_failed"
+  | "email_context_failed"
+  | "email_send_failed"
+  | "email_update_failed";
+
+type EventEntryEmailDeliveryResult = {
+  entry_id: string;
+  to: string | null;
+  status: EventEntryEmailDeliveryStatus;
+  email_sent_at: string | null;
+  error_code: EventEntryEmailDeliveryErrorCode | null;
+};
+
+type EventAutomaticEmailDeliverySummary = {
+  mode: "automatic_best_effort";
+  attempted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  status: "sent" | "partial_failed" | "failed" | "skipped";
+  reason: "no_entries" | "too_many_entries_for_sync_email" | null;
+  results: EventEntryEmailDeliveryResult[];
+};
+
 type ManualIssueRpcResult =
   | {
       ok: true;
@@ -121,6 +150,8 @@ type ManualIssueRpcResult =
       };
     };
 
+const AUTOMATIC_EMAIL_MAX_ENTRIES = 20;
+const AUTOMATIC_EMAIL_MAX_CONCURRENCY = 3;
 const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   invalid_input: 400,
   invalid_buyer: 400,
@@ -314,6 +345,274 @@ async function findEventEntryIdsBySearch(eventId: string, searchTerm: string) {
   return { entryIds };
 }
 
+function getManualIssueEntryId(entry: Record<string, unknown>): string | null {
+  const entryId = typeof entry.id === "string" ? entry.id.trim() : "";
+  return UUID_PATTERN.test(entryId) ? entryId : null;
+}
+
+function getManualIssueOrderId(order: Record<string, unknown>): string | null {
+  const orderId = typeof order.id === "string" ? order.id.trim() : "";
+  return UUID_PATTERN.test(orderId) ? orderId : null;
+}
+
+function toAutomaticEmailErrorCode(errorCode: EventEntryEmailDeliveryErrorCode | null): EventEntryEmailDeliveryErrorCode | null {
+  if (!errorCode) return null;
+
+  if (errorCode === "email_send_failed" || errorCode === "email_update_failed") {
+    return errorCode;
+  }
+
+  return "email_context_failed";
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (nextIndex < items.length) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+        results[currentIndex] = await worker(items[currentIndex], currentIndex);
+      }
+    })
+  );
+
+  return results;
+}
+
+async function sendEventEntryQrEmailForEntry(input: {
+  eventId: string;
+  entryId: string;
+  requestId: string | undefined;
+  orderId?: string | null;
+}): Promise<EventEntryEmailDeliveryResult> {
+  const failed = (
+    errorCode: EventEntryEmailDeliveryErrorCode,
+    to: string | null = null
+  ): EventEntryEmailDeliveryResult => ({
+    entry_id: input.entryId,
+    to,
+    status: "failed",
+    email_sent_at: null,
+    error_code: errorCode,
+  });
+
+  const { data: entry, error: entryError } = await supabase
+    .from("event_order_entries")
+    .select("id, event_id, event_order_item_id, status, checkin_token, attendee_name, attendee_last_name, attendee_email")
+    .eq("event_id", input.eventId)
+    .eq("id", input.entryId)
+    .maybeSingle();
+
+  if (entryError) {
+    logger.error("Failed to fetch event entry for email", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entryId: input.entryId,
+      error_code: "event_entry_email_failed",
+      error: entryError.message,
+    });
+    return failed("event_entry_email_failed");
+  }
+
+  if (!entry) {
+    return failed("entry_not_found");
+  }
+
+  const eventEntry = entry as EventEntryEmailRow;
+  if (eventEntry.status !== "issued") {
+    return failed("entry_not_issuable");
+  }
+
+  const attendeeEmail = eventEntry.attendee_email.trim().toLowerCase();
+  if (!EMAIL_PATTERN.test(attendeeEmail)) {
+    return failed("attendee_email_unavailable");
+  }
+
+  const [{ data: event, error: eventError }, { data: orderItem, error: itemError }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("title, starts_at, timezone, location_name")
+      .eq("id", input.eventId)
+      .maybeSingle(),
+    supabase
+      .from("event_order_items")
+      .select("ticket_name, sales_unit_type")
+      .eq("event_id", input.eventId)
+      .eq("id", eventEntry.event_order_item_id)
+      .maybeSingle(),
+  ]);
+
+  if (eventError || itemError || !event || !orderItem) {
+    logger.error("Failed to fetch event entry email context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entryId: input.entryId,
+      error_code: "event_entry_email_failed",
+      error: eventError?.message ?? itemError?.message ?? "Missing event email context",
+    });
+    return failed("event_entry_email_failed", attendeeEmail);
+  }
+
+  let qrBuffer: Buffer;
+  try {
+    qrBuffer = await generateEventEntryQrPng(eventEntry.checkin_token);
+  } catch (qrError) {
+    logger.error("Failed to generate event entry QR for email", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entryId: input.entryId,
+      error_code: "event_entry_email_failed",
+      error: qrError instanceof Error ? qrError.message : String(qrError),
+    });
+    return failed("event_entry_email_failed", attendeeEmail);
+  }
+
+  const eventRow = event as EventEntryEmailEventRow;
+  const itemRow = orderItem as EventEntryEmailItemRow;
+  try {
+    await sendEventEntryQrEmail({
+      to: attendeeEmail,
+      eventTitle: eventRow.title,
+      startsAt: eventRow.starts_at,
+      timezone: eventRow.timezone,
+      locationName: eventRow.location_name,
+      ticketName: itemRow.ticket_name,
+      attendeeName: eventEntry.attendee_name,
+      attendeeLastName: eventEntry.attendee_last_name,
+      qrPngBuffer: qrBuffer,
+    });
+  } catch (emailError) {
+    logger.error("Failed to send event entry QR email", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entryId: input.entryId,
+      error_code: "email_send_failed",
+      error: emailError instanceof Error ? emailError.message : String(emailError),
+    });
+    return failed("email_send_failed", attendeeEmail);
+  }
+
+  const sentAt = new Date().toISOString();
+  const { data: updatedEntry, error: updateError } = await supabase
+    .from("event_order_entries")
+    .update({ email_sent_at: sentAt })
+    .eq("event_id", input.eventId)
+    .eq("id", input.entryId)
+    .select("id, email_sent_at")
+    .maybeSingle();
+
+  if (updateError || !updatedEntry) {
+    logger.error("Failed to update event entry email_sent_at", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entryId: input.entryId,
+      error_code: "email_update_failed",
+      error: updateError?.message ?? "Missing updated entry",
+    });
+    return failed("email_update_failed", attendeeEmail);
+  }
+
+  return {
+    entry_id: updatedEntry.id,
+    to: attendeeEmail,
+    status: "sent",
+    email_sent_at: updatedEntry.email_sent_at,
+    error_code: null,
+  };
+}
+
+function summarizeAutomaticEmailDelivery(
+  results: EventEntryEmailDeliveryResult[],
+  skipped: number,
+  reason: EventAutomaticEmailDeliverySummary["reason"]
+): EventAutomaticEmailDeliverySummary {
+  const sent = results.filter((result) => result.status === "sent").length;
+  const failed = results.filter((result) => result.status === "failed").length;
+  const attempted = results.length;
+  const status =
+    attempted === 0
+      ? "skipped"
+      : sent === attempted
+        ? "sent"
+        : sent > 0 && failed > 0
+          ? "partial_failed"
+          : "failed";
+
+  return {
+    mode: "automatic_best_effort",
+    attempted,
+    sent,
+    failed,
+    skipped,
+    status,
+    reason,
+    results,
+  };
+}
+
+async function buildManualIssueEmailDelivery(input: {
+  eventId: string;
+  orderId: string | null;
+  entries: Array<Record<string, unknown>>;
+  requestId: string | undefined;
+}): Promise<EventAutomaticEmailDeliverySummary> {
+  if (input.entries.length === 0) {
+    return summarizeAutomaticEmailDelivery([], 0, "no_entries");
+  }
+
+  if (input.entries.length > AUTOMATIC_EMAIL_MAX_ENTRIES) {
+    return summarizeAutomaticEmailDelivery(
+      [],
+      input.entries.length,
+      "too_many_entries_for_sync_email"
+    );
+  }
+
+  const results = await mapWithConcurrency(
+    input.entries,
+    AUTOMATIC_EMAIL_MAX_CONCURRENCY,
+    async (entry) => {
+      const entryId = getManualIssueEntryId(entry);
+      if (!entryId) {
+        return {
+          entry_id: "",
+          to: null,
+          status: "failed",
+          email_sent_at: null,
+          error_code: "email_context_failed",
+        } satisfies EventEntryEmailDeliveryResult;
+      }
+
+      const result = await sendEventEntryQrEmailForEntry({
+        eventId: input.eventId,
+        entryId,
+        requestId: input.requestId,
+        orderId: input.orderId,
+      });
+
+      return {
+        ...result,
+        error_code: toAutomaticEmailErrorCode(result.error_code),
+      };
+    }
+  );
+
+  return summarizeAutomaticEmailDelivery(results, 0, null);
+}
+
 panelEventsRouter.get("/:eventId/me", eventPanelAuth, requireEventRole(["owner", "staff"]), (req, res) => {
   if (!req.eventPanelUser || !req.eventPanelEvent) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -390,7 +689,17 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
       });
     }
 
-    return res.status(201).json(result.data);
+    const emailDelivery = await buildManualIssueEmailDelivery({
+      eventId: req.eventPanelUser.eventId,
+      orderId: getManualIssueOrderId(result.data.order),
+      entries: result.data.entries,
+      requestId,
+    });
+
+    return res.status(201).json({
+      ...result.data,
+      email_delivery: emailDelivery,
+    });
   } catch (error) {
     next(error);
   }
@@ -410,151 +719,64 @@ panelEventsRouter.post("/:eventId/entries/:entryId/send-email", eventPanelAuth, 
     }
 
     const requestId = getRequestId(req);
-    const { data: entry, error: entryError } = await supabase
-      .from("event_order_entries")
-      .select("id, event_id, event_order_item_id, status, checkin_token, attendee_name, attendee_last_name, attendee_email")
-      .eq("event_id", req.eventPanelUser.eventId)
-      .eq("id", entryId)
-      .maybeSingle();
+    const deliveryResult = await sendEventEntryQrEmailForEntry({
+      eventId: req.eventPanelUser.eventId,
+      entryId,
+      requestId,
+    });
 
-    if (entryError) {
-      logger.error("Failed to fetch event entry for email", {
-        requestId,
-        eventId,
-        entryId,
-        error: entryError.message,
-      });
-      return res.status(500).json({
-        error: "Failed to send entry email",
-        code: "event_entry_email_failed",
+    if (deliveryResult.status === "sent") {
+      return res.status(200).json({
+        ok: true,
+        entry: {
+          id: deliveryResult.entry_id,
+          email_sent_at: deliveryResult.email_sent_at,
+        },
+        email: {
+          to: deliveryResult.to,
+          status: "sent",
+        },
       });
     }
 
-    if (!entry) {
+    if (deliveryResult.error_code === "entry_not_found") {
       return res.status(404).json({
         error: "Entry not found",
         code: "entry_not_found",
       });
     }
 
-    const eventEntry = entry as EventEntryEmailRow;
-    if (eventEntry.status !== "issued") {
+    if (deliveryResult.error_code === "entry_not_issuable") {
       return res.status(409).json({
         error: "Entry is not issuable",
         code: "entry_not_issuable",
       });
     }
 
-    const attendeeEmail = eventEntry.attendee_email.trim().toLowerCase();
-    if (!EMAIL_PATTERN.test(attendeeEmail)) {
+    if (deliveryResult.error_code === "attendee_email_unavailable") {
       return res.status(409).json({
         error: "Attendee email unavailable",
         code: "attendee_email_unavailable",
       });
     }
 
-    const [{ data: event, error: eventError }, { data: orderItem, error: itemError }] = await Promise.all([
-      supabase
-        .from("events")
-        .select("title, starts_at, timezone, location_name")
-        .eq("id", req.eventPanelUser.eventId)
-        .maybeSingle(),
-      supabase
-        .from("event_order_items")
-        .select("ticket_name, sales_unit_type")
-        .eq("event_id", req.eventPanelUser.eventId)
-        .eq("id", eventEntry.event_order_item_id)
-        .maybeSingle(),
-    ]);
-
-    if (eventError || itemError || !event || !orderItem) {
-      logger.error("Failed to fetch event entry email context", {
-        requestId,
-        eventId,
-        entryId,
-        error: eventError?.message ?? itemError?.message ?? "Missing event email context",
-      });
-      return res.status(500).json({
-        error: "Failed to send entry email",
-        code: "event_entry_email_failed",
-      });
-    }
-
-    let qrBuffer: Buffer;
-    try {
-      qrBuffer = await generateEventEntryQrPng(eventEntry.checkin_token);
-    } catch (qrError) {
-      logger.error("Failed to generate event entry QR for email", {
-        requestId,
-        eventId,
-        entryId,
-        error: qrError instanceof Error ? qrError.message : String(qrError),
-      });
-      return res.status(500).json({
-        error: "Failed to send entry email",
-        code: "event_entry_email_failed",
-      });
-    }
-
-    const eventRow = event as EventEntryEmailEventRow;
-    const itemRow = orderItem as EventEntryEmailItemRow;
-    try {
-      await sendEventEntryQrEmail({
-        to: attendeeEmail,
-        eventTitle: eventRow.title,
-        startsAt: eventRow.starts_at,
-        timezone: eventRow.timezone,
-        locationName: eventRow.location_name,
-        ticketName: itemRow.ticket_name,
-        attendeeName: eventEntry.attendee_name,
-        attendeeLastName: eventEntry.attendee_last_name,
-        qrPngBuffer: qrBuffer,
-      });
-    } catch (emailError) {
-      logger.error("Failed to send event entry QR email", {
-        requestId,
-        eventId,
-        entryId,
-        error: emailError instanceof Error ? emailError.message : String(emailError),
-      });
+    if (deliveryResult.error_code === "email_send_failed") {
       return res.status(502).json({
         error: "Failed to send entry email",
         code: "email_send_failed",
       });
     }
 
-    const sentAt = new Date().toISOString();
-    const { data: updatedEntry, error: updateError } = await supabase
-      .from("event_order_entries")
-      .update({ email_sent_at: sentAt })
-      .eq("event_id", req.eventPanelUser.eventId)
-      .eq("id", entryId)
-      .select("id, email_sent_at")
-      .maybeSingle();
-
-    if (updateError || !updatedEntry) {
-      logger.error("Failed to update event entry email_sent_at", {
-        requestId,
-        eventId,
-        entryId,
-        error: updateError?.message ?? "Missing updated entry",
-      });
+    if (deliveryResult.error_code === "email_update_failed") {
       return res.status(500).json({
         error: "Failed to update email status",
         code: "email_update_failed",
       });
     }
 
-    return res.status(200).json({
-      ok: true,
-      entry: {
-        id: updatedEntry.id,
-        email_sent_at: updatedEntry.email_sent_at,
-      },
-      email: {
-        to: attendeeEmail,
-        status: "sent",
-      },
+    return res.status(500).json({
+      error: "Failed to send entry email",
+      code: "event_entry_email_failed",
     });
   } catch (error) {
     next(error);
