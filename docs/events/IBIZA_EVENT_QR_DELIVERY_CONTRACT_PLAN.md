@@ -22,6 +22,7 @@ Estado previo validado:
 - Slice 3C.2: `GET /panel/events/:eventId/entries` implementado y QA runtime PASS.
 - Slice 3D.2: `GET /panel/events/:eventId/entries/:entryId/qr` implementado y QA runtime PASS.
 - Slice 3D.3A: `POST /panel/events/:eventId/entries/:entryId/send-email` implementado y QA runtime PASS completo.
+- Slice 3D.3B: email automatico post `manual-issue` implementado y QA runtime PASS completo.
 
 Modelo vigente:
 
@@ -357,15 +358,16 @@ Se completo:
 
 ### Slice 3D.3B - Email automatico post manual-issue
 
-Proximo paso recomendado.
+Estado: implementado, deployado y QA runtime PASS completo.
 
-Alcance:
+Se completo:
 
 - despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
 - mantener `send-email` por entry como reenvio operativo;
 - fallo de email no revierte la emision;
 - actualizar `email_sent_at` solo para entries enviadas correctamente;
 - devolver resumen de entrega por email sin tokens ni payload QR;
+- limite mayor a 20 entries devuelve `email_delivery.status = skipped`;
 - no tocar check-in;
 - no tocar pagos;
 - no tocar `/payments/callback`.
@@ -451,6 +453,24 @@ Email - Slice 3D.3A QA runtime PASS:
 - Fallo de email no se forzo en produccion para no tocar configuracion Resend ni provocar falsos errores operativos; queda `N/A` justificado.
 - Limpieza QA: se limpio la orden QA del slice y `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`.
 
+Email automatico - Slice 3D.3B QA runtime PASS:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
+- Estado inicial limpio: `GET /panel/events/:eventId/entries` -> `200 OK`, `items = []`, `pagination.total = 0`.
+- General Preventa 1 emitida con `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`.
+- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible.
+- Response General sin `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata.
+- Mesa VIP Preventa 1 emitida con `201 Created`, `entries.length = 10`, `email_delivery.attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`.
+- `partial_failed` de Mesa queda validado como comportamiento esperado: la emision se mantiene, las 10 entries fueron creadas, las 7 enviadas tienen `email_sent_at` y las 3 fallidas reportan `error_code = email_send_failed`.
+- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) mas el correo General, 8 correos totales.
+- Limite mayor a 20 validado: 21 General Preventa 1 emitidas, `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`.
+- Fallback `send-email` por entry sigue funcionando: `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`.
+- QR endpoint sigue funcionando: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`.
+- Errores previos de `manual-issue` siguen correctos: `400 invalid_attendees_count`, `404 ticket_type_not_found`, `403`, `401`, `400 Invalid eventId`, `409 insufficient_stock`.
+- Regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+- Consistencia antes de limpieza: 3 ordenes QA, `orders_count = 3`, `order_items_count = 3`, `entries_count = 32`, `issued_commercial_amount = 6280000`.
+- Limpieza QA: se limpiaron las ordenes QA; `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`; `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`.
+
 WhatsApp:
 
 - staff puede obtener QR visual para enviarlo manualmente.
@@ -468,13 +488,14 @@ Regresiones:
 
 ## 16. Proximo paso recomendado
 
-Slice 3D.3B - email automatico post manual-issue:
+Slice 3E.1 - ASK/DOCS: contrato de check-in de eventos:
 
-- despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
-- fallo de email no debe revertir la emision;
-- actualizar `email_sent_at` solo para entries enviadas correctamente;
-- devolver en `manual-issue` un resumen de entrega por email, sin tokens ni payload QR;
-- mantener `send-email` por entry como reenvio operativo;
-- no tocar check-in todavia;
+- definir endpoint de check-in por QR/token opaco;
+- definir validacion por `event_id`;
+- definir ventana de check-in;
+- definir respuestas `valid`, `already_used`, `invalid`, `outside_window` y `voided`;
+- definir relacion con scanner futuro;
+- definir fallback manual futuro;
+- no implementar todavia check-in;
 - no tocar pagos;
 - no tocar `/payments/callback`.

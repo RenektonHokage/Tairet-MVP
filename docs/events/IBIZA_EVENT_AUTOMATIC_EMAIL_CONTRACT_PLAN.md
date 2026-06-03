@@ -377,16 +377,50 @@ Fuera de este contrato y del primer CODE posterior:
 - bulk email sender;
 - retry automatico programado.
 
-## 16. Proximo CODE recomendado
+## 16. Estado Slice 3D.3B - email automatico post manual-issue QA runtime PASS
 
-Slice 3D.3B - conectar email automatico post manual-issue:
+Estado: implementado, deployado y QA runtime PASS completo.
 
-- mantener RPC como fuente de creacion atomica;
-- despues de `result.ok === true`, tomar `result.data.entries`;
-- si `entries.length <= 20`, enviar emails best-effort con concurrencia `3`;
-- reutilizar `sendEventEntryQrEmail()` y `generateEventEntryQrPng()`;
-- actualizar `email_sent_at` por entry enviada;
-- agregar `email_delivery` a la respuesta `201`;
-- no cambiar el status HTTP por fallos de email;
-- no exponer tokens ni payload QR;
-- no tocar SQL, frontend, check-in, pagos ni `/payments/callback`.
+Se completo:
+
+- `POST /panel/events/:eventId/orders/manual-issue` mantiene la RPC como fuente de creacion atomica.
+- Despues de RPC exitosa, intenta envio automatico de emails QR en modo `automatic_best_effort`.
+- La respuesta `201` incluye `email_delivery`.
+- Los fallos parciales de email no revierten la emision.
+- El limite `entries.length > 20` omite envio automatico y devuelve `status = skipped`.
+- `send-email` por entry sigue funcionando como fallback operativo.
+- QR endpoint sigue funcionando.
+- No se toca check-in, pagos ni `/payments/callback`.
+
+QA runtime registrado:
+
+- `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
+- Estado inicial limpio: `GET /panel/events/:eventId/entries` -> `200 OK`, `items = []`, `pagination.total = 0`.
+- General Preventa 1: `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`.
+- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible.
+- Response General sin `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata.
+- Mesa VIP Preventa 1: `201 Created`, `entries.length = 10`, `attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`.
+- Mesa partial_failed validada como comportamiento esperado de `automatic_best_effort`: las 10 entries fueron creadas; 7 enviadas tienen `email_sent_at`; 3 fallidas quedaron con `error_code = email_send_failed`.
+- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) y 1 correo General, 8 correos totales.
+- Limite mayor a 20: 21 General Preventa 1 emitidas, `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`.
+- Fallback manual: `POST /panel/events/:eventId/entries/:entryId/send-email` -> `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`.
+- QR endpoint: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`.
+- Errores previos siguen correctos: attendees incorrectos -> `400 invalid_attendees_count`; ticket inexistente -> `404 ticket_type_not_found`; owner local sin membership -> `403`; sin auth -> `401`; token invalido -> `401`; eventId invalido -> `400 Invalid eventId`; stock insuficiente -> `409 insufficient_stock`.
+- Regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+- Consistencia antes de limpieza: 3 ordenes QA, 32 entries y `issued_commercial_amount = 6280000`.
+- Limpieza QA: se limpiaron las ordenes QA; `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`; `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`.
+
+## 17. Proximo paso recomendado
+
+Slice 3E.1 - ASK/DOCS: contrato de check-in de eventos.
+
+Alcance sugerido:
+
+- definir endpoint de check-in por QR/token opaco;
+- definir validacion por `event_id`;
+- definir ventana de check-in;
+- definir respuesta para `valid`, `already_used`, `invalid`, `outside_window` y `voided`;
+- definir relacion con scanner futuro;
+- definir fallback manual futuro;
+- no implementar todavia check-in;
+- no tocar pagos ni `/payments/callback`.

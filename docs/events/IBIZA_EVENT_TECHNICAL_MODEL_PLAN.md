@@ -1319,20 +1319,99 @@ Limpieza QA validada:
 - `pagination.total_pages = 0`;
 - Ibiza quedo nuevamente sin ordenes emitidas.
 
+### Estado Slice 3D.3B - email automatico post manual-issue deployado y QA runtime PASS
+
+Slice 3D.3B queda registrado como implementado, deployado y validado:
+
+- `POST /panel/events/:eventId/orders/manual-issue` ahora incluye `email_delivery`;
+- despues de RPC exitosa intenta envio automatico de email QR por cada entry creada;
+- usa modo `automatic_best_effort`;
+- fallos parciales de email no revierten la emision;
+- Mesa VIP con `partial_failed` queda validada como comportamiento esperado;
+- limite mayor a 20 entries queda `skipped`;
+- `send-email` manual sigue funcionando como fallback operativo;
+- QR endpoint sigue funcionando;
+- no implementa check-in;
+- no toca pagos ni `/payments/callback`.
+
+QA runtime -> `PASS`:
+
+- `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
+- estado inicial limpio: `/entries` respondio `200 OK`, `items = []`, `pagination.total = 0`;
+- General Preventa 1 respondio `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`;
+- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible;
+- response General no expuso `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata;
+- Mesa VIP Preventa 1 respondio `201 Created`, `entries.length = 10`, `attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`;
+- las 10 entries de Mesa fueron creadas; 7 enviadas tienen `email_sent_at`; 3 fallidas reportan `error_code = email_send_failed`;
+- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) y 1 correo General, 8 correos totales;
+- limite mayor a 20: 21 General Preventa 1 respondieron `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`;
+- `send-email` fallback respondio `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`;
+- QR endpoint respondio `200 OK`, `Content-Type = image/png`;
+- errores previos siguen correctos: attendees incorrectos `400 invalid_attendees_count`, ticket inexistente `404 ticket_type_not_found`, owner local sin membership `403`, sin auth `401`, token invalido `401`, eventId invalido `400 Invalid eventId`, stock insuficiente `409 insufficient_stock`;
+- regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+
+Consistencia y limpieza QA:
+
+- antes de limpieza se generaron 3 ordenes QA: General 1 entry / PYG 140000, Mesa 10 entries / PYG 3200000, Skipped 21 entries / PYG 2940000;
+- summary reflejo `orders_count = 3`, `order_items_count = 3`, `entries_count = 32`, `issued_commercial_amount = 6280000`;
+- se limpiaron las ordenes QA del slice;
+- despues de la limpieza, `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`;
+- `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`.
+
+### Estado Slice 3E.2A - RPC check-in QR aplicada y QA DB PASS
+
+Slice 3E.2A queda registrado como implementado, aplicado y validado:
+
+- migracion 030 aplicada;
+- RPC `public.check_in_event_entry_by_token(uuid, uuid, text)` creada;
+- firma validada: `check_in_event_entry_by_token(uuid,uuid,text)`;
+- QA DB PASS completo;
+- esta capa valida DB/RPC, no endpoint HTTP;
+- endpoint TS queda pendiente para Slice 3E.2B.
+
+QA DB registrado:
+
+- funcion encontrada;
+- grants correctos: anon/authenticated sin execute y `service_role` con execute;
+- variables QA cargadas para Ibiza, General Preventa 1 y actor owner/staff;
+- 4 entries QA creadas dentro de transaccion mediante `issue_event_manual_order`;
+- ventana de check-in abierta temporalmente dentro de la transaccion;
+- primer scan valido: `ok = true`, `status = valid`, `entry.checkin_status = used`, `entry.used_at != null`;
+- mutacion DB validada: `checkin_status = used`, `used_at != null`, `used_by_auth_user_id = actor`;
+- segundo scan secuencial: `status = already_used`;
+- token UUID inexistente: `status = invalid`, `entry = null`, `attendee = null`;
+- token malformado: `ok = false`, `error.code = invalid_input`;
+- actor sin membership: `ok = false`, `error.code = forbidden`;
+- entry usada + fuera de ventana: `already_used`, confirmando prioridad semantica sobre `outside_window`;
+- entry unused + fuera de ventana: `outside_window`, sin mutar la entry;
+- entry `voided` + fuera de ventana: `voided`, confirmando prioridad semantica sobre `outside_window`;
+- evento no operable: `event_not_operable`, sin datos de entry/attendee;
+- responses sin `checkin_token`, `auth_user_id`, `local_id`, metadata, email ni phone;
+- rollback validado: `qa_3e2a_orders = 0`;
+- Ibiza restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz operativo:
+
+- el doble scan validado fue secuencial;
+- la proteccion concurrente queda soportada por update condicional atomico;
+- Slice 3E.2B debe validar por runtime, si es posible, dos requests rapidos/concurrentes.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3D.3B - email automatico post manual-issue.
+- avanzar a Slice 3E.2B - endpoint TS check-in QR.
 
-Alcance recomendado de Slice 3D.3B:
+Alcance recomendado de Slice 3E.2B:
 
-- despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
-- fallo de email no revierte la emision;
-- actualizar `email_sent_at` solo para entries enviadas correctamente;
-- devolver en `manual-issue` un resumen de entrega por email, sin tokens ni payload QR;
-- mantener `send-email` por entry como reenvio operativo;
-- no tocar check-in todavia;
+- crear `PATCH /panel/events/:eventId/checkin/:token`;
+- usar `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
+- validar token/path sin loggear token ni URL completa;
+- llamar RPC `check_in_event_entry_by_token`;
+- mapear respuestas `ok/error`;
+- devolver estados semanticos seguros;
+- no duplicar logica de check-in en TS;
+- no exponer `checkin_token`;
 - no tocar pagos;
 - no tocar `/payments/callback`.
 
@@ -1514,7 +1593,33 @@ Se completo:
 
 ### Slice 3D.3B - Email automatico post manual-issue
 
-Proximo paso recomendado. Despues de una emision manual exitosa, intentar enviar email QR por cada entry creada, sin revertir la emision si falla email, actualizando `email_sent_at` solo para entries enviadas correctamente y manteniendo `send-email` por entry como reenvio operativo.
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se completo:
+
+- `manual-issue` devuelve `email_delivery`;
+- email automatico `automatic_best_effort` despues de RPC exitosa;
+- General simple validado con `sent`;
+- Mesa VIP validada con `partial_failed` sin revertir emision;
+- limite mayor a 20 validado con `skipped`;
+- fallback `send-email` y QR endpoint siguen funcionando;
+- errores previos, regresiones y limpieza QA PASS.
+
+### Slice 3E.1 - Contrato de check-in de Eventos
+
+Estado: documentado y ajustado.
+
+Se definio endpoint futuro de check-in por QR/token opaco, validacion por `event_id`, ventanas de check-in, respuestas operativas, hardening de token en path y fallback manual futuro.
+
+### Slice 3E.2A - RPC SQL check-in QR
+
+Estado: migracion 030 aplicada y QA DB PASS completo.
+
+Se creo `check_in_event_entry_by_token(uuid,uuid,text)` como motor DB/RPC de check-in por token, con membership defensiva, ventana, estados semanticos, update condicional atomico, no exposicion sensible y rollback QA limpio.
+
+### Slice 3E.2B - Endpoint TS check-in QR
+
+Proximo paso recomendado. Crear `PATCH /panel/events/:eventId/checkin/:token`, usar `eventPanelAuth`, `requireEventRole(["owner", "staff"])`, llamar la RPC, mapear estados semanticos y no duplicar logica de check-in en TypeScript.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -1709,6 +1814,11 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - Slice 3D.3A send-email QR por entry implementado, deployado y QA runtime PASS completo;
 - email QR con Resend/`sendEmail` validado para reenvio controlado por owner/staff;
 - `email_sent_at` validado como marca de envio exitoso;
+- Slice 3D.3B email automatico post manual-issue implementado, deployado y QA runtime PASS completo;
+- `email_delivery` validado en `manual-issue`;
+- Mesa VIP con `partial_failed` validada como comportamiento esperado;
+- limite mayor a 20 entries validado como `skipped`;
+- limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;
 - estrategia de stock;
