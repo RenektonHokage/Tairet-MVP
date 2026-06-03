@@ -1,4 +1,4 @@
-import { Request, Response, Router } from "express";
+import { NextFunction, Request, Response, Router } from "express";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
 import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
@@ -150,6 +150,31 @@ type ManualIssueRpcResult =
       };
     };
 
+type EventCheckinSemanticStatus =
+  | "valid"
+  | "already_used"
+  | "invalid"
+  | "outside_window"
+  | "voided"
+  | "not_valid_status"
+  | "event_not_operable";
+
+type EventCheckinRpcResult =
+  | {
+      ok: true;
+      status: EventCheckinSemanticStatus;
+      entry: Record<string, unknown> | null;
+      attendee: Record<string, unknown> | null;
+      event: Record<string, unknown> | null;
+    }
+  | {
+      ok: false;
+      error?: {
+        code?: string;
+        message?: string;
+      };
+    };
+
 const AUTOMATIC_EMAIL_MAX_ENTRIES = 20;
 const AUTOMATIC_EMAIL_MAX_CONCURRENCY = 3;
 const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
@@ -167,6 +192,62 @@ const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   non_divisible_package_price: 409,
   manual_issue_failed: 500,
 };
+const EVENT_CHECKIN_RPC_ERROR_STATUS: Record<string, number> = {
+  invalid_input: 400,
+  forbidden: 403,
+  event_not_found: 404,
+  checkin_failed: 500,
+};
+const EVENT_CHECKIN_SENSITIVE_RESPONSE_KEYS = new Set([
+  "checkin_token",
+  "checkintoken",
+  "qr_payload",
+  "qrpayload",
+  "qr_base64",
+  "qrbase64",
+  "email",
+  "phone",
+  "buyer_email",
+  "buyeremail",
+  "buyer_phone",
+  "buyerphone",
+  "buyer_document",
+  "buyerdocument",
+  "used_by_auth_user_id",
+  "usedbyauthuserid",
+  "created_by_auth_user_id",
+  "createdbyauthuserid",
+  "auth_user_id",
+  "authuserid",
+  "local_id",
+  "localid",
+  "metadata",
+]);
+const EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS = new Set([
+  "event_id",
+  "eventId",
+  "p_event_id",
+  "local_id",
+  "localId",
+  "auth_user_id",
+  "authUserId",
+  "p_actor_auth_user_id",
+  "actor",
+  "actor_auth_user_id",
+  "actorAuthUserId",
+  "entry",
+  "entry_id",
+  "entryId",
+  "attendee",
+  "status",
+  "checkin_status",
+  "checkinStatus",
+  "metadata",
+  "token",
+  "p_token",
+  "checkin_token",
+  "checkinToken",
+]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -278,6 +359,54 @@ function addToMap(map: Map<string, number>, key: string, value: number) {
 function firstRelated<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
+}
+
+function sanitizeCheckinUrlValue(value: string | undefined, token: string): string | undefined {
+  if (!value || token.length === 0) return value;
+
+  const encodedToken = encodeURIComponent(token);
+  let sanitized = value.split(token).join(":token");
+  if (encodedToken !== token) {
+    sanitized = sanitized.split(encodedToken).join(":token");
+  }
+  return sanitized;
+}
+
+function sanitizeEventCheckinRequestUrl(req: Request, _res: Response, next: NextFunction) {
+  const token = typeof req.params.token === "string" ? req.params.token.trim() : "";
+  if (token.length > 0) {
+    req.originalUrl = sanitizeCheckinUrlValue(req.originalUrl, token) ?? req.originalUrl;
+    req.url = sanitizeCheckinUrlValue(req.url, token) ?? req.url;
+  }
+  next();
+}
+
+function hasForbiddenEventCheckinInputKeys(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+
+  return Object.keys(value as Record<string, unknown>).some((key) =>
+    EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS.has(key)
+  );
+}
+
+function normalizeEventCheckinResponseKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+function containsSensitiveEventCheckinResponseKey(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  if (Array.isArray(value)) {
+    return value.some((item) => containsSensitiveEventCheckinResponseKey(item));
+  }
+
+  return Object.entries(value as Record<string, unknown>).some(([key, nestedValue]) => {
+    return (
+      EVENT_CHECKIN_SENSITIVE_RESPONSE_KEYS.has(key) ||
+      EVENT_CHECKIN_SENSITIVE_RESPONSE_KEYS.has(normalizeEventCheckinResponseKey(key)) ||
+      containsSensitiveEventCheckinResponseKey(nestedValue)
+    );
+  });
 }
 
 function escapeIlikeTerm(value: string): string {
@@ -704,6 +833,92 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
     next(error);
   }
 });
+
+panelEventsRouter.patch(
+  "/:eventId/checkin/:token",
+  sanitizeEventCheckinRequestUrl,
+  eventPanelAuth,
+  requireEventRole(["owner", "staff"]),
+  async (req, res, next) => {
+    try {
+      const eventId = requireEventContext(req, res);
+      if (!eventId || !req.eventPanelUser) return;
+
+      if (Object.keys(req.query).length > 0 || hasForbiddenEventCheckinInputKeys(req.body)) {
+        return res.status(400).json({
+          error: "Invalid check-in input",
+          code: "invalid_checkin_input",
+        });
+      }
+
+      const token = typeof req.params.token === "string" ? req.params.token.trim() : "";
+      if (!UUID_PATTERN.test(token)) {
+        return res.status(400).json({
+          error: "Invalid check-in token",
+          code: "invalid_checkin_token",
+        });
+      }
+
+      const requestId = getRequestId(req);
+      const { data: rpcData, error: rpcError } = await supabase.rpc("check_in_event_entry_by_token", {
+        p_event_id: req.eventPanelUser.eventId,
+        p_actor_auth_user_id: req.eventPanelUser.authUserId,
+        p_token: token,
+      });
+
+      if (rpcError) {
+        logger.error("Failed to call event check-in RPC", {
+          requestId,
+          eventId,
+          error: rpcError.message,
+        });
+        return res.status(500).json({
+          error: "Event check-in failed",
+          code: "checkin_failed",
+        });
+      }
+
+      const result = rpcData as EventCheckinRpcResult | null;
+      if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
+        logger.error("Unexpected event check-in RPC response", {
+          requestId,
+          eventId,
+        });
+        return res.status(500).json({
+          error: "Event check-in failed",
+          code: "checkin_failed",
+        });
+      }
+
+      if (result.ok === false) {
+        const code = result.error?.code ?? "checkin_failed";
+        const status = EVENT_CHECKIN_RPC_ERROR_STATUS[code] ?? 500;
+
+        return res.status(status).json({
+          error: result.error?.message ?? "Event check-in failed",
+          code,
+        });
+      }
+
+      if (containsSensitiveEventCheckinResponseKey(result)) {
+        logger.error("Unsafe event check-in RPC response blocked", {
+          requestId,
+          eventId,
+          status: result.status,
+          errorCode: "unsafe_checkin_response",
+        });
+        return res.status(500).json({
+          error: "Event check-in failed",
+          code: "checkin_failed",
+        });
+      }
+
+      return res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 panelEventsRouter.post("/:eventId/entries/:entryId/send-email", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
   try {
