@@ -198,13 +198,27 @@ const EVENT_CHECKIN_RPC_ERROR_STATUS: Record<string, number> = {
   event_not_found: 404,
   checkin_failed: 500,
 };
+const EVENT_MANUAL_CHECKIN_RPC_ERROR_STATUS: Record<string, number> = {
+  invalid_input: 400,
+  forbidden: 403,
+  event_not_found: 404,
+  entry_not_found: 404,
+  manual_checkin_failed: 500,
+};
 const EVENT_CHECKIN_SENSITIVE_RESPONSE_KEYS = new Set([
+  "token",
   "checkin_token",
   "checkintoken",
+  "checkinToken",
+  "qr",
   "qr_payload",
   "qrpayload",
   "qr_base64",
   "qrbase64",
+  "qr_raw",
+  "qrraw",
+  "raw_qr",
+  "rawqr",
   "email",
   "phone",
   "buyer_email",
@@ -229,6 +243,7 @@ const EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS = new Set([
   "p_event_id",
   "local_id",
   "localId",
+  "p_local_id",
   "auth_user_id",
   "authUserId",
   "p_actor_auth_user_id",
@@ -238,15 +253,51 @@ const EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS = new Set([
   "entry",
   "entry_id",
   "entryId",
+  "p_entry_id",
   "attendee",
+  "attendee_name",
+  "attendeeName",
+  "attendee_last_name",
+  "attendeeLastName",
+  "attendee_email",
+  "attendeeEmail",
+  "attendee_phone",
+  "attendeePhone",
+  "attendee_document",
+  "attendeeDocument",
+  "buyer",
+  "buyer_name",
+  "buyerName",
+  "buyer_last_name",
+  "buyerLastName",
+  "buyer_email",
+  "buyerEmail",
+  "buyer_phone",
+  "buyerPhone",
+  "buyer_document",
+  "buyerDocument",
+  "ticket",
+  "ticket_name",
+  "ticketName",
+  "ticket_type_id",
+  "ticketTypeId",
   "status",
   "checkin_status",
   "checkinStatus",
+  "used_at",
+  "usedAt",
+  "used_by_auth_user_id",
+  "usedByAuthUserId",
   "metadata",
   "token",
   "p_token",
   "checkin_token",
   "checkinToken",
+  "p_checkin_token",
+  "qr_payload",
+  "qrPayload",
+  "qr_base64",
+  "qrBase64",
 ]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -381,12 +432,24 @@ function sanitizeEventCheckinRequestUrl(req: Request, _res: Response, next: Next
   next();
 }
 
-function hasForbiddenEventCheckinInputKeys(value: unknown): boolean {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+function sanitizeEventManualCheckinRequestUrl(req: Request, _res: Response, next: NextFunction) {
+  const queryIndex = req.originalUrl.indexOf("?");
+  if (queryIndex >= 0) {
+    req.originalUrl = `${req.originalUrl.slice(0, queryIndex)}?query=:redacted`;
+  }
+  next();
+}
 
-  return Object.keys(value as Record<string, unknown>).some((key) =>
-    EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS.has(key)
-  );
+function hasForbiddenEventCheckinInputKeys(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasForbiddenEventCheckinInputKeys(item));
+  }
+
+  return Object.entries(value as Record<string, unknown>).some(([key, nestedValue]) => {
+    return EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS.has(key) || hasForbiddenEventCheckinInputKeys(nestedValue);
+  });
 }
 
 function normalizeEventCheckinResponseKey(key: string): string {
@@ -910,6 +973,95 @@ panelEventsRouter.patch(
         return res.status(500).json({
           error: "Event check-in failed",
           code: "checkin_failed",
+        });
+      }
+
+      return res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+panelEventsRouter.patch(
+  "/:eventId/entries/:entryId/use",
+  sanitizeEventManualCheckinRequestUrl,
+  eventPanelAuth,
+  requireEventRole(["owner", "staff"]),
+  async (req, res, next) => {
+    try {
+      const eventId = requireEventContext(req, res);
+      if (!eventId || !req.eventPanelUser) return;
+
+      const entryId = typeof req.params.entryId === "string" ? req.params.entryId.trim() : "";
+      if (!UUID_PATTERN.test(entryId)) {
+        return res.status(400).json({
+          error: "Invalid entryId",
+          code: "invalid_entry_id",
+        });
+      }
+
+      if (Object.keys(req.query).length > 0 || hasForbiddenEventCheckinInputKeys(req.body)) {
+        return res.status(400).json({
+          error: "Invalid manual check-in input",
+          code: "invalid_manual_checkin_input",
+        });
+      }
+
+      const requestId = getRequestId(req);
+      const { data: rpcData, error: rpcError } = await supabase.rpc("check_in_event_entry_manually", {
+        p_event_id: req.eventPanelUser.eventId,
+        p_actor_auth_user_id: req.eventPanelUser.authUserId,
+        p_entry_id: entryId,
+      });
+
+      if (rpcError) {
+        logger.error("Failed to call event manual check-in RPC", {
+          requestId,
+          eventId,
+          entryId,
+          error: rpcError.message,
+        });
+        return res.status(500).json({
+          error: "Event manual check-in failed",
+          code: "manual_checkin_failed",
+        });
+      }
+
+      const result = rpcData as EventCheckinRpcResult | null;
+      if (!result || typeof result !== "object" || typeof result.ok !== "boolean") {
+        logger.error("Unexpected event manual check-in RPC response", {
+          requestId,
+          eventId,
+          entryId,
+        });
+        return res.status(500).json({
+          error: "Event manual check-in failed",
+          code: "manual_checkin_failed",
+        });
+      }
+
+      if (result.ok === false) {
+        const code = result.error?.code ?? "manual_checkin_failed";
+        const status = EVENT_MANUAL_CHECKIN_RPC_ERROR_STATUS[code] ?? 500;
+
+        return res.status(status).json({
+          error: result.error?.message ?? "Event manual check-in failed",
+          code,
+        });
+      }
+
+      if (containsSensitiveEventCheckinResponseKey(result)) {
+        logger.error("Unsafe event manual check-in RPC response blocked", {
+          requestId,
+          eventId,
+          entryId,
+          status: result.status,
+          errorCode: "unsafe_manual_checkin_response",
+        });
+        return res.status(500).json({
+          error: "Event manual check-in failed",
+          code: "manual_checkin_failed",
         });
       }
 
