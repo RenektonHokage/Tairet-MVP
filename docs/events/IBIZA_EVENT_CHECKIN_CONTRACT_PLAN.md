@@ -488,8 +488,10 @@ Propuesta:
 
 - Slice 3E.1 - contrato de check-in QR para Eventos.
 - Slice 3E.2A - RPC SQL `check_in_event_entry_by_token` + QA DB PASS.
-- Slice 3E.2B - endpoint TS `PATCH /panel/events/:eventId/checkin/:token` + QA runtime.
-- Slice 3E.3 - fallback manual `PATCH /panel/events/:eventId/entries/:entryId/use`.
+- Slice 3E.2B - endpoint TS `PATCH /panel/events/:eventId/checkin/:token` + QA runtime PASS.
+- Slice 3E.3A - contrato de fallback manual por entry.
+- Slice 3E.3B - RPC SQL `check_in_event_entry_manually` + QA DB PASS.
+- Slice 3E.3C - endpoint TS `PATCH /panel/events/:eventId/entries/:entryId/use`.
 - Slice 3E.4 - activity log de check-in de Eventos.
 - Slice 3E.5 - UI scanner/panel de check-in.
 
@@ -559,15 +561,17 @@ Fuera de este contrato y del primer CODE posterior:
 
 ## 19. Proximo CODE recomendado
 
-Slice 3E.2B - endpoint TS check-in QR de Eventos:
+Slice 3E.3C - endpoint TS fallback manual de check-in por entry:
 
-- crear endpoint `PATCH /panel/events/:eventId/checkin/:token`;
+- implementar `PATCH /panel/events/:eventId/entries/:entryId/use`;
 - usar `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
-- llamar la RPC con `req.eventPanelUser.eventId` y `req.eventPanelUser.authUserId`;
-- validar path sin loggear URL completa, path completo, `req.originalUrl` ni token;
-- no exponer `checkin_token`;
-- no duplicar logica de check-in en TypeScript;
-- no tocar QR/email/frontend/pagos/exports/activity;
+- reutilizar la misma semantica que check-in QR;
+- validar ventana, status, `already_used`, `voided` y `event_not_operable`;
+- no depender de `checkin_token`;
+- llamar `check_in_event_entry_manually`;
+- no duplicar logica de ventana, estado, doble uso ni mutacion de entry en TypeScript;
+- no distinguir durablemente QR vs manual todavia;
+- no tocar frontend, pagos, `/payments/callback`, exports ni activity;
 - ejecutar typecheck, `git diff --check` y QA runtime.
 
 ## 20. Estado Slice 3E.2A - RPC check-in QR QA DB PASS
@@ -609,3 +613,100 @@ Matiz:
 - El doble scan validado fue secuencial.
 - La proteccion contra carrera concurrente queda soportada por el update condicional atomico.
 - Slice 3E.2B debe incluir, si es posible, dos requests rapidos/concurrentes para confirmar el comportamiento de puerta.
+
+## 21. Estado Slice 3E.2B - endpoint check-in QR QA runtime PASS
+
+Slice 3E.2B queda registrado como implementado, deployado y validado:
+
+- endpoint `PATCH /panel/events/:eventId/checkin/:token` implementado;
+- endpoint validado para Ibiza: `PATCH /panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/checkin/:token`;
+- QA runtime PASS completo;
+- check-in QR backend de Eventos operativo para owner/staff;
+- endpoint TS funciona como adaptador fino sobre la RPC `check_in_event_entry_by_token`;
+- la logica critica de ventana, status, doble uso y mutacion sigue en DB/RPC;
+- no duplica logica de check-in en TypeScript.
+
+QA runtime registrado:
+
+- `/health` respondio `200 OK`, body `{"ok":true}` y `x-request-id` presente;
+- token malformado `/checkin/not-a-uuid` respondio `400 Bad Request`, `error = Invalid check-in token`, `code = invalid_checkin_token`;
+- estado inicial limpio: `GET /entries` respondio `200 OK`, `items = []`, `pagination.total = 0`;
+- Ibiza confirmado antes del QA: `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`;
+- se creo una orden QA con `manual-issue`, `201 Created`, generando 4 entries QA `QA-SLICE-3E2B-1..4`;
+- las 4 entries QA quedaron inicialmente `issued`, `unused`, `used_at = null`, `used_by_auth_user_id = null`;
+- tokens obtenidos solo por SQL controlado para QA, sin exposicion por API;
+- ventana de check-in abierta temporalmente para casos `valid`;
+- owner Ibiza hizo check-in valido de `QA-SLICE-3E2B-1`: `ok = true`, `status = valid`, `entry.checkin_status = used`, `entry.used_at != null`, `event.title = Ibiza`;
+- DB confirmo para owner: `checkin_status = used`, `used_at != null`, `used_by_auth_user_id = 253c667d-e2ab-4705-bd97-8621608ad8cc`;
+- segundo scan del mismo token respondio `already_used` y mantuvo `used_at`;
+- staff1 Ibiza hizo check-in valido de `QA-SLICE-3E2B-2`: `ok = true`, `status = valid`, `entry.checkin_status = used`;
+- DB confirmo para staff: `used_by_auth_user_id = b26beb62-8263-49eb-a843-2b30683d7312`;
+- UUID inexistente `00000000-0000-4000-8000-000000000000` respondio `200 OK`, `status = invalid`, `entry = null`, `attendee = null`;
+- owner local sin membership respondio `403 Forbidden`, `User not authorized for event access`;
+- request sin Authorization respondio `401 Unauthorized`, `Missing or invalid Authorization header`;
+- token auth invalido respondio `401 Unauthorized`, `Invalid or expired token`;
+- `eventId = not-a-uuid` respondio `400 Bad Request`, `Invalid eventId`;
+- evento inexistente respondio `404 Not Found`, `Event not found`;
+- outside window para `QA-SLICE-3E2B-3` respondio `outside_window`, `entry.checkin_status = unused`, `entry.used_at = null`;
+- DB confirmo outside window sin mutacion: `checkin_status = unused`, `used_at = null`, `used_by_auth_user_id = null`;
+- entry `QA-SLICE-3E2B-4` marcada `voided` y fuera de ventana respondio `voided`;
+- evento no operable respondio `event_not_operable`, `entry = null`, `attendee = null`;
+- query override `?event_id=...` fue bloqueado con `400`; code observado `invalid_checkin_token`;
+- body malicioso con `event_id`, `local_id`, `token` y `checkin_token` fue bloqueado con `400`, `code = invalid_checkin_input`;
+- regresiones: `/summary`, `/ticket-types`, `/entries`, `/entries/:entryId/qr`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
+
+No exposicion sensible registrada:
+
+- responses `valid` sin `checkin_token`;
+- sin `/events/checkin/`;
+- sin QR/base64;
+- sin buyer PII;
+- sin `auth_user_id`;
+- sin `local_id`;
+- sin metadata.
+
+Limpieza y restauracion:
+
+- se limpiaron ordenes/entries QA del slice;
+- `GET /entries` volvio a `items = []`, `pagination.total = 0`;
+- `GET /summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`;
+- SQL final confirmo Ibiza restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- query override devolvio `invalid_checkin_token`; funcionalmente bloquea el request y no muta datos.
+- Si se considera necesario, el code puede mejorarse a `invalid_checkin_input` en un hardening menor futuro.
+
+## 22. Estado Slice 3E.3B - RPC fallback manual QA DB PASS
+
+Slice 3E.3B queda registrado como implementado, aplicado y validado:
+
+- migracion 031 aplicada;
+- RPC `public.check_in_event_entry_manually(uuid, uuid, uuid)` creada;
+- firma validada: `check_in_event_entry_manually(uuid,uuid,uuid)`;
+- QA DB PASS;
+- lista para ser consumida por el endpoint TS de Slice 3E.3C.
+
+QA DB registrado:
+
+- instalacion de RPC validada;
+- grants correctos: `anon_can_execute = false`, `authenticated_can_execute = false`, `service_role_can_execute = true`;
+- todos los checks del script de QA dieron `true`;
+- check-in manual valido muto una entry `issued/unused` a `checkin_status = used`, `used_at != null` y `used_by_auth_user_id = actor`;
+- segundo intento respondio `already_used`;
+- entry inexistente respondio `entry_not_found`;
+- actor sin membership respondio `forbidden`;
+- evento inexistente respondio `event_not_found`;
+- entry `unused` fuera de ventana respondio `outside_window` y no muto;
+- entry `voided` fuera de ventana respondio `voided`;
+- evento no operable respondio `event_not_operable`;
+- responses sin `checkin_token`, `auth_user_id`, `local_id`, metadata sensible, email ni phone;
+- rollback dejo 0 datos QA persistidos;
+- Ibiza quedo restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- Este QA valida DB/RPC, no endpoint HTTP.
+- El endpoint TS queda para Slice 3E.3C.
+- TypeScript no debe duplicar logica de ventana, estado, doble uso ni mutacion de entry.
+- La RPC es la fuente de verdad para el fallback manual.
