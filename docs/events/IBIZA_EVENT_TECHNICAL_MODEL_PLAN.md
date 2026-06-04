@@ -1459,7 +1459,7 @@ Slice 3E.3B queda registrado como implementado, aplicado y validado:
 - RPC `public.check_in_event_entry_manually(uuid, uuid, uuid)` creada;
 - QA DB PASS;
 - fuente de verdad DB/RPC para fallback manual por `event_order_entries.id`;
-- endpoint TS pendiente para Slice 3E.3C.
+- endpoint TS implementado y QA runtime PASS en Slice 3E.3C.
 
 QA DB registrado:
 
@@ -1484,24 +1484,52 @@ Matiz:
 - TypeScript no debe duplicar logica de ventana, estado, doble uso ni mutacion de entry.
 - Slice 3E.3C debe consumir la RPC como adaptador fino.
 
+### Estado Slice 3E.3C - endpoint fallback manual QA runtime PASS
+
+Slice 3E.3C queda registrado como implementado, deployado y validado:
+
+- endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado;
+- QA runtime PASS completo;
+- fallback manual backend por `event_order_entry.id` operativo para owner/staff;
+- endpoint TS actua como adaptador fino sobre `check_in_event_entry_manually`;
+- no duplica logica de ventana, estado, mutacion ni concurrencia en TypeScript;
+- no usa ni expone `checkin_token`;
+- Ibiza quedo sin datos QA persistidos despues de limpieza.
+
+QA runtime registrado:
+
+- owner/staff Ibiza autorizados y owner local bloqueado para evento;
+- sin auth y token auth invalido bloqueados;
+- `entryId` invalido, entry inexistente, eventId invalido y evento inexistente controlados;
+- check-in manual valido con owner y staff;
+- DB confirmo `checkin_status = used`, `used_at != null` y actor correcto;
+- doble intento respondio `already_used`;
+- outside window respondio `outside_window` sin mutar DB;
+- entry `voided` respondio `voided`;
+- evento no operable respondio `event_not_operable`;
+- query/body overrides rechazados con `invalid_manual_checkin_input`;
+- responses sin `checkin_token`, QR/base64, email, phone, buyer, auth IDs, `local_id` ni metadata;
+- regresiones OK;
+- limpieza QA OK;
+- Ibiza restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- El QA creo entries via `manual-issue` y tambien valido que `email_delivery` automatico siguio funcionando: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`.
+- El foco del slice fue fallback manual.
+
 ### Proximo paso recomendado
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3E.3C - endpoint TS fallback manual de check-in por entry.
+- avanzar a Slice 3E.4 - activity log de Eventos o integracion minima de historial operativo.
 
-Alcance recomendado de Slice 3E.3C:
+Alcance recomendado de Slice 3E.4:
 
-- implementar `PATCH /panel/events/:eventId/entries/:entryId/use`;
-- usar `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
-- validar `entryId`/path;
-- rechazar body/query overrides;
-- llamar RPC `check_in_event_entry_manually`;
-- mapear `ok/error` de la RPC;
-- devolver estados semanticos seguros;
-- no duplicar logica de ventana, status, doble uso ni mutacion en TS;
-- no depender de `checkin_token`;
-- no distinguir durablemente QR vs manual todavia;
+- disenar/implementar historial para event entries;
+- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
+- definir si se registra diferencia QR/manual en activity o se mantiene neutro;
+- no exponer tokens ni PII sensible;
 - no tocar frontend;
 - no exponer `checkin_token`;
 - no tocar pagos;
@@ -1729,7 +1757,13 @@ Se creo `check_in_event_entry_manually(uuid,uuid,uuid)` como motor DB/RPC de fal
 
 ### Slice 3E.3C - Endpoint TS fallback manual de check-in por entry
 
-Proximo paso recomendado. Implementar `PATCH /panel/events/:eventId/entries/:entryId/use` como adaptador fino sobre `check_in_event_entry_manually`, sin duplicar logica DB, sin exponer `checkin_token`, sin frontend y sin pagos.
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se creo `PATCH /panel/events/:eventId/entries/:entryId/use` como adaptador fino sobre `check_in_event_entry_manually`, con auth owner/staff, validacion de `entryId`, rechazo de query/body overrides, respuestas semanticas seguras, no exposicion sensible, regresiones OK y limpieza QA completa.
+
+### Slice 3E.4 - Activity log / historial operativo de Eventos
+
+Proximo paso recomendado. Disenar/implementar historial para emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes, sin exponer tokens ni PII sensible y sin tocar pagos.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

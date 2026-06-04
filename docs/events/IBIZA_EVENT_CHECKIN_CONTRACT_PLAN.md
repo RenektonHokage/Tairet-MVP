@@ -491,8 +491,8 @@ Propuesta:
 - Slice 3E.2B - endpoint TS `PATCH /panel/events/:eventId/checkin/:token` + QA runtime PASS.
 - Slice 3E.3A - contrato de fallback manual por entry.
 - Slice 3E.3B - RPC SQL `check_in_event_entry_manually` + QA DB PASS.
-- Slice 3E.3C - endpoint TS `PATCH /panel/events/:eventId/entries/:entryId/use`.
-- Slice 3E.4 - activity log de check-in de Eventos.
+- Slice 3E.3C - endpoint TS `PATCH /panel/events/:eventId/entries/:entryId/use` + QA runtime PASS.
+- Slice 3E.4 - activity log de check-in de Eventos. Proximo paso recomendado.
 - Slice 3E.5 - UI scanner/panel de check-in.
 
 Nota:
@@ -561,18 +561,13 @@ Fuera de este contrato y del primer CODE posterior:
 
 ## 19. Proximo CODE recomendado
 
-Slice 3E.3C - endpoint TS fallback manual de check-in por entry:
+Slice 3E.4 - activity log de Eventos:
 
-- implementar `PATCH /panel/events/:eventId/entries/:entryId/use`;
-- usar `eventPanelAuth` y `requireEventRole(["owner", "staff"])`;
-- reutilizar la misma semantica que check-in QR;
-- validar ventana, status, `already_used`, `voided` y `event_not_operable`;
-- no depender de `checkin_token`;
-- llamar `check_in_event_entry_manually`;
-- no duplicar logica de ventana, estado, doble uso ni mutacion de entry en TypeScript;
-- no distinguir durablemente QR vs manual todavia;
-- no tocar frontend, pagos, `/payments/callback`, exports ni activity;
-- ejecutar typecheck, `git diff --check` y QA runtime.
+- disenar/implementar historial operativo para entries de evento;
+- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
+- definir si activity distingue QR/manual o mantiene resultado neutro;
+- no exponer tokens ni PII sensible;
+- no tocar pagos, `/payments/callback`, frontend ni exports en este slice.
 
 ## 20. Estado Slice 3E.2A - RPC check-in QR QA DB PASS
 
@@ -707,6 +702,57 @@ QA DB registrado:
 Matiz:
 
 - Este QA valida DB/RPC, no endpoint HTTP.
-- El endpoint TS queda para Slice 3E.3C.
+- El endpoint TS fue implementado y validado en Slice 3E.3C.
 - TypeScript no debe duplicar logica de ventana, estado, doble uso ni mutacion de entry.
 - La RPC es la fuente de verdad para el fallback manual.
+
+## 23. Estado Slice 3E.3C - endpoint fallback manual QA runtime PASS
+
+Slice 3E.3C queda registrado como implementado, deployado y validado:
+
+- endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado;
+- QA runtime PASS completo;
+- fallback manual backend por entry operativo para owner/staff;
+- endpoint TS funciona como adaptador fino sobre `check_in_event_entry_manually`;
+- no duplica logica de ventana, estado, mutacion ni concurrencia en TypeScript;
+- no usa ni expone `checkin_token`;
+- Ibiza quedo sin datos QA persistidos despues de limpieza.
+
+QA runtime registrado:
+
+- owner Ibiza y staff1 Ibiza validaron `/me` con roles correctos;
+- owner local D'Lirio valido `/panel/me`;
+- `/health` respondio `200 OK`;
+- `entryId` invalido respondio `400 invalid_entry_id`;
+- estado inicial `/entries` limpio;
+- se creo orden QA con `manual-issue`, generando 4 entries `QA-SLICE-3E3C-1..4`, todas `issued/unused`;
+- `email_delivery` automatico respondio `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`, `status = sent`;
+- owner hizo check-in manual valido de `QA-SLICE-3E3C-1`, mutando DB con `used_by_auth_user_id = 253c667d-e2ab-4705-bd97-8621608ad8cc`;
+- segundo intento respondio `already_used` y mantuvo `used_at`;
+- staff hizo check-in manual valido de `QA-SLICE-3E3C-2`, mutando DB con `used_by_auth_user_id = b26beb62-8263-49eb-a843-2b30683d7312`;
+- entry inexistente respondio `404 entry_not_found`;
+- owner local sin membership respondio `403`;
+- sin auth y token auth invalido respondieron `401`;
+- eventId invalido respondio `400`;
+- evento inexistente respondio `404`;
+- outside window de `QA-SLICE-3E3C-3` respondio `outside_window` sin mutar DB;
+- entry `voided` respondio `voided`;
+- evento no operable respondio `event_not_operable`;
+- query/body overrides fueron rechazados con `400 invalid_manual_checkin_input`;
+- overrides no mutaron la entry QA;
+- responses sin `checkin_token`, `/events/checkin/`, QR/base64, email, phone, buyer, `used_by_auth_user_id`, `auth_user_id`, `local_id` ni metadata.
+
+Regresiones y limpieza:
+
+- `/summary`, `/ticket-types`, `/entries`, `/entries/:entryId/qr`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`;
+- QR por entry respondio `image/png`;
+- ordenes/entries QA limpiadas;
+- `/entries` volvio a `items = []`, `pagination.total = 0`;
+- `/summary` volvio a cero en orders, items, entries, used, unused, voided e amount;
+- Ibiza restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- El QA creo entries mediante `manual-issue`, por lo que tambien se activo `email_delivery` automatico.
+- `email_delivery` funciono correctamente: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`.
+- Ese dato valida regresion del flujo anterior; el foco del slice fue fallback manual.

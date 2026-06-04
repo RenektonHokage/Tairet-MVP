@@ -379,8 +379,8 @@ Roadmap recomendado:
 
 - Slice 3E.3A: contrato de fallback manual por entry. Estado: este documento.
 - Slice 3E.3B: migracion/RPC `check_in_event_entry_manually(...)` aplicada y QA DB PASS.
-- Slice 3E.3C: endpoint TS `PATCH /panel/events/:eventId/entries/:entryId/use` con QA runtime. Estado: proximo paso.
-- Slice 3E.4: activity log de check-in QR/manual, si se requiere auditoria.
+- Slice 3E.3C: endpoint TS `PATCH /panel/events/:eventId/entries/:entryId/use` implementado, deployado y QA runtime PASS completo.
+- Slice 3E.4: activity log de check-in QR/manual, si se requiere auditoria. Estado: proximo paso recomendado.
 - Slice 3E.5: UI operativa de check-in y fallback manual.
 
 No adelantar frontend antes de cerrar RPC y endpoint.
@@ -452,15 +452,12 @@ Fuera de este contrato:
 
 ## 18. Proximo CODE recomendado
 
-Slice 3E.3C - endpoint TS:
+Slice 3E.4 - activity log de Eventos:
 
-- agregar `PATCH /panel/events/:eventId/entries/:entryId/use`;
-- usar `eventPanelAuth`;
-- usar `requireEventRole(["owner", "staff"])`;
-- validar path/body/query de forma estricta;
-- llamar la RPC;
-- mapear errores a HTTP;
-- no duplicar update ni semantica en TS;
+- disenar/implementar historial para `event_order_entries`;
+- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
+- definir si se registra diferencia QR/manual en activity o se mantiene neutro;
+- no exponer tokens ni PII sensible;
 - no tocar frontend, pagos ni `/payments/callback`.
 
 ## 19. Estado Slice 3E.3B - RPC fallback manual QA DB PASS
@@ -509,6 +506,72 @@ Comportamiento validado:
 Matiz:
 
 - Este QA valida DB/RPC, no endpoint HTTP.
-- El endpoint TS queda para Slice 3E.3C.
+- El endpoint TS fue implementado y validado en Slice 3E.3C.
 - TypeScript no debe duplicar la logica de ventana, estado, doble uso ni mutacion de entry.
 - La RPC es la fuente de verdad para el fallback manual.
+
+## 20. Estado Slice 3E.3C - endpoint fallback manual QA runtime PASS
+
+Slice 3E.3C queda registrado como implementado, deployado y validado:
+
+- endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado;
+- endpoint validado para Ibiza;
+- QA runtime PASS completo;
+- fallback manual backend por entry operativo para owner/staff;
+- endpoint TS funciona como adaptador fino sobre `check_in_event_entry_manually`;
+- no duplica logica de ventana, estado, mutacion ni concurrencia en TypeScript;
+- no usa ni expone `checkin_token`;
+- Ibiza quedo sin datos QA persistidos despues de limpieza.
+
+QA runtime registrado:
+
+- owner Ibiza `/panel/events/:eventId/me` respondio `200 OK`, `membership.role = owner`;
+- staff1 Ibiza `/panel/events/:eventId/me` respondio `200 OK`, `membership.role = staff`;
+- owner local D'Lirio `/panel/me` respondio `200 OK`;
+- `/health` respondio `200 OK`, body `{"ok":true}`;
+- `entryId = not-a-uuid` respondio `400 Bad Request`, `code = invalid_entry_id`;
+- estado inicial limpio: `GET /entries` respondio `items = []`, `pagination.total = 0`;
+- se creo una orden QA con `manual-issue`, `201 Created`, generando 4 entries `QA-SLICE-3E3C-1..4`;
+- las 4 entries QA quedaron inicialmente `status = issued`, `checkin_status = unused`;
+- `email_delivery` automatico respondio `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`, `status = sent`;
+- owner hizo check-in manual valido de `QA-SLICE-3E3C-1`: `ok = true`, `status = valid`, `entry.checkin_status = used`, `entry.used_at != null`, `attendee.document = QA-SLICE-3E3C-1`, `event.title = Ibiza`;
+- DB confirmo mutacion owner: `checkin_status = used`, `used_at != null`, `used_by_auth_user_id = 253c667d-e2ab-4705-bd97-8621608ad8cc`;
+- segundo intento sobre `QA-SLICE-3E3C-1` respondio `already_used` y mantuvo `used_at`;
+- staff hizo check-in manual valido de `QA-SLICE-3E3C-2`: `ok = true`, `status = valid`, `entry.checkin_status = used`, `attendee.document = QA-SLICE-3E3C-2`;
+- DB confirmo mutacion staff: `used_by_auth_user_id = b26beb62-8263-49eb-a843-2b30683d7312`;
+- entry UUID inexistente respondio `404 Not Found`, `code = entry_not_found`;
+- owner local sin membership respondio `403 Forbidden`, `User not authorized for event access`;
+- sin Authorization respondio `401 Unauthorized`, `Missing or invalid Authorization header`;
+- token auth invalido respondio `401 Unauthorized`, `Invalid or expired token`;
+- `eventId = not-a-uuid` respondio `400 Bad Request`, `Invalid eventId`;
+- evento inexistente respondio `404 Not Found`, `Event not found`;
+- outside window para `QA-SLICE-3E3C-3` respondio `outside_window`, `entry.checkin_status = unused`, `entry.used_at = null`;
+- DB confirmo outside window sin mutacion: `status = issued`, `checkin_status = unused`, `used_at = null`, `used_by_auth_user_id = null`;
+- entry `QA-SLICE-3E3C-4` marcada `voided` respondio `voided`;
+- evento temporalmente no operable respondio `event_not_operable` con entry/attendee controlados para entry conocida;
+- query override `?event_id=...` fue rechazado con `400`, `code = invalid_manual_checkin_input`;
+- body override con `event_id`, `local_id`, `checkin_token` y `status` fue rechazado con `400`, `code = invalid_manual_checkin_input`;
+- DB confirmo que overrides no mutaron `QA-SLICE-3E3C-3`;
+- responses validadas no expusieron `checkin_token`, `/events/checkin/`, QR/base64, email, phone, buyer, `used_by_auth_user_id`, `auth_user_id`, `local_id` ni metadata.
+
+Regresiones registradas:
+
+- `GET /panel/events/:eventId/summary` respondio `200 OK`;
+- `GET /panel/events/:eventId/ticket-types` respondio `200 OK`;
+- `GET /panel/events/:eventId/entries` respondio `200 OK`;
+- `GET /panel/events/:eventId/entries/:entryId/qr` respondio `200 OK`, `Content-Type = image/png`;
+- `GET /panel/me` con owner local respondio `200 OK`;
+- `GET /panel/orders/summary` con owner local respondio `200 OK`.
+
+Limpieza y restauracion:
+
+- se limpiaron las ordenes/entries QA del slice;
+- `GET /entries` volvio a `items = []`, `pagination.total = 0`;
+- `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`;
+- Ibiza quedo restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- El QA creo entries mediante `manual-issue`, por lo que tambien se activo `email_delivery` automatico.
+- `email_delivery` funciono correctamente: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`.
+- Este dato confirma que el flujo anterior no se rompio, pero el foco del slice fue fallback manual.

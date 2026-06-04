@@ -1283,25 +1283,73 @@ QA DB registrado:
 Matiz:
 
 - este QA valida DB/RPC, no endpoint HTTP;
-- el endpoint TS queda para Slice 3E.3C;
+- el endpoint TS fue implementado y validado en Slice 3E.3C;
 - TypeScript no debe duplicar la logica de ventana, estado, doble uso ni mutacion de entry;
 - la RPC es la fuente de verdad para el fallback manual.
 
-Proximo paso tecnico recomendado: Slice 3E.3C - endpoint TS fallback manual por entry.
+### Slice 3E.3C - Endpoint TS fallback manual por entry
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido que:
+
+- endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` esta activo en runtime;
+- owner/staff Ibiza pueden usar fallback manual;
+- owner local sin membership queda bloqueado;
+- sin auth y token auth invalido quedan bloqueados;
+- `entryId` invalido, entry inexistente, eventId invalido y evento inexistente quedan controlados;
+- check-in manual valido muta DB correctamente;
+- doble intento devuelve `already_used`;
+- outside window no muta entry;
+- `voided` queda priorizado;
+- evento no operable queda controlado;
+- query/body overrides quedan rechazados;
+- no expone token ni datos internos sensibles;
+- regresiones de Eventos y panel local respondieron OK;
+- limpieza QA dejo Ibiza sin datos QA persistidos.
+
+QA runtime registrado:
+
+- owner Ibiza `/me` -> `200 OK`, role `owner`;
+- staff1 Ibiza `/me` -> `200 OK`, role `staff`;
+- owner local D'Lirio `/panel/me` -> `200 OK`;
+- `/health` -> `200 OK`;
+- `entryId = not-a-uuid` -> `400 invalid_entry_id`;
+- estado inicial `/entries` limpio;
+- 4 entries QA creadas via `manual-issue`, todas `issued/unused`;
+- `email_delivery` automatico: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`, `status = sent`;
+- owner valido sobre `QA-SLICE-3E3C-1`: `status = valid`, `checkin_status = used`, `used_at != null`, actor `253c667d-e2ab-4705-bd97-8621608ad8cc`;
+- segundo intento: `status = already_used`, `used_at` se mantuvo;
+- staff valido sobre `QA-SLICE-3E3C-2`: `status = valid`, actor `b26beb62-8263-49eb-a843-2b30683d7312`;
+- entry inexistente -> `404 entry_not_found`;
+- owner local sin membership -> `403`;
+- sin auth / token auth invalido -> `401`;
+- eventId invalido -> `400`;
+- evento inexistente -> `404`;
+- outside window sobre `QA-SLICE-3E3C-3` -> `outside_window`, DB sin mutacion;
+- entry `voided` -> `voided`;
+- evento no operable -> `event_not_operable`;
+- query/body overrides -> `400 invalid_manual_checkin_input`;
+- responses sin `checkin_token`, `/events/checkin/`, QR/base64, email, phone, buyer, `used_by_auth_user_id`, `auth_user_id`, `local_id` ni metadata;
+- regresiones: `/summary`, `/ticket-types`, `/entries`, `/entries/:entryId/qr`, `/panel/me` local y `/panel/orders/summary` local en `200 OK`;
+- limpieza QA: `/entries` volvio a `items = []`, `pagination.total = 0`;
+- `/summary` volvio a cero;
+- Ibiza quedo restaurado con `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Matiz:
+
+- el QA creo entries mediante `manual-issue`, por lo que tambien se activo `email_delivery` automatico;
+- `email_delivery` funciono correctamente y confirma que el flujo anterior no se rompio;
+- el foco del slice fue fallback manual.
+
+Proximo paso tecnico recomendado: Slice 3E.4 - activity log de Eventos o historial operativo minimo.
 
 Alcance sugerido:
 
-- crear `PATCH /panel/events/:eventId/entries/:entryId/use`;
-- usar `eventPanelAuth`;
-- usar `requireEventRole(["owner", "staff"])`;
-- validar `entryId`/path;
-- rechazar body/query overrides;
-- llamar RPC `check_in_event_entry_manually`;
-- mapear `ok/error` de la RPC;
-- devolver estados semanticos seguros;
-- no duplicar logica de check-in en TS;
-- no exponer `checkin_token`;
-- no tocar frontend todavia;
+- disenar/implementar historial para event entries;
+- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
+- no exponer tokens ni PII sensible;
+- definir si se registra diferencia QR/manual en activity o se mantiene neutro;
 - sin pagos;
 - sin `/payments/callback`.
 
