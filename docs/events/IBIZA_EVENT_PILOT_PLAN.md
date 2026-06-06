@@ -1356,16 +1356,35 @@ Se creo `public.event_activity_events` con FKs event-scoped, RLS enabled, grants
 
 Hallazgo/fix: el QA detecto que `event_panel_user` con `actor_role = null` era aceptado por semantica SQL de `CHECK`/`NULL`; se corrigio agregando `actor_role is not null` en `event_activity_events_actor_consistency_chk`.
 
-Proximo paso tecnico recomendado: Slice 3E.4C - helper TS `recordEventActivity`.
+### Slice 3E.4C - Helper TS recordEventActivity
+
+Estado: implementado y validado como helper aislado.
+
+Se creo `functions/api/src/services/eventActivity.ts` con `recordEventActivity(input)`, tipos exportados, validacion de `source`, actor panel/system, sanitizacion defensiva de metadata e insert best-effort con Supabase service-role.
+
+No se integro en endpoints: no se toco `panelEvents.ts`, no se llamo desde `manual-issue`, `send-email`, email automatico, check-in QR, fallback manual, `/entries`, QR PNG, summary ni ticket-types. Tampoco se toco `operationalActivity.ts` ni activity local.
+
+Validaciones registradas:
+
+- `pnpm -C functions/api typecheck`: PASS;
+- `git diff --check`: PASS;
+- chequeo adicional de whitespace del archivo nuevo: sin warnings.
+
+Matiz: este slice valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para Slice 3E.4D al integrarlo en flujos concretos.
+
+Proximo paso tecnico recomendado: Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
 
 Alcance sugerido:
 
-- helper aislado;
-- sanitizacion defensiva de metadata;
-- `source` controlado;
-- actor desde `eventPanelAuth` o `system`;
-- best-effort;
-- sin integrar endpoints todavia;
+- definir integracion en `manual-issue`;
+- definir integracion en `send-email`;
+- definir integracion en email automatico post manual-issue;
+- definir integracion en check-in QR;
+- definir integracion en fallback manual;
+- definir metadata por accion;
+- definir `source` por accion;
+- definir QA runtime por flujo;
+- no implementar todavia hasta aprobar contrato;
 - sin pagos;
 - sin `/payments/callback`.
 

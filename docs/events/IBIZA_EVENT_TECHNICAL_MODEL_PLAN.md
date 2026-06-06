@@ -1522,16 +1522,18 @@ Matiz:
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3E.4C - helper TS `recordEventActivity`.
+- avanzar a Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
 
-Alcance recomendado de Slice 3E.4C:
+Alcance recomendado de Slice 3E.4D:
 
-- crear helper aislado para registrar activity de Eventos;
-- sanitizar metadata defensivamente;
-- usar `source` controlado;
-- tomar actor desde `eventPanelAuth` o `system`;
-- operar best-effort;
-- no integrar en endpoints todavia;
+- definir integracion en `manual-issue`;
+- definir integracion en `send-email`;
+- definir integracion en email automatico post manual-issue;
+- definir integracion en check-in QR;
+- definir integracion en fallback manual;
+- definir metadata y `source` por accion;
+- definir QA runtime por flujo;
+- no implementar todavia hasta aprobar el contrato;
 - no exponer tokens ni PII sensible;
 - no tocar frontend;
 - no exponer `checkin_token`;
@@ -1776,7 +1778,19 @@ Estado: migracion 032 aplicada y QA DB PASS completo.
 
 Se creo `public.event_activity_events` con FKs event-scoped, RLS enabled, grants cerrados para `anon`/`authenticated`, `service_role` operativo, checks estrictos y rollback QA limpio. El QA detecto que `event_panel_user` con `actor_role = null` era aceptado por semantica SQL de `CHECK`/`NULL`; se corrigio agregando `actor_role is not null` en `event_activity_events_actor_consistency_chk`.
 
-Proximo paso recomendado: Slice 3E.4C - helper TS `recordEventActivity`.
+### Slice 3E.4C - Helper TS recordEventActivity
+
+Estado: implementado y validado como helper aislado.
+
+Se creo `functions/api/src/services/eventActivity.ts` con `recordEventActivity(input)`, tipos exportados, validacion interna de `source`, actor panel/system, sanitizacion defensiva de metadata, insert best-effort con Supabase service-role y retorno estable `{ ok: true, id }` / `{ ok: false, error }`.
+
+Queda registrado que no se integro en endpoints: no se toco `panelEvents.ts`, no se importo desde `manual-issue`, `send-email`, email automatico, check-in QR, fallback manual, `/entries`, QR PNG, summary ni ticket-types; tampoco se toco `operationalActivity.ts` ni activity local.
+
+Validaciones: `pnpm -C functions/api typecheck` PASS, `git diff --check` PASS y chequeo adicional de whitespace del archivo nuevo sin warnings.
+
+Matiz: 3E.4C valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para Slice 3E.4D al integrarlo en flujos concretos.
+
+Proximo paso recomendado: Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

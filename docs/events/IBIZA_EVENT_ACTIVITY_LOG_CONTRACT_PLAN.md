@@ -520,35 +520,106 @@ QA SQL fail-fast registrado:
 - rechazos: invalid source/action/entity_type/actor_type, actor system invalido, actor panel invalido, metadata array/null, message vacio, action vacio y FK de entry invalida.
 - rollback limpio.
 
-## 16. Roadmap recomendado
+## 16. Estado Slice 3E.4C - helper recordEventActivity aislado
+
+Estado: **implementado y validado como helper aislado**.
+
+Archivo creado:
+
+- `functions/api/src/services/eventActivity.ts`
+
+Helper creado:
+
+- `recordEventActivity(input)`
+- retorna `{ ok: true, id }` o `{ ok: false, error }`.
+
+Tipos/contrato exportados:
+
+- `EventActivitySource`
+- `EventActivityAction`
+- `EventActivityEntityType`
+- actor panel/system
+- input
+- result
+
+Metadata:
+
+- sanitiza sin mutar el objeto original;
+- elimina claves sensibles case-insensitive;
+- limita tamano/profundidad;
+- convierte metadata invalida en `{}`;
+- elimina `source` de metadata porque `source` vive como columna propia.
+
+Source y actor:
+
+- `source` queda validado por allowlist: `qr`, `manual`, `automatic_email`, `manual_email`, `system`.
+- actor panel requiere `authUserId` y role `owner | staff`.
+- actor system rechaza `authUserId` y `role`.
+- actor system guarda `actor_auth_user_id = null` y `actor_role = null`.
+
+Best-effort:
+
+- inserta con Supabase service-role en `public.event_activity_events`;
+- captura errores;
+- no lanza error por defecto;
+- devuelve codigos estables;
+- no debe romper la operacion principal cuando se integre.
+
+No exposicion sensible:
+
+- no guarda en metadata `checkin_token`, tokens, QR payload/base64/raw URL, request/response/headers/body, buyer/attendee PII, auth IDs, `local_id`, stack traces ni respuesta cruda de Resend.
+
+No integracion todavia:
+
+- no se importo ni llamo `recordEventActivity` desde endpoints;
+- no se toco `panelEvents.ts`;
+- no se toco `operationalActivity.ts`;
+- no se toco activity local.
+
+Validaciones:
+
+- `pnpm -C functions/api typecheck`: PASS.
+- `git diff --check`: PASS.
+- chequeo adicional de whitespace del archivo nuevo: sin warnings.
+
+Matiz:
+
+- Este slice valida el helper a nivel estatico/contrato.
+- La validacion funcional de inserts en operaciones vendra en Slice 3E.4D al integrarlo en endpoints concretos.
+- Este comportamiento es esperado porque 3E.4C fue intencionalmente aislado.
+
+## 17. Roadmap recomendado
 
 Siguiente secuencia:
 
 - Slice 3E.4B: migracion DB `event_activity_events` aplicada y QA DB PASS.
-- Slice 3E.4C: helper TS `recordEventActivity`.
-- Slice 3E.4D: integrar activity en manual-issue, email y check-in.
+- Slice 3E.4C: helper TS `recordEventActivity` implementado y validado como helper aislado.
+- Slice 3E.4D: ASK/DOCS de integracion de activity en flujos de evento.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
 - Slice posterior: UI de historial operativo.
 
 Proximo paso recomendado:
 
-- Slice 3E.4C - helper TS `recordEventActivity`.
+- Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
 
 Alcance futuro:
 
-- helper aislado;
-- sanitizacion defensiva de metadata;
-- `source` controlado;
-- actor desde `eventPanelAuth` o `system`;
-- best-effort;
-- sin integrar en endpoints todavia.
+- definir integracion en `manual-issue`;
+- definir integracion en `send-email`;
+- definir integracion en email automatico post manual-issue;
+- definir integracion en check-in QR;
+- definir integracion en fallback manual;
+- definir metadata por accion;
+- definir `source` por accion;
+- definir QA runtime por flujo;
+- no implementar todavia hasta aprobar el contrato.
 
-## 17. No-goals
+## 18. No-goals
 
 Fuera de este contrato:
 
 - modificar la DB fuera de la migracion 032 ya aplicada;
-- implementar helper TS ahora;
+- integrar helper TS ahora;
 - implementar endpoint `/activity` ahora;
 - UI de historial;
 - export;
