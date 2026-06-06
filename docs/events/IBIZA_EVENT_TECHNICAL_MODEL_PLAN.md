@@ -1522,13 +1522,16 @@ Matiz:
 
 Proximo paso recomendado:
 
-- avanzar a Slice 3E.4 - activity log de Eventos o integracion minima de historial operativo.
+- avanzar a Slice 3E.4C - helper TS `recordEventActivity`.
 
-Alcance recomendado de Slice 3E.4:
+Alcance recomendado de Slice 3E.4C:
 
-- disenar/implementar historial para event entries;
-- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
-- definir si se registra diferencia QR/manual en activity o se mantiene neutro;
+- crear helper aislado para registrar activity de Eventos;
+- sanitizar metadata defensivamente;
+- usar `source` controlado;
+- tomar actor desde `eventPanelAuth` o `system`;
+- operar best-effort;
+- no integrar en endpoints todavia;
 - no exponer tokens ni PII sensible;
 - no tocar frontend;
 - no exponer `checkin_token`;
@@ -1761,9 +1764,19 @@ Estado: implementado, deployado y QA runtime PASS completo.
 
 Se creo `PATCH /panel/events/:eventId/entries/:entryId/use` como adaptador fino sobre `check_in_event_entry_manually`, con auth owner/staff, validacion de `entryId`, rechazo de query/body overrides, respuestas semanticas seguras, no exposicion sensible, regresiones OK y limpieza QA completa.
 
-### Slice 3E.4 - Activity log / historial operativo de Eventos
+### Slice 3E.4A - Contrato activity log de Eventos
 
-Proximo paso recomendado. Disenar/implementar historial para emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes, sin exponer tokens ni PII sensible y sin tocar pagos.
+Estado: documentado.
+
+Se definio crear `public.event_activity_events` como tabla separada de `operational_activity_events`, scoped por `event_id`, con `source` como columna propia, sin tokens, QR payloads, `local_id` ni PII sensible.
+
+### Slice 3E.4B - DB event_activity_events
+
+Estado: migracion 032 aplicada y QA DB PASS completo.
+
+Se creo `public.event_activity_events` con FKs event-scoped, RLS enabled, grants cerrados para `anon`/`authenticated`, `service_role` operativo, checks estrictos y rollback QA limpio. El QA detecto que `event_panel_user` con `actor_role = null` era aceptado por semantica SQL de `CHECK`/`NULL`; se corrigio agregando `actor_role is not null` en `event_activity_events_actor_consistency_chk`.
+
+Proximo paso recomendado: Slice 3E.4C - helper TS `recordEventActivity`.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

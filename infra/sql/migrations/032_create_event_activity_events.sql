@@ -113,6 +113,7 @@ create table if not exists public.event_activity_events (
       or (
         actor_type = 'event_panel_user'
         and actor_auth_user_id is not null
+        and actor_role is not null
         and actor_role in ('owner', 'staff')
       )
     )

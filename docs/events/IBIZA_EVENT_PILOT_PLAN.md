@@ -1342,14 +1342,30 @@ Matiz:
 - `email_delivery` funciono correctamente y confirma que el flujo anterior no se rompio;
 - el foco del slice fue fallback manual.
 
-Proximo paso tecnico recomendado: Slice 3E.4 - activity log de Eventos o historial operativo minimo.
+### Slice 3E.4A - Contrato activity log de Eventos
+
+Estado: documentado.
+
+Se definio activity propia de Eventos, separada de `operational_activity_events`, scoped por `event_id`, con `source` como columna propia y sin tokens, QR payloads, `local_id` ni PII sensible.
+
+### Slice 3E.4B - DB event_activity_events
+
+Estado: migracion 032 aplicada y QA DB PASS completo.
+
+Se creo `public.event_activity_events` con FKs event-scoped, RLS enabled, grants cerrados para `anon`/`authenticated`, `service_role` operativo, checks estrictos y rollback QA limpio.
+
+Hallazgo/fix: el QA detecto que `event_panel_user` con `actor_role = null` era aceptado por semantica SQL de `CHECK`/`NULL`; se corrigio agregando `actor_role is not null` en `event_activity_events_actor_consistency_chk`.
+
+Proximo paso tecnico recomendado: Slice 3E.4C - helper TS `recordEventActivity`.
 
 Alcance sugerido:
 
-- disenar/implementar historial para event entries;
-- registrar emision, email enviado, check-in QR/manual, `already_used` y rechazos relevantes;
-- no exponer tokens ni PII sensible;
-- definir si se registra diferencia QR/manual en activity o se mantiene neutro;
+- helper aislado;
+- sanitizacion defensiva de metadata;
+- `source` controlado;
+- actor desde `eventPanelAuth` o `system`;
+- best-effort;
+- sin integrar endpoints todavia;
 - sin pagos;
 - sin `/payments/callback`.
 

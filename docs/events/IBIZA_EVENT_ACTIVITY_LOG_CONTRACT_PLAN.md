@@ -21,6 +21,7 @@ Estado previo validado:
 - Slice 3E.2B: endpoint `PATCH /panel/events/:eventId/checkin/:token` implementado y QA runtime PASS completo.
 - Slice 3E.3B: RPC `check_in_event_entry_manually` aplicada y QA DB PASS.
 - Slice 3E.3C: endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado y QA runtime PASS completo.
+- Slice 3E.4B: migracion 032 `event_activity_events` aplicada y QA DB PASS completo.
 
 Modelo vigente:
 
@@ -101,10 +102,10 @@ Campos candidatos:
 
 - `id uuid primary key default gen_random_uuid()`
 - `event_id uuid not null references public.events(id) on delete cascade`
-- `event_order_id uuid null references public.event_orders(id) on delete set null`
-- `event_order_item_id uuid null references public.event_order_items(id) on delete set null`
-- `event_order_entry_id uuid null references public.event_order_entries(id) on delete set null`
-- `event_ticket_type_id uuid null references public.event_ticket_types(id) on delete set null`
+- `event_order_id uuid null`
+- `event_order_item_id uuid null`
+- `event_order_entry_id uuid null`
+- `event_ticket_type_id uuid null`
 - `entity_type text not null`
 - `entity_id uuid null`
 - `action text not null`
@@ -120,7 +121,7 @@ Campos candidatos:
 Notas:
 
 - `event_id` es la columna tenant obligatoria.
-- Las FKs explicitas permiten filtrar por entry, order, item y ticket sin depender solo de metadata.
+- Las FKs compuestas con `event_id` permiten filtrar por entry, order, item y ticket sin depender solo de metadata y evitan vinculos cruzados entre eventos.
 - `entity_type` y `entity_id` facilitan queries genericas.
 - `source` debe ser columna propia controlada, no metadata libre. Esto permite filtrar y consultar activity por origen operativo sin depender de JSON, manteniendo `event_order_entries` sin campos de metodo.
 - `actor_auth_user_id` puede existir internamente para auditoria, pero no debe exponerse en responses.
@@ -172,13 +173,13 @@ Checks de forma:
 Reglas actor/source:
 
 - Si `actor_type = 'system'`, entonces `actor_auth_user_id is null` y `actor_role is null`.
-- Si `actor_type = 'event_panel_user'`, entonces `actor_auth_user_id is not null` y `actor_role in ('owner', 'staff')`.
+- Si `actor_type = 'event_panel_user'`, entonces `actor_auth_user_id is not null`, `actor_role is not null` y `actor_role in ('owner', 'staff')`.
 - `source = 'system'` debe usarse para acciones generadas por sistema.
 - `source = 'qr'` debe usarse para check-in QR.
 - `source = 'manual'` debe usarse para fallback manual.
 - `source = 'automatic_email'` y `source = 'manual_email'` deben usarse solo para activity de email.
 
-Estos checks son contrato para la futura migracion 3E.4B; no se implementan en este documento.
+Estos checks quedaron implementados en la migracion 032. El QA DB detecto que `actor_role in ('owner', 'staff')` con `actor_role = null` no bloqueaba la fila por semantica SQL de `CHECK`/`NULL`; se corrigio agregando `actor_role is not null` en la rama `actor_type = 'event_panel_user'`.
 
 ## 6. Acciones MVP
 
@@ -464,6 +465,7 @@ Casos minimos para futuros CODE:
 - `actor_type` fuera de allowlist falla.
 - `actor_type = system` con `actor_auth_user_id` no null falla.
 - `actor_type = event_panel_user` sin `actor_auth_user_id` falla.
+- `actor_type = event_panel_user` con `actor_role = null` falla.
 - Owner/staff pueden generar activity desde endpoints protegidos.
 - Usuario local sin membership de evento no genera ni lee activity de evento.
 - `manual-issue` genera activity de emision sin exponer PII ni tokens.
@@ -486,21 +488,66 @@ Casos minimos para futuros CODE:
 - No rompe QR, email ni check-in.
 - No rompe `/panel/me` ni `/panel/orders/summary` del panel local.
 
-## 15. Roadmap recomendado
+## 15. Estado Slice 3E.4B - migracion 032 aplicada y QA DB PASS
+
+Estado: **aplicada en Supabase con QA DB PASS completo**.
+
+Queda registrado:
+
+- `public.event_activity_events` fue creada como tabla separada de `public.operational_activity_events`.
+- `event_id` es el tenant scope obligatorio.
+- `source` es columna propia controlada, no `metadata.source`.
+- Las FKs quedan event-scoped y preservan `event_id`.
+- RLS esta enabled.
+- Grants directos quedan cerrados para `anon` y `authenticated`.
+- `service_role` queda operativo para backend.
+- Checks estrictos cubren `entity_type`, `action`, `source`, `actor_type`, `actor_role`, `message` y `metadata`.
+- No existen columnas prohibidas para `checkin_token`, QR payload/base64, `local_id` ni PII sensible.
+- El rollback del QA dejo 0 activity rows QA y 0 ordenes QA persistidas.
+
+Hallazgo/fix validado:
+
+- El QA detecto que `event_panel_user` con `actor_role = null` era aceptado por la semantica SQL de `CHECK` con resultado `unknown`.
+- La migracion 032 fue corregida para exigir `actor_role is not null` en la rama `actor_type = 'event_panel_user'`.
+- Despues del fix, el QA DB completo quedo PASS.
+
+QA SQL fail-fast registrado:
+
+- `service_role_can_insert`, `service_role_can_select`, `service_role_can_update` y `service_role_can_delete`.
+- `idx_event_activity_events_ticket_type_created`.
+- tabla existe, RLS enabled, grants cerrados, indices esperados y columnas prohibidas ausentes.
+- insert panel actor valido e insert system valido.
+- rechazos: invalid source/action/entity_type/actor_type, actor system invalido, actor panel invalido, metadata array/null, message vacio, action vacio y FK de entry invalida.
+- rollback limpio.
+
+## 16. Roadmap recomendado
 
 Siguiente secuencia:
 
-- Slice 3E.4B: migracion DB `event_activity_events` + QA DB.
+- Slice 3E.4B: migracion DB `event_activity_events` aplicada y QA DB PASS.
 - Slice 3E.4C: helper TS `recordEventActivity`.
 - Slice 3E.4D: integrar activity en manual-issue, email y check-in.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
 - Slice posterior: UI de historial operativo.
 
-## 16. No-goals
+Proximo paso recomendado:
+
+- Slice 3E.4C - helper TS `recordEventActivity`.
+
+Alcance futuro:
+
+- helper aislado;
+- sanitizacion defensiva de metadata;
+- `source` controlado;
+- actor desde `eventPanelAuth` o `system`;
+- best-effort;
+- sin integrar en endpoints todavia.
+
+## 17. No-goals
 
 Fuera de este contrato:
 
-- implementar DB ahora;
+- modificar la DB fuera de la migracion 032 ya aplicada;
 - implementar helper TS ahora;
 - implementar endpoint `/activity` ahora;
 - UI de historial;
