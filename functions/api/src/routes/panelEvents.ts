@@ -4,7 +4,7 @@ import { requireEventRole } from "../middlewares/requireEventRole";
 import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
 import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
-import { sendEventEntryQrEmail } from "../services/eventEmails";
+import { sendEventEntryQrEmail, sendEventOrderQrBundleEmail } from "../services/eventEmails";
 import { generateEventEntryQrPng } from "../services/eventQr";
 import { recordEventActivity } from "../services/eventActivity";
 import { supabase } from "../services/supabase";
@@ -47,6 +47,12 @@ type EventEntryEmailRow = EventEntryQrRow & {
   attendee_name: string;
   attendee_last_name: string;
   attendee_email: string;
+};
+
+type EventOrderBundleEmailEntryRow = EventEntryQrRow & {
+  event_order_item_id: string;
+  attendee_name: string;
+  attendee_last_name: string;
 };
 
 type EventEntryEmailEventRow = {
@@ -105,7 +111,7 @@ type EventEntryReadRow = {
   event_order: EventEntryReadRelatedOrder | EventEntryReadRelatedOrder[] | null;
 };
 
-type EventEntryEmailDeliveryStatus = "sent" | "failed";
+type EventEntryEmailDeliveryStatus = "sent" | "failed" | "skipped";
 type EventEntryEmailDeliveryErrorCode =
   | "entry_not_found"
   | "entry_not_issuable"
@@ -113,24 +119,29 @@ type EventEntryEmailDeliveryErrorCode =
   | "event_entry_email_failed"
   | "email_context_failed"
   | "email_send_failed"
-  | "email_update_failed";
+  | "email_update_failed"
+  | "buyer_email_unavailable"
+  | "too_many_entries_for_order_bundle_email"
+  | "email_sent_but_update_failed"
+  | "email_sent_but_partial_update_failed";
 
 type EventEntryEmailDeliveryResult = {
   entry_id: string;
-  to: string | null;
+  to?: string | null;
   status: EventEntryEmailDeliveryStatus;
   email_sent_at: string | null;
   error_code: EventEntryEmailDeliveryErrorCode | null;
 };
 
 type EventAutomaticEmailDeliverySummary = {
-  mode: "automatic_best_effort";
+  mode: "order_bundle";
+  email_attempts: number;
   attempted: number;
   sent: number;
   failed: number;
   skipped: number;
   status: "sent" | "partial_failed" | "failed" | "skipped";
-  reason: "no_entries" | "too_many_entries_for_sync_email" | null;
+  reason: "no_entries" | "too_many_entries_for_order_bundle_email" | "buyer_email_unavailable" | null;
   results: EventEntryEmailDeliveryResult[];
 };
 
@@ -177,7 +188,6 @@ type EventCheckinRpcResult =
     };
 
 const AUTOMATIC_EMAIL_MAX_ENTRIES = 20;
-const AUTOMATIC_EMAIL_MAX_CONCURRENCY = 3;
 const EVENT_ACTIVITY_MAX_CONCURRENCY = 3;
 const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   invalid_input: 400,
@@ -790,16 +800,6 @@ async function recordManualIssueActivity(input: {
   );
 }
 
-function toAutomaticEmailErrorCode(errorCode: EventEntryEmailDeliveryErrorCode | null): EventEntryEmailDeliveryErrorCode | null {
-  if (!errorCode) return null;
-
-  if (errorCode === "email_send_failed" || errorCode === "email_update_failed") {
-    return errorCode;
-  }
-
-  return "email_context_failed";
-}
-
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -969,83 +969,381 @@ async function sendEventEntryQrEmailForEntry(input: {
   };
 }
 
-function summarizeAutomaticEmailDelivery(
-  results: EventEntryEmailDeliveryResult[],
-  skipped: number,
-  reason: EventAutomaticEmailDeliverySummary["reason"]
-): EventAutomaticEmailDeliverySummary {
-  const sent = results.filter((result) => result.status === "sent").length;
-  const failed = results.filter((result) => result.status === "failed").length;
-  const attempted = results.length;
-  const status =
-    attempted === 0
-      ? "skipped"
-      : sent === attempted
-        ? "sent"
-        : sent > 0 && failed > 0
-          ? "partial_failed"
-          : "failed";
-
-  return {
-    mode: "automatic_best_effort",
-    attempted,
-    sent,
-    failed,
-    skipped,
+function buildOrderBundleEmailResults(
+  entryIds: string[],
+  status: EventEntryEmailDeliveryStatus,
+  emailSentAt: string | null,
+  errorCode: EventEntryEmailDeliveryErrorCode | null
+): EventEntryEmailDeliveryResult[] {
+  return entryIds.map((entryId) => ({
+    entry_id: entryId,
     status,
-    reason,
-    results,
+    email_sent_at: emailSentAt,
+    error_code: errorCode,
+  }));
+}
+
+function buildOrderBundleEmailDeliverySummary(input: {
+  emailAttempts: number;
+  attempted: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  status: EventAutomaticEmailDeliverySummary["status"];
+  reason: EventAutomaticEmailDeliverySummary["reason"];
+  results: EventEntryEmailDeliveryResult[];
+}): EventAutomaticEmailDeliverySummary {
+  return {
+    mode: "order_bundle",
+    email_attempts: input.emailAttempts,
+    attempted: input.attempted,
+    sent: input.sent,
+    failed: input.failed,
+    skipped: input.skipped,
+    status: input.status,
+    reason: input.reason,
+    results: input.results,
   };
+}
+
+function normalizeEmailCandidate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  const email = value.trim().toLowerCase();
+  return EMAIL_PATTERN.test(email) ? email : null;
+}
+
+async function resolveManualIssueBuyerEmail(input: {
+  eventId: string;
+  orderId: string | null;
+  order: Record<string, unknown>;
+  buyerEmail: string;
+  requestId: string | undefined;
+}): Promise<string | null> {
+  const orderBuyerEmail =
+    normalizeEmailCandidate(input.order.buyer_email) ??
+    normalizeEmailCandidate(input.order.buyerEmail);
+  if (orderBuyerEmail) return orderBuyerEmail;
+
+  const requestBuyerEmail = normalizeEmailCandidate(input.buyerEmail);
+  if (requestBuyerEmail) return requestBuyerEmail;
+
+  if (!input.orderId) return null;
+
+  const { data, error } = await supabase
+    .from("event_orders")
+    .select("buyer_email")
+    .eq("event_id", input.eventId)
+    .eq("id", input.orderId)
+    .maybeSingle();
+
+  if (error) {
+    logger.error("Failed to fetch event order buyer email for bundle delivery", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      error_code: "email_context_failed",
+      error: error.message,
+    });
+    return null;
+  }
+
+  return normalizeEmailCandidate((data as { buyer_email?: unknown } | null)?.buyer_email);
 }
 
 async function buildManualIssueEmailDelivery(input: {
   eventId: string;
   orderId: string | null;
+  order: Record<string, unknown>;
+  items: Array<Record<string, unknown>>;
   entries: Array<Record<string, unknown>>;
+  buyerEmail: string;
   requestId: string | undefined;
 }): Promise<EventAutomaticEmailDeliverySummary> {
+  const requestedEntryIds = input.entries.map((entry) => getManualIssueEntryId(entry) ?? "");
+  const entryCount = requestedEntryIds.length;
+
   if (input.entries.length === 0) {
-    return summarizeAutomaticEmailDelivery([], 0, "no_entries");
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      status: "skipped",
+      reason: "no_entries",
+      results: [],
+    });
   }
 
   if (input.entries.length > AUTOMATIC_EMAIL_MAX_ENTRIES) {
-    return summarizeAutomaticEmailDelivery(
-      [],
-      input.entries.length,
-      "too_many_entries_for_sync_email"
-    );
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: entryCount,
+      status: "skipped",
+      reason: "too_many_entries_for_order_bundle_email",
+      results: buildOrderBundleEmailResults(
+        requestedEntryIds,
+        "skipped",
+        null,
+        "too_many_entries_for_order_bundle_email"
+      ),
+    });
   }
 
-  const results = await mapWithConcurrency(
-    input.entries,
-    AUTOMATIC_EMAIL_MAX_CONCURRENCY,
-    async (entry) => {
-      const entryId = getManualIssueEntryId(entry);
-      if (!entryId) {
-        return {
-          entry_id: "",
-          to: null,
-          status: "failed",
-          email_sent_at: null,
-          error_code: "email_context_failed",
-        } satisfies EventEntryEmailDeliveryResult;
+  if (requestedEntryIds.some((entryId) => entryId.length === 0)) {
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: entryCount,
+      sent: 0,
+      failed: entryCount,
+      skipped: 0,
+      status: "failed",
+      reason: null,
+      results: buildOrderBundleEmailResults(requestedEntryIds, "failed", null, "email_context_failed"),
+    });
+  }
+
+  const buyerEmail = await resolveManualIssueBuyerEmail({
+    eventId: input.eventId,
+    orderId: input.orderId,
+    order: input.order,
+    buyerEmail: input.buyerEmail,
+    requestId: input.requestId,
+  });
+
+  if (!buyerEmail) {
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: 0,
+      sent: 0,
+      failed: 0,
+      skipped: entryCount,
+      status: "skipped",
+      reason: "buyer_email_unavailable",
+      results: buildOrderBundleEmailResults(requestedEntryIds, "skipped", null, "buyer_email_unavailable"),
+    });
+  }
+
+  const [{ data: event, error: eventError }, { data: entryRows, error: entriesError }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("title, starts_at, timezone, location_name")
+      .eq("id", input.eventId)
+      .maybeSingle(),
+    supabase
+      .from("event_order_entries")
+      .select("id, event_id, event_order_item_id, status, checkin_token, attendee_name, attendee_last_name")
+      .eq("event_id", input.eventId)
+      .in("id", requestedEntryIds),
+  ]);
+
+  if (eventError || entriesError || !event || !entryRows || entryRows.length !== entryCount) {
+    logger.error("Failed to fetch event order bundle email context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entries_count: entryCount,
+      error_code: "email_context_failed",
+      error: eventError?.message ?? entriesError?.message ?? "Missing event bundle email context",
+    });
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: entryCount,
+      sent: 0,
+      failed: entryCount,
+      skipped: 0,
+      status: "failed",
+      reason: null,
+      results: buildOrderBundleEmailResults(requestedEntryIds, "failed", null, "email_context_failed"),
+    });
+  }
+
+  const itemContextById = buildManualIssueActivityItemContext(input.items);
+  const responseEntryById = new Map(
+    input.entries
+      .map((entry) => {
+        const entryId = getManualIssueEntryId(entry);
+        return entryId ? ([entryId, entry] as const) : null;
+      })
+      .filter((item): item is readonly [string, Record<string, unknown>] => item !== null)
+  );
+  const entryRowById = new Map(
+    (entryRows as EventOrderBundleEmailEntryRow[]).map((entryRow) => [entryRow.id, entryRow])
+  );
+  const eventRow = event as EventEntryEmailEventRow;
+
+  const bundleEntries: Array<{
+    ticketName: string;
+    attendeeName: string;
+    attendeeLastName: string;
+    qrPngBuffer: Buffer;
+    contentId: string;
+  }> = [];
+
+  try {
+    for (const [index, entryId] of requestedEntryIds.entries()) {
+      const entryRow = entryRowById.get(entryId);
+      if (!entryRow || entryRow.status !== "issued") {
+        throw new Error("Entry unavailable for bundle email");
       }
 
-      const result = await sendEventEntryQrEmailForEntry({
-        eventId: input.eventId,
-        entryId,
-        requestId: input.requestId,
-        orderId: input.orderId,
-      });
+      const responseEntry = responseEntryById.get(entryId);
+      const itemContext = itemContextById.get(entryRow.event_order_item_id);
+      const ticketName =
+        (responseEntry ? getManualIssueStringField(responseEntry, "ticket_name") : null) ??
+        itemContext?.ticketName ??
+        "Entrada";
+      const qrPngBuffer = await generateEventEntryQrPng(entryRow.checkin_token);
 
-      return {
-        ...result,
-        error_code: toAutomaticEmailErrorCode(result.error_code),
-      };
+      bundleEntries.push({
+        ticketName,
+        attendeeName: entryRow.attendee_name,
+        attendeeLastName: entryRow.attendee_last_name,
+        qrPngBuffer,
+        contentId: `event-entry-qr-${index + 1}`,
+      });
     }
+  } catch (error) {
+    logger.error("Failed to build event order QR bundle email", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entries_count: entryCount,
+      error_code: "event_entry_email_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 0,
+      attempted: entryCount,
+      sent: 0,
+      failed: entryCount,
+      skipped: 0,
+      status: "failed",
+      reason: null,
+      results: buildOrderBundleEmailResults(requestedEntryIds, "failed", null, "event_entry_email_failed"),
+    });
+  }
+
+  try {
+    await sendEventOrderQrBundleEmail({
+      to: buyerEmail,
+      eventTitle: eventRow.title,
+      startsAt: eventRow.starts_at,
+      timezone: eventRow.timezone,
+      locationName: eventRow.location_name,
+      entries: bundleEntries,
+    });
+  } catch (error) {
+    logger.error("Failed to send event order QR bundle email", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entries_count: entryCount,
+      error_code: "email_send_failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 1,
+      attempted: entryCount,
+      sent: 0,
+      failed: entryCount,
+      skipped: 0,
+      status: "failed",
+      reason: null,
+      results: buildOrderBundleEmailResults(requestedEntryIds, "failed", null, "email_send_failed"),
+    });
+  }
+
+  const sentAt = new Date().toISOString();
+  const { data: updatedRows, error: updateError } = await supabase
+    .from("event_order_entries")
+    .update({ email_sent_at: sentAt })
+    .eq("event_id", input.eventId)
+    .in("id", requestedEntryIds)
+    .select("id, email_sent_at");
+
+  if (updateError || !updatedRows) {
+    logger.error("Failed to update event order bundle email_sent_at", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entries_count: entryCount,
+      error_code: "email_sent_but_update_failed",
+      error: updateError?.message ?? "Missing updated entries",
+    });
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 1,
+      attempted: entryCount,
+      sent: 0,
+      failed: entryCount,
+      skipped: 0,
+      status: "partial_failed",
+      reason: null,
+      results: buildOrderBundleEmailResults(
+        requestedEntryIds,
+        "failed",
+        null,
+        "email_sent_but_update_failed"
+      ),
+    });
+  }
+
+  const updatedEmailSentAtById = new Map(
+    (updatedRows as Array<{ id: string; email_sent_at: string | null }>).map((row) => [row.id, row.email_sent_at])
   );
 
-  return summarizeAutomaticEmailDelivery(results, 0, null);
+  if (updatedEmailSentAtById.size !== entryCount) {
+    logger.error("Partial update of event order bundle email_sent_at", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      orderId: input.orderId,
+      entries_count: entryCount,
+      updated_count: updatedEmailSentAtById.size,
+      error_code: "email_sent_but_partial_update_failed",
+    });
+    const results = requestedEntryIds.map((entryId) => {
+      const emailSentAt = updatedEmailSentAtById.get(entryId) ?? null;
+      return {
+        entry_id: entryId,
+        status: emailSentAt ? "sent" : "failed",
+        email_sent_at: emailSentAt,
+        error_code: emailSentAt ? null : "email_sent_but_partial_update_failed",
+      } satisfies EventEntryEmailDeliveryResult;
+    });
+    const sent = results.filter((result) => result.status === "sent").length;
+    const failed = entryCount - sent;
+
+    return buildOrderBundleEmailDeliverySummary({
+      emailAttempts: 1,
+      attempted: entryCount,
+      sent,
+      failed,
+      skipped: 0,
+      status: "partial_failed",
+      reason: null,
+      results,
+    });
+  }
+
+  return buildOrderBundleEmailDeliverySummary({
+    emailAttempts: 1,
+    attempted: entryCount,
+    sent: entryCount,
+    failed: 0,
+    skipped: 0,
+    status: "sent",
+    reason: null,
+    results: requestedEntryIds.map((entryId) => ({
+      entry_id: entryId,
+      status: "sent",
+      email_sent_at: updatedEmailSentAtById.get(entryId) ?? sentAt,
+      error_code: null,
+    })),
+  });
 }
 
 panelEventsRouter.get("/:eventId/me", eventPanelAuth, requireEventRole(["owner", "staff"]), (req, res) => {
@@ -1127,7 +1425,10 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
     const emailDelivery = await buildManualIssueEmailDelivery({
       eventId: req.eventPanelUser.eventId,
       orderId: getManualIssueOrderId(result.data.order),
+      order: result.data.order,
+      items: result.data.items,
       entries: result.data.entries,
+      buyerEmail: manualIssueInput.buyer.email,
       requestId,
     });
 
