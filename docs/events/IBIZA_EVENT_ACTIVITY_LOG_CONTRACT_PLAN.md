@@ -611,9 +611,10 @@ Slice 3E.4F1:
 
 Observacion operativa separada:
 
-- En el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
-- No bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
-- Se recomienda debug corto antes de 3E.4F2 para no asumir causa.
+- El flujo automatico post `manual-issue` fue ajustado despues a email bundle por orden.
+- QA runtime PASS: General 1 entry envio 1 email con 1 QR.
+- QA runtime PASS: Mesa VIP 10 entries envio 1 solo email con 10 QR.
+- El bloque no integro activity de email, check-in QR, fallback manual ni activity local.
 
 ## 18. Roadmap recomendado
 
@@ -623,8 +624,8 @@ Siguiente secuencia:
 - Slice 3E.4C: helper TS `recordEventActivity` implementado y validado como helper aislado.
 - Slice 3E.4D: ASK/DOCS de integracion de activity en flujos de evento documentado.
 - Slice 3E.4F1: activity en `manual-issue` implementado, deployado y QA runtime PASS.
-- Antes de Slice 3E.4F2: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP.
-- Slice 3E.4F2: integrar activity en email manual y automatico.
+- Slice 3D.3B ajuste bundle: email automatico post `manual-issue` opera como 1 email por orden y QA runtime PASS.
+- Slice 3E.4F2: integrar activity en email manual por entry y email automatico bundle por entries cubiertas.
 - Slice 3E.4G1: integrar activity en check-in QR.
 - Slice 3E.4G2: integrar activity en fallback manual.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
@@ -632,13 +633,15 @@ Siguiente secuencia:
 
 Proximo paso recomendado:
 
-- ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de integrar activity de email.
+- Slice 3E.4F2: activity en email manual por entry y email automatico bundle por entries cubiertas.
 
 Alcance futuro:
 
-- entender si el fallo viene de Resend, concurrencia, limite, helper de email, datos de entries, adjuntos o manejo de errores;
-- no cambiar comportamiento sin diagnostico;
-- luego avanzar con 3E.4F2 activity en email manual/automatico.
+- usar `event_entry_email_sent` / `event_entry_email_failed`;
+- `source = manual_email` para reenvio manual por entry;
+- `source = automatic_email` para entries cubiertas por el bundle automatico;
+- metadata segura con `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`;
+- no registrar skipped `>20` en MVP salvo decision posterior.
 
 ## 19. No-goals
 

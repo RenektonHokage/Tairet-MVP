@@ -1123,10 +1123,10 @@ Estado: implementado, deployado y QA runtime PASS completo.
 Se valido que:
 
 - `manual-issue` emite entries correctamente;
-- despues de RPC exitosa intenta emails QR en modo `automatic_best_effort`;
+- despues de RPC exitosa intenta un email bundle por orden en modo `order_bundle`;
 - response `201` incluye `email_delivery`;
-- email automatico simple funciona;
-- Mesa VIP maneja `partial_failed` sin revertir emision;
+- email automatico simple funciona como 1 email con 1 QR;
+- Mesa VIP funciona como 1 email con 10 QR;
 - limite mayor a 20 entries queda `skipped`;
 - `send-email` manual sigue funcionando como fallback;
 - QR endpoint sigue funcionando;
@@ -1136,12 +1136,11 @@ QA runtime registrado:
 
 - `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente;
 - estado inicial limpio: `/entries` -> `200 OK`, `items = []`, `pagination.total = 0`;
-- General Preventa 1: `201 Created`, `entries.length = 1`, `email_delivery.attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`;
-- email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible;
-- Mesa VIP Preventa 1: `201 Created`, `entries.length = 10`, `attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`;
-- `partial_failed` de Mesa validado como comportamiento esperado: las 10 entries fueron creadas, 7 enviadas tienen `email_sent_at`, 3 fallidas reportan `email_send_failed`;
-- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) y 1 correo General;
-- limite mayor a 20: 21 General Preventa 1 respondieron `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`;
+- General Preventa 1: `201 Created`, `entries.length = 1`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`;
+- email General recibido en Gmail: 1 email con 1 QR;
+- Mesa VIP Preventa 1: `201 Created`, `entries.length = 10`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 10`, `sent = 10`, `failed = 0`, `skipped = 0`, `status = sent`;
+- Gmail Mesa recibio 1 solo email con 10 QR; no llegaron 10 correos separados;
+- limite mayor a 20: 3 Mesas VIP / 30 entries respondieron `201 Created`, `email_delivery.status = skipped`, `reason = too_many_entries_for_order_bundle_email`, `email_attempts = 0`, `sent = 0`, `failed = 0`, `skipped = 30`;
 - fallback `send-email` por entry -> `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`;
 - QR endpoint -> `200 OK`, `Content-Type = image/png`;
 - errores previos: attendees incorrectos `400 invalid_attendees_count`, ticket inexistente `404 ticket_type_not_found`, owner local sin membership `403`, sin auth `401`, token invalido `401`, eventId invalido `400 Invalid eventId`, stock insuficiente `409 insufficient_stock`;
@@ -1398,12 +1397,12 @@ QA runtime registrado:
 - regresiones `/summary`, `/ticket-types`, `/entries`, `/panel/me` y `/panel/orders/summary` PASS;
 - limpieza QA dejo `qa_activity_remaining = 0`, `qa_orders_remaining = 0` y operaciones en cero.
 
-Observacion operativa separada:
+Observacion actualizada:
 
-- En el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
-- No bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
+- El flujo automatico post `manual-issue` fue ajustado a email bundle por orden y QA runtime PASS completo.
+- Mesa VIP respondio `sent` con 1 email y 10 QR.
 
-Proximo paso tecnico recomendado: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de avanzar a 3E.4F2 activity en email manual/automatico.
+Proximo paso tecnico recomendado: avanzar a 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

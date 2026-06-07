@@ -1324,10 +1324,12 @@ Limpieza QA validada:
 Slice 3D.3B queda registrado como implementado, deployado y validado:
 
 - `POST /panel/events/:eventId/orders/manual-issue` ahora incluye `email_delivery`;
-- despues de RPC exitosa intenta envio automatico de email QR por cada entry creada;
-- usa modo `automatic_best_effort`;
-- fallos parciales de email no revierten la emision;
-- Mesa VIP con `partial_failed` queda validada como comportamiento esperado;
+- despues de RPC exitosa intenta un email bundle por orden;
+- usa modo `order_bundle`;
+- `email_delivery.email_attempts` mide emails intentados;
+- `attempted`, `sent`, `failed` y `skipped` miden entries cubiertas;
+- General 1 entry envia 1 email con 1 QR;
+- Mesa VIP/package 10 entries envia 1 email con 10 QR;
 - limite mayor a 20 entries queda `skipped`;
 - `send-email` manual sigue funcionando como fallback operativo;
 - QR endpoint sigue funcionando;
@@ -1338,13 +1340,12 @@ QA runtime -> `PASS`:
 
 - `/health` respondio `200 OK` con body `{"ok":true}` y `x-request-id` presente;
 - estado inicial limpio: `/entries` respondio `200 OK`, `items = []`, `pagination.total = 0`;
-- General Preventa 1 respondio `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`;
-- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible;
+- General Preventa 1 respondio `201 Created`, `entries.length = 1`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`;
+- Email General recibido en Gmail: 1 email con 1 QR;
 - response General no expuso `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata;
-- Mesa VIP Preventa 1 respondio `201 Created`, `entries.length = 10`, `attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`;
-- las 10 entries de Mesa fueron creadas; 7 enviadas tienen `email_sent_at`; 3 fallidas reportan `error_code = email_send_failed`;
-- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) y 1 correo General, 8 correos totales;
-- limite mayor a 20: 21 General Preventa 1 respondieron `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`;
+- Mesa VIP Preventa 1 respondio `201 Created`, `entries.length = 10`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 10`, `sent = 10`, `failed = 0`, `skipped = 0`, `status = sent`;
+- Gmail Mesa recibio 1 solo email con 10 QR; no llegaron 10 correos separados;
+- limite mayor a 20: 3 Mesas VIP / 30 entries respondieron `201 Created`, `email_delivery.status = skipped`, `reason = too_many_entries_for_order_bundle_email`, `email_attempts = 0`, `sent = 0`, `failed = 0`, `skipped = 30`;
 - `send-email` fallback respondio `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`;
 - QR endpoint respondio `200 OK`, `Content-Type = image/png`;
 - errores previos siguen correctos: attendees incorrectos `400 invalid_attendees_count`, ticket inexistente `404 ticket_type_not_found`, owner local sin membership `403`, sin auth `401`, token invalido `401`, eventId invalido `400 Invalid eventId`, stock insuficiente `409 insufficient_stock`;
@@ -1723,9 +1724,9 @@ Estado: implementado, deployado y QA runtime PASS completo.
 Se completo:
 
 - `manual-issue` devuelve `email_delivery`;
-- email automatico `automatic_best_effort` despues de RPC exitosa;
-- General simple validado con `sent`;
-- Mesa VIP validada con `partial_failed` sin revertir emision;
+- email automatico `order_bundle` despues de RPC exitosa;
+- General simple validado con 1 email y 1 QR;
+- Mesa VIP validada con 1 email y 10 QR;
 - limite mayor a 20 validado con `skipped`;
 - fallback `send-email` y QR endpoint siguen funcionando;
 - errores previos, regresiones y limpieza QA PASS.
@@ -1815,9 +1816,9 @@ Validacion registrada:
 - no se registro activity de email, check-in QR, fallback manual ni activity local;
 - regresiones principales y limpieza QA PASS.
 
-Observacion operativa separada: en el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`. No bloquea 3E.4F1; se recomienda debug corto antes de 3E.4F2.
+Observacion actualizada: el flujo automatico post `manual-issue` fue ajustado a bundle por orden y QA runtime PASS completo; Mesa VIP respondio `sent` con 1 email y 10 QR.
 
-Proximo paso recomendado: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de integrar activity de email manual/automatico.
+Proximo paso recomendado: avanzar con 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -2013,9 +2014,9 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - email QR con Resend/`sendEmail` validado para reenvio controlado por owner/staff;
 - `email_sent_at` validado como marca de envio exitoso;
 - Slice 3D.3B email automatico post manual-issue implementado, deployado y QA runtime PASS completo;
-- `email_delivery` validado en `manual-issue`;
-- Mesa VIP con `partial_failed` validada como comportamiento esperado;
-- limite mayor a 20 entries validado como `skipped`;
+- `email_delivery.mode = order_bundle` validado en `manual-issue`;
+- Mesa VIP validada con 1 email bundle y 10 QR;
+- limite mayor a 20 entries validado como `skipped` con `too_many_entries_for_order_bundle_email`;
 - limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;

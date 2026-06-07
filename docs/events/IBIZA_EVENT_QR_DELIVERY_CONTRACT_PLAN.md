@@ -166,9 +166,11 @@ Uso:
 
 Decision de producto:
 
-- El canal principal debe ser email automatico al asistente.
-- El email debe enviarse por entry, porque cada entry tiene QR propio.
-- Si una Mesa VIP genera 10 entries, se deben poder enviar 10 QRs individuales.
+- El canal principal automatico post `manual-issue` es email bundle al comprador/responsable de la orden.
+- El email automatico se envia por orden e incluye todos los QR individuales de esa orden.
+- Cada entry mantiene QR propio para check-in y fallback.
+- Si una Mesa VIP genera 10 entries, el bundle automatico incluye 10 QR en un solo email.
+- El endpoint manual `POST /panel/events/:eventId/entries/:entryId/send-email` sigue enviando un email individual por entry.
 
 Momento recomendado:
 
@@ -362,10 +364,13 @@ Estado: implementado, deployado y QA runtime PASS completo.
 
 Se completo:
 
-- despues de una emision manual exitosa, intentar enviar email QR por cada entry creada;
+- despues de una emision manual exitosa, intentar enviar un email bundle por orden;
+- `email_delivery.mode = order_bundle`;
+- `email_delivery.email_attempts = 1` cuando se intenta enviar;
+- `attempted`, `sent`, `failed` y `skipped` miden entries cubiertas;
 - mantener `send-email` por entry como reenvio operativo;
 - fallo de email no revierte la emision;
-- actualizar `email_sent_at` solo para entries enviadas correctamente;
+- actualizar `email_sent_at` en todas las entries si el bundle sale OK;
 - devolver resumen de entrega por email sin tokens ni payload QR;
 - limite mayor a 20 entries devuelve `email_delivery.status = skipped`;
 - no tocar check-in;
@@ -457,13 +462,13 @@ Email automatico - Slice 3D.3B QA runtime PASS:
 
 - `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
 - Estado inicial limpio: `GET /panel/events/:eventId/entries` -> `200 OK`, `items = []`, `pagination.total = 0`.
-- General Preventa 1 emitida con `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`.
-- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible.
+- General Preventa 1 emitida con `201 Created`, `entries.length = 1`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`.
+- Email General recibido en Gmail: 1 email con 1 QR.
 - Response General sin `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata.
-- Mesa VIP Preventa 1 emitida con `201 Created`, `entries.length = 10`, `email_delivery.attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`.
-- `partial_failed` de Mesa queda validado como comportamiento esperado: la emision se mantiene, las 10 entries fueron creadas, las 7 enviadas tienen `email_sent_at` y las 3 fallidas reportan `error_code = email_send_failed`.
-- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) mas el correo General, 8 correos totales.
-- Limite mayor a 20 validado: 21 General Preventa 1 emitidas, `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`.
+- Mesa VIP Preventa 1 emitida con `201 Created`, `entries.length = 10`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 10`, `sent = 10`, `failed = 0`, `skipped = 0`, `status = sent`.
+- DB Mesa: `entries_count = 10`, `entries_with_email_sent_at = 10`.
+- Gmail Mesa: llego 1 solo email con 10 QR; no llegaron 10 correos separados.
+- Limite mayor a 20 validado: 3 Mesas VIP / 30 entries emitidas, `201 Created`, `email_delivery.status = skipped`, `reason = too_many_entries_for_order_bundle_email`, `email_attempts = 0`, `sent = 0`, `failed = 0`, `skipped = 30`.
 - Fallback `send-email` por entry sigue funcionando: `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`.
 - QR endpoint sigue funcionando: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`.
 - Errores previos de `manual-issue` siguen correctos: `400 invalid_attendees_count`, `404 ticket_type_not_found`, `403`, `401`, `400 Invalid eventId`, `409 insufficient_stock`.

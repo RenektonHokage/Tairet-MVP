@@ -202,9 +202,13 @@ Flujo:
 
 Decision MVP:
 
-- Registrar activity por cada entry con resultado `sent` o `failed`.
+- El email automatico post `manual-issue` usa `email_delivery.mode = order_bundle`.
+- Activity debe reflejar entries cubiertas por el bundle.
+- Registrar activity por cada entry cubierta con resultado `sent` o `failed` si se quiere historial por entry.
 - No registrar `skipped` por limite en MVP porque no existe action especifica y `event_entry_email_failed` seria semanticamente imprecisa.
 - Si producto necesita historial de skipped, crear action nueva futura, por ejemplo `event_entry_email_skipped`, mediante migracion/allowlist posterior.
+- No agregar nuevas actions en este micro-ajuste.
+- Usar la allowlist existente.
 
 Exito por entry:
 
@@ -220,6 +224,9 @@ Exito por entry:
 - `message`: `Email automatico de QR enviado`
 - metadata:
   - `email_status = sent`
+  - `delivery_mode = order_bundle`
+  - `email_attempts = 1`
+  - `bundle_entries_count`
 
 Fallo por entry:
 
@@ -232,12 +239,17 @@ Fallo por entry:
 - metadata:
   - `email_status = failed`
   - `email_error_code`
+  - `delivery_mode = order_bundle`
+  - `email_attempts = 1`
+  - `bundle_entries_count`
 
 Skipped por limite:
 
 - No registrar activity en MVP.
 - La respuesta `email_delivery.status = "skipped"` sigue siendo fuente operativa inmediata para el request.
 - No generar un log por cada entry omitida para evitar ruido.
+- Para skip por `entries.length > 20`, no registrar activity en MVP salvo decision posterior.
+- No guardar destinatario, token, QR payload, raw provider response, telefono, documento ni metadata cruda.
 
 ## 8. Integracion check-in QR
 
@@ -389,7 +401,7 @@ Regla por flujo:
 
 - `manual-issue`: usar los IDs ya devueltos por RPC (`order`, `items`, `entries`).
 - email manual: hacer lookup liviano por `event_id + entry_id` para completar order/ticket context si el delivery result no lo trae.
-- email automatico: usar order id de `manual-issue`, entry id del result y lookup solo si falta item/ticket.
+- email automatico bundle: usar order id de `manual-issue`, entry ids del result y lookup solo si falta item/ticket para completar activity por entry cubierta.
 - check-in QR/manual: usar `result.entry.id` y lookup liviano si se quiere completar order/item/ticket.
 - invalid token / entry_not_found: no hacer lookup.
 
@@ -407,8 +419,8 @@ Metadata permitida por accion:
 | --- | --- |
 | `event_order_manual_issued` | `entries_count`, `total_amount`, `currency`, `ticket_name` controlado |
 | `event_entry_issued` | `ticket_name`, `sales_unit_type`, `entries_per_unit`, `currency`, `total_amount` |
-| `event_entry_email_sent` | `email_status = sent` |
-| `event_entry_email_failed` | `email_status = failed`, `email_error_code` |
+| `event_entry_email_sent` | `email_status = sent`, `delivery_mode = order_bundle` cuando sea automatico, `email_attempts`, `bundle_entries_count` |
+| `event_entry_email_failed` | `email_status = failed`, `email_error_code`, `delivery_mode = order_bundle` cuando sea automatico, `email_attempts`, `bundle_entries_count` |
 | `event_entry_checked_in` | `previous_checkin_status`, `next_checkin_status` |
 | `event_entry_already_used_attempt` | `reason_code = already_used` |
 | `event_entry_outside_window_attempt` | `reason_code = outside_window` |
@@ -481,8 +493,9 @@ Email manual:
 
 Email automatico:
 
-- success genera `event_entry_email_sent` con `source = automatic_email`;
-- failure genera `event_entry_email_failed` con `source = automatic_email`;
+- success del bundle genera `event_entry_email_sent` por entry cubierta con `source = automatic_email`;
+- failure del bundle genera `event_entry_email_failed` por entry cubierta con `source = automatic_email`;
+- metadata incluye `delivery_mode = order_bundle`, `email_attempts = 1` y `bundle_entries_count`;
 - skipped no genera activity en MVP;
 - `email_delivery` mantiene su comportamiento actual.
 
@@ -527,7 +540,7 @@ Slice 3E.4F1:
 
 Slice 3E.4F2:
 
-- integrar activity en email manual y automatico.
+- integrar activity en email manual por entry y email automatico bundle por entries cubiertas.
 
 Slice 3E.4G1:
 
@@ -664,20 +677,23 @@ Comportamiento validado:
 - Regresiones principales OK.
 - Limpieza QA OK.
 
-Observacion operativa separada:
+Estado posterior del email automatico bundle:
 
-- En el caso package/Mesa VIP, `email_delivery` respondio `status = partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
-- Esto no bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
-- Riesgo operativo para Ibiza: investigar por que el envio automatico parcial fallo en 5/10 entries.
-- Prioridad operativa: revisar listado/ver QR/reenviar email antes de avanzar con activity de email.
-- No asumir causa sin debug.
+- El flujo post `manual-issue` fue ajustado a `email_delivery.mode = order_bundle`.
+- QA runtime PASS: General 1 entry envio 1 email con 1 QR.
+- QA runtime PASS: Mesa VIP 10 entries envio 1 solo email con 10 QR.
+- `email_delivery.email_attempts = 1` cuando se intento enviar.
+- `email_delivery.attempted`, `sent`, `failed` y `skipped` miden entries cubiertas.
+- Caso `>20 entries` quedo `skipped` con `reason = too_many_entries_for_order_bundle_email`.
+- `email_sent_at` se actualiza en todas las entries cuando el bundle sale OK.
+- No se registro activity de email/check-in/fallback en ese bloque.
 
 Proximo paso recomendado:
 
-- Antes de 3E.4F2, realizar ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP.
-- Objetivo: entender si el fallo viene de Resend, concurrencia, limite, helper de email, datos de entries, adjuntos o manejo de errores.
-- No cambiar comportamiento sin diagnostico.
-- Luego avanzar con 3E.4F2 activity en email manual/automatico.
+- Avanzar con 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
+- Usar `event_entry_email_sent` / `event_entry_email_failed` con `source = automatic_email` para entries cubiertas por bundle.
+- Incluir metadata segura `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`.
+- No registrar skipped `>20` en MVP salvo decision posterior.
 
 ## 17. No-goals
 

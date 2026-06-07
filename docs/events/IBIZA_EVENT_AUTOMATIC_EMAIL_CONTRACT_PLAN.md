@@ -25,7 +25,7 @@ Modelo vigente:
 - `event_order_items` = linea comercial vendida.
 - `event_order_entries` = acceso individual / unidad QR.
 - Cada `event_order_entry` tiene su propio QR.
-- Una Mesa VIP con 10 accesos genera 10 entries y, por lo tanto, hasta 10 emails.
+- Una Mesa VIP con 10 accesos genera 10 entries y un email bundle con hasta 10 QR.
 
 ## 3. Archivos revisados
 
@@ -51,6 +51,7 @@ Hallazgos:
 
 - `manual-issue` ya llama la RPC `issue_event_manual_order` y devuelve `201` con `order`, `items` y `entries`.
 - `send-email` por entry ya reutiliza `sendEventEntryQrEmail()` y actualiza `email_sent_at` solo despues de envio correcto.
+- El envio automatico post `manual-issue` usa email bundle por orden.
 - `generateEventEntryQrPng()` centraliza el payload QR de Eventos.
 - `sendEmail()` usa Resend o stub si `EMAIL_ENABLED !== "true"` o falta API key.
 - El flujo local de `orders.ts` tiene patron best-effort: fallo de email no revierte la orden.
@@ -64,7 +65,7 @@ Decision:
 - El envio ocurre fuera de la transaccion DB de creacion de order/items/entries.
 - Nunca se intenta enviar email antes de crear order/items/entries.
 - Si la RPC falla o devuelve `ok: false`, no se intenta email.
-- Si la emision manual devuelve datos creados, el endpoint intenta email para las entries creadas en esa respuesta.
+- Si la emision manual devuelve datos creados, el endpoint intenta un email bundle para la orden creada.
 
 Motivo:
 
@@ -81,36 +82,40 @@ Opciones evaluadas:
 - envio async/background;
 - cola futura.
 
-Decision para el primer CODE:
+Decision vigente:
 
-- Usar best-effort sincrono controlado dentro del request `manual-issue`.
-- Usar concurrencia limitada baja.
+- Usar un email automatico por orden (`mode = order_bundle`).
+- El destinatario principal es el comprador/responsable de la orden.
+- El email incluye todos los QR individuales de la orden.
+- Una orden con 1 entry envia 1 email con 1 QR.
+- Una Mesa VIP/package con 10 entries envia 1 email con 10 QR.
+- Las entries siguen siendo unidades individuales para QR/check-in.
 - No introducir cola/background en este slice porque no hay patron existente validado para Eventos.
 - Dejar cola/background para import CSV, volumen alto o delivery tracking futuro.
 
-Concurrencia recomendada:
+Intentos:
 
-- `max_concurrency = 3` envios simultaneos.
-- No usar `Promise.all` sin limite para todas las entries.
-- Procesar resultados por entry y acumular resumen.
+- `email_attempts = 1` cuando se intenta enviar el bundle.
+- `attempted`, `sent`, `failed` y `skipped` miden entries cubiertas por el bundle, no emails enviados.
+- `send-email` manual por entry sigue funcionando como fallback puntual.
 
 ## 6. Fallos parciales
 
 Decision:
 
-- Si un email falla, no se revierte la emision.
-- Si algunos emails salen y otros fallan, `manual-issue` sigue siendo exitoso.
+- Si falla el email bundle, no se revierte la emision.
+- Si el bundle falla, ninguna entry nueva se marca como enviada por ese intento.
 - El HTTP status sigue siendo `201` si order/items/entries fueron creados.
-- La respuesta incluye `email_delivery` con estado y resultados por entry.
-- Entries con email exitoso actualizan `email_sent_at`.
-- Entries con email fallido quedan con `email_sent_at = null`, salvo que ya tuvieran un valor previo por otro envio.
-- Staff puede usar `POST /panel/events/:eventId/entries/:entryId/send-email` como reenvio manual.
+- La respuesta incluye `email_delivery` con estado por entries cubiertas.
+- Si el bundle se envia correctamente, todas las entries incluidas actualizan `email_sent_at`.
+- Si el email fue enviado pero falla el update de `email_sent_at`, se reporta un codigo diferenciado como `email_sent_but_update_failed`.
+- Staff puede usar `POST /panel/events/:eventId/entries/:entryId/send-email` como reenvio manual puntual.
 
 Estados de entrega:
 
-- `sent`: todos los emails intentados fueron enviados correctamente.
-- `partial_failed`: al menos uno enviado y al menos uno fallido.
-- `failed`: se intento enviar y todos fallaron.
+- `sent`: el email bundle fue enviado y todas las entries cubiertas quedaron marcadas.
+- `partial_failed`: reservado para casos excepcionales como update parcial/inconsistencia defensiva.
+- `failed`: se intento enviar el bundle y fallo el envio o la preparacion del contexto.
 - `skipped`: no se intento envio automatico por una regla operativa.
 
 ## 7. Response contract de manual-issue
@@ -129,7 +134,8 @@ Se agrega `email_delivery`:
   "items": [],
   "entries": [],
   "email_delivery": {
-    "mode": "automatic_best_effort",
+    "mode": "order_bundle",
+    "email_attempts": 1,
     "attempted": 1,
     "sent": 1,
     "failed": 0,
@@ -139,7 +145,6 @@ Se agrega `email_delivery`:
     "results": [
       {
         "entry_id": "uuid",
-        "to": "attendee@example.com",
         "status": "sent",
         "email_sent_at": "2026-06-01T20:14:03.488+00:00",
         "error_code": null
@@ -149,32 +154,31 @@ Se agrega `email_delivery`:
 }
 ```
 
-Ejemplo con fallo parcial:
+Ejemplo Mesa VIP/package con 10 QR en un solo email:
 
 ```json
 {
   "email_delivery": {
-    "mode": "automatic_best_effort",
-    "attempted": 2,
-    "sent": 1,
-    "failed": 1,
+    "mode": "order_bundle",
+    "email_attempts": 1,
+    "attempted": 10,
+    "sent": 10,
+    "failed": 0,
     "skipped": 0,
-    "status": "partial_failed",
+    "status": "sent",
     "reason": null,
     "results": [
       {
         "entry_id": "uuid-1",
-        "to": "ok@example.com",
         "status": "sent",
         "email_sent_at": "2026-06-01T20:14:03.488+00:00",
         "error_code": null
       },
       {
-        "entry_id": "uuid-2",
-        "to": "fail@example.com",
-        "status": "failed",
-        "email_sent_at": null,
-        "error_code": "email_send_failed"
+        "entry_id": "uuid-10",
+        "status": "sent",
+        "email_sent_at": "2026-06-01T20:14:03.488+00:00",
+        "error_code": null
       }
     ]
   }
@@ -186,23 +190,40 @@ Ejemplo con envio omitido por limite:
 ```json
 {
   "email_delivery": {
-    "mode": "automatic_best_effort",
+    "mode": "order_bundle",
+    "email_attempts": 0,
     "attempted": 0,
     "sent": 0,
     "failed": 0,
     "skipped": 25,
     "status": "skipped",
-    "reason": "too_many_entries_for_sync_email",
-    "results": []
+    "reason": "too_many_entries_for_order_bundle_email",
+    "results": [
+      {
+        "entry_id": "uuid",
+        "status": "skipped",
+        "email_sent_at": null,
+        "error_code": "too_many_entries_for_order_bundle_email"
+      }
+    ]
   }
 }
 ```
+
+Semantica:
+
+- `email_attempts` mide cantidad de emails enviados o intentados.
+- `attempted`, `sent`, `failed` y `skipped` miden entries cubiertas.
+- En `skipped`, `attempted = 0` significa que no se intento enviar ningun email.
+- `skipped` representa entries omitidas por regla de limite.
+- `partial_failed` queda reservado para casos excepcionales como update parcial/inconsistencia defensiva, no para el caso normal de Mesa VIP.
 
 No incluir en `email_delivery`:
 
 - `checkin_token`;
 - QR payload;
 - QR base64;
+- email del destinatario;
 - attendee phone;
 - buyer PII;
 - `auth_user_id`;
@@ -213,7 +234,7 @@ No incluir en `email_delivery`:
 
 Decision:
 
-- Si la emision fue creada pero uno o mas emails fallaron, responder `201`.
+- Si la emision fue creada pero el email bundle fallo, responder `201`.
 - Los errores de email no convierten `manual-issue` en `500` si la emision fue creada.
 - El estado de email se comunica en `email_delivery.status`.
 - `500` queda reservado para fallo inesperado de emision/RPC o error estructural antes de crear datos.
@@ -222,15 +243,16 @@ Decision:
 Mapeo:
 
 - RPC/input/event/stock fallan antes de crear datos: mantener mapeo actual de `manual-issue`.
-- Email total o parcialmente fallido despues de crear datos: `201` + `email_delivery.status`.
-- Error recuperando contexto de email para una entry creada: contar como fallo de email de esa entry, no como fallo de emision.
-- Error actualizando `email_sent_at` despues de un envio exitoso: contar como fallo operacional de delivery para esa entry y reportar `error_code = "email_update_failed"`; no revertir entry.
+- Email bundle fallido despues de crear datos: `201` + `email_delivery.status`.
+- Error recuperando contexto del bundle: contar como fallo de email de las entries cubiertas, no como fallo de emision.
+- Error actualizando `email_sent_at` despues de un envio exitoso: reportar codigo diferenciado como `email_sent_but_update_failed`; no revertir entries.
 
 ## 9. Reutilizacion definida
 
 Reutilizar:
 
-- `sendEventEntryQrEmail()` para template, subject, QR inline y adjunto.
+- `sendEventOrderQrBundleEmail()` para template, subject, QR inline y adjuntos del bundle.
+- `sendEventEntryQrEmail()` se mantiene intacto para reenvio manual por entry.
 - `generateEventEntryQrPng()` para QR PNG y payload QR de Eventos.
 - `sendEmail()` y Resend como transporte.
 - La misma regla de no token texto validada en Slice 3D.3A.
@@ -249,7 +271,7 @@ No duplicar:
 
 Riesgos:
 
-- Mesa VIP genera 10 emails.
+- Mesa VIP genera 10 QR en un solo email.
 - Requests con muchas entries pueden tardar.
 - Resend puede fallar o demorar.
 - Sin cola/background, el request queda acoplado al tiempo de envio.
@@ -258,15 +280,18 @@ Decision inicial:
 
 - Enviar automaticamente solo si `entries.length <= 20`.
 - Si `entries.length > 20`, crear la emision y devolver `email_delivery.status = "skipped"`.
-- `reason = "too_many_entries_for_sync_email"`.
+- `reason = "too_many_entries_for_order_bundle_email"`.
+- `email_attempts = 0`.
+- `attempted = 0`.
 - `skipped = entries.length`.
 - Staff puede usar reenvio por entry mientras no exista cola/bulk sender.
 
-Concurrencia:
+Performance:
 
-- `max_concurrency = 3`.
+- El bundle intenta 1 solo email por orden.
+- Genera un QR PNG por entry incluida.
 - Mantener timeout global del request bajo observacion en QA.
-- Si QA muestra latencia excesiva, no subir concurrencia sin medir.
+- Si QA muestra latencia excesiva, disenar cola/background antes de aumentar alcance sin medir.
 
 Decision futura:
 
@@ -284,9 +309,10 @@ Decision:
 
 `email_sent_at`:
 
-- Se actualiza por cada entry enviada correctamente.
-- Si se reenvia, se actualiza con un nuevo timestamp.
-- Si falla un envio y `email_sent_at` era `null`, queda `null`.
+- Si el bundle se envia correctamente, se actualiza en todas las entries incluidas.
+- Si falla el envio del bundle, ninguna entry se marca como enviada por ese intento.
+- Si el email fue enviado pero falla el update de `email_sent_at`, se debe conservar un codigo diferenciado como `email_sent_but_update_failed` o equivalente.
+- Si se reenvia manualmente por entry, se actualiza con un nuevo timestamp para esa entry.
 - Si falla un reenvio y `email_sent_at` tenia valor previo, se conserva el valor previo.
 - No borrar timestamps por fallos posteriores.
 
@@ -302,7 +328,7 @@ Reglas obligatorias:
 - No incluir documento ni telefono en email visible.
 - No incluir metadata cruda.
 - No incluir buyer PII en `email_delivery`.
-- Response puede incluir `email_delivery.results[].to` porque es necesario para soporte de entrega.
+- No incluir destinatario en `email_delivery.results[]`.
 - No aceptar override de email, token, QR payload, ticket o attendee desde cliente.
 - `event_id` sigue viniendo solo del path y `req.eventPanelUser.eventId`.
 - No usar `panel_users`.
@@ -329,16 +355,16 @@ Decision:
 
 Casos minimos:
 
-- `manual-issue` de 1 General Preventa 1 crea 1 entry y envia 1 email automatico.
-- Response `201` incluye `email_delivery.attempted = 1`, `sent = 1`, `failed = 0`, `status = "sent"`.
+- `manual-issue` de 1 General Preventa 1 crea 1 entry y envia 1 email bundle con 1 QR.
+- Response `201` incluye `email_delivery.mode = order_bundle`, `email_attempts = 1`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = "sent"`.
 - Email recibido con QR visible.
 - `email_sent_at` queda actualizado para la entry.
-- `manual-issue` de 1 Mesa VIP Preventa 1 crea 10 entries y envia 10 emails, si `entries.length <= 20`.
-- Response de Mesa VIP refleja `attempted = 10`, `sent = 10`, `status = "sent"` o `partial_failed` segun resultados reales.
-- Request con mas de 20 entries crea la emision y devuelve `email_delivery.status = "skipped"`, `reason = "too_many_entries_for_sync_email"`.
-- Fallo parcial de email no revierte order/items/entries.
-- Entry con fallo mantiene `email_sent_at = null` si no tenia envio previo.
-- Entry exitosa actualiza `email_sent_at`.
+- `manual-issue` de 1 Mesa VIP Preventa 1 crea 10 entries y envia 1 email bundle con 10 QR, si `entries.length <= 20`.
+- Response de Mesa VIP refleja `email_attempts = 1`, `attempted = 10`, `sent = 10`, `failed = 0`, `skipped = 0`, `status = "sent"`.
+- Request con mas de 20 entries crea la emision y devuelve `email_delivery.status = "skipped"`, `reason = "too_many_entries_for_order_bundle_email"`.
+- Fallo de email bundle no revierte order/items/entries.
+- Si falla el bundle, las entries mantienen `email_sent_at = null` si no tenian envio previo.
+- Si el bundle sale OK, todas las entries incluidas actualizan `email_sent_at`.
 - `send-email` por entry sigue funcionando como reenvio.
 - Response no expone `checkin_token`, QR payload, QR base64, attendee phone, buyer PII, `auth_user_id`, `local_id` ni metadata.
 - Email visible no expone token, documento, telefono ni metadata.
@@ -384,43 +410,52 @@ Estado: implementado, deployado y QA runtime PASS completo.
 Se completo:
 
 - `POST /panel/events/:eventId/orders/manual-issue` mantiene la RPC como fuente de creacion atomica.
-- Despues de RPC exitosa, intenta envio automatico de emails QR en modo `automatic_best_effort`.
+- Despues de RPC exitosa, intenta un email bundle por orden en modo `order_bundle`.
+- Una orden con 1 entry envia 1 email con 1 QR.
+- Una Mesa VIP/package con 10 entries envia 1 email con 10 QR.
 - La respuesta `201` incluye `email_delivery`.
-- Los fallos parciales de email no revierten la emision.
+- `email_delivery.email_attempts` mide emails intentados.
+- `email_delivery.attempted`, `sent`, `failed` y `skipped` miden entries cubiertas.
+- Si el bundle sale OK, `email_sent_at` se actualiza en todas las entries incluidas.
+- Si falla el envio del bundle, ninguna entry se marca como enviada por ese intento.
 - El limite `entries.length > 20` omite envio automatico y devuelve `status = skipped`.
 - `send-email` por entry sigue funcionando como fallback operativo.
 - QR endpoint sigue funcionando.
+- Activity de email no se integro en este bloque.
 - No se toca check-in, pagos ni `/payments/callback`.
 
 QA runtime registrado:
 
 - `/health` -> `200 OK`, body `{"ok":true}`, `x-request-id` presente.
+- `/panel/events/:eventId/me` con owner Ibiza -> `200 OK`, `membership.role = owner`.
 - Estado inicial limpio: `GET /panel/events/:eventId/entries` -> `200 OK`, `items = []`, `pagination.total = 0`.
-- General Preventa 1: `201 Created`, `entries.length = 1`, `email_delivery.mode = automatic_best_effort`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`, `reason = null`, `results.length = 1`, `results[0].status = sent`, `results[0].email_sent_at != null`.
-- Email General recibido en Gmail con evento `Ibiza`, entrada `General Preventa 1`, asistente `QA Auto General` y QR visible.
-- Response General sin `checkin_token`, `/events/checkin/`, base64, `attendee_phone`, buyer PII, `auth_user_id`, `local_id` ni metadata.
-- Mesa VIP Preventa 1: `201 Created`, `entries.length = 10`, `attempted = 10`, `sent = 7`, `failed = 3`, `skipped = 0`, `status = partial_failed`, `reason = null`, `results.length = 10`.
-- Mesa partial_failed validada como comportamiento esperado de `automatic_best_effort`: las 10 entries fueron creadas; 7 enviadas tienen `email_sent_at`; 3 fallidas quedaron con `error_code = email_send_failed`.
-- Gmail recibio 7 correos de Mesa (`QA Mesa Auto 1`, `2`, `3`, `4`, `5`, `9`, `10`) y 1 correo General, 8 correos totales.
-- Limite mayor a 20: 21 General Preventa 1 emitidas, `201 Created`, `entries.length = 21`, `email_delivery.status = skipped`, `reason = too_many_entries_for_sync_email`, `attempted = 0`, `sent = 0`, `failed = 0`, `skipped = 21`, `results = []`.
+- General Preventa 1: `manual-issue` -> `201 Created`, `items.length = 1`, `entries.length = 1`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 1`, `sent = 1`, `failed = 0`, `skipped = 0`, `status = sent`.
+- DB General: entry QA quedo con `email_sent_at != null`.
+- Gmail General: llego 1 email con 1 QR.
+- Response General sin `checkin_token`, QR payload/base64, auth IDs, `local_id`, metadata, stack ni SQL.
+- Mesa VIP Preventa 1: `manual-issue` -> `201 Created`, `items.length = 1`, `entries.length = 10`, `sales_unit_type = package`, `entries_per_unit = 10`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 10`, `sent = 10`, `failed = 0`, `skipped = 0`, `status = sent`.
+- DB Mesa: `entries_count = 10`, `entries_with_email_sent_at = 10`.
+- Gmail Mesa: llego 1 solo email con 10 QR; no llegaron 10 correos separados.
+- No hubo `partial_failed` en el caso Mesa VIP OK.
+- Limite mayor a 20: 3 Mesas VIP / 30 entries emitidas, `201 Created`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 0`, `sent = 0`, `failed = 0`, `skipped = 30`, `status = skipped`, `reason = too_many_entries_for_order_bundle_email`.
+- DB skip: `entries_count = 30`, `entries_with_email_sent_at = 0`.
 - Fallback manual: `POST /panel/events/:eventId/entries/:entryId/send-email` -> `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`.
-- QR endpoint: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`.
+- QR endpoint: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`, `Cache-Control = no-store`, `X-Content-Type-Options = nosniff`.
+- Activity de `manual-issue` siguio funcionando: `event_order_manual_issued = 3`, `event_entry_issued = 41`.
+- No se registro activity de email/check-in/fallback: `event_entry_email_sent = 0`, `event_entry_email_failed = 0`, `event_entry_checked_in = 0`, `event_entry_already_used_attempt = 0`, `event_entry_outside_window_attempt = 0`, `event_entry_voided_attempt = 0`, `event_entry_invalid_token_attempt = 0`.
 - Errores previos siguen correctos: attendees incorrectos -> `400 invalid_attendees_count`; ticket inexistente -> `404 ticket_type_not_found`; owner local sin membership -> `403`; sin auth -> `401`; token invalido -> `401`; eventId invalido -> `400 Invalid eventId`; stock insuficiente -> `409 insufficient_stock`.
 - Regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
-- Consistencia antes de limpieza: 3 ordenes QA, 32 entries y `issued_commercial_amount = 6280000`.
-- Limpieza QA: se limpiaron las ordenes QA; `/entries` volvio a `items = []`, `pagination.total = 0`, `pagination.total_pages = 0`; `/summary` volvio a `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `issued_commercial_amount = 0`.
+- Limpieza QA: `qa_activity_remaining = 0`; `/entries` volvio a `items = []`, `pagination.total = 0`; `/summary` volvio a operaciones en cero.
 
 ## 17. Proximo paso recomendado
 
-Slice 3E.1 - ASK/DOCS: contrato de check-in de eventos.
+Slice 3E.4F2 - activity en email manual y automatico.
 
 Alcance sugerido:
 
-- definir endpoint de check-in por QR/token opaco;
-- definir validacion por `event_id`;
-- definir ventana de check-in;
-- definir respuesta para `valid`, `already_used`, `invalid`, `outside_window` y `voided`;
-- definir relacion con scanner futuro;
-- definir fallback manual futuro;
-- no implementar todavia check-in;
+- registrar activity de email manual por entry con `source = manual_email`;
+- registrar activity de email automatico bundle por entries cubiertas con `source = automatic_email`;
+- incluir metadata segura `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`;
+- no registrar skipped `>20` en MVP salvo decision posterior;
+- no guardar destinatario, token, QR payload, raw provider response, telefono, documento ni metadata cruda;
 - no tocar pagos ni `/payments/callback`.
