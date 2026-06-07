@@ -919,6 +919,245 @@ function setEventEmailActivityMetadataValue(
   setManualIssueMetadataValue(metadata, key, value);
 }
 
+type EventCheckinSuccessResult = Extract<EventCheckinRpcResult, { ok: true }>;
+
+type EventCheckinActivityContext = {
+  entryId: string;
+  eventOrderId: string | null;
+  eventOrderItemId: string | null;
+  eventTicketTypeId: string | null;
+  ticketName: string | null;
+};
+
+function buildEventCheckinActivityContextFromEntry(
+  entry: Record<string, unknown> | null
+): EventCheckinActivityContext | null {
+  if (!entry) return null;
+
+  const entryId = getManualIssueUuidField(entry, ["id"]);
+  if (!entryId) return null;
+
+  return {
+    entryId,
+    eventOrderId: null,
+    eventOrderItemId: null,
+    eventTicketTypeId: null,
+    ticketName: getManualIssueStringField(entry, "ticket_name"),
+  };
+}
+
+async function fetchEventCheckinActivityContext(input: {
+  eventId: string;
+  entryId: string;
+  requestId: string | undefined;
+}): Promise<EventCheckinActivityContext | null> {
+  const { data: entry, error: entryError } = await supabase
+    .from("event_order_entries")
+    .select("id, event_order_id, event_order_item_id, event_ticket_type_id")
+    .eq("event_id", input.eventId)
+    .eq("id", input.entryId)
+    .maybeSingle();
+
+  if (entryError || !entry) {
+    logger.warn("Failed to fetch QR check-in activity entry context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      entryId: input.entryId,
+      errorCode: entryError?.code ?? "entry_context_unavailable",
+    });
+    return null;
+  }
+
+  const entryRow = entry as {
+    id: string;
+    event_order_id: string | null;
+    event_order_item_id: string | null;
+    event_ticket_type_id: string | null;
+  };
+  let ticketName: string | null = null;
+
+  if (entryRow.event_order_item_id) {
+    const { data: orderItem, error: itemError } = await supabase
+      .from("event_order_items")
+      .select("ticket_name")
+      .eq("event_id", input.eventId)
+      .eq("id", entryRow.event_order_item_id)
+      .maybeSingle();
+
+    if (itemError) {
+      logger.warn("Failed to fetch QR check-in activity item context", {
+        requestId: input.requestId,
+        eventId: input.eventId,
+        entryId: input.entryId,
+        eventOrderItemId: entryRow.event_order_item_id,
+        errorCode: itemError.code ?? "item_context_unavailable",
+      });
+    } else {
+      ticketName = getManualIssueStringField((orderItem ?? {}) as Record<string, unknown>, "ticket_name");
+    }
+  }
+
+  return {
+    entryId: entryRow.id,
+    eventOrderId: entryRow.event_order_id,
+    eventOrderItemId: entryRow.event_order_item_id,
+    eventTicketTypeId: entryRow.event_ticket_type_id,
+    ticketName,
+  };
+}
+
+async function getEventCheckinActivityContext(input: {
+  eventId: string;
+  requestId: string | undefined;
+  entry: Record<string, unknown> | null;
+}): Promise<EventCheckinActivityContext | null> {
+  const responseContext = buildEventCheckinActivityContextFromEntry(input.entry);
+  if (!responseContext) return null;
+
+  const dbContext = await fetchEventCheckinActivityContext({
+    eventId: input.eventId,
+    entryId: responseContext.entryId,
+    requestId: input.requestId,
+  });
+
+  if (!dbContext) {
+    return responseContext;
+  }
+
+  return {
+    ...dbContext,
+    ticketName: dbContext.ticketName ?? responseContext.ticketName,
+  };
+}
+
+async function recordMalformedQrCheckinActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  actor: {
+    authUserId: string;
+    role: "owner" | "staff";
+    displayName: string | null;
+  };
+}) {
+  await recordEventActivityBestEffort({
+    requestId: input.requestId,
+    eventId: input.eventId,
+    action: "event_entry_invalid_token_attempt",
+    entityType: "event_checkin",
+    entityId: null,
+    eventOrderEntryId: null,
+    source: "qr",
+    actor: {
+      type: "event_panel_user",
+      authUserId: input.actor.authUserId,
+      role: input.actor.role,
+      displayName: input.actor.displayName,
+    },
+    message: "Intento de validar QR invalido",
+    metadata: {
+      reason_code: "malformed_token",
+    },
+  });
+}
+
+async function recordQrCheckinActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  actor: {
+    authUserId: string;
+    role: "owner" | "staff";
+    displayName: string | null;
+  };
+  result: EventCheckinSuccessResult;
+}) {
+  if (input.result.status === "event_not_operable" || input.result.status === "not_valid_status") {
+    return;
+  }
+
+  const actor = {
+    type: "event_panel_user" as const,
+    authUserId: input.actor.authUserId,
+    role: input.actor.role,
+    displayName: input.actor.displayName,
+  };
+
+  if (input.result.status === "invalid") {
+    await recordEventActivityBestEffort({
+      requestId: input.requestId,
+      eventId: input.eventId,
+      action: "event_entry_invalid_token_attempt",
+      entityType: "event_checkin",
+      entityId: null,
+      eventOrderEntryId: null,
+      source: "qr",
+      actor,
+      message: "Intento de validar QR invalido",
+      metadata: {
+        reason_code: "invalid_token",
+      },
+    });
+    return;
+  }
+
+  const context = await getEventCheckinActivityContext({
+    eventId: input.eventId,
+    requestId: input.requestId,
+    entry: input.result.entry,
+  });
+
+  if (!context) {
+    logger.warn("Skipping QR check-in activity without entry context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      status: input.result.status,
+    });
+    return;
+  }
+
+  const metadata: Record<string, unknown> = {};
+  let action: Parameters<typeof recordEventActivity>[0]["action"];
+  let message: string;
+
+  if (input.result.status === "valid") {
+    action = "event_entry_checked_in";
+    message = "Entrada validada por QR";
+    metadata.previous_checkin_status = "unused";
+    metadata.next_checkin_status = "used";
+  } else if (input.result.status === "already_used") {
+    action = "event_entry_already_used_attempt";
+    message = "Intento de validar entrada ya usada";
+    metadata.reason_code = "already_used";
+  } else if (input.result.status === "outside_window") {
+    action = "event_entry_outside_window_attempt";
+    message = "Intento de validar entrada fuera de ventana";
+    metadata.reason_code = "outside_window";
+  } else if (input.result.status === "voided") {
+    action = "event_entry_voided_attempt";
+    message = "Intento de validar entrada anulada";
+    metadata.reason_code = "voided";
+  } else {
+    return;
+  }
+
+  setManualIssueMetadataValue(metadata, "ticket_name", context.ticketName);
+
+  await recordEventActivityBestEffort({
+    requestId: input.requestId,
+    eventId: input.eventId,
+    action,
+    entityType: "event_checkin",
+    entityId: context.entryId,
+    eventOrderId: context.eventOrderId,
+    eventOrderItemId: context.eventOrderItemId,
+    eventOrderEntryId: context.entryId,
+    eventTicketTypeId: context.eventTicketTypeId,
+    source: "qr",
+    actor,
+    message,
+    metadata,
+  });
+}
+
 async function recordManualEmailActivity(input: {
   eventId: string;
   requestId: string | undefined;
@@ -1770,6 +2009,8 @@ panelEventsRouter.patch(
       const eventId = requireEventContext(req, res);
       if (!eventId || !req.eventPanelUser) return;
 
+      const requestId = getRequestId(req);
+
       if (Object.keys(req.query).length > 0 || hasForbiddenEventCheckinInputKeys(req.body)) {
         return res.status(400).json({
           error: "Invalid check-in input",
@@ -1779,13 +2020,25 @@ panelEventsRouter.patch(
 
       const token = typeof req.params.token === "string" ? req.params.token.trim() : "";
       if (!UUID_PATTERN.test(token)) {
+        await recordMalformedQrCheckinActivity({
+          eventId: req.eventPanelUser.eventId,
+          requestId,
+          actor: req.eventPanelUser,
+        }).catch((error) => {
+          logger.warn("Unexpected error recording malformed QR check-in activity", {
+            requestId,
+            eventId: req.eventPanelUser?.eventId,
+            errorCode: "event_activity_unexpected_error",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+
         return res.status(400).json({
           error: "Invalid check-in token",
           code: "invalid_checkin_token",
         });
       }
 
-      const requestId = getRequestId(req);
       const { data: rpcData, error: rpcError } = await supabase.rpc("check_in_event_entry_by_token", {
         p_event_id: req.eventPanelUser.eventId,
         p_actor_auth_user_id: req.eventPanelUser.authUserId,
@@ -1838,6 +2091,21 @@ panelEventsRouter.patch(
           code: "checkin_failed",
         });
       }
+
+      await recordQrCheckinActivity({
+        eventId: req.eventPanelUser.eventId,
+        requestId,
+        actor: req.eventPanelUser,
+        result,
+      }).catch((error) => {
+        logger.warn("Unexpected error recording QR check-in activity", {
+          requestId,
+          eventId: req.eventPanelUser?.eventId,
+          status: result.status,
+          errorCode: "event_activity_unexpected_error",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
 
       return res.status(200).json(result);
     } catch (error) {
