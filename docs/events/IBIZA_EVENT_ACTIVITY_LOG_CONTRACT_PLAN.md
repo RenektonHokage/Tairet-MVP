@@ -588,33 +588,59 @@ Matiz:
 - La validacion funcional de inserts en operaciones vendra en Slice 3E.4D al integrarlo en endpoints concretos.
 - Este comportamiento es esperado porque 3E.4C fue intencionalmente aislado.
 
-## 17. Roadmap recomendado
+## 17. Estado Slice 3E.4D / 3E.4F1 - integracion manual-issue
+
+Slice 3E.4D:
+
+- Estado: **documentado**.
+- Se creo `docs/events/IBIZA_EVENT_ACTIVITY_INTEGRATION_CONTRACT_PLAN.md`.
+- Se definio la integracion de `recordEventActivity` en manual-issue, email, check-in QR y fallback manual, con metadata permitida por action, source controlado, best-effort, no PII y no tokens.
+
+Slice 3E.4F1:
+
+- Estado: **implementado, deployado y QA runtime PASS completo**.
+- Se integro `recordEventActivity` unicamente en `POST /panel/events/:eventId/orders/manual-issue`.
+- Se valido 1 activity `event_order_manual_issued` por orden y 1 activity `event_entry_issued` por cada entry emitida.
+- Caso simple General Preventa 1 genero `1 + 1`.
+- Caso package/Mesa VIP Preventa 1 genero `1 + 10`.
+- `source = manual`, `actor_type = event_panel_user`, `actor_role = owner`.
+- Metadata validada sin PII, tokens, QR payload/base64, request/response/headers, notes ni `local_id`.
+- La response publica no expone errores internos de activity y `manual-issue` mantiene `201`.
+- No se integro activity de email, check-in QR, fallback manual, read activity ni activity local.
+- Regresiones principales y limpieza QA quedaron PASS.
+
+Observacion operativa separada:
+
+- En el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
+- No bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
+- Se recomienda debug corto antes de 3E.4F2 para no asumir causa.
+
+## 18. Roadmap recomendado
 
 Siguiente secuencia:
 
 - Slice 3E.4B: migracion DB `event_activity_events` aplicada y QA DB PASS.
 - Slice 3E.4C: helper TS `recordEventActivity` implementado y validado como helper aislado.
-- Slice 3E.4D: ASK/DOCS de integracion de activity en flujos de evento.
+- Slice 3E.4D: ASK/DOCS de integracion de activity en flujos de evento documentado.
+- Slice 3E.4F1: activity en `manual-issue` implementado, deployado y QA runtime PASS.
+- Antes de Slice 3E.4F2: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP.
+- Slice 3E.4F2: integrar activity en email manual y automatico.
+- Slice 3E.4G1: integrar activity en check-in QR.
+- Slice 3E.4G2: integrar activity en fallback manual.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
 - Slice posterior: UI de historial operativo.
 
 Proximo paso recomendado:
 
-- Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
+- ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de integrar activity de email.
 
 Alcance futuro:
 
-- definir integracion en `manual-issue`;
-- definir integracion en `send-email`;
-- definir integracion en email automatico post manual-issue;
-- definir integracion en check-in QR;
-- definir integracion en fallback manual;
-- definir metadata por accion;
-- definir `source` por accion;
-- definir QA runtime por flujo;
-- no implementar todavia hasta aprobar el contrato.
+- entender si el fallo viene de Resend, concurrencia, limite, helper de email, datos de entries, adjuntos o manejo de errores;
+- no cambiar comportamiento sin diagnostico;
+- luego avanzar con 3E.4F2 activity en email manual/automatico.
 
-## 18. No-goals
+## 19. No-goals
 
 Fuera de este contrato:
 

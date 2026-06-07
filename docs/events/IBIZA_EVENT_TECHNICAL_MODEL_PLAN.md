@@ -1788,9 +1788,36 @@ Queda registrado que no se integro en endpoints: no se toco `panelEvents.ts`, no
 
 Validaciones: `pnpm -C functions/api typecheck` PASS, `git diff --check` PASS y chequeo adicional de whitespace del archivo nuevo sin warnings.
 
-Matiz: 3E.4C valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para Slice 3E.4D al integrarlo en flujos concretos.
+Matiz: 3E.4C valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para slices de integracion de flujos concretos.
 
-Proximo paso recomendado: Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
+### Slice 3E.4D - Contrato de integracion activity en flujos
+
+Estado: documentado.
+
+Se creo `docs/events/IBIZA_EVENT_ACTIVITY_INTEGRATION_CONTRACT_PLAN.md` con el contrato para integrar `recordEventActivity` en `manual-issue`, email, check-in QR y fallback manual, manteniendo best-effort, metadata segura, `source` controlado y sin PII/tokens.
+
+### Slice 3E.4F1 - Activity en manual-issue
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se integro `recordEventActivity` unicamente en `POST /panel/events/:eventId/orders/manual-issue`.
+
+Validacion registrada:
+
+- `manual-issue` sigue respondiendo `201`;
+- response publica sin errores internos de activity;
+- 1 row `event_order_manual_issued` por orden;
+- 1 row `event_entry_issued` por cada entry emitida;
+- General Preventa 1 genero `1 + 1`;
+- Mesa VIP Preventa 1 genero `1 + 10`;
+- `source = manual`, `actor_type = event_panel_user`, `actor_role = owner`;
+- metadata sin PII, tokens, QR payload/base64, request/response/headers, notes ni `local_id`;
+- no se registro activity de email, check-in QR, fallback manual ni activity local;
+- regresiones principales y limpieza QA PASS.
+
+Observacion operativa separada: en el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`. No bloquea 3E.4F1; se recomienda debug corto antes de 3E.4F2.
+
+Proximo paso recomendado: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de integrar activity de email manual/automatico.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

@@ -1370,23 +1370,40 @@ Validaciones registradas:
 - `git diff --check`: PASS;
 - chequeo adicional de whitespace del archivo nuevo: sin warnings.
 
-Matiz: este slice valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para Slice 3E.4D al integrarlo en flujos concretos.
+Matiz: este slice valida el helper a nivel estatico/contrato; la validacion funcional de inserts en operaciones queda para slices de integracion de flujos concretos.
 
-Proximo paso tecnico recomendado: Slice 3E.4D - ASK/DOCS de integracion de activity en flujos de evento.
+### Slice 3E.4D - Contrato de integracion activity en flujos
 
-Alcance sugerido:
+Estado: documentado.
 
-- definir integracion en `manual-issue`;
-- definir integracion en `send-email`;
-- definir integracion en email automatico post manual-issue;
-- definir integracion en check-in QR;
-- definir integracion en fallback manual;
-- definir metadata por accion;
-- definir `source` por accion;
-- definir QA runtime por flujo;
-- no implementar todavia hasta aprobar contrato;
-- sin pagos;
-- sin `/payments/callback`.
+Se creo `docs/events/IBIZA_EVENT_ACTIVITY_INTEGRATION_CONTRACT_PLAN.md` para definir integracion de `recordEventActivity` en flujos operativos de Eventos, con best-effort, source controlado, metadata segura y no exposicion de PII/tokens.
+
+### Slice 3E.4F1 - Activity en manual-issue
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se integro `recordEventActivity` unicamente en `POST /panel/events/:eventId/orders/manual-issue`.
+
+QA runtime registrado:
+
+- `manual-issue` mantiene `201 Created`;
+- response publica sin `activity_error`, `internal_activity_error`, `recordEventActivity`, stack ni SQL;
+- General Preventa 1 genero 1 `event_order_manual_issued` y 1 `event_entry_issued`;
+- Mesa VIP Preventa 1 genero 1 `event_order_manual_issued` y 10 `event_entry_issued`;
+- `source = manual`;
+- `actor_type = event_panel_user`;
+- `actor_role = owner`;
+- metadata sin PII, tokens, QR payload/base64, request/response/headers, notes ni `local_id`;
+- no se registro activity de email, check-in QR, fallback manual ni activity local;
+- regresiones `/summary`, `/ticket-types`, `/entries`, `/panel/me` y `/panel/orders/summary` PASS;
+- limpieza QA dejo `qa_activity_remaining = 0`, `qa_orders_remaining = 0` y operaciones en cero.
+
+Observacion operativa separada:
+
+- En el QA package/Mesa VIP, `email_delivery` respondio `partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
+- No bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
+
+Proximo paso tecnico recomendado: ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP antes de avanzar a 3E.4F2 activity en email manual/automatico.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

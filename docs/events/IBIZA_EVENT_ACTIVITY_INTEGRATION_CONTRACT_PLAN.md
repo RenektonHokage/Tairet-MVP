@@ -516,11 +516,14 @@ Regresiones:
 
 Slice 3E.4D:
 
-- este ASK/DOCS.
+- ASK/DOCS completado. Contrato de integracion de activity en flujos operativos documentado.
 
 Slice 3E.4F1:
 
-- integrar activity en `manual-issue`.
+- Implementado, deployado y QA runtime PASS completo.
+- Activity en `manual-issue` operativo.
+- Registra `event_order_manual_issued` por orden y `event_entry_issued` por entry.
+- No integra activity de email, check-in QR, fallback manual ni read activity.
 
 Slice 3E.4F2:
 
@@ -542,7 +545,141 @@ Nota:
 
 - El orden puede ajustarse. Es valido crear lectura `/activity` antes de integrar todos los flujos si se quiere QA incremental, pero este contrato recomienda integrar primero los flujos que generan datos.
 
-## 16. No-goals
+## 16. Estado Slice 3E.4F1 - activity en manual-issue QA runtime PASS
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Alcance implementado:
+
+- `recordEventActivity` se integro unicamente en `POST /panel/events/:eventId/orders/manual-issue`.
+- La integracion es best-effort.
+- No cambia la respuesta publica.
+- No cambia el status HTTP.
+- No modifica `email_delivery`.
+- No agrega errores internos de activity en la response.
+- No registra activity de email, check-in QR, fallback manual, read activity ni activity local.
+
+QA runtime registrado como PASS:
+
+- Owner Ibiza: `GET /panel/events/:eventId/me` respondio `200 OK`, `membership.role = owner`, `display_name = Owner Ibiza`.
+- Owner local D'Lirio: `GET /panel/me` respondio `200 OK`.
+- `GET /health` respondio `200 OK` con body `{"ok":true}`.
+- Estado inicial: `GET /panel/events/:eventId/entries` respondio `200 OK`, `items = []`, `pagination.total = 0`.
+- Emision simple General Preventa 1: `manual-issue` respondio `201 Created`, `items.length = 1`, `entries.length = 1`, `order.source = manual_issue`, `payment_status = confirmed_externally`.
+- En la emision simple, `email_delivery.attempted = 1`, `sent = 1`, `failed = 0`, `status = sent`.
+- La response publica no incluyo `activity_error`, `internal_activity_error`, `recordEventActivity`, `stack`, `SQL` ni `sql`.
+
+Activity por orden simple:
+
+- Se creo 1 row `event_order_manual_issued`.
+- `entity_type = event_order`.
+- `entity_id = order.id`.
+- `event_order_id = order.id`.
+- `event_order_entry_id = null`.
+- `action = event_order_manual_issued`.
+- `source = manual`.
+- `actor_type = event_panel_user`.
+- `actor_role = owner`.
+- `actor_display_name = Owner Ibiza`.
+- `message = Orden manual emitida`.
+- metadata: `currency = PYG`, `ticket_name = General Preventa 1`, `total_amount = 140000`, `entries_count = 1`.
+
+Activity por entry simple:
+
+- Se creo 1 row `event_entry_issued`.
+- `entity_type = event_order_entry`.
+- `entity_id = entry.id`.
+- `event_order_entry_id = entry.id`.
+- `event_order_item_id = item.id`.
+- `event_ticket_type_id = General Preventa 1`.
+- `event_order_id = order.id`.
+- `action = event_entry_issued`.
+- `source = manual`.
+- `actor_type = event_panel_user`.
+- `actor_role = owner`.
+- `message = Entrada emitida`.
+- metadata: `currency = PYG`, `ticket_name = General Preventa 1`, `total_amount = 140000`, `sales_unit_type = single_entry`, `entries_per_unit = 1`.
+
+Conteos exactos simple:
+
+- `event_order_manual_issued = 1`.
+- `event_entry_issued = 1`.
+
+Metadata simple segura:
+
+- No se detecto `email`, `phone`, `document`, `buyer`, `attendee`, `notes`, `checkin_token`, `qr_payload`, `qr_base64`, `request`, `response`, `headers` ni `local_id`.
+
+Emision package Mesa VIP Preventa 1:
+
+- `manual-issue` respondio `201 Created`.
+- `items.length = 1`.
+- `entries.length = 10`.
+- `sales_unit_type = package`.
+- `entries_per_unit = 10`.
+- `order.source = manual_issue`.
+- `payment_status = confirmed_externally`.
+
+Conteos exactos package:
+
+- `event_order_manual_issued = 1`.
+- `event_entry_issued = 10`.
+
+Metadata package segura:
+
+- No se detecto `email`, `phone`, `document`, `buyer`, `attendee`, `notes`, `checkin_token`, `qr_payload`, `qr_base64`, `request`, `response`, `headers` ni `local_id`.
+
+No integracion fuera de manual-issue:
+
+- Para estas ordenes QA no se registraron `event_entry_email_sent`, `event_entry_email_failed`, `event_entry_checked_in`, `event_entry_already_used_attempt`, `event_entry_outside_window_attempt`, `event_entry_voided_attempt` ni `event_entry_invalid_token_attempt`.
+
+Regresiones principales:
+
+- `GET /panel/events/:eventId/summary` respondio `200 OK`.
+- `GET /panel/events/:eventId/ticket-types` respondio `200 OK`.
+- `GET /panel/events/:eventId/entries` respondio `200 OK`.
+- `GET /panel/me` con owner local respondio `200 OK`.
+- `GET /panel/orders/summary` con owner local respondio `200 OK`.
+
+Limpieza QA:
+
+- Se limpio activity primero y luego orders/items/entries QA.
+- `qa_activity_remaining = 0`.
+- `qa_orders_remaining = 0`.
+- `GET /panel/events/:eventId/entries` volvio a `items = []`, `pagination.total = 0`.
+- `GET /panel/events/:eventId/summary` volvio a operaciones en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`.
+
+Comportamiento validado:
+
+- `manual-issue` sigue respondiendo `201`.
+- La response publica no expone errores internos de activity.
+- Se registra 1 activity `event_order_manual_issued` por orden.
+- Se registra 1 activity `event_entry_issued` por cada entry emitida.
+- Caso simple genera `1 + 1`.
+- Caso package/Mesa VIP genera `1 + 10`.
+- `source = manual`.
+- `actor_type = event_panel_user`.
+- `actor_role = owner`.
+- Metadata sin PII, tokens, QR payload/base64, request/response/headers ni `local_id`.
+- No se registran logs de email/check-in/fallback en este slice.
+- Regresiones principales OK.
+- Limpieza QA OK.
+
+Observacion operativa separada:
+
+- En el caso package/Mesa VIP, `email_delivery` respondio `status = partial_failed`, `attempted = 10`, `sent = 5`, `failed = 5`.
+- Esto no bloquea 3E.4F1 porque este slice no modifica ni integra activity de email.
+- Riesgo operativo para Ibiza: investigar por que el envio automatico parcial fallo en 5/10 entries.
+- Prioridad operativa: revisar listado/ver QR/reenviar email antes de avanzar con activity de email.
+- No asumir causa sin debug.
+
+Proximo paso recomendado:
+
+- Antes de 3E.4F2, realizar ASK/debug corto sobre `email_delivery partial_failed` en package/Mesa VIP.
+- Objetivo: entender si el fallo viene de Resend, concurrencia, limite, helper de email, datos de entries, adjuntos o manejo de errores.
+- No cambiar comportamiento sin diagnostico.
+- Luego avanzar con 3E.4F2 activity en email manual/automatico.
+
+## 17. No-goals
 
 Fuera de este documento:
 
@@ -561,4 +698,3 @@ Fuera de este documento:
 - guardar tokens;
 - guardar PII;
 - modificar RPCs salvo necesidad fuerte posterior.
-
