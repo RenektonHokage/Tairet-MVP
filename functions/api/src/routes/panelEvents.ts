@@ -43,7 +43,9 @@ type EventEntryQrRow = {
 };
 
 type EventEntryEmailRow = EventEntryQrRow & {
+  event_order_id: string;
   event_order_item_id: string;
+  event_ticket_type_id: string;
   attendee_name: string;
   attendee_last_name: string;
   attendee_email: string;
@@ -131,6 +133,10 @@ type EventEntryEmailDeliveryResult = {
   status: EventEntryEmailDeliveryStatus;
   email_sent_at: string | null;
   error_code: EventEntryEmailDeliveryErrorCode | null;
+  event_order_id?: string | null;
+  event_order_item_id?: string | null;
+  event_ticket_type_id?: string | null;
+  ticket_name?: string | null;
 };
 
 type EventAutomaticEmailDeliverySummary = {
@@ -800,6 +806,277 @@ async function recordManualIssueActivity(input: {
   );
 }
 
+type EventEmailActivityContext = {
+  entryId: string;
+  eventOrderId: string | null;
+  eventOrderItemId: string | null;
+  eventTicketTypeId: string | null;
+  ticketName: string | null;
+};
+
+function buildEventEmailActivityContextFromDeliveryResult(
+  result: EventEntryEmailDeliveryResult
+): EventEmailActivityContext | null {
+  if (!result.entry_id) return null;
+
+  return {
+    entryId: result.entry_id,
+    eventOrderId: result.event_order_id ?? null,
+    eventOrderItemId: result.event_order_item_id ?? null,
+    eventTicketTypeId: result.event_ticket_type_id ?? null,
+    ticketName: result.ticket_name ?? null,
+  };
+}
+
+async function fetchEventEmailActivityContext(input: {
+  eventId: string;
+  entryId: string;
+  requestId: string | undefined;
+}): Promise<EventEmailActivityContext | null> {
+  const { data: entry, error: entryError } = await supabase
+    .from("event_order_entries")
+    .select("id, event_order_id, event_order_item_id, event_ticket_type_id")
+    .eq("event_id", input.eventId)
+    .eq("id", input.entryId)
+    .maybeSingle();
+
+  if (entryError || !entry) {
+    logger.warn("Failed to fetch event email activity entry context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      entryId: input.entryId,
+      errorCode: entryError?.code ?? "entry_context_unavailable",
+    });
+    return null;
+  }
+
+  const entryRow = entry as {
+    id: string;
+    event_order_id: string | null;
+    event_order_item_id: string | null;
+    event_ticket_type_id: string | null;
+  };
+  let ticketName: string | null = null;
+
+  if (entryRow.event_order_item_id) {
+    const { data: orderItem, error: itemError } = await supabase
+      .from("event_order_items")
+      .select("ticket_name")
+      .eq("event_id", input.eventId)
+      .eq("id", entryRow.event_order_item_id)
+      .maybeSingle();
+
+    if (itemError) {
+      logger.warn("Failed to fetch event email activity item context", {
+        requestId: input.requestId,
+        eventId: input.eventId,
+        entryId: input.entryId,
+        eventOrderItemId: entryRow.event_order_item_id,
+        errorCode: itemError.code ?? "item_context_unavailable",
+      });
+    } else {
+      ticketName = getManualIssueStringField((orderItem ?? {}) as Record<string, unknown>, "ticket_name");
+    }
+  }
+
+  return {
+    entryId: entryRow.id,
+    eventOrderId: entryRow.event_order_id,
+    eventOrderItemId: entryRow.event_order_item_id,
+    eventTicketTypeId: entryRow.event_ticket_type_id,
+    ticketName,
+  };
+}
+
+async function getEventEmailActivityContext(input: {
+  eventId: string;
+  requestId: string | undefined;
+  result: EventEntryEmailDeliveryResult;
+}): Promise<EventEmailActivityContext | null> {
+  const resultContext = buildEventEmailActivityContextFromDeliveryResult(input.result);
+  if (
+    resultContext?.eventOrderId ||
+    resultContext?.eventOrderItemId ||
+    resultContext?.eventTicketTypeId
+  ) {
+    return resultContext;
+  }
+
+  if (!input.result.entry_id) return null;
+
+  return fetchEventEmailActivityContext({
+    eventId: input.eventId,
+    entryId: input.result.entry_id,
+    requestId: input.requestId,
+  });
+}
+
+function setEventEmailActivityMetadataValue(
+  metadata: Record<string, unknown>,
+  key: string,
+  value: unknown
+) {
+  setManualIssueMetadataValue(metadata, key, value);
+}
+
+async function recordManualEmailActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  actor: {
+    authUserId: string;
+    role: "owner" | "staff";
+    displayName: string | null;
+  };
+  result: EventEntryEmailDeliveryResult;
+}) {
+  if (input.result.error_code === "entry_not_found" || !input.result.entry_id) {
+    return;
+  }
+
+  const context = await getEventEmailActivityContext({
+    eventId: input.eventId,
+    requestId: input.requestId,
+    result: input.result,
+  });
+  if (!context) {
+    logger.warn("Skipping event manual email activity without entry context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      entryId: input.result.entry_id,
+    });
+    return;
+  }
+
+  const isSent = input.result.status === "sent";
+  const metadata: Record<string, unknown> = {
+    email_status: isSent ? "sent" : "failed",
+    delivery_mode: "single_entry",
+  };
+  if (!isSent && input.result.error_code) {
+    metadata.email_error_code = input.result.error_code;
+  }
+  setEventEmailActivityMetadataValue(metadata, "ticket_name", context.ticketName);
+
+  await recordEventActivityBestEffort({
+    requestId: input.requestId,
+    eventId: input.eventId,
+    action: isSent ? "event_entry_email_sent" : "event_entry_email_failed",
+    entityType: "event_email",
+    entityId: context.entryId,
+    eventOrderId: context.eventOrderId,
+    eventOrderItemId: context.eventOrderItemId,
+    eventOrderEntryId: context.entryId,
+    eventTicketTypeId: context.eventTicketTypeId,
+    source: "manual_email",
+    actor: {
+      type: "event_panel_user",
+      authUserId: input.actor.authUserId,
+      role: input.actor.role,
+      displayName: input.actor.displayName,
+    },
+    message: isSent ? "Email de QR enviado" : "Fallo al enviar email de QR",
+    metadata,
+  });
+}
+
+async function recordAutomaticBundleEmailActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  orderId: string | null;
+  items: Array<Record<string, unknown>>;
+  entries: Array<Record<string, unknown>>;
+  emailDelivery: EventAutomaticEmailDeliverySummary;
+}) {
+  const results = input.emailDelivery.results.filter((result) => result.status !== "skipped");
+  if (results.length === 0) return;
+
+  const itemContextById = buildManualIssueActivityItemContext(input.items);
+  const responseEntryById = new Map(
+    input.entries
+      .map((entry) => {
+        const entryId = getManualIssueEntryId(entry);
+        return entryId ? ([entryId, entry] as const) : null;
+      })
+      .filter((item): item is readonly [string, Record<string, unknown>] => item !== null)
+  );
+
+  await mapWithConcurrency(
+    results,
+    EVENT_ACTIVITY_MAX_CONCURRENCY,
+    async (result) => {
+      if (!result.entry_id) return;
+
+      const responseEntry = responseEntryById.get(result.entry_id);
+      const responseEventOrderItemId = responseEntry
+        ? getManualIssueUuidField(responseEntry, ["event_order_item_id"])
+        : null;
+      const itemContext = responseEventOrderItemId ? itemContextById.get(responseEventOrderItemId) : null;
+      const fallbackContext = !responseEntry
+        ? await fetchEventEmailActivityContext({
+            eventId: input.eventId,
+            entryId: result.entry_id,
+            requestId: input.requestId,
+          })
+        : null;
+      const eventOrderItemId =
+        responseEventOrderItemId ??
+        result.event_order_item_id ??
+        fallbackContext?.eventOrderItemId ??
+        null;
+      const eventTicketTypeId =
+        (responseEntry ? getManualIssueUuidField(responseEntry, ["event_ticket_type_id", "ticket_type_id"]) : null) ??
+        itemContext?.ticketTypeId ??
+        result.event_ticket_type_id ??
+        fallbackContext?.eventTicketTypeId ??
+        null;
+      const ticketName =
+        (responseEntry ? getManualIssueStringField(responseEntry, "ticket_name") : null) ??
+        itemContext?.ticketName ??
+        result.ticket_name ??
+        fallbackContext?.ticketName ??
+        null;
+      const eventOrderId = input.orderId ?? result.event_order_id ?? fallbackContext?.eventOrderId ?? null;
+      const isSent = result.status === "sent";
+      const emailStatus =
+        isSent
+          ? "sent"
+          : result.error_code === "email_sent_but_update_failed" ||
+              result.error_code === "email_sent_but_partial_update_failed"
+            ? "sent_but_update_failed"
+            : "failed";
+      const metadata: Record<string, unknown> = {
+        email_status: emailStatus,
+        delivery_mode: "order_bundle",
+        email_attempts: input.emailDelivery.email_attempts,
+        bundle_entries_count: input.entries.length,
+      };
+      if (!isSent && result.error_code) {
+        metadata.email_error_code = result.error_code;
+      }
+      setEventEmailActivityMetadataValue(metadata, "ticket_name", ticketName);
+
+      await recordEventActivityBestEffort({
+        requestId: input.requestId,
+        eventId: input.eventId,
+        action: isSent ? "event_entry_email_sent" : "event_entry_email_failed",
+        entityType: "event_email",
+        entityId: result.entry_id,
+        eventOrderId,
+        eventOrderItemId,
+        eventOrderEntryId: result.entry_id,
+        eventTicketTypeId,
+        source: "automatic_email",
+        actor: {
+          type: "system",
+          displayName: "Tairet",
+        },
+        message: isSent ? "Email automatico de QR enviado" : "Fallo al enviar email automatico de QR",
+        metadata,
+      });
+    }
+  );
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -830,8 +1107,10 @@ async function sendEventEntryQrEmailForEntry(input: {
 }): Promise<EventEntryEmailDeliveryResult> {
   const failed = (
     errorCode: EventEntryEmailDeliveryErrorCode,
-    to: string | null = null
+    to: string | null = null,
+    context: Partial<EventEntryEmailDeliveryResult> = {}
   ): EventEntryEmailDeliveryResult => ({
+    ...context,
     entry_id: input.entryId,
     to,
     status: "failed",
@@ -841,7 +1120,7 @@ async function sendEventEntryQrEmailForEntry(input: {
 
   const { data: entry, error: entryError } = await supabase
     .from("event_order_entries")
-    .select("id, event_id, event_order_item_id, status, checkin_token, attendee_name, attendee_last_name, attendee_email")
+    .select("id, event_id, event_order_id, event_order_item_id, event_ticket_type_id, status, checkin_token, attendee_name, attendee_last_name, attendee_email")
     .eq("event_id", input.eventId)
     .eq("id", input.entryId)
     .maybeSingle();
@@ -863,13 +1142,18 @@ async function sendEventEntryQrEmailForEntry(input: {
   }
 
   const eventEntry = entry as EventEntryEmailRow;
+  const deliveryContext: Partial<EventEntryEmailDeliveryResult> = {
+    event_order_id: eventEntry.event_order_id,
+    event_order_item_id: eventEntry.event_order_item_id,
+    event_ticket_type_id: eventEntry.event_ticket_type_id,
+  };
   if (eventEntry.status !== "issued") {
-    return failed("entry_not_issuable");
+    return failed("entry_not_issuable", null, deliveryContext);
   }
 
   const attendeeEmail = eventEntry.attendee_email.trim().toLowerCase();
   if (!EMAIL_PATTERN.test(attendeeEmail)) {
-    return failed("attendee_email_unavailable");
+    return failed("attendee_email_unavailable", null, deliveryContext);
   }
 
   const [{ data: event, error: eventError }, { data: orderItem, error: itemError }] = await Promise.all([
@@ -895,7 +1179,7 @@ async function sendEventEntryQrEmailForEntry(input: {
       error_code: "event_entry_email_failed",
       error: eventError?.message ?? itemError?.message ?? "Missing event email context",
     });
-    return failed("event_entry_email_failed", attendeeEmail);
+    return failed("event_entry_email_failed", attendeeEmail, deliveryContext);
   }
 
   let qrBuffer: Buffer;
@@ -910,11 +1194,15 @@ async function sendEventEntryQrEmailForEntry(input: {
       error_code: "event_entry_email_failed",
       error: qrError instanceof Error ? qrError.message : String(qrError),
     });
-    return failed("event_entry_email_failed", attendeeEmail);
+    return failed("event_entry_email_failed", attendeeEmail, deliveryContext);
   }
 
   const eventRow = event as EventEntryEmailEventRow;
   const itemRow = orderItem as EventEntryEmailItemRow;
+  const deliveryContextWithTicket: Partial<EventEntryEmailDeliveryResult> = {
+    ...deliveryContext,
+    ticket_name: itemRow.ticket_name,
+  };
   try {
     await sendEventEntryQrEmail({
       to: attendeeEmail,
@@ -936,7 +1224,7 @@ async function sendEventEntryQrEmailForEntry(input: {
       error_code: "email_send_failed",
       error: emailError instanceof Error ? emailError.message : String(emailError),
     });
-    return failed("email_send_failed", attendeeEmail);
+    return failed("email_send_failed", attendeeEmail, deliveryContextWithTicket);
   }
 
   const sentAt = new Date().toISOString();
@@ -957,7 +1245,7 @@ async function sendEventEntryQrEmailForEntry(input: {
       error_code: "email_update_failed",
       error: updateError?.message ?? "Missing updated entry",
     });
-    return failed("email_update_failed", attendeeEmail);
+    return failed("email_update_failed", attendeeEmail, deliveryContextWithTicket);
   }
 
   return {
@@ -966,6 +1254,10 @@ async function sendEventEntryQrEmailForEntry(input: {
     status: "sent",
     email_sent_at: updatedEntry.email_sent_at,
     error_code: null,
+    event_order_id: eventEntry.event_order_id,
+    event_order_item_id: eventEntry.event_order_item_id,
+    event_ticket_type_id: eventEntry.event_ticket_type_id,
+    ticket_name: itemRow.ticket_name,
   };
 }
 
@@ -1431,6 +1723,7 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
       buyerEmail: manualIssueInput.buyer.email,
       requestId,
     });
+    const orderId = getManualIssueOrderId(result.data.order);
 
     await recordManualIssueActivity({
       eventId: req.eventPanelUser.eventId,
@@ -1439,6 +1732,23 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
       order: result.data.order,
       items: result.data.items,
       entries: result.data.entries,
+    });
+
+    await recordAutomaticBundleEmailActivity({
+      eventId: req.eventPanelUser.eventId,
+      requestId,
+      orderId,
+      items: result.data.items,
+      entries: result.data.entries,
+      emailDelivery,
+    }).catch((error) => {
+      logger.warn("Unexpected error recording automatic email activity", {
+        requestId,
+        eventId: req.eventPanelUser?.eventId,
+        orderId,
+        errorCode: "event_activity_unexpected_error",
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
     return res.status(201).json({
@@ -1643,6 +1953,21 @@ panelEventsRouter.post("/:eventId/entries/:entryId/send-email", eventPanelAuth, 
       eventId: req.eventPanelUser.eventId,
       entryId,
       requestId,
+    });
+
+    await recordManualEmailActivity({
+      eventId: req.eventPanelUser.eventId,
+      requestId,
+      actor: req.eventPanelUser,
+      result: deliveryResult,
+    }).catch((error) => {
+      logger.warn("Unexpected error recording manual email activity", {
+        requestId,
+        eventId: req.eventPanelUser?.eventId,
+        entryId,
+        errorCode: "event_activity_unexpected_error",
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
     if (deliveryResult.status === "sent") {
