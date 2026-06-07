@@ -442,20 +442,36 @@ QA runtime registrado:
 - Fallback manual: `POST /panel/events/:eventId/entries/:entryId/send-email` -> `200 OK`, `ok = true`, `email.status = sent`, `entry.email_sent_at != null`.
 - QR endpoint: `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`, `Cache-Control = no-store`, `X-Content-Type-Options = nosniff`.
 - Activity de `manual-issue` siguio funcionando: `event_order_manual_issued = 3`, `event_entry_issued = 41`.
-- No se registro activity de email/check-in/fallback: `event_entry_email_sent = 0`, `event_entry_email_failed = 0`, `event_entry_checked_in = 0`, `event_entry_already_used_attempt = 0`, `event_entry_outside_window_attempt = 0`, `event_entry_voided_attempt = 0`, `event_entry_invalid_token_attempt = 0`.
+- En este bloque no se registro activity de email/check-in/fallback: `event_entry_email_sent = 0`, `event_entry_email_failed = 0`, `event_entry_checked_in = 0`, `event_entry_already_used_attempt = 0`, `event_entry_outside_window_attempt = 0`, `event_entry_voided_attempt = 0`, `event_entry_invalid_token_attempt = 0`.
+- Posteriormente, Slice 3E.4F2 integro activity de email manual y email automatico bundle con QA runtime PASS completo.
 - Errores previos siguen correctos: attendees incorrectos -> `400 invalid_attendees_count`; ticket inexistente -> `404 ticket_type_not_found`; owner local sin membership -> `403`; sin auth -> `401`; token invalido -> `401`; eventId invalido -> `400 Invalid eventId`; stock insuficiente -> `409 insufficient_stock`.
 - Regresiones: `/summary`, `/ticket-types`, `/entries`, `/panel/me` local y `/panel/orders/summary` local respondieron `200 OK`.
 - Limpieza QA: `qa_activity_remaining = 0`; `/entries` volvio a `items = []`, `pagination.total = 0`; `/summary` volvio a operaciones en cero.
 
 ## 17. Proximo paso recomendado
 
-Slice 3E.4F2 - activity en email manual y automatico.
+Slice 3E.4G1 - activity en check-in QR.
 
 Alcance sugerido:
 
-- registrar activity de email manual por entry con `source = manual_email`;
-- registrar activity de email automatico bundle por entries cubiertas con `source = automatic_email`;
-- incluir metadata segura `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`;
-- no registrar skipped `>20` en MVP salvo decision posterior;
-- no guardar destinatario, token, QR payload, raw provider response, telefono, documento ni metadata cruda;
+- integrar `recordEventActivity` en `PATCH /panel/events/:eventId/checkin/:token`;
+- `source = qr`;
+- registrar valid, already_used, outside_window, voided e invalid token;
+- no guardar token, raw URL, QR payload ni PII;
+- no tocar fallback manual todavia;
 - no tocar pagos ni `/payments/callback`.
+
+## 18. Estado Slice 3E.4F2 - activity en emails QA runtime PASS
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido:
+
+- Email automatico bundle simple genero `event_entry_email_sent / automatic_email / order_bundle = 1`.
+- Email manual por entry genero `event_entry_email_sent / manual_email / single_entry = 1`.
+- Mesa VIP 10 entries genero `event_entry_email_sent / automatic_email / order_bundle = 10`.
+- Caso `>20` / 30 entries quedo `email_delivery.status = skipped` y no genero activity de email porque no hubo intento de envio.
+- Metadata de activity de email no contiene PII, tokens, QR payload/base64, request, response, headers, `local_id` ni `source` duplicado.
+- Activity previa de `manual-issue` siguio funcionando.
+- QR PNG, summary, ticket-types, entries y panel local siguieron OK.
+- Limpieza QA dejo activity y ordenes QA en cero.

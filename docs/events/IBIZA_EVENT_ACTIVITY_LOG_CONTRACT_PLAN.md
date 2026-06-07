@@ -588,7 +588,7 @@ Matiz:
 - La validacion funcional de inserts en operaciones vendra en Slice 3E.4D al integrarlo en endpoints concretos.
 - Este comportamiento es esperado porque 3E.4C fue intencionalmente aislado.
 
-## 17. Estado Slice 3E.4D / 3E.4F1 - integracion manual-issue
+## 17. Estado Slice 3E.4D / 3E.4F1 / 3E.4F2 - integracion operativa
 
 Slice 3E.4D:
 
@@ -616,6 +616,22 @@ Observacion operativa separada:
 - QA runtime PASS: Mesa VIP 10 entries envio 1 solo email con 10 QR.
 - El bloque no integro activity de email, check-in QR, fallback manual ni activity local.
 
+Slice 3E.4F2:
+
+- Estado: **implementado, deployado y QA runtime PASS completo**.
+- Se integro `recordEventActivity` en email manual por entry.
+- Se integro `recordEventActivity` en email automatico bundle post `manual-issue`.
+- Email manual success registra `event_entry_email_sent` con `source = manual_email` y `delivery_mode = single_entry`.
+- Email automatico bundle success registra `event_entry_email_sent` por entry cubierta con `source = automatic_email` y `delivery_mode = order_bundle`.
+- General Preventa 1 genero `event_entry_email_sent / automatic_email / order_bundle = 1`.
+- Reenvio manual de la misma entry genero `event_entry_email_sent / manual_email / single_entry = 1`.
+- Mesa VIP Preventa 1 genero `event_entry_email_sent / automatic_email / order_bundle = 10`.
+- Caso `>20` / 3 Mesas VIP / 30 entries no genero `event_entry_email_sent` ni `event_entry_email_failed` porque `email_delivery.status = skipped` y no hubo intento de envio.
+- Metadata validada sin email crudo, phone, document, buyer, attendee, `checkin_token`, `qr_payload`, `qr_base64`, request, response, headers, `local_id` ni `source` duplicado.
+- Activity previa de `manual-issue` siguio funcionando.
+- No se integro activity de check-in QR, fallback manual, read activity ni activity local.
+- Regresiones principales y limpieza QA quedaron PASS.
+
 ## 18. Roadmap recomendado
 
 Siguiente secuencia:
@@ -625,7 +641,7 @@ Siguiente secuencia:
 - Slice 3E.4D: ASK/DOCS de integracion de activity en flujos de evento documentado.
 - Slice 3E.4F1: activity en `manual-issue` implementado, deployado y QA runtime PASS.
 - Slice 3D.3B ajuste bundle: email automatico post `manual-issue` opera como 1 email por orden y QA runtime PASS.
-- Slice 3E.4F2: integrar activity en email manual por entry y email automatico bundle por entries cubiertas.
+- Slice 3E.4F2: activity en email manual por entry y email automatico bundle implementada, deployada y QA runtime PASS.
 - Slice 3E.4G1: integrar activity en check-in QR.
 - Slice 3E.4G2: integrar activity en fallback manual.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
@@ -633,15 +649,16 @@ Siguiente secuencia:
 
 Proximo paso recomendado:
 
-- Slice 3E.4F2: activity en email manual por entry y email automatico bundle por entries cubiertas.
+- Slice 3E.4G1: activity en check-in QR.
 
 Alcance futuro:
 
-- usar `event_entry_email_sent` / `event_entry_email_failed`;
-- `source = manual_email` para reenvio manual por entry;
-- `source = automatic_email` para entries cubiertas por el bundle automatico;
-- metadata segura con `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`;
-- no registrar skipped `>20` en MVP salvo decision posterior.
+- integrar `recordEventActivity` en `PATCH /panel/events/:eventId/checkin/:token`;
+- `source = qr`;
+- registrar valid, already_used, outside_window, voided e invalid token;
+- no guardar token, raw URL, QR payload ni PII;
+- no tocar fallback manual todavia;
+- no tocar SQL/migraciones/frontend/pagos.
 
 ## 19. No-goals
 

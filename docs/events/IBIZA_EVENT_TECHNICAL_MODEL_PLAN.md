@@ -1813,12 +1813,28 @@ Validacion registrada:
 - Mesa VIP Preventa 1 genero `1 + 10`;
 - `source = manual`, `actor_type = event_panel_user`, `actor_role = owner`;
 - metadata sin PII, tokens, QR payload/base64, request/response/headers, notes ni `local_id`;
-- no se registro activity de email, check-in QR, fallback manual ni activity local;
+- en Slice 3E.4F1 no se registro activity de email, check-in QR, fallback manual ni activity local;
 - regresiones principales y limpieza QA PASS.
 
 Observacion actualizada: el flujo automatico post `manual-issue` fue ajustado a bundle por orden y QA runtime PASS completo; Mesa VIP respondio `sent` con 1 email y 10 QR.
 
-Proximo paso recomendado: avanzar con 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
+### Estado Slice 3E.4F2 - activity en emails
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido:
+
+- email automatico bundle registra `event_entry_email_sent` con `source = automatic_email`;
+- email manual por entry registra `event_entry_email_sent` con `source = manual_email`;
+- General Preventa 1 genero 1 activity de email automatico bundle;
+- reenvio manual por entry genero 1 activity de email manual;
+- Mesa VIP genero 10 activity rows de email, una por entry cubierta por el bundle;
+- `>20` no registra activity de email porque no hubo intento de envio;
+- metadata queda sanitizada sin PII, tokens, QR payload/base64, request/response/headers, `local_id` ni `source` duplicado;
+- activity previa de `manual-issue`, QR PNG, endpoints de Eventos y panel local siguieron OK;
+- limpieza QA quedo en cero.
+
+Proximo paso recomendado: Slice 3E.4G1 activity en check-in QR.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -2017,6 +2033,8 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - `email_delivery.mode = order_bundle` validado en `manual-issue`;
 - Mesa VIP validada con 1 email bundle y 10 QR;
 - limite mayor a 20 entries validado como `skipped` con `too_many_entries_for_order_bundle_email`;
+- Slice 3E.4F2 activity en emails implementado, deployado y QA runtime PASS completo;
+- activity de email automatico bundle y email manual por entry validada;
 - limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;

@@ -1393,7 +1393,7 @@ QA runtime registrado:
 - `actor_type = event_panel_user`;
 - `actor_role = owner`;
 - metadata sin PII, tokens, QR payload/base64, request/response/headers, notes ni `local_id`;
-- no se registro activity de email, check-in QR, fallback manual ni activity local;
+- en Slice 3E.4F1 no se registro activity de email, check-in QR, fallback manual ni activity local;
 - regresiones `/summary`, `/ticket-types`, `/entries`, `/panel/me` y `/panel/orders/summary` PASS;
 - limpieza QA dejo `qa_activity_remaining = 0`, `qa_orders_remaining = 0` y operaciones en cero.
 
@@ -1402,7 +1402,24 @@ Observacion actualizada:
 - El flujo automatico post `manual-issue` fue ajustado a email bundle por orden y QA runtime PASS completo.
 - Mesa VIP respondio `sent` con 1 email y 10 QR.
 
-Proximo paso tecnico recomendado: avanzar a 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
+### Slice 3E.4F2 - activity en emails
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido que:
+
+- email automatico bundle registra `event_entry_email_sent` con `source = automatic_email`;
+- email manual por entry registra `event_entry_email_sent` con `source = manual_email`;
+- Mesa VIP registra 10 activity rows de email, una por entry cubierta por el bundle;
+- `>20` no registra activity de email porque no hubo intento de envio;
+- metadata queda sanitizada;
+- `email_delivery` mantiene el contrato esperado;
+- activity previa de `manual-issue` sigue funcionando;
+- QR PNG sigue funcionando;
+- panel local no se rompio;
+- limpieza QA quedo en cero.
+
+Proximo paso tecnico recomendado: avanzar a 3E.4G1 activity en check-in QR.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

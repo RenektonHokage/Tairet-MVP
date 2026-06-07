@@ -540,7 +540,10 @@ Slice 3E.4F1:
 
 Slice 3E.4F2:
 
-- integrar activity en email manual por entry y email automatico bundle por entries cubiertas.
+- Implementado, deployado y QA runtime PASS completo.
+- Activity en email manual por entry operativo.
+- Activity en email automatico bundle operativo.
+- No integra activity de check-in QR, fallback manual ni read activity.
 
 Slice 3E.4G1:
 
@@ -686,16 +689,147 @@ Estado posterior del email automatico bundle:
 - `email_delivery.attempted`, `sent`, `failed` y `skipped` miden entries cubiertas.
 - Caso `>20 entries` quedo `skipped` con `reason = too_many_entries_for_order_bundle_email`.
 - `email_sent_at` se actualiza en todas las entries cuando el bundle sale OK.
-- No se registro activity de email/check-in/fallback en ese bloque.
+- La activity de email se integro despues en Slice 3E.4F2.
 
 Proximo paso recomendado:
 
-- Avanzar con 3E.4F2 activity en email manual por entry y email automatico bundle por entries cubiertas.
-- Usar `event_entry_email_sent` / `event_entry_email_failed` con `source = automatic_email` para entries cubiertas por bundle.
-- Incluir metadata segura `delivery_mode = order_bundle`, `email_attempts` y `bundle_entries_count`.
-- No registrar skipped `>20` en MVP salvo decision posterior.
+- Slice 3E.4G1: activity en check-in QR.
+- Integrar `recordEventActivity` en `PATCH /panel/events/:eventId/checkin/:token`.
+- `source = qr`.
+- Registrar `valid`, `already_used`, `outside_window`, `voided` e invalid token.
+- No guardar token, raw URL, QR payload ni PII.
+- No tocar fallback manual todavia.
 
-## 17. No-goals
+## 17. Estado Slice 3E.4F2 - activity en emails QA runtime PASS
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Alcance implementado:
+
+- `recordEventActivity` se integro en email manual por entry: `POST /panel/events/:eventId/entries/:entryId/send-email`.
+- `recordEventActivity` se integro en email automatico bundle post `manual-issue`.
+- Email manual registra `event_entry_email_sent` / `event_entry_email_failed` con `source = manual_email`.
+- Email automatico bundle registra `event_entry_email_sent` / `event_entry_email_failed` por entry cubierta con `source = automatic_email`.
+- `skipped >20` no registra activity de email en MVP porque no hubo intento de envio.
+- No se integro activity de check-in QR, fallback manual, read activity ni activity local.
+
+QA runtime registrado como PASS:
+
+- `GET /health` -> `200 OK`, body `{"ok":true}`.
+- `GET /panel/events/:eventId/me` con owner Ibiza -> `200 OK`, `membership.role = owner`.
+- Limpieza preventiva del marcador `QA-3E4F2R` -> `qa_3e4f2r_orders = 0`.
+
+Email automatico simple:
+
+- `POST /panel/events/:eventId/orders/manual-issue` -> `201 Created`.
+- `entries.length = 1`.
+- `email_delivery.mode = order_bundle`.
+- `email_delivery.email_attempts = 1`.
+- `email_delivery.attempted = 1`.
+- `email_delivery.sent = 1`.
+- `email_delivery.failed = 0`.
+- `email_delivery.skipped = 0`.
+- `email_delivery.status = sent`.
+- Activity generado: `event_order_manual_issued / manual = 1`.
+- Activity generado: `event_entry_issued / manual = 1`.
+- Activity generado: `event_entry_email_sent / automatic_email / order_bundle = 1`.
+
+Detalle de activity automatico simple:
+
+- `action = event_entry_email_sent`.
+- `source = automatic_email`.
+- `entity_type = event_email`.
+- `entity_id = entry.id`.
+- `event_order_id = order.id`.
+- `event_order_item_id = item.id`.
+- `event_order_entry_id = entry.id`.
+- `event_ticket_type_id = ticket_type.id`.
+- `actor_type = system`.
+- `actor_role = null`.
+- `message = Email automatico de QR enviado`.
+- Metadata: `ticket_name = General Preventa 1`.
+- Metadata: `email_status = sent`.
+- Metadata: `delivery_mode = order_bundle`.
+- Metadata: `email_attempts = 1`.
+- Metadata: `bundle_entries_count = 1`.
+
+Email manual por entry:
+
+- `POST /panel/events/:eventId/entries/:entryId/send-email` -> `200 OK`.
+- `ok = true`.
+- `email.status = sent`.
+- Activity validado para la misma entry: `event_entry_email_sent / automatic_email / order_bundle = 1`.
+- Activity validado para la misma entry: `event_entry_email_sent / manual_email / single_entry = 1`.
+
+Mesa VIP:
+
+- `manual-issue` con 1 Mesa VIP Preventa 1 -> `201 Created`.
+- `entries.length = 10`.
+- `email_delivery.mode = order_bundle`.
+- `email_delivery.email_attempts = 1`.
+- `email_delivery.attempted = 10`.
+- `email_delivery.sent = 10`.
+- `email_delivery.failed = 0`.
+- `email_delivery.skipped = 0`.
+- `email_delivery.status = sent`.
+- Activity generado: `event_order_manual_issued / manual = 1`.
+- Activity generado: `event_entry_issued / manual = 10`.
+- Activity generado: `event_entry_email_sent / automatic_email / order_bundle = 10`.
+
+Skip mayor a 20:
+
+- `manual-issue` con 3 Mesas VIP = 30 entries -> `201 Created`.
+- `entries.length = 30`.
+- `email_delivery.mode = order_bundle`.
+- `email_delivery.email_attempts = 0`.
+- `email_delivery.attempted = 0`.
+- `email_delivery.sent = 0`.
+- `email_delivery.failed = 0`.
+- `email_delivery.skipped = 30`.
+- `email_delivery.status = skipped`.
+- `email_delivery.reason = too_many_entries_for_order_bundle_email`.
+- Activity generado: `event_order_manual_issued / manual = 1`.
+- Activity generado: `event_entry_issued / manual = 30`.
+- No se genero `event_entry_email_sent`.
+- No se genero `event_entry_email_failed`.
+- Nota: para `>20`, no hubo intento de envio; por eso skipped no genera activity de email en MVP. La response `email_delivery` es la fuente operativa inmediata.
+
+Metadata segura:
+
+- El scan de metadata devolvio 0 rows.
+- No se detecto email crudo, phone, document, buyer, attendee, `checkin_token`, `qr_payload`, `qr_base64`, request, response, headers, `local_id` ni `source` duplicado dentro de metadata.
+
+Regresiones:
+
+- `GET /panel/events/:eventId/summary` -> `200 OK`.
+- `GET /panel/events/:eventId/ticket-types` -> `200 OK`.
+- `GET /panel/events/:eventId/entries` -> `200 OK`.
+- `GET /panel/events/:eventId/entries/:entryId/qr` -> `200 OK`, `Content-Type = image/png`.
+- `GET /panel/me` con owner local -> `200 OK`.
+- `GET /panel/orders/summary` con owner local -> `200 OK`.
+
+Limpieza QA:
+
+- Se limpiaron registros QA del marcador `QA-3E4F2R`.
+- `qa_activity_remaining = 0`.
+- `qa_orders_remaining = 0`.
+- `GET /panel/events/:eventId/entries` -> `items = []`, `pagination.total = 0`.
+- `GET /panel/events/:eventId/summary` -> operaciones en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`.
+
+Comportamiento validado:
+
+- Email automatico bundle registra `event_entry_email_sent` con `source = automatic_email`.
+- Email manual por entry registra `event_entry_email_sent` con `source = manual_email`.
+- Mesa VIP registra 10 activity rows de email, una por entry cubierta por el bundle.
+- `>20` no registra activity de email porque no hubo intento de envio.
+- Metadata queda sanitizada.
+- `email_delivery` mantiene el contrato esperado.
+- Activity previa de `manual-issue` sigue funcionando.
+- QR PNG sigue funcionando.
+- Panel local no se rompio.
+- Limpieza QA quedo en cero.
+
+## 18. No-goals
 
 Fuera de este documento:
 
