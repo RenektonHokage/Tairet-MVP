@@ -6,6 +6,7 @@ import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
 import { sendEventEntryQrEmail } from "../services/eventEmails";
 import { generateEventEntryQrPng } from "../services/eventQr";
+import { recordEventActivity } from "../services/eventActivity";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
 
@@ -177,6 +178,7 @@ type EventCheckinRpcResult =
 
 const AUTOMATIC_EMAIL_MAX_ENTRIES = 20;
 const AUTOMATIC_EMAIL_MAX_CONCURRENCY = 3;
+const EVENT_ACTIVITY_MAX_CONCURRENCY = 3;
 const MANUAL_ISSUE_RPC_ERROR_STATUS: Record<string, number> = {
   invalid_input: 400,
   invalid_buyer: 400,
@@ -547,6 +549,247 @@ function getManualIssueOrderId(order: Record<string, unknown>): string | null {
   return UUID_PATTERN.test(orderId) ? orderId : null;
 }
 
+function getManualIssueUuidField(record: Record<string, unknown>, fieldNames: string[]): string | null {
+  for (const fieldName of fieldNames) {
+    const value = record[fieldName];
+    const trimmed = typeof value === "string" ? value.trim() : "";
+    if (UUID_PATTERN.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function getManualIssueStringField(record: Record<string, unknown>, fieldName: string): string | null {
+  const value = record[fieldName];
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function getManualIssueMetadataValue(value: unknown): string | number | undefined {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  return undefined;
+}
+
+function setManualIssueMetadataValue(
+  metadata: Record<string, unknown>,
+  key: string,
+  value: unknown
+) {
+  const safeValue = getManualIssueMetadataValue(value);
+  if (safeValue !== undefined) {
+    metadata[key] = safeValue;
+  }
+}
+
+type ManualIssueActivityItemContext = {
+  id: string;
+  ticketTypeId: string | null;
+  ticketName: string | null;
+  salesUnitType: string | null;
+  entriesPerUnit: string | number | undefined;
+  totalAmount: string | number | undefined;
+  currency: string | null;
+};
+
+function buildManualIssueActivityItemContext(
+  items: Array<Record<string, unknown>>
+): Map<string, ManualIssueActivityItemContext> {
+  const contextByItemId = new Map<string, ManualIssueActivityItemContext>();
+
+  for (const item of items) {
+    const itemId = getManualIssueUuidField(item, ["id"]);
+    if (!itemId) continue;
+
+    contextByItemId.set(itemId, {
+      id: itemId,
+      ticketTypeId: getManualIssueUuidField(item, ["event_ticket_type_id", "ticket_type_id"]),
+      ticketName: getManualIssueStringField(item, "ticket_name"),
+      salesUnitType: getManualIssueStringField(item, "sales_unit_type"),
+      entriesPerUnit: getManualIssueMetadataValue(item.entries_per_unit),
+      totalAmount: getManualIssueMetadataValue(item.total_amount),
+      currency: getManualIssueStringField(item, "currency"),
+    });
+  }
+
+  return contextByItemId;
+}
+
+async function recordEventActivityBestEffort(input: {
+  requestId: string | undefined;
+  eventId: string;
+  action: Parameters<typeof recordEventActivity>[0]["action"];
+  entityType: Parameters<typeof recordEventActivity>[0]["entityType"];
+  entityId?: string | null;
+  eventOrderId?: string | null;
+  eventOrderItemId?: string | null;
+  eventOrderEntryId?: string | null;
+  eventTicketTypeId?: string | null;
+  source: Parameters<typeof recordEventActivity>[0]["source"];
+  actor: Parameters<typeof recordEventActivity>[0]["actor"];
+  message: string;
+  metadata: Record<string, unknown>;
+}) {
+  try {
+    const result = await recordEventActivity({
+      eventId: input.eventId,
+      action: input.action,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      eventOrderId: input.eventOrderId,
+      eventOrderItemId: input.eventOrderItemId,
+      eventOrderEntryId: input.eventOrderEntryId,
+      eventTicketTypeId: input.eventTicketTypeId,
+      source: input.source,
+      actor: input.actor,
+      message: input.message,
+      metadata: input.metadata,
+    });
+
+    if (!result.ok) {
+      logger.warn("Event activity was not recorded", {
+        requestId: input.requestId,
+        eventId: input.eventId,
+        action: input.action,
+        entityType: input.entityType,
+        source: input.source ?? undefined,
+        errorCode: result.error,
+      });
+    }
+  } catch {
+    logger.warn("Unexpected error recording event activity", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      action: input.action,
+      entityType: input.entityType,
+      source: input.source ?? undefined,
+      errorCode: "event_activity_unexpected_error",
+    });
+  }
+}
+
+async function recordManualIssueActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  actor: {
+    authUserId: string;
+    role: "owner" | "staff";
+    displayName: string | null;
+  };
+  order: Record<string, unknown>;
+  items: Array<Record<string, unknown>>;
+  entries: Array<Record<string, unknown>>;
+}) {
+  const orderId = getManualIssueOrderId(input.order);
+  if (!orderId) {
+    logger.warn("Skipping event manual issue activity without order id", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+    });
+    return;
+  }
+
+  const actor = {
+    type: "event_panel_user" as const,
+    authUserId: input.actor.authUserId,
+    role: input.actor.role,
+    displayName: input.actor.displayName,
+  };
+  const itemContextById = buildManualIssueActivityItemContext(input.items);
+  const uniqueTicketNames = new Set(
+    Array.from(itemContextById.values())
+      .map((item) => item.ticketName)
+      .filter((ticketName): ticketName is string => Boolean(ticketName))
+  );
+  const orderMetadata: Record<string, unknown> = {
+    entries_count: input.entries.length,
+  };
+  setManualIssueMetadataValue(orderMetadata, "total_amount", input.order.total_amount);
+  setManualIssueMetadataValue(orderMetadata, "currency", input.order.currency);
+  if (uniqueTicketNames.size === 1) {
+    orderMetadata.ticket_name = Array.from(uniqueTicketNames)[0];
+  }
+
+  await recordEventActivityBestEffort({
+    requestId: input.requestId,
+    eventId: input.eventId,
+    action: "event_order_manual_issued",
+    entityType: "event_order",
+    entityId: orderId,
+    eventOrderId: orderId,
+    source: "manual",
+    actor,
+    message: "Orden manual emitida",
+    metadata: orderMetadata,
+  });
+
+  await mapWithConcurrency(
+    input.entries,
+    EVENT_ACTIVITY_MAX_CONCURRENCY,
+    async (entry) => {
+      const entryId = getManualIssueEntryId(entry);
+      if (!entryId) {
+        logger.warn("Skipping event entry issued activity without entry id", {
+          requestId: input.requestId,
+          eventId: input.eventId,
+          orderId,
+        });
+        return;
+      }
+
+      const eventOrderItemId = getManualIssueUuidField(entry, ["event_order_item_id"]);
+      const itemContext = eventOrderItemId ? itemContextById.get(eventOrderItemId) : null;
+      const eventTicketTypeId =
+        getManualIssueUuidField(entry, ["event_ticket_type_id", "ticket_type_id"]) ??
+        itemContext?.ticketTypeId ??
+        null;
+      const entryMetadata: Record<string, unknown> = {};
+      setManualIssueMetadataValue(
+        entryMetadata,
+        "ticket_name",
+        getManualIssueStringField(entry, "ticket_name") ?? itemContext?.ticketName
+      );
+      setManualIssueMetadataValue(entryMetadata, "sales_unit_type", itemContext?.salesUnitType);
+      setManualIssueMetadataValue(entryMetadata, "entries_per_unit", itemContext?.entriesPerUnit);
+      setManualIssueMetadataValue(
+        entryMetadata,
+        "currency",
+        getManualIssueStringField(entry, "currency") ?? itemContext?.currency
+      );
+      setManualIssueMetadataValue(entryMetadata, "total_amount", itemContext?.totalAmount);
+
+      await recordEventActivityBestEffort({
+        requestId: input.requestId,
+        eventId: input.eventId,
+        action: "event_entry_issued",
+        entityType: "event_order_entry",
+        entityId: entryId,
+        eventOrderId: orderId,
+        eventOrderItemId,
+        eventOrderEntryId: entryId,
+        eventTicketTypeId,
+        source: "manual",
+        actor,
+        message: "Entrada emitida",
+        metadata: entryMetadata,
+      });
+    }
+  );
+}
+
 function toAutomaticEmailErrorCode(errorCode: EventEntryEmailDeliveryErrorCode | null): EventEntryEmailDeliveryErrorCode | null {
   if (!errorCode) return null;
 
@@ -886,6 +1129,15 @@ panelEventsRouter.post("/:eventId/orders/manual-issue", eventPanelAuth, requireE
       orderId: getManualIssueOrderId(result.data.order),
       entries: result.data.entries,
       requestId,
+    });
+
+    await recordManualIssueActivity({
+      eventId: req.eventPanelUser.eventId,
+      requestId,
+      actor: req.eventPanelUser,
+      order: result.data.order,
+      items: result.data.items,
+      entries: result.data.entries,
     });
 
     return res.status(201).json({
