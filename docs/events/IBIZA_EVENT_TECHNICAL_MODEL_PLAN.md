@@ -1871,7 +1871,26 @@ Se valido:
 
 Con este slice quedan cubiertos los flujos principales de activity: emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
 
-Proximo paso recomendado: Slice 3E.4E endpoint read-only `GET /panel/events/:eventId/activity`.
+### Estado Slice 3E.4E - endpoint read-only activity
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido:
+
+- `GET /panel/events/:eventId/activity` con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
+- lectura read-only de `event_activity_events` scoped por `req.eventPanelUser.eventId`;
+- filtros por `action`, `source`, `entity_type`, `event_order_id`, `event_order_entry_id` y `event_ticket_type_id`;
+- paginacion, `total_pages` y orden `created_at_desc`/`created_at_asc`;
+- 17 query params invalidos/prohibidos devuelven `400 invalid_query`;
+- actor seguro sin auth IDs;
+- metadata filtrada por allowlist;
+- response sin PII, tokens, QR payload/base64, raw/scanned URL, request/response crudo, headers, stack, `local_id` ni metadata cruda;
+- owner/staff Ibiza acceden; sin auth, token invalido, owner local sin membership, eventId invalido y evento inexistente quedan bloqueados;
+- regresiones y limpieza QA PASS.
+
+Activity log de Eventos queda cerrado a nivel backend operativo: generacion de activity, lectura segura de activity, tenant safety, metadata segura y regresiones OK.
+
+Proximo paso recomendado: ASK / DOCS - UI de historial operativo en panel de eventos.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -2076,6 +2095,8 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - activity QR valid/attempts/invalid token validada con metadata segura;
 - Slice 3E.4G2 activity en fallback manual implementado, deployado y QA runtime PASS completo;
 - activity manual valid/attempts validada con metadata segura;
+- Slice 3E.4E endpoint read-only activity implementado, deployado y QA runtime PASS completo;
+- lectura segura de activity validada con filtros, paginacion, actor seguro, metadata filtrada y tenant safety;
 - limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;

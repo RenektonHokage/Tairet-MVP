@@ -27,6 +27,7 @@ Estado previo validado:
 - Slice 3E.4F2: activity en emails manual/automatico bundle implementada, deployada y QA runtime PASS completo.
 - Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS completo.
 - Slice 3E.4G2: activity en fallback manual por entry implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity` implementado, deployado y QA runtime PASS completo.
 
 Modelo vigente:
 
@@ -690,29 +691,51 @@ Siguiente secuencia:
 - Slice 3E.4F2: activity en email manual por entry y email automatico bundle implementada, deployada y QA runtime PASS.
 - Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS.
 - Slice 3E.4G2: activity en fallback manual implementada, deployada y QA runtime PASS.
-- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity` implementado, deployado y QA runtime PASS.
 - Slice posterior: UI de historial operativo.
 
 Proximo paso recomendado:
 
-- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
+- ASK / DOCS - UI de historial operativo en panel de eventos.
 
 Alcance futuro:
 
-- listar activity por `event_id` con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
-- filtrar por `action`, `source`, `entity_type`, `event_order_id` y `event_order_entry_id`;
-- paginar y ordenar por `created_at desc`;
-- devolver response segura sin PII, tokens, `actor_auth_user_id`, `local_id` ni metadata cruda;
+- definir vista general de activity, historial dentro de entry o ambas por etapas;
+- definir columnas, labels, filtros UI, paginacion/lazy load y estados vacios;
+- mantener endpoint read-only como fuente del historial;
+- no exponer PII ni tokens;
 - no tocar SQL/migraciones/frontend/pagos.
 
-## 21. No-goals
+## 21. Estado Slice 3E.4E - endpoint read-only activity
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Se valido:
+
+- `GET /panel/events/:eventId/activity` protegido con `eventPanelAuth + requireEventRole(["owner", "staff"])`;
+- endpoint read-only sobre `event_activity_events`;
+- tenant scope por `req.eventPanelUser.eventId`;
+- lectura del fixture QA de 8 filas con `event_order_id = 6996b86f-c346-49d2-a967-99b75c0c4982`;
+- filtros por source, action, entity_type, `event_order_id`, `event_order_entry_id` y `event_ticket_type_id`;
+- paginacion `page/page_size`, `total`, `total_pages` y sort `created_at_desc`/`created_at_asc`;
+- 17 query params invalidos/prohibidos respondieron `400 invalid_query`;
+- owner/staff Ibiza acceden; sin auth, token invalido, owner local sin membership, eventId invalido y evento inexistente quedan bloqueados correctamente;
+- actor seguro sin `actor_auth_user_id` ni auth IDs;
+- metadata filtrada por allowlist, sin objetos/arrays anidados no permitidos y sin `source` duplicado;
+- response completa sin PII, tokens, QR payload/base64, raw/scanned URL, request/response crudo, headers, stack, `local_id` ni `/events/checkin`;
+- regresiones principales PASS;
+- limpieza `QA-3E4E` dejo `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
+
+Con este slice, activity log de Eventos queda cerrado a nivel backend operativo: generacion de activity, lectura segura, tenant safety, metadata segura y regresiones OK.
+
+## 22. No-goals
 
 Fuera de este contrato:
 
 - modificar la DB fuera de la migracion 032 ya aplicada;
 - integrar helper TS ahora;
-- implementar endpoint `/activity` ahora;
-- UI de historial;
+- modificar endpoint `/activity`;
+- UI de historial en este documento;
 - export;
 - analytics;
 - dashboard;

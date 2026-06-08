@@ -529,28 +529,168 @@ Slice 3E.4E.1:
 
 Slice 3E.4E.2:
 
-- implementar `GET /panel/events/:eventId/activity`.
-- crear schema estricto de query params.
-- usar `eventPanelAuth + requireEventRole(["owner", "staff"])`.
-- leer `event_activity_events` scoped por `req.eventPanelUser.eventId`.
-- devolver actor seguro, relations y metadata filtrada.
-- no hacer joins con PII.
+- Estado: implementado y deployado.
+- `GET /panel/events/:eventId/activity` creado.
+- Schema estricto de query params creado.
+- Usa `eventPanelAuth + requireEventRole(["owner", "staff"])`.
+- Lee `event_activity_events` scoped por `req.eventPanelUser.eventId`.
+- Devuelve actor seguro, relations y metadata filtrada.
+- No hace joins con PII.
 
 Slice 3E.4E.3:
 
-- QA runtime completo del endpoint.
-- validar filtros, paginacion, seguridad, tenant safety, regresiones y limpieza.
+- Estado: QA runtime PASS completo.
+- Filtros, paginacion, seguridad, tenant safety, regresiones y limpieza validados.
 
 Slice posterior:
 
-- UI de historial operativo en panel de eventos.
+- ASK / DOCS - UI de historial operativo en panel de eventos.
 
-## 17. No-goals
+## 17. Estado Slice 3E.4E - endpoint read-only activity QA runtime PASS
+
+Estado final: **implementado, deployado y QA runtime PASS completo**.
+
+Endpoint validado:
+
+- `GET /panel/events/:eventId/activity`
+- Proteccion: `eventPanelAuth + requireEventRole(["owner", "staff"])`.
+- Read-only.
+- Lee `event_activity_events`.
+- Usa tenant scope desde `req.eventPanelUser.eventId`.
+- Devuelve filtros, paginacion, actor seguro y metadata filtrada.
+- No expone PII, tokens, QR payload/base64, auth IDs ni `local_id`.
+
+Preflight y estado inicial:
+
+- Variables QA cargadas correctamente: API, `EVENT_ID`, `GENERAL_TICKET_ID`, `QA_EMAIL` y tokens owner Ibiza, staff Ibiza y owner local.
+- `GET /health` respondio `200 OK`.
+- `GET /panel/events/:eventId/me` con owner Ibiza respondio `200 OK`, `membership.role = owner`.
+- `GET /panel/events/:eventId/me` con staff Ibiza respondio `200 OK`, `membership.role = staff`.
+- `GET /panel/events/:eventId/entries` inicial respondio `items = []`, `pagination.total = 0`.
+- `GET /panel/events/:eventId/activity` respondio `200 OK`.
+
+Fixture controlado:
+
+- Se creo fixture QA con `manual-issue`.
+- `manual-issue` respondio `201 Created`.
+- `entries.length = 2`.
+- `email_delivery.mode = order_bundle`.
+- `email_delivery.email_attempts = 1`.
+- `email_delivery.attempted = 2`, `sent = 2`, `failed = 0`, `skipped = 0`, `status = sent`.
+- `event_order_id = 6996b86f-c346-49d2-a967-99b75c0c4982`.
+- `event_order_item_id = 6248c2be-258d-4420-9c0a-2b106bffbfdb`.
+- Entries QA: `QA-3E4E-QR` y `QA-3E4E-MANUAL`.
+- DB inicial de entries: `status = issued`, `checkin_status = unused`, `used_at = null`, `used_by_auth_user_id = null`.
+
+Activity generada por fixture:
+
+- Email manual por entry respondio `200 OK`, `email.status = sent`.
+- Activity email manual: `event_entry_email_sent`, `source = manual_email`, `entity_type = event_email`, actor owner, message `Email de QR enviado`, metadata `email_status = sent`, `delivery_mode = single_entry`.
+- Check-in QR valido respondio `200 OK`, `status = valid`, `entry.checkin_status = used`.
+- Activity QR: `event_entry_checked_in`, `source = qr`, `entity_type = event_checkin`, actor owner, message `Entrada validada por QR`, metadata `previous_checkin_status = unused`, `next_checkin_status = used`.
+- Fallback manual sobre entry ya usada respondio `200 OK`, `status = already_used`.
+- Activity fallback manual: `event_entry_already_used_attempt`, `source = manual`, `entity_type = event_checkin`, actor owner, message `Intento manual sobre entrada ya usada`, metadata `reason_code = already_used`.
+
+Resumen exacto del fixture:
+
+- Se confirmaron 8 filas de activity.
+- `event_order_manual_issued / manual / event_order = 1`.
+- `event_entry_issued / manual / event_order_entry = 2`.
+- `event_entry_email_sent / automatic_email / event_email = 2`.
+- `event_entry_email_sent / manual_email / event_email = 1`.
+- `event_entry_checked_in / qr / event_checkin = 1`.
+- `event_entry_already_used_attempt / manual / event_checkin = 1`.
+
+Lectura `/activity`:
+
+- `GET /panel/events/:eventId/activity?event_order_id=<QA_ORDER_ID>&page=1&page_size=100` respondio `200 OK`.
+- `pagination.page = 1`.
+- `pagination.page_size = 100`.
+- `pagination.total = 8`.
+- `pagination.total_pages = 1`.
+- `items.length = 8`.
+- El endpoint devolvio las 8 filas esperadas del fixture.
+
+Actor seguro:
+
+- Rows de sistema: `actor.type = system`, `actor.role = null`, `actor.label = Sistema`.
+- Rows de panel: `actor.type = event_panel_user`, `actor.role = owner`, `actor.label = Owner Ibiza`.
+- No se expuso `actor_auth_user_id`, `auth_user_id`, `used_by_auth_user_id` ni `created_by_auth_user_id`.
+
+Metadata segura:
+
+- Metadata devuelta solo con claves permitidas: `reason_code`, `previous_checkin_status`, `next_checkin_status`, `email_status`, `delivery_mode`, `email_attempts`, `bundle_entries_count`, `entries_count`, `ticket_name`, `sales_unit_type`, `entries_per_unit`, `currency`, `total_amount`.
+- No se detecto metadata cruda.
+- No se detectaron objetos/arrays anidados no permitidos.
+- No se duplico `source` dentro de metadata.
+
+Seguridad de response completa:
+
+- Response filtrada por orden QA sin `actor_auth_user_id`, `auth_user_id`, `used_by_auth_user_id`, `created_by_auth_user_id`, `local_id`, `checkin_token`, `qr_payload`, `qr_base64`, `raw_url`, `scanned_url`, buyer/attendee PII, email crudo, telefonos, documentos, request/response crudo, headers, stack ni `/events/checkin`.
+
+Filtros, paginacion y orden:
+
+- `source=manual` respondio `200 OK`, `pagination.total = 4`, solo source manual.
+- `source=qr` respondio `200 OK`, `pagination.total = 1`, solo source qr.
+- `source=automatic_email` respondio `200 OK`, `pagination.total = 2`, solo source automatic_email.
+- `source=manual_email` respondio `200 OK`, `pagination.total = 1`, solo source manual_email.
+- Filtros por action devolvieron solo rows con la action solicitada.
+- Filtros por `entity_type` validaron `event_order`, `event_order_entry`, `event_email` y `event_checkin`.
+- Filtros por `event_order_id`, `event_order_entry_id` y `event_ticket_type_id` quedaron scoped al fixture y evento.
+- `page=1&page_size=1` devolvio `total = 8`, `total_pages = 8`, `items.length = 1`.
+- `page=2&page_size=1` devolvio `total = 8`, `total_pages = 8`, `items.length = 1`.
+- `sort=created_at_desc` devolvio primero la activity mas reciente del fixture.
+- `sort=created_at_asc` devolvio primero la activity mas antigua del fixture.
+
+Query invalida:
+
+- Se validaron 17 casos con `HTTP 400` y `code = invalid_query`: `action=bad`, `source=bad`, `entity_type=bad`, `event_order_id=bad`, `event_order_entry_id=bad`, `event_ticket_type_id=bad`, `page=0`, `page_size=101`, `sort=bad`, `unknown=1`, `q=test`, `event_id`, `local_id`, `auth_user_id`, `actor_auth_user_id`, `checkin_token`, `metadata`.
+
+Auth y tenant safety:
+
+- Owner Ibiza y staff Ibiza acceden con `200 OK`.
+- Sin Authorization devuelve `401`.
+- Token invalido devuelve `401`.
+- Owner local sin membership devuelve `403`.
+- `eventId` invalido devuelve `400 Invalid eventId`.
+- Evento inexistente con UUID valido devuelve `404 Event not found`.
+
+Regresiones:
+
+- `GET /panel/events/:eventId/summary` respondio `200 OK`.
+- `GET /panel/events/:eventId/ticket-types` respondio `200 OK`.
+- `GET /panel/events/:eventId/entries` respondio `200 OK`.
+- `GET /panel/events/:eventId/entries/:entryId/qr` respondio `200 OK`, `Content-Type = image/png`.
+- `GET /panel/events/:eventId/me` con staff Ibiza respondio `200 OK`.
+- `GET /panel/me` con owner local respondio `200 OK`.
+- `GET /panel/orders/summary` con owner local respondio `200 OK`.
+
+Limpieza final:
+
+- Se ejecuto limpieza de fixtures `QA-3E4E`.
+- Verificacion por IDs exactos: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
+- Evento restaurado: `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+- `GET /panel/events/:eventId/entries` volvio a `items = []`, `pagination.total = 0`.
+- `GET /panel/events/:eventId/activity?event_order_id=<QA_ORDER_ID>` volvio a `items = []`, `pagination.total = 0`.
+- `GET /panel/events/:eventId/summary` volvio a operaciones en cero.
+
+Estado backend operativo:
+
+- Activity log de Eventos queda cerrado a nivel backend operativo: generacion de activity, lectura segura, tenant safety, metadata segura y regresiones OK.
+
+Proximo paso recomendado:
+
+- ASK / DOCS - UI de historial operativo en panel de eventos.
+- Definir si se muestra activity en vista general, historial dentro de entry o ambas por etapas.
+- Definir columnas, labels, filtros UI, paginacion/lazy load y estados vacios.
+- Mantener `GET /panel/events/:eventId/activity` como fuente read-only del historial.
+
+## 18. No-goals
 
 Fuera de este contrato:
 
-- implementar codigo;
-- tocar endpoints;
+- implementar codigo adicional;
+- tocar endpoints existentes fuera de `/activity`;
 - tocar SQL/migraciones;
 - tocar frontend;
 - tocar pagos;
@@ -565,4 +705,3 @@ Fuera de este contrato:
 - cambiar flujos de manual-issue, email, QR, check-in QR o fallback manual;
 - hacer cola/background;
 - agregar analytics avanzado.
-

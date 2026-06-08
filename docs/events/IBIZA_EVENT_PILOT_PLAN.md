@@ -1452,7 +1452,26 @@ Se valido que:
 
 Con este slice quedan cubiertos los flujos principales de activity: emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
 
-Proximo paso tecnico recomendado: avanzar a 3E.4E endpoint read-only `GET /panel/events/:eventId/activity`.
+### Slice 3E.4E - endpoint read-only activity
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido que:
+
+- `GET /panel/events/:eventId/activity` lista activity del evento autenticado;
+- respeta tenant por `req.eventPanelUser.eventId`;
+- owner/staff Ibiza acceden y usuarios sin auth, tokens invalidos o usuario local sin membership quedan bloqueados;
+- filtra por action, source, entity_type, event_order_id, event_order_entry_id y event_ticket_type_id;
+- pagina y ordena por `created_at` asc/desc;
+- rechaza query params invalidos, desconocidos y prohibidos con `400 invalid_query`;
+- devuelve actor seguro sin auth IDs;
+- devuelve metadata filtrada por allowlist;
+- no expone PII, tokens, QR payload/base64, request/response crudo, auth IDs ni `local_id`;
+- regresiones principales y limpieza QA quedaron PASS.
+
+Activity log de Eventos queda cerrado a nivel backend operativo: generacion de activity, lectura segura de activity, tenant safety, metadata segura y regresiones OK.
+
+Proximo paso tecnico recomendado: ASK / DOCS - UI de historial operativo en panel de eventos.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

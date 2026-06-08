@@ -566,6 +566,8 @@ Implementar QR por unidad validable, scanner, validación manual y búsqueda por
 
 Registrar eventos operativos de entrada/orden, con actor label seguro y metadata sanitizada.
 
+Estado backend operativo: generación y lectura read-only segura de activity de Eventos implementadas y con QA runtime PASS completo. Próximo paso: definir UI de historial operativo del panel de eventos.
+
 ### Slice 8 - Export owner-only
 
 Agregar export de compradores, check-ins y pendientes/no usados, sin tokens ni IDs internos innecesarios.
