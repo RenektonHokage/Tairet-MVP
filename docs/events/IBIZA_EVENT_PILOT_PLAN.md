@@ -1471,7 +1471,26 @@ Se valido que:
 
 Activity log de Eventos queda cerrado a nivel backend operativo: generacion de activity, lectura segura de activity, tenant safety, metadata segura y regresiones OK.
 
-Proximo paso tecnico recomendado: ASK / DOCS - UI de historial operativo en panel de eventos.
+### UI-B - base frontend read-only activity
+
+Estado: implementado y validado tecnicamente.
+
+Se registro que:
+
+- `apps/web-next/lib/eventActivity.ts` prepara el consumo read-only de `GET /panel/events/:eventId/activity`;
+- se crearon tipos TS para actions, sources, entity types, sort, actor, relations, metadata allowlist, item, pagination, response e input de `getEventActivity`;
+- se creo `getEventActivity` con `apiGetWithAuth`, `encodeURIComponent` y query params por `URLSearchParams`;
+- se crearon labels/constants y helpers puros para labels, categorias y badge variant;
+- no hay UI visible, rutas ni navegacion;
+- no se tocaron backend, SQL, migraciones, pagos, `/payments/callback`, activity local ni flujos de emision/email/check-in/fallback.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
+
+Proximo paso tecnico recomendado: UI-C - crear pantalla/seccion `Actividad` en panel de evento.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
