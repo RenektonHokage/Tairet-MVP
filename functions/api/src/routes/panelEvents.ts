@@ -959,7 +959,7 @@ async function fetchEventCheckinActivityContext(input: {
     .maybeSingle();
 
   if (entryError || !entry) {
-    logger.warn("Failed to fetch QR check-in activity entry context", {
+    logger.warn("Failed to fetch event check-in activity entry context", {
       requestId: input.requestId,
       eventId: input.eventId,
       entryId: input.entryId,
@@ -985,7 +985,7 @@ async function fetchEventCheckinActivityContext(input: {
       .maybeSingle();
 
     if (itemError) {
-      logger.warn("Failed to fetch QR check-in activity item context", {
+      logger.warn("Failed to fetch event check-in activity item context", {
         requestId: input.requestId,
         eventId: input.eventId,
         entryId: input.entryId,
@@ -1153,6 +1153,88 @@ async function recordQrCheckinActivity(input: {
     eventTicketTypeId: context.eventTicketTypeId,
     source: "qr",
     actor,
+    message,
+    metadata,
+  });
+}
+
+async function recordManualCheckinActivity(input: {
+  eventId: string;
+  requestId: string | undefined;
+  actor: {
+    authUserId: string;
+    role: "owner" | "staff";
+    displayName: string | null;
+  };
+  result: EventCheckinSuccessResult;
+}) {
+  if (
+    input.result.status === "event_not_operable" ||
+    input.result.status === "not_valid_status" ||
+    input.result.status === "invalid"
+  ) {
+    return;
+  }
+
+  const context = await getEventCheckinActivityContext({
+    eventId: input.eventId,
+    requestId: input.requestId,
+    entry: input.result.entry,
+  });
+
+  if (!context) {
+    logger.warn("Skipping manual check-in activity without entry context", {
+      requestId: input.requestId,
+      eventId: input.eventId,
+      status: input.result.status,
+    });
+    return;
+  }
+
+  const metadata: Record<string, unknown> = {};
+  let action: Parameters<typeof recordEventActivity>[0]["action"];
+  let message: string;
+
+  if (input.result.status === "valid") {
+    action = "event_entry_checked_in";
+    message = "Entrada validada manualmente";
+    metadata.previous_checkin_status = "unused";
+    metadata.next_checkin_status = "used";
+  } else if (input.result.status === "already_used") {
+    action = "event_entry_already_used_attempt";
+    message = "Intento manual sobre entrada ya usada";
+    metadata.reason_code = "already_used";
+  } else if (input.result.status === "outside_window") {
+    action = "event_entry_outside_window_attempt";
+    message = "Intento manual fuera de ventana";
+    metadata.reason_code = "outside_window";
+  } else if (input.result.status === "voided") {
+    action = "event_entry_voided_attempt";
+    message = "Intento manual sobre entrada anulada";
+    metadata.reason_code = "voided";
+  } else {
+    return;
+  }
+
+  setManualIssueMetadataValue(metadata, "ticket_name", context.ticketName);
+
+  await recordEventActivityBestEffort({
+    requestId: input.requestId,
+    eventId: input.eventId,
+    action,
+    entityType: "event_checkin",
+    entityId: context.entryId,
+    eventOrderId: context.eventOrderId,
+    eventOrderItemId: context.eventOrderItemId,
+    eventOrderEntryId: context.entryId,
+    eventTicketTypeId: context.eventTicketTypeId,
+    source: "manual",
+    actor: {
+      type: "event_panel_user",
+      authUserId: input.actor.authUserId,
+      role: input.actor.role,
+      displayName: input.actor.displayName,
+    },
     message,
     metadata,
   });
@@ -2195,6 +2277,22 @@ panelEventsRouter.patch(
           code: "manual_checkin_failed",
         });
       }
+
+      await recordManualCheckinActivity({
+        eventId: req.eventPanelUser.eventId,
+        requestId,
+        actor: req.eventPanelUser,
+        result,
+      }).catch((error) => {
+        logger.warn("Unexpected error recording manual check-in activity", {
+          requestId,
+          eventId: req.eventPanelUser?.eventId,
+          entryId,
+          status: result.status,
+          errorCode: "event_activity_unexpected_error",
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
 
       return res.status(200).json(result);
     } catch (error) {
