@@ -765,7 +765,7 @@ Slice 3E.4G1 queda registrado como implementado, deployado y validado:
 - `source = qr`;
 - no cambia la respuesta semantica del endpoint de check-in QR;
 - no toca RPC, SQL, migraciones, frontend, pagos, check-in local ni activity local;
-- fallback manual por entry sigue pendiente de integracion de activity.
+- fallback manual por entry quedo integrado despues en Slice 3E.4G2.
 
 QA runtime registrado:
 
@@ -785,4 +785,34 @@ QA runtime registrado:
 
 Proximo paso recomendado:
 
-- Slice 3E.4G2: activity en fallback manual por entry con `source = manual`.
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
+
+## 25. Estado Slice 3E.4G2 - activity en fallback manual QA runtime PASS
+
+Slice 3E.4G2 queda registrado como implementado, deployado y validado:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/entries/:entryId/use`;
+- `source = manual`;
+- no cambia la respuesta semantica del endpoint de fallback manual;
+- no toca RPC, SQL, migraciones, frontend, pagos, check-in local ni activity local.
+
+QA runtime registrado:
+
+- preflight `/health`, `/me` owner/staff y `/entries` inicial limpio PASS;
+- `manual-issue` creo 6 entries QA y `email_delivery` bundle respondio `sent`;
+- fallback manual valido genero `event_entry_checked_in / manual` con `previous_checkin_status = unused` y `next_checkin_status = used`;
+- segundo intento genero `event_entry_already_used_attempt / manual` con `reason_code = already_used`;
+- outside window genero `event_entry_outside_window_attempt / manual` con `reason_code = outside_window` y no muto la entry;
+- entry `voided` genero `event_entry_voided_attempt / manual` con `reason_code = voided`;
+- entry inexistente, `entryId` malformado, overrides por query/body, sin auth, usuario local sin membership y `event_not_operable` no generaron activity nueva;
+- metadata validada sin `checkin_token`, tokens, URL raw, QR payload/base64, email, phone, document, buyer, attendee, `local_id`, auth IDs ni `source` duplicado;
+- regresiones de summary, ticket-types, entries, QR PNG, `/me` de evento y panel local PASS;
+- limpieza QA dejo activity, entries y operaciones en cero y restauro Ibiza a `draft` con ventana original.
+
+Cobertura final de activity registrada:
+
+- emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
+
+Proximo paso recomendado:
+
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.

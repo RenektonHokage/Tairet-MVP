@@ -1436,7 +1436,23 @@ Se valido que:
 - metadata queda sanitizada sin tokens, QR payload/base64, raw URL, PII, `local_id` ni `source` duplicado;
 - regresiones principales y limpieza QA quedaron PASS.
 
-Proximo paso tecnico recomendado: avanzar a 3E.4G2 activity en fallback manual por entry.
+### Slice 3E.4G2 - activity en fallback manual
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido que:
+
+- fallback manual valido registra `event_entry_checked_in` con `source = manual`;
+- segundo intento registra `event_entry_already_used_attempt`;
+- fuera de ventana registra `event_entry_outside_window_attempt` sin mutar la entry;
+- entry anulada registra `event_entry_voided_attempt`;
+- entry inexistente, `entryId` malformado, overrides, sin auth, usuario local sin membership y `event_not_operable` no generan activity nueva;
+- metadata queda sanitizada sin PII, tokens, `checkin_token`, QR payload/base64, request/response/headers, `local_id`, auth IDs ni `source` duplicado;
+- regresiones principales y limpieza QA quedaron PASS.
+
+Con este slice quedan cubiertos los flujos principales de activity: emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
+
+Proximo paso tecnico recomendado: avanzar a 3E.4E endpoint read-only `GET /panel/events/:eventId/activity`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

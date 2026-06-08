@@ -1852,9 +1852,26 @@ Se valido:
 - metadata segura sin token crudo, `checkin_token`, URL raw, QR payload/base64, PII, `local_id` ni `source` duplicado;
 - regresiones principales y limpieza QA PASS.
 
-No se integro activity de fallback manual, read activity ni activity local.
+La activity de fallback manual quedo integrada despues en Slice 3E.4G2. No se integro read activity ni activity local.
 
-Proximo paso recomendado: Slice 3E.4G2 activity en fallback manual.
+### Estado Slice 3E.4G2 - activity en fallback manual
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/entries/:entryId/use`;
+- fallback manual valido registra `event_entry_checked_in` con `source = manual`;
+- segundo intento registra `event_entry_already_used_attempt` con `reason_code = already_used`;
+- fuera de ventana registra `event_entry_outside_window_attempt` con `reason_code = outside_window` y no muta la entry;
+- entry anulada registra `event_entry_voided_attempt` con `reason_code = voided`;
+- entry inexistente, `entryId` malformado, overrides, sin auth, usuario local sin membership y `event_not_operable` no registran activity;
+- metadata segura sin PII, tokens, `checkin_token`, QR payload/base64, request/response/headers, `local_id`, auth IDs ni `source` duplicado;
+- regresiones principales y limpieza QA PASS.
+
+Con este slice quedan cubiertos los flujos principales de activity: emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
+
+Proximo paso recomendado: Slice 3E.4E endpoint read-only `GET /panel/events/:eventId/activity`.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -2057,6 +2074,8 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - activity de email automatico bundle y email manual por entry validada;
 - Slice 3E.4G1 activity en check-in QR implementado, deployado y QA runtime PASS completo;
 - activity QR valid/attempts/invalid token validada con metadata segura;
+- Slice 3E.4G2 activity en fallback manual implementado, deployado y QA runtime PASS completo;
+- activity manual valid/attempts validada con metadata segura;
 - limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;

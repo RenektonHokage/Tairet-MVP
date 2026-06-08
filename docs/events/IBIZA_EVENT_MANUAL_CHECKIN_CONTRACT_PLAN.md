@@ -22,6 +22,9 @@ Estado previo validado:
 - Slice 3E.2B: endpoint `PATCH /panel/events/:eventId/checkin/:token` implementado y QA runtime PASS completo.
 - Slice 3E.3A: este documento define el contrato de fallback manual por `entryId`.
 - Slice 3E.3B: RPC `check_in_event_entry_manually` aplicada y QA DB PASS.
+- Slice 3E.3C: endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado y QA runtime PASS completo.
+- Slice 3E.4G1: activity en check-in QR implementada y QA runtime PASS completo.
+- Slice 3E.4G2: activity en fallback manual por entry implementada y QA runtime PASS completo.
 
 Modelo vigente:
 
@@ -575,3 +578,30 @@ Matiz:
 - El QA creo entries mediante `manual-issue`, por lo que tambien se activo `email_delivery` automatico.
 - `email_delivery` funciono correctamente: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`.
 - Este dato confirma que el flujo anterior no se rompio, pero el foco del slice fue fallback manual.
+
+## 21. Estado Slice 3E.4G2 - activity en fallback manual QA runtime PASS
+
+Slice 3E.4G2 queda registrado como implementado, deployado y validado:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/entries/:entryId/use`;
+- todos los registros del slice usan `source = manual`;
+- fallback manual valido genera `event_entry_checked_in` con metadata `previous_checkin_status = unused` y `next_checkin_status = used`;
+- segundo intento genera `event_entry_already_used_attempt` con `reason_code = already_used`;
+- outside window genera `event_entry_outside_window_attempt` con `reason_code = outside_window` y no muta la entry;
+- entry `voided` genera `event_entry_voided_attempt` con `reason_code = voided`;
+- entry inexistente, `entryId` malformado, overrides por query/body, `event_not_operable`, sin auth y usuario local sin membership no generan activity nueva;
+- metadata validada sin PII, tokens, `checkin_token`, QR payload/base64, request/response/headers, `local_id`, auth IDs ni metadata cruda;
+- regresiones principales y limpieza QA quedaron PASS.
+
+Cobertura final registrada:
+
+- emision manual;
+- entries emitidas;
+- email automatico bundle;
+- email manual por entry;
+- check-in QR;
+- fallback manual.
+
+Proximo paso recomendado:
+
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.

@@ -16,15 +16,16 @@ Estado previo:
 - Slice 3E.4F1: activity en `manual-issue` implementada, deployada y QA runtime PASS completo.
 - Slice 3E.4F2: activity en emails manual/automatico bundle implementada, deployada y QA runtime PASS completo.
 - Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4G2: activity en fallback manual por entry implementada, deployada y QA runtime PASS completo.
 - `source` es columna propia controlada, no `metadata.source`.
 - Activity de Eventos queda separada de `operational_activity_events`.
 - Activity se escribe desde TypeScript en modo best-effort.
 - Fallo de activity no revierte emision, email ni check-in.
 - No se guardan tokens, QR payloads, raw URL, PII sensible, `local_id` ni metadata cruda.
 
-Flujos pendientes a integrar en slices posteriores:
+Flujo pendiente posterior:
 
-- `PATCH /panel/events/:eventId/entries/:entryId/use`
+- `GET /panel/events/:eventId/activity`
 
 Flujos que no deben registrar activity en MVP:
 
@@ -342,6 +343,8 @@ Status `not_valid_status`:
 
 ## 9. Integracion fallback manual
 
+Estado: **implementado, deployado y QA runtime PASS completo en Slice 3E.4G2**.
+
 Endpoint:
 
 - `PATCH /panel/events/:eventId/entries/:entryId/use`
@@ -368,7 +371,7 @@ Status `already_used`:
 
 - `action`: `event_entry_already_used_attempt`
 - `source`: `manual`
-- `message`: `Intento manual de validar entrada ya usada`
+- `message`: `Intento manual sobre entrada ya usada`
 - metadata:
   - `reason_code = already_used`
 
@@ -376,7 +379,7 @@ Status `outside_window`:
 
 - `action`: `event_entry_outside_window_attempt`
 - `source`: `manual`
-- `message`: `Intento manual de validar entrada fuera de ventana`
+- `message`: `Intento manual fuera de ventana`
 - metadata:
   - `reason_code = outside_window`
 
@@ -384,7 +387,7 @@ Status `voided`:
 
 - `action`: `event_entry_voided_attempt`
 - `source`: `manual`
-- `message`: `Intento manual de validar entrada anulada`
+- `message`: `Intento manual sobre entrada anulada`
 - metadata:
   - `reason_code = voided`
 
@@ -565,7 +568,8 @@ Slice 3E.4G1:
 
 Slice 3E.4G2:
 
-- integrar activity en fallback manual.
+- Implementado, deployado y QA runtime PASS completo.
+- Activity en `PATCH /panel/events/:eventId/entries/:entryId/use` operativa con `source = manual`.
 
 Slice 3E.4E:
 
@@ -573,7 +577,8 @@ Slice 3E.4E:
 
 Nota:
 
-- El orden puede ajustarse. Es valido crear lectura `/activity` antes de integrar todos los flujos si se quiere QA incremental, pero este contrato recomienda integrar primero los flujos que generan datos.
+- Los flujos principales de activity ya quedaron cubiertos: emision manual, entries emitidas, email automatico bundle, email manual por entry, check-in QR y fallback manual.
+- Siguiente paso recomendado: lectura operativa `/activity`.
 
 ## 16. Estado Slice 3E.4F1 - activity en manual-issue QA runtime PASS
 
@@ -906,18 +911,86 @@ Regresiones y limpieza:
 - `/summary` volvio a operaciones en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`.
 - Evento restaurado: `status = draft`, `checkin_valid_from = 2026-08-01T22:00:00+00:00`, `checkin_valid_to = 2026-08-02T10:00:00+00:00`.
 
+## 19. Estado Slice 3E.4G2 - activity en fallback manual QA runtime PASS
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Alcance implementado:
+
+- `recordEventActivity` se integro en `PATCH /panel/events/:eventId/entries/:entryId/use`.
+- La integracion es best-effort y no cambia la respuesta publica del endpoint.
+- `source = manual` para todos los registros de este slice.
+- No se integro activity nueva en check-in QR, emails, read activity, activity local ni check-in local.
+- No se toco SQL, migraciones, frontend, pagos ni `/payments/callback`.
+
+QA runtime registrado como PASS:
+
+- Preflight: `/health`, `/panel/events/:eventId/me` owner, `/panel/events/:eventId/me` staff y `/entries` inicial limpio.
+- Limpieza preventiva de fixtures `QA-3E4G2` ejecutada.
+- Set QA final: 6 entries unicas, una por marcador.
+- `manual-issue` creo 6 entries QA y respondio `201 Created`.
+- `email_delivery.mode = order_bundle`, `email_attempts = 1`, `attempted = 6`, `sent = 6`, `failed = 0`, `skipped = 0`, `status = sent`.
+- Entries creadas: `QA-3E4G2-VALID`, `QA-3E4G2-OUTSIDE`, `QA-3E4G2-VOIDED`, `QA-3E4G2-NOT-OPERABLE`, `QA-3E4G2-OVERRIDE`, `QA-3E4G2-AUTH`.
+- Todas quedaron inicialmente `status = issued`, `checkin_status = unused`, `used_at = null` y `used_by_auth_user_id = null`.
+
+Activity manual valid:
+
+- Fallback manual valido respondio `200 OK`, `ok = true`, `status = valid`, `entry.checkin_status = used` y `entry.used_at != null`.
+- DB confirmo `status = issued`, `checkin_status = used`, `used_at != null` y `used_by_auth_user_id = owner Ibiza auth user id`.
+- Activity: `event_entry_checked_in`, `source = manual`, `entity_type = event_checkin`, `entity_id = entry.id`, `event_order_entry_id = entry.id`, `actor_type = event_panel_user`, `actor_role = owner`, `message = Entrada validada manualmente`.
+- Metadata: `previous_checkin_status = unused`, `next_checkin_status = used`.
+
+Activity manual attempts:
+
+- Segundo intento sobre la misma entry respondio `already_used`, mantuvo `used_at` y genero `event_entry_already_used_attempt / manual` con `reason_code = already_used`.
+- Fuera de ventana respondio `outside_window`, no muto la entry y genero `event_entry_outside_window_attempt / manual` con `reason_code = outside_window`.
+- Entry anulada respondio `voided` y genero `event_entry_voided_attempt / manual` con `reason_code = voided`.
+
+Errores sin activity:
+
+- Entry inexistente respondio `404`, `code = entry_not_found`, sin activity nueva.
+- `entryId` malformado respondio `400`, `code = invalid_entry_id`, sin activity nueva.
+- Query override y body override respondieron `400`, `code = invalid_manual_checkin_input`, sin activity nueva y sin mutar la entry.
+- `event_not_operable` respondio `200 OK`, `status = event_not_operable`, sin activity nueva.
+- Sin Authorization respondio `401`; owner local sin membership respondio `403`; ninguno genero activity nueva ni muto la entry.
+
+Metadata segura:
+
+- Scan sensible de metadata: 0 rows.
+- Scan de UUIDs dentro de metadata: 0 rows.
+- No se detecto email, phone, document, buyer, attendee, `checkin_token`, `qr_payload`, `qr_base64`, request, response, headers, `local_id`, `auth_user_id`, `used_by_auth_user_id`, `source` duplicado ni URLs/payloads QR.
+- Conteo final de activity manual de check-in: `event_entry_checked_in / manual = 1`, `event_entry_already_used_attempt / manual = 1`, `event_entry_outside_window_attempt / manual = 1`, `event_entry_voided_attempt / manual = 1`.
+
+Regresiones y limpieza:
+
+- Regresiones PASS: `/summary`, `/ticket-types`, `/entries`, `/entries/:entryId/qr`, `/panel/events/:eventId/me` staff, `/panel/me` local y `/panel/orders/summary` local.
+- QR PNG mantuvo `Content-Type = image/png`, `Cache-Control = no-store` y `x-content-type-options = nosniff`.
+- Limpieza de fixtures `QA-3E4G2` ejecutada.
+- `qa_activity_remaining = 0`.
+- `/entries` volvio a `items = []`, `pagination.total = 0`.
+- `/summary` volvio a operaciones en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`.
+- Evento restaurado: `status = draft`, `checkin_valid_from = 2026-08-01T22:00:00+00:00`, `checkin_valid_to = 2026-08-02T10:00:00+00:00`.
+
+Cobertura final de flujos activity:
+
+- emision manual;
+- entries emitidas;
+- email automatico bundle;
+- email manual por entry;
+- check-in QR;
+- fallback manual.
+
 Proximo paso recomendado:
 
-- Slice 3E.4G2: activity en fallback manual por entry.
-- Integrar `recordEventActivity` en `PATCH /panel/events/:eventId/entries/:entryId/use`.
-- `source = manual`.
-- Registrar `valid`, `already_used`, `outside_window` y `voided`.
-- No registrar `event_not_operable` si no hay action especifica.
-- No registrar `entry_not_found` porque no hay entity confiable.
-- No guardar token, PII, QR payload ni metadata cruda.
+- Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
+- Proteger con `eventPanelAuth + requireEventRole(["owner", "staff"])`.
+- Soportar filtros por `action`, `source`, `entity_type`, `event_order_entry_id` y `event_order_id`.
+- Agregar paginacion y orden `created_at desc`.
+- Devolver response segura con `actor_label`, `action`, `source`, `message` y metadata sanitizada.
+- No exponer `actor_auth_user_id`, PII, tokens, `local_id` ni metadata cruda.
 - No tocar SQL/migraciones/frontend/pagos.
 
-## 19. No-goals
+## 20. No-goals
 
 Fuera de este documento:
 
