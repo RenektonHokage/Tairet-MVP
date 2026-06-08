@@ -756,3 +756,33 @@ Matiz:
 - El QA creo entries mediante `manual-issue`, por lo que tambien se activo `email_delivery` automatico.
 - `email_delivery` funciono correctamente: `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`.
 - Ese dato valida regresion del flujo anterior; el foco del slice fue fallback manual.
+
+## 24. Estado Slice 3E.4G1 - activity en check-in QR QA runtime PASS
+
+Slice 3E.4G1 queda registrado como implementado, deployado y validado:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/checkin/:token`;
+- `source = qr`;
+- no cambia la respuesta semantica del endpoint de check-in QR;
+- no toca RPC, SQL, migraciones, frontend, pagos, check-in local ni activity local;
+- fallback manual por entry sigue pendiente de integracion de activity.
+
+QA runtime registrado:
+
+- preflight `/health`, `/me` owner/staff y `/entries` inicial limpio PASS;
+- `manual-issue` creo 4 entries QA y `email_delivery` bundle respondio `sent`;
+- QR valido genero `event_entry_checked_in / qr` con `previous_checkin_status = unused` y `next_checkin_status = used`;
+- segundo intento genero `event_entry_already_used_attempt / qr` con `reason_code = already_used`;
+- QR fuera de ventana genero `event_entry_outside_window_attempt / qr` con `reason_code = outside_window` y no muto la entry;
+- entry `voided` genero `event_entry_voided_attempt / qr` con `reason_code = voided`;
+- UUID inexistente genero `event_entry_invalid_token_attempt / qr` con `reason_code = invalid_token`;
+- token malformado con auth valida genero `event_entry_invalid_token_attempt / qr` con `reason_code = malformed_token`;
+- sin auth y usuario local sin membership no generaron activity nueva;
+- `event_not_operable` no genero activity en MVP;
+- metadata validada sin `checkin_token`, token crudo, URL raw, QR payload/base64, email, phone, document, buyer, attendee, `local_id` ni `source` duplicado;
+- regresiones de summary, ticket-types, entries, QR PNG, `/me` de evento y panel local PASS;
+- limpieza QA dejo activity, entries y operaciones en cero y restauro Ibiza a `draft` con ventana original.
+
+Proximo paso recomendado:
+
+- Slice 3E.4G2: activity en fallback manual por entry con `source = manual`.

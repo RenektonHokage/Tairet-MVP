@@ -13,18 +13,17 @@ Estado previo:
 - Slice 3E.4A: contrato de activity log operativo creado.
 - Slice 3E.4B: migracion 032 aplicada, `public.event_activity_events` creada y QA DB PASS completo.
 - Slice 3E.4C: helper `recordEventActivity` creado en `functions/api/src/services/eventActivity.ts`, aislado y con typecheck PASS.
+- Slice 3E.4F1: activity en `manual-issue` implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4F2: activity en emails manual/automatico bundle implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS completo.
 - `source` es columna propia controlada, no `metadata.source`.
 - Activity de Eventos queda separada de `operational_activity_events`.
 - Activity se escribe desde TypeScript en modo best-effort.
 - Fallo de activity no revierte emision, email ni check-in.
 - No se guardan tokens, QR payloads, raw URL, PII sensible, `local_id` ni metadata cruda.
 
-Flujos existentes a integrar en slices posteriores:
+Flujos pendientes a integrar en slices posteriores:
 
-- `POST /panel/events/:eventId/orders/manual-issue`
-- `POST /panel/events/:eventId/entries/:entryId/send-email`
-- email automatico post `manual-issue`
-- `PATCH /panel/events/:eventId/checkin/:token`
 - `PATCH /panel/events/:eventId/entries/:entryId/use`
 
 Flujos que no deben registrar activity en MVP:
@@ -253,6 +252,8 @@ Skipped por limite:
 
 ## 8. Integracion check-in QR
 
+Estado: **implementado, deployado y QA runtime PASS completo en Slice 3E.4G1**.
+
 Endpoint:
 
 - `PATCH /panel/events/:eventId/checkin/:token`
@@ -271,7 +272,7 @@ Status `valid`:
 - `eventOrderEntryId`: `entry.id`
 - `source`: `qr`
 - `actor`: `event_panel_user`
-- `message`: `Entrada validada`
+- `message`: `Entrada validada por QR`
 - metadata:
   - `previous_checkin_status = unused`
   - `next_checkin_status = used`
@@ -315,6 +316,18 @@ Status `invalid`:
 - `message`: `Intento de validar token invalido`
 - metadata:
   - `reason_code = invalid_token`
+
+Token malformado con actor autorizado:
+
+- `action`: `event_entry_invalid_token_attempt`
+- `entityType`: `event_checkin`
+- `entityId`: `null`
+- `eventOrderEntryId`: `null`
+- `source`: `qr`
+- `actor`: `event_panel_user`
+- `message`: `Intento de validar QR invalido`
+- metadata:
+  - `reason_code = malformed_token`
 
 Status `event_not_operable`:
 
@@ -547,7 +560,8 @@ Slice 3E.4F2:
 
 Slice 3E.4G1:
 
-- integrar activity en check-in QR.
+- implementado, deployado y QA runtime PASS completo.
+- Activity en `PATCH /panel/events/:eventId/checkin/:token` operativa con `source = qr`.
 
 Slice 3E.4G2:
 
@@ -829,7 +843,81 @@ Comportamiento validado:
 - Panel local no se rompio.
 - Limpieza QA quedo en cero.
 
-## 18. No-goals
+## 18. Estado Slice 3E.4G1 - activity en check-in QR QA runtime PASS
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Alcance implementado:
+
+- `recordEventActivity` se integro en `PATCH /panel/events/:eventId/checkin/:token`.
+- La integracion es best-effort y no cambia la respuesta semantica del endpoint.
+- `source = qr` para todos los registros de este slice.
+- No se integro activity en fallback manual por entry, read activity, activity local ni check-in local.
+- No se toco SQL, migraciones, frontend, pagos ni `/payments/callback`.
+
+QA runtime registrado como PASS:
+
+- Preflight: `/health` respondio `200 OK` con `{"ok":true}`.
+- Owner Ibiza y staff Ibiza validaron `/panel/events/:eventId/me` con roles correctos.
+- Estado inicial `/entries` limpio: `items = []`, `pagination.total = 0`.
+- Limpieza preventiva `QA-3E4G1` dejo `qa_3e4g1_orders = 0`.
+- Se crearon 4 entries QA mediante `manual-issue`: `QA-3E4G1-VALID`, `QA-3E4G1-OUTSIDE`, `QA-3E4G1-VOIDED` y `QA-3E4G1-NOT-OPERABLE`.
+- `manual-issue` respondio `201 Created`, `entries.length = 4`, `email_delivery.mode = order_bundle`, `email_delivery.email_attempts = 1`, `attempted = 4`, `sent = 4`, `failed = 0`, `skipped = 0`, `status = sent`.
+- Las 4 entries quedaron inicialmente `status = issued`, `checkin_status = unused`, `used_at = null` y `used_by_auth_user_id = null`.
+
+Activity QR valid:
+
+- Check-in QR valido respondio `200 OK`, `ok = true`, `status = valid`, `entry.checkin_status = used` y `entry.used_at != null`.
+- DB confirmo `status = issued`, `checkin_status = used`, `used_at != null` y `used_by_auth_user_id = owner Ibiza auth user id`.
+- Activity: `event_entry_checked_in`, `source = qr`, `entity_type = event_checkin`, `entity_id = entry.id`, `event_order_entry_id = entry.id`, `actor_type = event_panel_user`, `actor_role = owner`, `message = Entrada validada por QR`.
+- Metadata: `previous_checkin_status = unused`, `next_checkin_status = used`.
+
+Activity QR attempts:
+
+- Segundo intento sobre la misma entrada respondio `already_used`, mantuvo `used_at` y genero `event_entry_already_used_attempt / qr` con `reason_code = already_used`.
+- Fuera de ventana respondio `outside_window`, no muto la entry y genero `event_entry_outside_window_attempt / qr` con `reason_code = outside_window`.
+- El request fuera de ventana se repitio una vez para capturar body completo; por eso el conteo final esperado de `outside_window` fue `2`.
+- Entry anulada respondio `voided` y genero `event_entry_voided_attempt / qr` con `reason_code = voided`.
+
+Invalid/malformed token:
+
+- UUID inexistente respondio `200 OK`, `status = invalid`, `entry = null`, `attendee = null` y genero `event_entry_invalid_token_attempt / qr` con `reason_code = invalid_token`.
+- Token malformado con owner Ibiza respondio `400 Bad Request`, `code = invalid_checkin_token` y genero `event_entry_invalid_token_attempt / qr` con `reason_code = malformed_token`.
+- Token malformado sin Authorization respondio `401` y no genero activity nueva.
+- Token malformado con owner local sin membership respondio `403` y no genero activity nueva.
+
+Estados sin activity en MVP:
+
+- `event_not_operable` respondio `200 OK`, `status = event_not_operable`, `entry = null`, `attendee = null`.
+- No se registro row nueva para `event_not_operable`, tal como estaba definido para este MVP.
+
+Metadata segura:
+
+- Scans refinados dieron 0 rows para claves sensibles y 0 rows para UUIDs dentro de metadata.
+- No se detecto en metadata `checkin_token`, token crudo, URL raw, `/events/checkin`, `qr_payload`, `qr_base64`, `raw_url`, `scanned_url`, email, phone, document, buyer, attendee, `local_id` ni `source` duplicado.
+- Conteo final de activity QR: `event_entry_checked_in / qr = 1`, `event_entry_already_used_attempt / qr = 1`, `event_entry_outside_window_attempt / qr = 2`, `event_entry_voided_attempt / qr = 1`, `event_entry_invalid_token_attempt / qr = 2`.
+
+Regresiones y limpieza:
+
+- Regresiones PASS: `/summary`, `/ticket-types`, `/entries`, `/entries/:entryId/qr`, `/panel/events/:eventId/me` staff, `/panel/me` local y `/panel/orders/summary` local.
+- QR PNG mantuvo `Content-Type = image/png`, `Cache-Control = no-store` y `x-content-type-options = nosniff`.
+- Limpieza QA dejo `qa_activity_remaining = 0`.
+- `/entries` volvio a `items = []`, `pagination.total = 0`.
+- `/summary` volvio a operaciones en cero: `orders_count = 0`, `order_items_count = 0`, `entries_count = 0`, `used_entries_count = 0`, `unused_entries_count = 0`, `voided_entries_count = 0`, `issued_commercial_amount = 0`.
+- Evento restaurado: `status = draft`, `checkin_valid_from = 2026-08-01T22:00:00+00:00`, `checkin_valid_to = 2026-08-02T10:00:00+00:00`.
+
+Proximo paso recomendado:
+
+- Slice 3E.4G2: activity en fallback manual por entry.
+- Integrar `recordEventActivity` en `PATCH /panel/events/:eventId/entries/:entryId/use`.
+- `source = manual`.
+- Registrar `valid`, `already_used`, `outside_window` y `voided`.
+- No registrar `event_not_operable` si no hay action especifica.
+- No registrar `entry_not_found` porque no hay entity confiable.
+- No guardar token, PII, QR payload ni metadata cruda.
+- No tocar SQL/migraciones/frontend/pagos.
+
+## 19. No-goals
 
 Fuera de este documento:
 

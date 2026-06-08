@@ -1834,7 +1834,27 @@ Se valido:
 - activity previa de `manual-issue`, QR PNG, endpoints de Eventos y panel local siguieron OK;
 - limpieza QA quedo en cero.
 
-Proximo paso recomendado: Slice 3E.4G1 activity en check-in QR.
+### Estado Slice 3E.4G1 - activity en check-in QR
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/checkin/:token`;
+- QR valido registra `event_entry_checked_in` con `source = qr`;
+- segundo intento registra `event_entry_already_used_attempt` con `reason_code = already_used`;
+- fuera de ventana registra `event_entry_outside_window_attempt` con `reason_code = outside_window` y no muta la entry;
+- entry anulada registra `event_entry_voided_attempt` con `reason_code = voided`;
+- UUID inexistente registra `event_entry_invalid_token_attempt` con `reason_code = invalid_token`;
+- token malformado con auth valida registra `event_entry_invalid_token_attempt` con `reason_code = malformed_token`;
+- sin auth y usuario local sin membership no registran activity;
+- `event_not_operable` no registra activity en MVP;
+- metadata segura sin token crudo, `checkin_token`, URL raw, QR payload/base64, PII, `local_id` ni `source` duplicado;
+- regresiones principales y limpieza QA PASS.
+
+No se integro activity de fallback manual, read activity ni activity local.
+
+Proximo paso recomendado: Slice 3E.4G2 activity en fallback manual.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
@@ -2035,6 +2055,8 @@ Este documento queda listo para pasar a Slice 3C - lectura operativa de ordenes/
 - limite mayor a 20 entries validado como `skipped` con `too_many_entries_for_order_bundle_email`;
 - Slice 3E.4F2 activity en emails implementado, deployado y QA runtime PASS completo;
 - activity de email automatico bundle y email manual por entry validada;
+- Slice 3E.4G1 activity en check-in QR implementado, deployado y QA runtime PASS completo;
+- activity QR valid/attempts/invalid token validada con metadata segura;
 - limpieza QA Slice 3D.3B validada;
 - tenant model;
 - unidad validable;

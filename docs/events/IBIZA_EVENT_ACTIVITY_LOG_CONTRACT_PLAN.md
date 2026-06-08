@@ -22,6 +22,10 @@ Estado previo validado:
 - Slice 3E.3B: RPC `check_in_event_entry_manually` aplicada y QA DB PASS.
 - Slice 3E.3C: endpoint `PATCH /panel/events/:eventId/entries/:entryId/use` implementado y QA runtime PASS completo.
 - Slice 3E.4B: migracion 032 `event_activity_events` aplicada y QA DB PASS completo.
+- Slice 3E.4C: helper `recordEventActivity` implementado y validado como helper aislado.
+- Slice 3E.4F1: activity en `manual-issue` implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4F2: activity en emails manual/automatico bundle implementada, deployada y QA runtime PASS completo.
+- Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS completo.
 
 Modelo vigente:
 
@@ -632,7 +636,29 @@ Slice 3E.4F2:
 - No se integro activity de check-in QR, fallback manual, read activity ni activity local.
 - Regresiones principales y limpieza QA quedaron PASS.
 
-## 18. Roadmap recomendado
+## 18. Estado Slice 3E.4G1 - activity en check-in QR
+
+Estado: **implementado, deployado y QA runtime PASS completo**.
+
+Se valido:
+
+- `recordEventActivity` integrado en `PATCH /panel/events/:eventId/checkin/:token`;
+- activity QR usa `source = qr`;
+- `valid` genera `event_entry_checked_in` con `metadata.previous_checkin_status = unused` y `metadata.next_checkin_status = used`;
+- segundo intento genera `event_entry_already_used_attempt` con `reason_code = already_used`;
+- fuera de ventana genera `event_entry_outside_window_attempt` con `reason_code = outside_window` y no muta la entry;
+- entry anulada genera `event_entry_voided_attempt` con `reason_code = voided`;
+- UUID inexistente genera `event_entry_invalid_token_attempt` con `reason_code = invalid_token`;
+- token malformado con actor autorizado genera `event_entry_invalid_token_attempt` con `reason_code = malformed_token`;
+- requests sin auth o sin membership no generan activity nueva;
+- `event_not_operable` no genera activity en MVP;
+- metadata validada sin token crudo, `checkin_token`, URL raw, QR payload/base64, email, phone, document, buyer, attendee, `local_id` ni `source` duplicado;
+- conteo final QA: checked_in `1`, already_used `1`, outside_window `2`, voided `1`, invalid_token_attempt `2`;
+- regresiones principales y limpieza QA quedaron PASS.
+
+No se integro activity de fallback manual, read activity ni activity local.
+
+## 19. Roadmap recomendado
 
 Siguiente secuencia:
 
@@ -642,25 +668,26 @@ Siguiente secuencia:
 - Slice 3E.4F1: activity en `manual-issue` implementado, deployado y QA runtime PASS.
 - Slice 3D.3B ajuste bundle: email automatico post `manual-issue` opera como 1 email por orden y QA runtime PASS.
 - Slice 3E.4F2: activity en email manual por entry y email automatico bundle implementada, deployada y QA runtime PASS.
-- Slice 3E.4G1: integrar activity en check-in QR.
+- Slice 3E.4G1: activity en check-in QR implementada, deployada y QA runtime PASS.
 - Slice 3E.4G2: integrar activity en fallback manual.
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
 - Slice posterior: UI de historial operativo.
 
 Proximo paso recomendado:
 
-- Slice 3E.4G1: activity en check-in QR.
+- Slice 3E.4G2: activity en fallback manual.
 
 Alcance futuro:
 
-- integrar `recordEventActivity` en `PATCH /panel/events/:eventId/checkin/:token`;
-- `source = qr`;
-- registrar valid, already_used, outside_window, voided e invalid token;
-- no guardar token, raw URL, QR payload ni PII;
-- no tocar fallback manual todavia;
+- integrar `recordEventActivity` en `PATCH /panel/events/:eventId/entries/:entryId/use`;
+- `source = manual`;
+- registrar valid, already_used, outside_window y voided;
+- no registrar `event_not_operable` si no hay action especifica;
+- no registrar `entry_not_found` porque no hay entity confiable;
+- no guardar token, PII, QR payload ni metadata cruda;
 - no tocar SQL/migraciones/frontend/pagos.
 
-## 19. No-goals
+## 20. No-goals
 
 Fuera de este contrato:
 

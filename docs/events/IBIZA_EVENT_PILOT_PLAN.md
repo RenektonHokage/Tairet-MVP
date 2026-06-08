@@ -1419,7 +1419,24 @@ Se valido que:
 - panel local no se rompio;
 - limpieza QA quedo en cero.
 
-Proximo paso tecnico recomendado: avanzar a 3E.4G1 activity en check-in QR.
+### Slice 3E.4G1 - activity en check-in QR
+
+Estado: implementado, deployado y QA runtime PASS completo.
+
+Se valido que:
+
+- QR valido registra `event_entry_checked_in` con `source = qr`;
+- segundo intento registra `event_entry_already_used_attempt`;
+- fuera de ventana registra `event_entry_outside_window_attempt` sin mutar la entry;
+- entry anulada registra `event_entry_voided_attempt`;
+- UUID inexistente registra `event_entry_invalid_token_attempt` con `reason_code = invalid_token`;
+- token malformado con auth valida registra `event_entry_invalid_token_attempt` con `reason_code = malformed_token`;
+- requests sin auth o sin membership no generan activity nueva;
+- `event_not_operable` no genera activity en MVP;
+- metadata queda sanitizada sin tokens, QR payload/base64, raw URL, PII, `local_id` ni `source` duplicado;
+- regresiones principales y limpieza QA quedaron PASS.
+
+Proximo paso tecnico recomendado: avanzar a 3E.4G2 activity en fallback manual por entry.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 
