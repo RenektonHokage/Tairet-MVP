@@ -1490,7 +1490,35 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
 
-Proximo paso tecnico recomendado: UI-C - crear pantalla/seccion `Actividad` en panel de evento.
+### UI-C - componente reutilizable Actividad
+
+Estado: componente reutilizable implementado y validado tecnicamente.
+
+Se registro que:
+
+- `apps/web-next/components/panel/EventActivitySection.tsx` fue creado;
+- `EventActivitySection` recibe `eventId` por prop;
+- no se monto en navegacion global porque no existe ruta/layout estable de panel de eventos;
+- no se creo ruta nueva;
+- consume `getEventActivity` con `pageSize = 25`, `sort = created_at_desc`, `action` y `source`;
+- reutiliza `PageHeader`, `Badge`, `EmptyState`, `panelUi` y estado local;
+- implementa lista compacta/timeline, labels, source badge, actor label y metadata permitida como chips;
+- implementa filtros por source y action exacta;
+- no implementa filtro agrupado por categoria para no romper paginacion sin soporte multi-action backend;
+- implementa loading, empty, error con retry, `Cargar mas`, dedupe por id y `hasMore`;
+- no expone PII, tokens, QR payload/base64, raw URL, auth IDs, `local_id`, IDs relacionales como texto principal ni metadata cruda;
+- no hace fetch extra a buyer/attendee;
+- no se tocaron backend, SQL, migraciones, endpoints, rutas, navegacion, pagos, `/payments/callback`, activity local ni flujos operativos.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
+
+Pendiente: montar el componente en una ruta/layout real del panel de eventos y ejecutar QA frontend visual/manual con un `eventId` real.
+
+Proximo paso tecnico recomendado: ASK / DOCS - definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

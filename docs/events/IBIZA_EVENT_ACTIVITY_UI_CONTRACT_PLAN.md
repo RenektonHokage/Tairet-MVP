@@ -470,7 +470,76 @@ No se toco:
 - activity local;
 - flujos de `manual-issue`, email, check-in QR ni fallback manual.
 
-## 16. Roadmap por slices
+## 16. Estado UI-C
+
+Estado: componente reutilizable implementado y validado tecnicamente.
+
+Archivo creado:
+
+- `apps/web-next/components/panel/EventActivitySection.tsx`
+
+Discovery UI:
+
+- no existe ruta/layout estable de panel de eventos;
+- por eso se creo un componente reutilizable sin montarlo en navegacion global;
+- el componente recibe `eventId` por prop;
+- se reutilizaron patrones existentes del panel: `PageHeader`, `Badge`, `EmptyState`, `panelUi` y estado local;
+- se uso `getEventActivity` desde `apps/web-next/lib/eventActivity.ts`.
+
+Funcionalidad implementada:
+
+- titulo `Actividad`;
+- subtitulo `Historial operativo del evento.`;
+- lista compacta/timeline de activity;
+- filtros por `source`;
+- filtro por `Tipo de actividad` usando `action` exacta;
+- no se implemento filtro agrupado por categoria porque backend no soporta multi-action y filtrarlo client-side puede romper paginacion;
+- skeleton/loading inicial;
+- empty state;
+- error state con `Reintentar`;
+- boton `Cargar mas`;
+- dedupe por `id` al concatenar paginas;
+- `hasMore` basado en `page < total_pages`.
+
+Seguridad:
+
+- no renderiza IDs relacionales como texto principal;
+- no renderiza tokens;
+- no renderiza QR payload/base64;
+- no renderiza raw URL;
+- no renderiza PII;
+- no renderiza auth IDs;
+- no renderiza `local_id`;
+- no renderiza headers/stack;
+- no renderiza metadata cruda;
+- metadata permitida se muestra como chips legibles;
+- no hace fetch extra a buyer/attendee.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente: `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto. No fue un error detectado del slice.
+
+Pendiente:
+
+- montar el componente en una ruta/layout real del panel de eventos;
+- ejecutar QA frontend visual/manual con un `eventId` real;
+- definir si `Actividad` vive como tab, seccion o vista.
+
+No se toco:
+
+- backend;
+- SQL/migraciones;
+- endpoints;
+- rutas;
+- navegacion;
+- pagos;
+- `/payments/callback`;
+- activity local;
+- flujos de `manual-issue`, email, check-in QR ni fallback manual.
+
+## 17. Roadmap por slices
 
 Slice UI-A:
 
@@ -484,8 +553,10 @@ Slice UI-B:
 Slice UI-C:
 
 - Pantalla/seccion `Actividad` en panel de eventos.
-- Lista/timeline o tabla/lista hibrida.
-- Filtros MVP por categoria/source.
+- Estado: componente reutilizable implementado, typecheck PASS y `git diff --check` PASS.
+- Pendiente: montaje en ruta/layout real.
+- Lista/timeline compacta.
+- Filtros MVP por action exacta/source.
 - `page_size = 25`.
 - Boton `Cargar mas`.
 - Empty/loading/error/retry.
@@ -494,6 +565,12 @@ Slice UI-C:
 - No tocar backend salvo gap explicito.
 
 Slice UI-D:
+
+- Definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
+- Decidir si `Actividad` va como tab, seccion o vista.
+- Evitar romper navegacion.
+
+Slice UI-E:
 
 - QA frontend/manual con fixtures o datos runtime controlados.
 - Verificar responsive y no exposicion.
@@ -505,7 +582,7 @@ Slice posterior:
 - Filtros avanzados.
 - Export solo si se define un contrato especifico posterior.
 
-## 17. QA futuro UI
+## 18. QA futuro UI
 
 Casos minimos:
 
@@ -530,7 +607,7 @@ Casos minimos:
 - No rompe panel local.
 - No rompe vistas existentes de orders, check-in, summary ni ticket-types.
 
-## 18. No-goals
+## 19. No-goals
 
 Fuera de este contrato:
 

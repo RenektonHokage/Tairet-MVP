@@ -1911,7 +1911,35 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
 
-Proximo paso recomendado: UI-C - crear pantalla/seccion `Actividad` en panel de evento usando `getEventActivity`.
+### Estado UI-C - componente reutilizable Actividad
+
+Estado: componente reutilizable implementado y validado tecnicamente.
+
+Se registro:
+
+- `apps/web-next/components/panel/EventActivitySection.tsx` creado;
+- componente `EventActivitySection` recibe `eventId` por prop;
+- no se monto en navegacion global porque no existe ruta/layout estable de panel de eventos;
+- no se creo ruta nueva;
+- usa `getEventActivity({ eventId, page, pageSize: 25, sort: "created_at_desc", action, source })`;
+- reutiliza `PageHeader`, `Badge`, `EmptyState`, `panelUi` y estado local;
+- muestra titulo, subtitulo, lista compacta/timeline, source badge, action label, actor label y metadata permitida como chips;
+- implementa filtro por source y filtro por `Tipo de actividad` con action exacta;
+- no implementa filtro agrupado por categoria para no romper paginacion sin soporte multi-action backend;
+- implementa loading inicial, empty state, error con `Reintentar`, `Cargar mas`, dedupe por id y `hasMore = page < total_pages`;
+- no renderiza PII, tokens, QR payload/base64, raw URL, auth IDs, `local_id`, headers/stack, IDs relacionales como texto principal ni metadata cruda;
+- no hace fetch extra a buyer/attendee;
+- sin backend, SQL, migraciones, endpoints, rutas, navegacion, pagos, `/payments/callback`, activity local ni flujos operativos modificados.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
+
+Pendiente: definir integracion de `EventActivitySection` en ruta/layout real del panel de eventos y ejecutar QA frontend visual/manual con un `eventId` real.
+
+Proximo paso recomendado: ASK / DOCS - definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
