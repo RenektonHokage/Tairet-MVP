@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response, Router } from "express";
 import { eventPanelAuth } from "../middlewares/eventPanelAuth";
 import { requireEventRole } from "../middlewares/requireEventRole";
+import { eventActivityReadQuerySchema } from "../schemas/eventActivityRead";
 import { eventEntriesReadQuerySchema } from "../schemas/eventEntriesRead";
 import { eventManualIssueSchema } from "../schemas/eventManualIssue";
 import { getRequestId } from "../middlewares/requestId";
@@ -111,6 +112,24 @@ type EventEntryReadRow = {
   created_at: string;
   event_order_item: EventEntryReadRelatedItem | EventEntryReadRelatedItem[] | null;
   event_order: EventEntryReadRelatedOrder | EventEntryReadRelatedOrder[] | null;
+};
+
+type EventActivityReadRow = {
+  id: string;
+  created_at: string;
+  action: string;
+  source: string | null;
+  entity_type: string;
+  entity_id: string | null;
+  message: string;
+  actor_type: string;
+  actor_role: string | null;
+  actor_display_name: string | null;
+  event_order_id: string | null;
+  event_order_item_id: string | null;
+  event_order_entry_id: string | null;
+  event_ticket_type_id: string | null;
+  metadata: unknown;
 };
 
 type EventEntryEmailDeliveryStatus = "sent" | "failed" | "skipped";
@@ -321,6 +340,46 @@ const EVENT_CHECKIN_FORBIDDEN_INPUT_KEYS = new Set([
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+const EVENT_ACTIVITY_SELECT = `
+  id,
+  created_at,
+  action,
+  source,
+  entity_type,
+  entity_id,
+  message,
+  actor_type,
+  actor_role,
+  actor_display_name,
+  event_order_id,
+  event_order_item_id,
+  event_order_entry_id,
+  event_ticket_type_id,
+  metadata
+`;
+
+const EVENT_ACTIVITY_READ_METADATA_KEYS = new Set([
+  "reason_code",
+  "previous_status",
+  "next_status",
+  "previous_checkin_status",
+  "next_checkin_status",
+  "email_status",
+  "email_error_code",
+  "delivery_mode",
+  "email_attempts",
+  "bundle_entries_count",
+  "entries_count",
+  "sent_count",
+  "failed_count",
+  "skipped_count",
+  "ticket_name",
+  "sales_unit_type",
+  "entries_per_unit",
+  "currency",
+  "total_amount",
+]);
+
 const EVENT_ENTRY_SELECT = `
   id,
   event_order_id,
@@ -395,6 +454,62 @@ function requireEventContext(req: Request, res: Response): string | null {
   }
 
   return req.eventPanelUser.eventId;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function sanitizeEventActivityReadMetadata(metadata: unknown): Record<string, string | number | boolean | null> {
+  if (!isPlainRecord(metadata)) {
+    return {};
+  }
+
+  const sanitized: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!EVENT_ACTIVITY_READ_METADATA_KEYS.has(key)) {
+      continue;
+    }
+
+    if (
+      value === null ||
+      typeof value === "string" ||
+      typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value))
+    ) {
+      sanitized[key] = value;
+    }
+  }
+
+  return sanitized;
+}
+
+function buildEventActivityActor(row: EventActivityReadRow) {
+  const actorType = row.actor_type === "system" ? "system" : "event_panel_user";
+  const role = row.actor_role === "owner" || row.actor_role === "staff" ? row.actor_role : null;
+  const displayName = typeof row.actor_display_name === "string" ? row.actor_display_name.trim() : "";
+
+  let label = "Usuario";
+  if (actorType === "system") {
+    label = "Sistema";
+  } else if (displayName) {
+    label = displayName;
+  } else if (role === "owner") {
+    label = "Owner";
+  } else if (role === "staff") {
+    label = "Staff";
+  }
+
+  return {
+    type: actorType,
+    role,
+    label,
+  };
 }
 
 function buildCatalogSummary(ticketTypes: EventTicketTypeRow[]) {
@@ -2388,6 +2503,105 @@ panelEventsRouter.post("/:eventId/entries/:entryId/send-email", eventPanelAuth, 
     return res.status(500).json({
       error: "Failed to send entry email",
       code: "event_entry_email_failed",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+panelEventsRouter.get("/:eventId/activity", eventPanelAuth, requireEventRole(["owner", "staff"]), async (req, res, next) => {
+  try {
+    const eventId = requireEventContext(req, res);
+    if (!eventId || !req.eventPanelUser) return;
+
+    const parsedQuery = eventActivityReadQuerySchema.safeParse(req.query);
+    if (!parsedQuery.success) {
+      return res.status(400).json({
+        error: "Invalid query params",
+        code: "invalid_query",
+      });
+    }
+
+    const requestId = getRequestId(req);
+    const query = parsedQuery.data;
+    const offset = (query.page - 1) * query.page_size;
+    const rangeEnd = offset + query.page_size - 1;
+
+    let activityQuery = supabase
+      .from("event_activity_events")
+      .select(EVENT_ACTIVITY_SELECT, { count: "exact" })
+      .eq("event_id", req.eventPanelUser.eventId);
+
+    if (query.action) {
+      activityQuery = activityQuery.eq("action", query.action);
+    }
+
+    if (query.source) {
+      activityQuery = activityQuery.eq("source", query.source);
+    }
+
+    if (query.entity_type) {
+      activityQuery = activityQuery.eq("entity_type", query.entity_type);
+    }
+
+    if (query.event_order_id) {
+      activityQuery = activityQuery.eq("event_order_id", query.event_order_id);
+    }
+
+    if (query.event_order_entry_id) {
+      activityQuery = activityQuery.eq("event_order_entry_id", query.event_order_entry_id);
+    }
+
+    if (query.event_ticket_type_id) {
+      activityQuery = activityQuery.eq("event_ticket_type_id", query.event_ticket_type_id);
+    }
+
+    const ascending = query.sort === "created_at_asc";
+    const { data, count, error } = await activityQuery
+      .order("created_at", { ascending })
+      .order("id", { ascending })
+      .range(offset, rangeEnd);
+
+    if (error) {
+      logger.error("Failed to fetch event activity", {
+        requestId,
+        eventId,
+        error: error.message,
+      });
+      return res.status(500).json({
+        error: "Activity read failed",
+        code: "activity_read_failed",
+      });
+    }
+
+    const total = count ?? 0;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / query.page_size);
+    const items = ((data ?? []) as EventActivityReadRow[]).map((row) => ({
+      id: row.id,
+      created_at: row.created_at,
+      action: row.action,
+      source: row.source,
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      message: row.message,
+      actor: buildEventActivityActor(row),
+      relations: {
+        event_order_id: row.event_order_id,
+        event_order_item_id: row.event_order_item_id,
+        event_order_entry_id: row.event_order_entry_id,
+        event_ticket_type_id: row.event_ticket_type_id,
+      },
+      metadata: sanitizeEventActivityReadMetadata(row.metadata),
+    }));
+
+    return res.status(200).json({
+      items,
+      pagination: {
+        page: query.page,
+        page_size: query.page_size,
+        total,
+        total_pages: totalPages,
+      },
     });
   } catch (error) {
     next(error);
