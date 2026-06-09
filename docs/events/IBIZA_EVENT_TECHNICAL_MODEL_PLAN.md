@@ -2084,7 +2084,31 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-Proximo paso recomendado: ASK/DOCS - definir Check-in UI como siguiente seccion operativa del `EventPanelShell`, separando validacion en puerta de la lista general de `Entradas`.
+### Estado Checkin-A/B - contrato y cliente/tipos frontend Check-in
+
+Estado: Checkin-A documentado y Checkin-B implementado con PASS tecnico.
+
+Se registro:
+
+- `docs/events/IBIZA_EVENT_CHECKIN_UI_CONTRACT_PLAN.md` creado para definir la pantalla futura de puerta dentro de `EventPanelShell`;
+- ruta futura recomendada: `/panel/events/[eventId]/checkin`;
+- decision MVP: input manual de QR/token/URL antes de scanner camara;
+- fallback manual futuro por busqueda en `/entries?q=...` y confirmacion;
+- `apps/web-next/lib/eventCheckin.ts` creado;
+- tipos TS creados para estados, entry, attendee, event, response, error, inputs y variantes visuales;
+- `parseEventCheckinToken(input)` creado para UUID directo y URL completa;
+- `checkInEventEntryByToken(input)` creado con `apiPatchWithAuth`;
+- `checkInEventEntryManually(input)` creado con `apiPatchWithAuth`;
+- labels/helpers de estados creados;
+- sin UI visible, sin ruta `/checkin`, sin update de `EventPanelNav`, sin backend, SQL, pagos ni flujos modificados.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
+
+Proximo paso recomendado: Checkin-C - crear ruta `/panel/events/[eventId]/checkin`, agregar link real `Check-in` en `EventPanelNav` e implementar input QR/token/URL con resultado visual.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

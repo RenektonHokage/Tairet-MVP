@@ -21,6 +21,9 @@ export function EventPanelNav({
   const entriesHref = normalizedEventId
     ? `/panel/events/${encodeURIComponent(normalizedEventId)}/entries`
     : "#";
+  const checkinHref = normalizedEventId
+    ? `/panel/events/${encodeURIComponent(normalizedEventId)}/checkin`
+    : "#";
   const activityHref = normalizedEventId
     ? `/panel/events/${encodeURIComponent(normalizedEventId)}/activity`
     : "#";
@@ -29,6 +32,11 @@ export function EventPanelNav({
       href: entriesHref,
       label: "Entradas",
       icon: "🎟️",
+    },
+    {
+      href: checkinHref,
+      label: "Check-in",
+      icon: "✓",
     },
     {
       href: activityHref,
