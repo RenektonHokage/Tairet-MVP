@@ -8,6 +8,7 @@ import {
   type EventEntryListItem,
   type EventEntryStatus,
   getEventEntries,
+  getEventEntryQrBlob,
   getEventEntryCheckinStatusBadgeVariant,
   getEventEntryCheckinStatusLabel,
   getEventEntryPaymentStatusLabel,
@@ -15,6 +16,7 @@ import {
   getEventEntrySourceLabel,
   getEventEntryStatusBadgeVariant,
   getEventEntryStatusLabel,
+  sendEventEntryQrEmail,
 } from "@/lib/eventEntries";
 
 import { Badge, EmptyState, PageHeader, cn, panelUi } from "./ui";
@@ -23,6 +25,15 @@ const PAGE_SIZE = 25;
 
 type StatusFilter = "all" | EventEntryStatus;
 type CheckinStatusFilter = "all" | EventEntryCheckinStatus;
+type EmailFeedbackType = "success" | "error";
+
+interface EmailFeedback {
+  type: EmailFeedbackType;
+  message: string;
+  sentAt?: string | null;
+}
+
+type EmailFeedbackByEntryId = Record<string, EmailFeedback>;
 
 interface EventEntriesSectionProps {
   eventId: string;
@@ -112,7 +123,80 @@ function EntryStatusBadges({ item }: { item: EventEntryListItem }) {
   );
 }
 
-function EntriesDesktopTable({ items }: { items: EventEntryListItem[] }) {
+interface EntryActionProps {
+  item: EventEntryListItem;
+  isResending: boolean;
+  emailFeedback?: EmailFeedback;
+  onViewQr: (item: EventEntryListItem) => void;
+  onResendEmail: (item: EventEntryListItem) => void;
+}
+
+function EntryActions({
+  item,
+  isResending,
+  emailFeedback,
+  onViewQr,
+  onResendEmail,
+}: EntryActionProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <button
+          className={cn(
+            "rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-medium text-neutral-950 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60",
+            panelUi.focusRing,
+          )}
+          onClick={() => onViewQr(item)}
+          type="button"
+        >
+          Ver QR
+        </button>
+        <button
+          className={cn(
+            "rounded-lg bg-neutral-950 px-3 py-2 text-xs font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60",
+            panelUi.focusRing,
+          )}
+          disabled={isResending}
+          onClick={() => onResendEmail(item)}
+          type="button"
+        >
+          {isResending ? "Enviando..." : "Reenviar email"}
+        </button>
+      </div>
+      {emailFeedback ? (
+        <div
+          className={cn(
+            "text-xs",
+            emailFeedback.type === "success" ? "text-green-700" : "text-rose-700",
+          )}
+        >
+          {emailFeedback.message}
+          {emailFeedback.sentAt ? (
+            <span className="block text-neutral-500">
+              {formatDateTime(emailFeedback.sentAt)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface EntriesListProps {
+  items: EventEntryListItem[];
+  resendingEntryIds: Set<string>;
+  emailFeedbackByEntryId: EmailFeedbackByEntryId;
+  onViewQr: (item: EventEntryListItem) => void;
+  onResendEmail: (item: EventEntryListItem) => void;
+}
+
+function EntriesDesktopTable({
+  items,
+  resendingEntryIds,
+  emailFeedbackByEntryId,
+  onViewQr,
+  onResendEmail,
+}: EntriesListProps) {
   return (
     <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white md:block">
       <table className="min-w-full divide-y divide-neutral-200 text-sm">
@@ -123,6 +207,7 @@ function EntriesDesktopTable({ items }: { items: EventEntryListItem[] }) {
             <th className="px-4 py-3">Estado</th>
             <th className="px-4 py-3">Orden</th>
             <th className="px-4 py-3">Fecha</th>
+            <th className="px-4 py-3">Acciones</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-100">
@@ -174,6 +259,15 @@ function EntriesDesktopTable({ items }: { items: EventEntryListItem[] }) {
                 <td className="px-4 py-4 text-neutral-600">
                   {formatDateTime(item.entry.created_at)}
                 </td>
+                <td className="px-4 py-4">
+                  <EntryActions
+                    item={item}
+                    isResending={resendingEntryIds.has(item.entry.id)}
+                    emailFeedback={emailFeedbackByEntryId[item.entry.id]}
+                    onViewQr={onViewQr}
+                    onResendEmail={onResendEmail}
+                  />
+                </td>
               </tr>
             );
           })}
@@ -183,7 +277,13 @@ function EntriesDesktopTable({ items }: { items: EventEntryListItem[] }) {
   );
 }
 
-function EntriesMobileCards({ items }: { items: EventEntryListItem[] }) {
+function EntriesMobileCards({
+  items,
+  resendingEntryIds,
+  emailFeedbackByEntryId,
+  onViewQr,
+  onResendEmail,
+}: EntriesListProps) {
   return (
     <div className="space-y-3 md:hidden">
       {items.map((item) => {
@@ -225,9 +325,127 @@ function EntriesMobileCards({ items }: { items: EventEntryListItem[] }) {
                 <div className="text-neutral-600">Usada: {formatDateTime(item.entry.used_at)}</div>
               ) : null}
             </div>
+
+            <div className="mt-4 border-t border-neutral-100 pt-4">
+              <EntryActions
+                item={item}
+                isResending={resendingEntryIds.has(item.entry.id)}
+                emailFeedback={emailFeedbackByEntryId[item.entry.id]}
+                onViewQr={onViewQr}
+                onResendEmail={onResendEmail}
+              />
+            </div>
           </article>
         );
       })}
+    </div>
+  );
+}
+
+interface EntryQrModalProps {
+  item: EventEntryListItem | null;
+  objectUrl: string | null;
+  isLoading: boolean;
+  error: string | null;
+  onClose: () => void;
+  onRetry: () => void;
+}
+
+function EntryQrModal({
+  item,
+  objectUrl,
+  isLoading,
+  error,
+  onClose,
+  onRetry,
+}: EntryQrModalProps) {
+  useEffect(() => {
+    if (!item) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [item, onClose]);
+
+  if (!item) {
+    return null;
+  }
+
+  const attendeeName = formatAttendeeName(item);
+
+  return (
+    <div
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+      onClick={onClose}
+      role="dialog"
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-neutral-200 px-5 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-neutral-950">QR de entrada</h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              {item.entry.ticket_name}
+              {attendeeName ? ` · ${attendeeName}` : ""}
+            </p>
+          </div>
+          <button
+            aria-label="Cerrar QR"
+            className={cn(
+              "rounded-full border border-neutral-300 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50",
+              panelUi.focusRing,
+            )}
+            onClick={onClose}
+            type="button"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="p-5">
+          {isLoading ? (
+            <div className="flex aspect-square items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-neutral-50 text-sm text-neutral-500">
+              Cargando QR...
+            </div>
+          ) : null}
+
+          {!isLoading && error ? (
+            <div className="space-y-4 rounded-xl border border-rose-200 bg-rose-50 p-4">
+              <p className="text-sm font-medium text-rose-800">{error}</p>
+              <button
+                className={cn(
+                  "rounded-lg bg-neutral-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800",
+                  panelUi.focusRing,
+                )}
+                onClick={onRetry}
+                type="button"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : null}
+
+          {!isLoading && !error && objectUrl ? (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <img
+                alt="QR de entrada"
+                className="mx-auto aspect-square w-full max-w-xs rounded-lg bg-white object-contain"
+                src={objectUrl}
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -244,7 +462,17 @@ export function EventEntriesSection({ eventId, className }: EventEntriesSectionP
   const [isLoadingInitial, setIsLoadingInitial] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedQrItem, setSelectedQrItem] = useState<EventEntryListItem | null>(null);
+  const [qrObjectUrl, setQrObjectUrl] = useState<string | null>(null);
+  const [isQrLoading, setIsQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [resendingEntryIds, setResendingEntryIds] = useState<Set<string>>(() => new Set());
+  const [emailFeedbackByEntryId, setEmailFeedbackByEntryId] = useState<EmailFeedbackByEntryId>(
+    {},
+  );
   const requestIdRef = useRef(0);
+  const qrRequestIdRef = useRef(0);
+  const qrObjectUrlRef = useRef<string | null>(null);
 
   const normalizedQuery = query.trim();
   const queryForRequest = normalizedQuery.length >= 2 ? normalizedQuery : undefined;
@@ -317,6 +545,124 @@ export function EventEntriesSection({ eventId, className }: EventEntriesSectionP
   useEffect(() => {
     void loadEntries(1, "replace");
   }, [loadEntries]);
+
+  const revokeQrObjectUrl = useCallback(() => {
+    if (qrObjectUrlRef.current) {
+      URL.revokeObjectURL(qrObjectUrlRef.current);
+      qrObjectUrlRef.current = null;
+    }
+    setQrObjectUrl(null);
+  }, []);
+
+  const loadQrForItem = useCallback(
+    async (item: EventEntryListItem) => {
+      if (!eventId) {
+        setSelectedQrItem(item);
+        setIsQrLoading(false);
+        setQrError("No se pudo cargar el QR.");
+        revokeQrObjectUrl();
+        return;
+      }
+
+      const requestId = qrRequestIdRef.current + 1;
+      qrRequestIdRef.current = requestId;
+
+      setSelectedQrItem(item);
+      setIsQrLoading(true);
+      setQrError(null);
+      revokeQrObjectUrl();
+
+      try {
+        const blob = await getEventEntryQrBlob({
+          eventId,
+          entryId: item.entry.id,
+        });
+        const objectUrl = URL.createObjectURL(blob);
+
+        if (qrRequestIdRef.current !== requestId) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+
+        qrObjectUrlRef.current = objectUrl;
+        setQrObjectUrl(objectUrl);
+      } catch {
+        if (qrRequestIdRef.current === requestId) {
+          setQrError("No se pudo cargar el QR.");
+        }
+      } finally {
+        if (qrRequestIdRef.current === requestId) {
+          setIsQrLoading(false);
+        }
+      }
+    },
+    [eventId, revokeQrObjectUrl],
+  );
+
+  const closeQrModal = useCallback(() => {
+    qrRequestIdRef.current += 1;
+    setSelectedQrItem(null);
+    setIsQrLoading(false);
+    setQrError(null);
+    revokeQrObjectUrl();
+  }, [revokeQrObjectUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (qrObjectUrlRef.current) {
+        URL.revokeObjectURL(qrObjectUrlRef.current);
+        qrObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleResendEmail = useCallback(
+    async (item: EventEntryListItem) => {
+      const entryId = item.entry.id;
+
+      setResendingEntryIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.add(entryId);
+        return nextIds;
+      });
+      setEmailFeedbackByEntryId((currentFeedback) => {
+        const nextFeedback = { ...currentFeedback };
+        delete nextFeedback[entryId];
+        return nextFeedback;
+      });
+
+      try {
+        const response = await sendEventEntryQrEmail({
+          eventId,
+          entryId,
+        });
+
+        setEmailFeedbackByEntryId((currentFeedback) => ({
+          ...currentFeedback,
+          [entryId]: {
+            type: "success",
+            message: "Email reenviado.",
+            sentAt: response.entry.email_sent_at,
+          },
+        }));
+      } catch {
+        setEmailFeedbackByEntryId((currentFeedback) => ({
+          ...currentFeedback,
+          [entryId]: {
+            type: "error",
+            message: "No se pudo reenviar el email.",
+          },
+        }));
+      } finally {
+        setResendingEntryIds((currentIds) => {
+          const nextIds = new Set(currentIds);
+          nextIds.delete(entryId);
+          return nextIds;
+        });
+      }
+    },
+    [eventId],
+  );
 
   const hasMore = page < totalPages;
 
@@ -451,8 +797,20 @@ export function EventEntriesSection({ eventId, className }: EventEntriesSectionP
 
       {!isLoadingInitial && !error && items.length > 0 ? (
         <>
-          <EntriesDesktopTable items={items} />
-          <EntriesMobileCards items={items} />
+          <EntriesDesktopTable
+            items={items}
+            resendingEntryIds={resendingEntryIds}
+            emailFeedbackByEntryId={emailFeedbackByEntryId}
+            onViewQr={loadQrForItem}
+            onResendEmail={handleResendEmail}
+          />
+          <EntriesMobileCards
+            items={items}
+            resendingEntryIds={resendingEntryIds}
+            emailFeedbackByEntryId={emailFeedbackByEntryId}
+            onViewQr={loadQrForItem}
+            onResendEmail={handleResendEmail}
+          />
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-neutral-600">
@@ -471,6 +829,19 @@ export function EventEntriesSection({ eventId, className }: EventEntriesSectionP
           </div>
         </>
       ) : null}
+
+      <EntryQrModal
+        item={selectedQrItem}
+        objectUrl={qrObjectUrl}
+        isLoading={isQrLoading}
+        error={qrError}
+        onClose={closeQrModal}
+        onRetry={() => {
+          if (selectedQrItem) {
+            void loadQrForItem(selectedQrItem);
+          }
+        }}
+      />
     </section>
   );
 }
