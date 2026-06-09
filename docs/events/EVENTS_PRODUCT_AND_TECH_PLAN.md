@@ -568,7 +568,7 @@ Registrar eventos operativos de entrada/orden, con actor label seguro y metadata
 
 Estado backend operativo: generación y lectura read-only segura de activity de Eventos implementadas y con QA runtime PASS completo.
 
-Estado frontend Eventos: base Activity UI, `EventPanelShell`, `EventPanelNav`, layout propio de evento y Activity dentro del shell implementados; Shell-D QA visual/manual PASS completo. Entries UI ya tiene contrato y cliente/tipos frontend PASS tecnico (`apps/web-next/lib/eventEntries.ts`). Proximo paso recomendado: Entries-C, crear ruta/listado read-only `/panel/events/[eventId]/entries` y agregar `Entradas` al nav cuando exista la ruta.
+Estado frontend Eventos: base Activity UI, `EventPanelShell`, `EventPanelNav`, layout propio de evento y Activity dentro del shell implementados; Shell-D QA visual/manual PASS completo. Entries UI ya tiene contrato, cliente/tipos frontend PASS tecnico (`apps/web-next/lib/eventEntries.ts`) y Entries-C implementado con ruta/listado read-only `/panel/events/[eventId]/entries`, link `Entradas`, filtros, paginacion, desktop/mobile y QA frontend/manual PASS. Proximo paso recomendado: Entries-D, acciones controladas por entry (`Ver QR` y `Reenviar email`) sin validar manual, backend, SQL ni pagos.
 
 ### Slice 8 - Export owner-only
 

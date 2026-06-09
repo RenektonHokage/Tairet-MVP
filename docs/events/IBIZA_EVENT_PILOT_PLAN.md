@@ -1579,7 +1579,46 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso tecnico recomendado: Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only con filtros, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry, sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend.
+### Entries-C - ruta Entradas y listado read-only
+
+Estado: implementado y QA frontend/manual PASS.
+
+Se registro que:
+
+- se creo `/panel/events/[eventId]/entries`;
+- `EventPanelNav` muestra `Entradas` y `Actividad`;
+- `Entradas` queda activa en `/entries`;
+- `EventEntriesSection` lista entries emitidas en modo read-only;
+- consume `getEventEntries`;
+- implementa filtros `q`, `status`, `checkin_status` y `sort`;
+- `q` de 1 caracter no dispara error backend;
+- implementa paginacion con `Cargar mas` y dedupe por `entry.id`;
+- implementa desktop con tabla compacta y mobile con cards;
+- implementa loading, empty, error y retry;
+- no agrega acciones QR/email/check-in manual todavia;
+- no se tocaron backend, SQL, pagos ni flujos operativos.
+
+QA frontend/manual PASS:
+
+- ruta y shell: `/panel/events/:eventId/entries` carga dentro de `EventPanelShell`, sin `PanelProvider` local, sin `/panel/me` y sin `local_id`;
+- navegacion: `Entradas` y `Actividad` funcionan; no se agregaron rutas futuras vacias;
+- owner/staff Ibiza ven la seccion;
+- owner local sin membership, sin auth/token invalido no acceden a datos;
+- empty state y listado con entries existentes quedaron validados;
+- busqueda, filtros y sort quedaron validados;
+- `Cargar mas` funciona, no duplica entries y se oculta cuando no hay mas paginas;
+- cambio de filtros resetea page/items;
+- desktop/mobile quedan usables y sin desbordes;
+- no se detecto exposicion visual de `checkin_token`, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda, request/response crudo, headers, stack, token, buyer phone/document/email, attendee phone ni attendee email;
+- regresiones: `Actividad`, panel local y runtime demo siguen funcionando.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
+
+Proximo paso recomendado: Entries-D - acciones controladas por entry (`Ver QR` y `Reenviar email`) usando helpers existentes en `apps/web-next/lib/eventEntries.ts`, sin `Validar manual`, backend, SQL, pagos ni `/payments/callback`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

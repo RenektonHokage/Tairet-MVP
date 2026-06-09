@@ -26,6 +26,8 @@ Frontend Eventos cerrado:
 - UI-B: `getEventActivity` y tipos.
 - UI-C: `EventActivitySection`.
 - Activity ya vive dentro del shell de evento.
+- Entries-B: cliente/tipos frontend `eventEntries.ts` PASS tecnico.
+- Entries-C: ruta `Entradas`, nav y listado read-only implementados con QA frontend/manual PASS.
 
 Reglas vigentes del panel de eventos:
 
@@ -815,11 +817,85 @@ Estado final:
 
 - Entries-B PASS tecnico.
 - Capa frontend de Entries lista.
-- Cliente/tipos preparados para Entries-C.
+- Cliente/tipos usados como base de Entries-C.
 - QR helper autenticado preparado para Entries-D.
 - Sin validacion visual porque no hay UI visible en este slice.
 
-## 20. Roadmap por slices
+## 20. Estado Entries-C - ruta Entradas y listado read-only
+
+Estado: **implementado y QA frontend/manual PASS**.
+
+Entries-C implemento:
+
+- ruta `/panel/events/[eventId]/entries`;
+- `EventPanelNav` actualizado con link `Entradas`;
+- `EventEntriesSection` implementado;
+- listado read-only de entradas emitidas;
+- fetch con `getEventEntries`;
+- filtros `q`, `status`, `checkin_status` y `sort`;
+- `q` de 1 caracter no se envia al backend;
+- paginacion con `Cargar mas`;
+- dedupe por `entry.id`;
+- desktop con tabla compacta;
+- mobile con cards;
+- loading, empty, error y retry;
+- sin acciones QR/email/check-in manual todavia;
+- sin cambios backend, SQL, pagos ni flujos operativos.
+
+Archivos del slice:
+
+- `apps/web-next/app/panel/events/[eventId]/entries/page.tsx`;
+- `apps/web-next/components/panel/EventEntriesSection.tsx`;
+- `apps/web-next/components/panel/EventPanelNav.tsx`.
+
+QA frontend/manual registrado como PASS:
+
+- `/panel/events/:eventId/entries` carga correctamente dentro de `EventPanelShell`;
+- no usa `PanelProvider` local, `/panel/me` ni `local_id`;
+- `EventPanelNav` muestra `Entradas` y `Actividad`;
+- `Entradas` queda activa en `/entries`;
+- `Actividad` sigue funcionando desde la nav;
+- no se agregaron rutas futuras vacias como Check-in, Summary o Settings;
+- owner Ibiza y staff Ibiza pueden ver la seccion `Entradas`;
+- owner local sin membership no ve datos del evento;
+- sin auth/token invalido no accede a datos;
+- errores se manejan sin crashear la UI;
+- evento sin entries muestra empty state correcto;
+- entries existentes se muestran con asistente, documento si corresponde, ticket, status, check-in status y fecha/orden si corresponde;
+- busqueda `q` funciona con 2+ caracteres;
+- `q` de 1 caracter no dispara error backend;
+- filtros `status`, `checkin_status` y `sort` funcionan;
+- `Cargar mas` funciona, no duplica entries y se oculta cuando no hay mas paginas;
+- cambio de filtros resetea page/items correctamente;
+- desktop queda usable con tabla compacta, columnas legibles y sin scroll horizontal raro;
+- mobile queda usable con cards legibles, filtros sin romper layout y boton `Cargar mas` accesible;
+- `Actividad`, panel local y runtime demo siguen funcionando.
+
+Seguridad visual validada:
+
+- no se detecto exposicion de `checkin_token`;
+- no se detecto QR payload, QR base64 ni raw URL;
+- no se detecto `auth_user_id`, `used_by_auth_user_id`, `created_by_auth_user_id` ni `local_id`;
+- no se detecto metadata cruda, request/response crudo, headers, stack ni token;
+- no se mostro buyer phone, buyer document, buyer email, attendee phone ni attendee email.
+
+Validaciones tecnicas registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config no interactiva.
+- Lint no se trata como FAIL del slice.
+
+Estado final:
+
+- Entries-C implementado.
+- Ruta `Entradas` operativa dentro del panel de eventos.
+- Listado read-only de entries operativo.
+- Filtros y paginacion operativos.
+- Seguridad visual validada.
+- Base lista para Entries-D.
+
+## 21. Roadmap por slices
 
 Entries-A:
 
@@ -842,12 +918,16 @@ Entries-C:
 - Sin `Reenviar email`.
 - Sin `Validar manual`.
 - Sin cambios backend.
+- Estado: implementado y QA frontend/manual PASS.
 
 Entries-D:
 
 - Agregar acciones `Ver QR` y `Reenviar email`.
 - Modal QR seguro.
 - Feedback de email por row.
+- Usar `getEventEntryQrBlob` para cargar QR PNG autenticado.
+- Usar `sendEventEntryQrEmail` para reenvio.
+- Mantener fuera `Validar manual`.
 
 Entries-E:
 
@@ -862,7 +942,7 @@ Check-in UI futuro:
 
 - pantalla separada para validacion QR/manual en puerta.
 
-## 21. QA futuro
+## 22. QA futuro
 
 Casos minimos:
 
@@ -889,13 +969,19 @@ Casos minimos:
 - no se rompe panel local.
 - no se rompe runtime demo.
 
+Estado ya cubierto por Entries-C:
+
+- owner/staff Ibiza ven lista/read-only de entries;
+- owner local sin membership, sin auth y token invalido no acceden a datos;
+- empty/listado, busqueda, filtros visibles, paginacion, desktop/mobile y seguridad visual quedaron en PASS.
+
 Validaciones tecnicas futuras:
 
 - `pnpm -C apps/web-next typecheck`.
 - `git diff --check`.
 - `pnpm -C apps/web-next lint` solo si tooling deja de ser interactivo; si no, N/A/no concluyente.
 
-## 22. No-goals
+## 23. No-goals
 
 Fuera de este contrato y del primer CODE:
 
@@ -922,7 +1008,7 @@ Fuera de este contrato y del primer CODE:
 - cambiar contratos backend ya validados;
 - configurar ESLint.
 
-## 23. Estado final del contrato
+## 24. Estado final del contrato
 
 Estado: documentado.
 
@@ -936,4 +1022,6 @@ Decision principal:
 - no incluir validacion manual en MVP;
 - minimizar PII visible aunque el endpoint la permita;
 - mantener seguridad visual y tenant safety del panel de eventos.
-- Entries-B deja cliente/tipos listos para Entries-C y QR blob autenticado preparado para Entries-D.
+- Entries-B dejo cliente/tipos usados por Entries-C y QR blob autenticado preparado para Entries-D.
+- Entries-C deja ruta/listado read-only `Entradas` operativo, con QA frontend/manual PASS.
+- Proximo paso recomendado: Entries-D - acciones controladas por entry (`Ver QR` y `Reenviar email`) sin validar manual, sin backend, sin SQL y sin pagos.

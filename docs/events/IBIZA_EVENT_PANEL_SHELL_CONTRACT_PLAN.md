@@ -29,10 +29,13 @@ Frontend Eventos cerrado:
 - UI-F: wrapper visual minimo con `bg-gray-50`, `min-h-screen`, padding responsive y contenedor `max-w-6xl`.
 - Shell-C: `EventPanelShell`, `EventPanelNav`, layout propio en `/panel/events/[eventId]/layout.tsx` y Activity montada dentro del shell.
 - Shell-D: QA visual/manual PASS completo reportado por el operador.
+- Entries-B: cliente/tipos frontend `eventEntries.ts` PASS tecnico.
+- Entries-C: ruta `Entradas`, nav y listado read-only implementados con QA frontend/manual PASS.
 
 Estado actual:
 
 - Activity funciona dentro del shell propio de evento.
+- Entradas funciona dentro del shell propio de evento.
 - El panel de eventos tiene shell/nav/layout propio y queda separado del panel local.
 - El panel local sigue autenticandose contra `/panel/me`.
 - El panel de eventos usa `/panel/events/:eventId/me` y no depende de `PanelProvider` local.
@@ -181,7 +184,9 @@ Reutilizables directamente:
 - `panelUi`
 - `apiGetWithAuth`
 - `EventActivitySection`
+- `EventEntriesSection`
 - `getEventActivity`
+- `getEventEntries`
 
 Reutilizables como referencia visual, no como dependencia directa:
 
@@ -282,13 +287,12 @@ Estructura objetivo:
 
 MVP inmediato:
 
-- Mantener solo `/panel/events/[eventId]/activity` como ruta real.
+- Mantener rutas reales ya implementadas: `/panel/events/[eventId]/activity` y `/panel/events/[eventId]/entries`.
 - No crear rutas vacias.
-- Nav inicial con `Actividad` solamente.
+- Nav actual con `Entradas` y `Actividad`.
 
 Futuro:
 
-- Agregar `Entradas` cuando exista UI de lectura operativa.
 - Agregar `Check-in` cuando exista UI de QR/manual.
 - Agregar `Resumen` cuando exista UI de summary/ticket-types.
 - Agregar `Configuracion` solo si hay permisos y contrato especifico.
@@ -526,11 +530,20 @@ Entries-B:
 - Incluye `getEventEntries`, `sendEventEntryQrEmail`, `getEventEntryQrBlob`, labels/constants y badge helpers.
 - Sin UI visible, sin ruta `/entries` y sin update de `EventPanelNav`.
 
+Entries-C:
+
+- Ruta `/panel/events/[eventId]/entries` creada.
+- `EventPanelNav` actualizado con `Entradas` y `Actividad`.
+- `EventEntriesSection` implementado como listado read-only con `getEventEntries`.
+- Filtros `q/status/checkin_status/sort`, paginacion `Cargar mas`, dedupe por `entry.id`, desktop/mobile y estados loading/empty/error/retry implementados.
+- QA frontend/manual PASS: owner/staff Ibiza, tenant/auth safety, empty/listado, filtros, paginacion, desktop/mobile, seguridad visual y regresiones.
+- Sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend/SQL/pagos/flujos.
+
 Proximo paso recomendado:
 
-- Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only.
-- Alcance recomendado: filtros `q/status/checkin_status/sort`, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry.
-- Fuera de Entries-C: Ver QR, Reenviar email, Validar manual y cambios backend.
+- Entries-D - agregar acciones controladas por entry: `Ver QR` y `Reenviar email`.
+- Usar helpers existentes de `apps/web-next/lib/eventEntries.ts`.
+- Mantener fuera `Validar manual`, backend, SQL, pagos y `/payments/callback`.
 
 Tooling futuro:
 

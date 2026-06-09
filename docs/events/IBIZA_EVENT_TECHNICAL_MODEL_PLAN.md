@@ -2006,7 +2006,44 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config no interactiva.
 
-Proximo paso recomendado: Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only con filtros, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry, sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend.
+### Estado Entries-C - ruta Entradas y listado read-only
+
+Estado: implementado y QA frontend/manual PASS.
+
+Se registro:
+
+- ruta `/panel/events/[eventId]/entries` creada;
+- `EventPanelNav` actualizado con link `Entradas`;
+- `EventEntriesSection` implementado;
+- listado read-only de entradas emitidas;
+- fetch con `getEventEntries`;
+- filtros `q`, `status`, `checkin_status` y `sort`;
+- `q` de 1 caracter no se envia al backend;
+- paginacion con `Cargar mas`;
+- dedupe por `entry.id`;
+- desktop con tabla compacta y mobile con cards;
+- loading, empty, error y retry;
+- acciones QR/email/check-in manual diferidas;
+- sin backend, SQL, migraciones, endpoints, pagos ni flujos operativos modificados.
+
+QA frontend/manual registrado:
+
+- ruta `/panel/events/:eventId/entries` carga dentro de `EventPanelShell`;
+- no usa `PanelProvider` local, `/panel/me` ni `local_id`;
+- nav muestra `Entradas` y `Actividad`, y `Actividad` sigue funcionando;
+- owner/staff Ibiza pueden ver la seccion;
+- owner local sin membership, sin auth/token invalido quedan bloqueados sin datos del evento;
+- empty state, entries existentes, filtros, paginacion, desktop/mobile y retry quedaron validados;
+- no se detecto exposicion visual de `checkin_token`, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda, request/response crudo, headers, stack, token, buyer phone/document/email, attendee phone ni attendee email;
+- regresiones: `Actividad`, panel local y runtime demo siguen funcionando.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config no interactiva.
+
+Proximo paso recomendado: Entries-D - acciones controladas por entry (`Ver QR` y `Reenviar email`) usando `getEventEntryQrBlob` y `sendEventEntryQrEmail`, sin `Validar manual`, sin backend, sin SQL, sin pagos y sin `/payments/callback`.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
