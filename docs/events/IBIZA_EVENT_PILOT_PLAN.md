@@ -1618,7 +1618,48 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso recomendado: Entries-D - acciones controladas por entry (`Ver QR` y `Reenviar email`) usando helpers existentes en `apps/web-next/lib/eventEntries.ts`, sin `Validar manual`, backend, SQL, pagos ni `/payments/callback`.
+### Entries-D/E - acciones QR/email en Entradas
+
+Estado: Entries-D implementado y Entries-E QA frontend/manual PASS.
+
+Se registro que:
+
+- `EventEntriesSection` agrega boton `Ver QR` por row/card;
+- QR se carga con `getEventEntryQrBlob`;
+- QR se muestra en modal con loading/error controlado;
+- object URL se limpia al cerrar/cambiar/desmontar;
+- `Reenviar email` aparece por row/card;
+- reenvio usa `sendEventEntryQrEmail`;
+- loading/success/error es por entry;
+- feedback `Email reenviado.` queda controlado;
+- `email.to` no se muestra persistente;
+- no se agrego `Validar manual`;
+- no se tocaron backend, SQL, pagos ni flujos operativos.
+
+QA frontend/manual PASS:
+
+- fixture QA: 2 entradas creadas via `manual-issue`, `201 Created`, `entries.length = 2`, `email_delivery.mode = order_bundle`, `email_delivery.status = sent`, `email_delivery.sent = 2`;
+- IDs QA: order `2a9b2904-2d78-4372-937b-75ee019840fe`, item `55cae0fa-962b-45be-98df-157e68e4d68f`, entry QR `dd5ec250-eeb9-42fa-bae6-6d3c0ddeddb8`, entry Email `d2b8d0c0-ef26-4923-b8b4-ab3c12aac753`;
+- `/entries?q=QA-ENTRIES-UI` respondio `200 OK`, `pagination.total = 2` y contiene ambas entries QA;
+- owner Ibiza ve la pantalla, shell/nav y las 2 entries QA;
+- staff Ibiza puede ver entries, abrir QR y reenviar email;
+- sin sesion no muestra datos del evento;
+- busquedas, filtros, orden y rows sin duplicacion PASS;
+- `Ver QR` abre modal con titulo, ticket, asistente e imagen QR PNG visible;
+- cerrar modal y abrir QR de otra entry funciona sin estado viejo;
+- reenvio email funciona y muestra `Email reenviado. 09/06/2026, 03:58 p. m.`;
+- no aparece `Validar`, `Usar entrada`, `Marcar usada`, `Validar manual` ni `Check-in` como accion;
+- seguridad visual PASS: sin `checkin_token`, QR payload/base64, raw URL, `/events/checkin`, auth IDs, `local_id`, metadata cruda, request/response crudo, stack, headers, buyer phone/document, attendee phone ni `email.to` persistente;
+- regresion disponible: Activity directa carga y nav mantiene `Entradas`/`Actividad`;
+- limpieza QA: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Proximo paso recomendado: ASK/DOCS - definir Check-in UI como siguiente seccion operativa del `EventPanelShell`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

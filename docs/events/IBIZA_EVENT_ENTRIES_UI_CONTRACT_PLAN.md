@@ -818,7 +818,7 @@ Estado final:
 - Entries-B PASS tecnico.
 - Capa frontend de Entries lista.
 - Cliente/tipos usados como base de Entries-C.
-- QR helper autenticado preparado para Entries-D.
+- QR helper autenticado usado por Entries-D.
 - Sin validacion visual porque no hay UI visible en este slice.
 
 ## 20. Estado Entries-C - ruta Entradas y listado read-only
@@ -893,9 +893,125 @@ Estado final:
 - Listado read-only de entries operativo.
 - Filtros y paginacion operativos.
 - Seguridad visual validada.
-- Base lista para Entries-D.
+- Base usada por Entries-D.
 
-## 21. Roadmap por slices
+## 21. Estado Entries-D/E - acciones QR/email y QA frontend
+
+Estado: **Entries-D implementado y Entries-E QA frontend/manual PASS**.
+
+Entries-D implemento:
+
+- boton `Ver QR` por row/card;
+- QR cargado mediante `getEventEntryQrBlob`;
+- QR mostrado en modal;
+- loading/error controlado de QR;
+- cleanup de object URL al cerrar, cambiar QR y desmontar;
+- boton `Reenviar email` por row/card;
+- reenvio mediante `sendEventEntryQrEmail`;
+- loading/success/error por entry;
+- feedback `Email reenviado.`;
+- no se muestra `email.to` como dato persistente;
+- no se agrego `Validar manual`;
+- no se toco backend, SQL, migraciones, endpoints, pagos ni flujos operativos.
+
+Fixture QA validado:
+
+- se crearon 2 entradas QA para Ibiza mediante `manual-issue`;
+- response API `201 Created`;
+- `entries.length = 2`;
+- `email_delivery.mode = order_bundle`;
+- `email_delivery.status = sent`;
+- `email_delivery.sent = 2`;
+- `order.id = 2a9b2904-2d78-4372-937b-75ee019840fe`;
+- `item.id = 55cae0fa-962b-45be-98df-157e68e4d68f`;
+- entry QR `dd5ec250-eeb9-42fa-bae6-6d3c0ddeddb8`;
+- entry Email `d2b8d0c0-ef26-4923-b8b4-ab3c12aac753`.
+
+QA listado/filtros:
+
+- `/panel/events/:eventId/entries?q=QA-ENTRIES-UI` respondio `200 OK`;
+- `pagination.total = 2`;
+- contiene `QA-ENTRIES-UI-QR`;
+- contiene `QA-ENTRIES-UI-EMAIL`;
+- busqueda por `QA-ENTRIES-UI-QR` PASS;
+- busqueda por `QA-ENTRIES-UI-EMAIL` PASS;
+- filtro de estado PASS;
+- filtro de check-in PASS;
+- orden PASS;
+- no se duplican rows.
+
+QA owner/staff/sin sesion:
+
+- owner Ibiza carga la ruta correctamente dentro de `EventPanelShell`;
+- `EventPanelNav` muestra `Entradas` y `Actividad`;
+- `Entradas` queda activa;
+- se muestran las 2 entradas QA;
+- no hay error de panel local;
+- staff Ibiza puede entrar, ver entries, abrir QR y reenviar email;
+- sin sesion, el panel solicita iniciar sesion y no muestra datos del evento ni permite usar acciones.
+
+QA `Ver QR`:
+
+- el boton `Ver QR` aparece por entry;
+- abre modal;
+- el modal muestra titulo `QR de entrada`, ticket, asistente e imagen QR PNG visible;
+- cerrar modal funciona;
+- no queda imagen visible despues de cerrar;
+- abrir QR de otra entry funciona;
+- no queda estado visual anterior.
+
+QA `Reenviar email`:
+
+- `Reenviar email` aparece por entry;
+- el reenvio funciona;
+- feedback mostrado: `Email reenviado. 09/06/2026, 03:58 p. m.`;
+- el feedback queda controlado en UI;
+- no se muestra response cruda;
+- no se muestra `email.to` persistente.
+
+Validar manual ausente:
+
+- no aparece accion `Validar`;
+- no aparece accion `Usar entrada`;
+- no aparece accion `Marcar usada`;
+- no aparece accion `Validar manual`;
+- no aparece `Check-in` como accion operativa.
+
+Seguridad visual validada:
+
+- no se observo `checkin_token`;
+- no se observo QR payload;
+- no se observo QR base64;
+- no se observo raw URL ni `/events/checkin`;
+- no se observaron auth IDs, `used_by_auth_user_id`, `created_by_auth_user_id` ni `local_id`;
+- no se observo metadata cruda, request/response crudo, stack ni headers;
+- no se observo buyer phone, buyer document, attendee phone ni `email.to` persistente.
+
+Regresiones y limpieza:
+
+- la ruta directa de Actividad carga correctamente: `/panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/activity`;
+- `EventPanelNav` mantiene `Entradas` y `Actividad`;
+- se eliminaron los datos QA;
+- verificacion final por IDs: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
+
+Validaciones tecnicas registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+- Lint queda registrado como N/A por tooling, no como FAIL.
+
+Estado final:
+
+- Entries-D implementado.
+- Entries-E QA frontend/manual PASS.
+- acciones QR/email operativas dentro de `Entradas`.
+- owner/staff Ibiza pueden ver, filtrar/listar, abrir QR PNG autenticado desde modal, cerrar/cambiar QR sin estado visual incorrecto y reenviar email QR por entry.
+- `Validar manual` queda fuera de `Entradas`.
+- seguridad visual validada.
+- datos QA limpiados.
+
+## 22. Roadmap por slices
 
 Entries-A:
 
@@ -928,11 +1044,13 @@ Entries-D:
 - Usar `getEventEntryQrBlob` para cargar QR PNG autenticado.
 - Usar `sendEventEntryQrEmail` para reenvio.
 - Mantener fuera `Validar manual`.
+- Estado: implementado.
 
 Entries-E:
 
 - QA visual/manual completo.
 - Owner/staff, tenant safety, mobile/desktop, no exposicion y regresiones.
+- Estado: QA frontend/manual PASS.
 
 Entries-F futuro:
 
@@ -942,7 +1060,7 @@ Check-in UI futuro:
 
 - pantalla separada para validacion QR/manual en puerta.
 
-## 22. QA futuro
+## 23. QA futuro
 
 Casos minimos:
 
@@ -975,13 +1093,23 @@ Estado ya cubierto por Entries-C:
 - owner local sin membership, sin auth y token invalido no acceden a datos;
 - empty/listado, busqueda, filtros visibles, paginacion, desktop/mobile y seguridad visual quedaron en PASS.
 
+Estado ya cubierto por Entries-D/E:
+
+- acciones `Ver QR` y `Reenviar email` operativas;
+- QR modal con PNG autenticado, cierre y cambio de entry validado;
+- reenvio email por entry validado con feedback controlado;
+- `Validar manual` ausente;
+- owner/staff Ibiza validados;
+- sin sesion no ve datos;
+- datos QA limpiados.
+
 Validaciones tecnicas futuras:
 
 - `pnpm -C apps/web-next typecheck`.
 - `git diff --check`.
 - `pnpm -C apps/web-next lint` solo si tooling deja de ser interactivo; si no, N/A/no concluyente.
 
-## 23. No-goals
+## 24. No-goals
 
 Fuera de este contrato y del primer CODE:
 
@@ -1008,7 +1136,7 @@ Fuera de este contrato y del primer CODE:
 - cambiar contratos backend ya validados;
 - configurar ESLint.
 
-## 24. Estado final del contrato
+## 25. Estado final del contrato
 
 Estado: documentado.
 
@@ -1022,6 +1150,7 @@ Decision principal:
 - no incluir validacion manual en MVP;
 - minimizar PII visible aunque el endpoint la permita;
 - mantener seguridad visual y tenant safety del panel de eventos.
-- Entries-B dejo cliente/tipos usados por Entries-C y QR blob autenticado preparado para Entries-D.
+- Entries-B dejo cliente/tipos usados por Entries-C y QR blob autenticado usado por Entries-D.
 - Entries-C deja ruta/listado read-only `Entradas` operativo, con QA frontend/manual PASS.
-- Proximo paso recomendado: Entries-D - acciones controladas por entry (`Ver QR` y `Reenviar email`) sin validar manual, sin backend, sin SQL y sin pagos.
+- Entries-D/E dejan acciones QR/email operativas en `Entradas`, con QA frontend/manual PASS y datos QA limpiados.
+- Proximo paso recomendado: ASK/DOCS para Check-in UI como siguiente seccion operativa del `EventPanelShell`.

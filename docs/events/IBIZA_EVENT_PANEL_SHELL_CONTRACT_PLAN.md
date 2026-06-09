@@ -539,11 +539,23 @@ Entries-C:
 - QA frontend/manual PASS: owner/staff Ibiza, tenant/auth safety, empty/listado, filtros, paginacion, desktop/mobile, seguridad visual y regresiones.
 - Sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend/SQL/pagos/flujos.
 
+Entries-D/E:
+
+- Acciones `Ver QR` y `Reenviar email` implementadas en `EventEntriesSection`.
+- QR se carga por blob autenticado con `getEventEntryQrBlob` y se muestra en modal.
+- Object URL se limpia al cerrar, cambiar QR y desmontar.
+- Reenvio email usa `sendEventEntryQrEmail`.
+- Loading/success/error es por entry y el feedback `Email reenviado.` queda controlado.
+- `email.to` no queda como dato persistente.
+- QA frontend/manual PASS: owner/staff Ibiza, listado/filtros, QR modal, cierre/cambio de QR, reenvio email, sin sesion, seguridad visual, ausencia de `Validar manual`, Activity directa y limpieza QA.
+- Datos QA limpiados: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
+- Sin backend, SQL, pagos, `/payments/callback` ni flujos operativos modificados.
+
 Proximo paso recomendado:
 
-- Entries-D - agregar acciones controladas por entry: `Ver QR` y `Reenviar email`.
-- Usar helpers existentes de `apps/web-next/lib/eventEntries.ts`.
-- Mantener fuera `Validar manual`, backend, SQL, pagos y `/payments/callback`.
+- ASK/DOCS - definir Check-in UI como siguiente seccion operativa del `EventPanelShell`.
+- Evaluar pantalla de puerta para validacion QR/manual usando endpoints ya validados.
+- Mantener separada la validacion de la lista general de `Entradas`.
 
 Tooling futuro:
 
