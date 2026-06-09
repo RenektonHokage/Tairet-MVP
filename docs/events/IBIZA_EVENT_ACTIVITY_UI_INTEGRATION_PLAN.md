@@ -43,6 +43,23 @@ UI-C cerrado:
 - sin PII, tokens ni metadata cruda;
 - no montado en navegacion global porque no existia ruta/layout estable confirmada.
 
+Shell-C cerrado:
+
+- `EventPanelShell` y `EventPanelNav` implementados.
+- Layout propio creado en `/panel/events/[eventId]/layout.tsx`.
+- `EventActivitySection` montado dentro del shell.
+- Contexto de evento con `getEventPanelMe(eventId)`.
+- Nav propia con `Actividad` solamente.
+- Separacion del panel local.
+
+Shell-D cerrado:
+
+- QA visual/manual PASS completo reportado por el operador para `/panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/activity`.
+- Owner/staff Ibiza acceden correctamente.
+- Usuarios no autorizados, sin auth/token invalido, `eventId` invalido y evento inexistente quedan controlados.
+- Desktop/mobile validados sin doble layout, scroll horizontal ni exposicion sensible.
+- Panel local y runtime demo validados sin regresion.
+
 ## 3. Documentos y archivos revisados
 
 Documentos:
@@ -313,11 +330,12 @@ UI-C:
 
 - `EventActivitySection` reutilizable.
 - Estado: implementado a nivel componente y typecheck PASS.
-- Pendiente de montaje.
+- Montado dentro de `EventPanelShell` en Shell-C.
 
 UI-D:
 
 - Este contrato de integracion.
+- Estado: cerrado.
 
 UI-E recomendado:
 
@@ -326,15 +344,23 @@ UI-E recomendado:
 - Renderizar `EventActivitySection`.
 - No tocar sidebar local.
 - No crear shell complejo salvo necesidad explicita.
+- Estado: superado por Shell-C, que monto Activity dentro de layout propio de evento.
 
 UI-F posterior:
 
 - Event panel shell/tabs/nav si ya existen mas secciones de evento.
 - Decidir tabs como `Resumen`, `Entradas`, `Check-in`, `Actividad`.
+- Estado: base shell/nav ya implementada en Shell-C con `Actividad` como unica seccion real.
 
 UI-G posterior:
 
 - QA frontend/manual con datos reales/controlados.
+- Estado: Shell-D QA visual/manual PASS.
+
+Siguiente slice recomendado:
+
+- ASK / DOCS - definir primera seccion operativa posterior del panel de eventos.
+- Recomendacion inicial: Entries UI.
 
 ## 14. No-goals
 

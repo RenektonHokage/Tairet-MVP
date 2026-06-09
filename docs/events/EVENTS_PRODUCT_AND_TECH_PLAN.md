@@ -566,7 +566,9 @@ Implementar QR por unidad validable, scanner, validación manual y búsqueda por
 
 Registrar eventos operativos de entrada/orden, con actor label seguro y metadata sanitizada.
 
-Estado backend operativo: generación y lectura read-only segura de activity de Eventos implementadas y con QA runtime PASS completo. Próximo paso: definir UI de historial operativo del panel de eventos.
+Estado backend operativo: generación y lectura read-only segura de activity de Eventos implementadas y con QA runtime PASS completo.
+
+Estado frontend Eventos: base Activity UI, `EventPanelShell`, `EventPanelNav`, layout propio de evento y Activity dentro del shell implementados; Shell-D QA visual/manual PASS completo. Entries UI ya tiene contrato y cliente/tipos frontend PASS tecnico (`apps/web-next/lib/eventEntries.ts`). Proximo paso recomendado: Entries-C, crear ruta/listado read-only `/panel/events/[eventId]/entries` y agregar `Entradas` al nav cuando exista la ruta.
 
 ### Slice 8 - Export owner-only
 

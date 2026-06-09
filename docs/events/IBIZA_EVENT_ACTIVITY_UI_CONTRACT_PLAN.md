@@ -554,7 +554,7 @@ Slice UI-C:
 
 - Pantalla/seccion `Actividad` en panel de eventos.
 - Estado: componente reutilizable implementado, typecheck PASS y `git diff --check` PASS.
-- Pendiente: montaje en ruta/layout real.
+- Montado dentro de `EventPanelShell` en Shell-C.
 - Lista/timeline compacta.
 - Filtros MVP por action exacta/source.
 - `page_size = 25`.
@@ -569,11 +569,23 @@ Slice UI-D:
 - Definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
 - Decidir si `Actividad` va como tab, seccion o vista.
 - Evitar romper navegacion.
+- Estado: documentado y cerrado.
 
-Slice UI-E:
+Slice Shell-C:
+
+- `EventPanelShell`, `EventPanelNav`, layout propio de evento y Activity dentro del shell.
+- Estado: implementado.
+
+Slice Shell-D:
 
 - QA frontend/manual con fixtures o datos runtime controlados.
 - Verificar responsive y no exposicion.
+- Estado: QA visual/manual PASS completo reportado por el operador.
+
+Siguiente slice recomendado:
+
+- ASK / DOCS - definir primera seccion operativa posterior del panel de eventos.
+- Recomendacion inicial: Entries UI.
 
 Slice posterior:
 

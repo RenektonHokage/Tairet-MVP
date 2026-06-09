@@ -1937,9 +1937,76 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
 
-Pendiente: definir integracion de `EventActivitySection` en ruta/layout real del panel de eventos y ejecutar QA frontend visual/manual con un `eventId` real.
+### Estado Shell-C - EventPanelShell/EventPanelNav/layout propio
 
-Proximo paso recomendado: ASK / DOCS - definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
+Estado: implementado.
+
+Se registro:
+
+- `EventPanelShell` operativo;
+- `EventPanelNav` operativo;
+- layout propio en `/panel/events/[eventId]/layout.tsx`;
+- contexto con `getEventPanelMe(eventId)` y `/panel/events/:eventId/me`;
+- Activity montada dentro del shell;
+- nav propia con `Actividad` solamente;
+- panel de eventos separado del panel local, sin `PanelProvider`, `SidebarNav` local, `/panel/me` ni `local_id`.
+
+### Estado Shell-D - QA visual/manual EventPanelShell
+
+Estado: QA visual/manual PASS completo reportado por el operador.
+
+Se registro:
+
+- ruta validada: `/panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/activity`;
+- owner Ibiza y staff Ibiza acceden correctamente y ven contexto/rol/event Activity dentro del shell;
+- owner local sin membership, sin auth/token invalido, `eventId` invalido y evento inexistente quedan controlados sin datos de evento;
+- visual desktop/mobile validado sin doble header confuso, padding excesivo, scroll horizontal ni desbordes;
+- no se detecto exposicion visual de `local_id`, auth IDs, `checkin_token`, token, QR payload/base64, raw URL, email crudo, phone, document, buyer, attendee, metadata cruda, request/response crudo, stack ni headers;
+- panel local y runtime demo validados sin regresion.
+
+Nota: `/panel/login` sigue perteneciendo al flujo local de bares/discotecas y usa `/panel/me`; para usuarios solo-evento puede mostrar `User not authorized for panel access`. No es bug de Shell-D porque el panel de eventos se valida por URL directa y usa `/panel/events/:eventId/me`.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de `next lint`.
+
+### Estado Entries-A - contrato UI Entradas
+
+Estado: documentado.
+
+Se creo `docs/events/IBIZA_EVENT_ENTRIES_UI_CONTRACT_PLAN.md` para definir la seccion `Entradas` del panel de eventos: ruta futura `/panel/events/[eventId]/entries`, listado `/entries`, QR PNG por entry, reenvio email por entry, PII minimizada, sin validar manual en MVP y sin tocar backend.
+
+### Estado Entries-B - cliente/tipos frontend Entradas
+
+Estado: PASS tecnico.
+
+Se registro:
+
+- `apps/web-next/lib/eventEntries.ts` creado;
+- tipos TypeScript para status, check-in status, sales unit type, sort, entry, attendee, buyer, order, item, list item, pagination, response e inputs;
+- `getEventEntries(input)` con `eventId` requerido, `encodeURIComponent`, `URLSearchParams`, mapping camelCase a snake_case y `apiGetWithAuth`;
+- `sendEventEntryQrEmail(input)` con `eventId`/`entryId` requeridos, `encodeURIComponent` y `apiPostWithAuth`;
+- `getEventEntryQrBlob(input)` con `getAuthHeaders`, fetch autenticado, validacion `Content-Type: image/png` y retorno `Blob`;
+- labels/constants y badge helpers;
+- sin UI visible, sin ruta `/entries`, sin update de `EventPanelNav`, sin backend, SQL, pagos ni flujos modificados.
+
+Discovery registrado:
+
+- `apiGetWithAuth` y `apiPostWithAuth` son helpers JSON;
+- `getAuthHeaders` existe;
+- `apiGetWithAuth` no sirve para blob;
+- `getEventActivity` usa `URLSearchParams` como patron;
+- QR PNG requiere fetch autenticado.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config no interactiva.
+
+Proximo paso recomendado: Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only con filtros, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry, sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

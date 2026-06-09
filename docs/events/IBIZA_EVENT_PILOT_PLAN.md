@@ -1516,9 +1516,70 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint y no existe config en el proyecto.
 
-Pendiente: montar el componente en una ruta/layout real del panel de eventos y ejecutar QA frontend visual/manual con un `eventId` real.
+### Shell-C - EventPanelShell/EventPanelNav/layout propio
 
-Proximo paso tecnico recomendado: ASK / DOCS - definir integracion de `EventActivitySection` en ruta/layout del panel de eventos.
+Estado: implementado.
+
+Se registro que:
+
+- `EventPanelShell` fue creado;
+- `EventPanelNav` fue creado;
+- existe layout propio en `/panel/events/[eventId]/layout.tsx`;
+- Activity queda montada dentro del shell;
+- el contexto usa `getEventPanelMe(eventId)` y `/panel/events/:eventId/me`;
+- la nav propia muestra `Actividad` solamente;
+- el panel de eventos queda separado del panel local y no depende de `PanelProvider`, `SidebarNav`, `/panel/me` ni `local_id`.
+
+### Shell-D - QA visual/manual EventPanelShell
+
+Estado: QA visual/manual PASS completo reportado por el operador.
+
+Se registro que:
+
+- ruta validada: `/panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/activity`;
+- owner Ibiza y staff Ibiza acceden correctamente;
+- el shell muestra contexto del evento y rol;
+- Activity carga dentro del shell;
+- owner local sin membership, sin auth/token invalido, `eventId` invalido y evento inexistente quedan controlados sin renderizar datos de evento;
+- desktop y mobile quedaron usables, sin doble layout, scroll horizontal ni desbordes;
+- no se detecto exposicion visual de `local_id`, auth IDs, `checkin_token`, token, QR payload/base64, raw URL, email crudo, phone, document, buyer, attendee, metadata cruda, request/response crudo, stack ni headers;
+- panel local y runtime demo quedaron sin regresion.
+
+Nota sobre `/panel/login`: pertenece al flujo local de bares/discotecas y usa `/panel/me`; usuarios con solo membership de evento pueden ver `User not authorized for panel access`. No es bug de Shell-D porque Eventos se valida por URL directa y el shell usa `/panel/events/:eventId/me`.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abre configuracion interactiva de ESLint.
+
+### Entries-A - contrato UI Entradas
+
+Estado: documentado.
+
+Se creo `docs/events/IBIZA_EVENT_ENTRIES_UI_CONTRACT_PLAN.md` para definir la primera seccion operativa posterior a Activity: `Entradas`, con ruta futura `/panel/events/[eventId]/entries`, listado de entries, QR PNG por entry, reenvio email por entry, PII minimizada y validacion manual fuera del MVP.
+
+### Entries-B - cliente/tipos frontend Entradas
+
+Estado: PASS tecnico.
+
+Se registro que:
+
+- `apps/web-next/lib/eventEntries.ts` fue creado;
+- se crearon tipos TS para status, check-in status, sales unit type, sort, entry, attendee, buyer, order, item, list item, pagination, response e inputs;
+- `getEventEntries(input)` usa `eventId`, `encodeURIComponent`, `URLSearchParams`, mapping camelCase a snake_case y `apiGetWithAuth`;
+- `sendEventEntryQrEmail(input)` usa `eventId`, `entryId`, `encodeURIComponent` y `apiPostWithAuth`;
+- `getEventEntryQrBlob(input)` usa `getAuthHeaders`, fetch autenticado, valida `Content-Type: image/png` y devuelve `Blob`;
+- se crearon labels/constants y badge helpers;
+- no hay UI visible, ruta `/entries`, update de `EventPanelNav`, backend, SQL, pagos ni flujos modificados.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
+
+Proximo paso tecnico recomendado: Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only con filtros, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry, sin Ver QR, sin Reenviar email, sin Validar manual y sin cambios backend.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

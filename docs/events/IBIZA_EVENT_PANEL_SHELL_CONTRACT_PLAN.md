@@ -27,13 +27,16 @@ Frontend Eventos cerrado:
 - UI-C: `apps/web-next/components/panel/EventActivitySection.tsx`, componente reusable.
 - UI-E: ruta directa `/panel/events/[eventId]/activity`.
 - UI-F: wrapper visual minimo con `bg-gray-50`, `min-h-screen`, padding responsive y contenedor `max-w-6xl`.
+- Shell-C: `EventPanelShell`, `EventPanelNav`, layout propio en `/panel/events/[eventId]/layout.tsx` y Activity montada dentro del shell.
+- Shell-D: QA visual/manual PASS completo reportado por el operador.
 
-Problema actual:
+Estado actual:
 
-- Activity ya funciona y tiene wrapper visual basico.
-- Todavia no existe un panel de eventos con shell/nav/layout propio.
-- El panel actual es local y se autentica contra `/panel/me`.
-- No se debe montar Eventos dentro de `PanelProvider` local ni mezclar `local_id` con `event_id`.
+- Activity funciona dentro del shell propio de evento.
+- El panel de eventos tiene shell/nav/layout propio y queda separado del panel local.
+- El panel local sigue autenticandose contra `/panel/me`.
+- El panel de eventos usa `/panel/events/:eventId/me` y no depende de `PanelProvider` local.
+- No se mezcla `local_id` con `event_id`.
 
 ## 3. Documentos y archivos revisados
 
@@ -136,12 +139,14 @@ Estado actual:
 - La ruta queda fuera de `(authenticated)`.
 - Toma `eventId` desde params.
 - Renderiza `EventActivitySection`.
-- Tiene wrapper visual minimo con fondo, padding y ancho maximo.
-- No existe `apps/web-next/app/panel/events/[eventId]/layout.tsx`.
-- No existe `EventPanelShell`.
-- No existe `EventPanelNav`.
-- No existe `EventPanelProvider`.
-- No existe helper frontend `getEventPanelMe`.
+- Existe `apps/web-next/app/panel/events/[eventId]/layout.tsx`.
+- Existe `EventPanelShell`.
+- Existe `EventPanelNav`.
+- Existe helper frontend `getEventPanelMe`.
+- El shell consulta `/panel/events/:eventId/me`.
+- La nav propia muestra `Actividad` solamente.
+- Activity queda montada dentro del shell.
+- No existe `EventPanelProvider`; el contexto se resuelve en el shell.
 - No existe pantalla frontend de evento para entries, check-in, summary, ticket-types o settings.
 
 Endpoint de contexto disponible:
@@ -407,7 +412,65 @@ Casos minimos para CODE posterior:
 - `pnpm -C apps/web-next typecheck` PASS.
 - `git diff --check` PASS.
 
-## 15. Nota sobre lint/tooling
+## 15. Estado Shell-D - QA visual/manual PASS
+
+Estado: **PASS**.
+
+Shell-D valido manualmente:
+
+- ruta `/panel/events/aed4cb4a-b297-4093-98e1-b3474f3b399c/activity`;
+- `EventPanelShell` operativo;
+- `EventPanelNav` operativo;
+- layout propio de evento operativo;
+- contexto de evento por `/panel/events/:eventId/me`;
+- Activity montada dentro del shell;
+- panel de eventos separado del panel local;
+- base del panel de eventos lista para nuevas secciones.
+
+QA owner/staff:
+
+- owner Ibiza accede a la ruta y ve contexto de evento, rol `owner`, nav `Actividad` y Activity dentro del shell;
+- staff Ibiza accede a la misma ruta, ve rol `staff` y Activity carga sin dependencia de `PanelProvider` local;
+- no aparece dependencia de `/panel/me`;
+- no redirige al panel local.
+
+QA auth/tenant safety:
+
+- owner local sin membership no accede a datos del evento y no ve activity rows;
+- sin auth o token invalido no accede a datos del evento y la UI no crashea;
+- `eventId` invalido y evento inexistente muestran error controlado;
+- no se muestran datos de otro evento.
+
+QA visual:
+
+- desktop alineado al panel existente, sin full-width crudo, doble header confuso, padding excesivo ni scroll horizontal;
+- nav/sidebar propia visible y correcta;
+- Activity mantiene jerarquia visual;
+- mobile con header y nav usables, Activity legible, filtros sin romper layout, cards sin desborde y `Cargar mas` accesible.
+
+Seguridad visual:
+
+- no se detecto exposicion de `local_id`, `auth_user_id`, `actor_auth_user_id`, `used_by_auth_user_id`, `checkin_token`, `token`, `qr_payload`, `qr_base64`, raw URL, email crudo, phone, document, buyer, attendee, metadata cruda, request/response crudo, stack ni headers.
+
+Regresiones:
+
+- panel local validado sin regresion en `/panel/orders`, `/panel/checkin`, `/panel/calendar`, `/panel/profile`, `/panel/me` si corresponde y login local si corresponde;
+- runtime demo `/panel/demo/[scenario]` validado sin regresion.
+
+Nota sobre `/panel/login`:
+
+- `/panel/login` pertenece actualmente al flujo del panel local de bares/discotecas y usa `/panel/me`;
+- usuarios que solo tienen membership de evento pueden ver `User not authorized for panel access`;
+- no se considera bug de Shell-D porque el panel de eventos se valida por URL directa `/panel/events/:eventId/activity`, el shell usa `/panel/events/:eventId/me` y no depende de `/panel/me` ni de `PanelProvider` local;
+- queda pendiente en slice separado definir entrypoint/login/redirect especifico para panel de eventos.
+
+Validaciones tecnicas registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abre configuracion interactiva de ESLint y no existe config no interactiva.
+
+## 16. Nota sobre lint/tooling
 
 Estado actual:
 
@@ -419,7 +482,7 @@ Pendiente separado:
 - Tooling ESLint no interactivo.
 - Migrar o configurar lint para que pueda correr en CI/local sin prompts.
 
-## 16. Roadmap por slices
+## 17. Roadmap por slices
 
 Shell-A:
 
@@ -436,23 +499,44 @@ Shell-C:
 - Crear `apps/web-next/app/panel/events/[eventId]/layout.tsx`.
 - Montar la ruta `Activity` dentro del shell.
 - Nav inicial: `Actividad` solamente.
+- Estado: implementado.
 
 Shell-D:
 
 - QA visual/manual desktop/mobile.
 - Validar owner/staff Ibiza, owner local sin membership, sin auth y token invalido.
+- Estado: QA visual/manual PASS.
 
 Shell-E futuro:
 
-- Agregar UI de `Entries` cuando exista contrato/componentes.
+- Agregar UI de `Entries`.
 - Agregar UI de `Check-in` cuando exista contrato/componentes.
 - Agregar UI de `Summary` cuando exista contrato/componentes.
+- Recomendacion inicial: avanzar primero con Entries UI porque conecta emision, QR, email, activity y soporte operativo.
+
+Entries-A:
+
+- Contrato UI/UX y tecnico de `Entradas` documentado en `docs/events/IBIZA_EVENT_ENTRIES_UI_CONTRACT_PLAN.md`.
+- Estado: documentado.
+
+Entries-B:
+
+- Cliente/tipos frontend para `Entradas` creados en `apps/web-next/lib/eventEntries.ts`.
+- Estado: PASS tecnico.
+- Incluye `getEventEntries`, `sendEventEntryQrEmail`, `getEventEntryQrBlob`, labels/constants y badge helpers.
+- Sin UI visible, sin ruta `/entries` y sin update de `EventPanelNav`.
+
+Proximo paso recomendado:
+
+- Entries-C - crear ruta `/panel/events/[eventId]/entries`, agregar `Entradas` a `EventPanelNav` y montar listado read-only.
+- Alcance recomendado: filtros `q/status/checkin_status/sort`, paginacion `Cargar mas`, desktop/mobile, empty/loading/error/retry.
+- Fuera de Entries-C: Ver QR, Reenviar email, Validar manual y cambios backend.
 
 Tooling futuro:
 
 - Configurar ESLint no interactivo en slice separado.
 
-## 17. No-goals
+## 18. No-goals
 
 Fuera de este documento:
 
@@ -475,4 +559,3 @@ Fuera de este documento:
 - crear export;
 - agregar busqueda textual;
 - mezclar `local_id` con `event_id`.
-
