@@ -1013,7 +1013,28 @@ Se valido:
 
 Backend activity log queda cerrado a nivel operativo: generacion, lectura segura, tenant safety y metadata segura.
 
-## 21. No-goals
+## 21. Estado Checkin-D - UI fallback manual y activity manual PASS
+
+Checkin-D queda registrado como validacion frontend/manual del flujo de activity manual:
+
+- fallback manual dentro de `/panel/events/:eventId/checkin` llama `checkInEventEntryManually`;
+- validacion manual registra activity con `source = manual`;
+- intento `outside_window` manual registra activity con `source = manual`;
+- regresion QR registra activity con `source = qr`;
+- no se observaron tokens, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda ni PII no prevista en UI;
+- no se tocaron backend, SQL, migraciones, endpoints, pagos, activity local ni flujos operativos.
+
+Observacion no bloqueante:
+
+- busqueda por apellido PASS;
+- busqueda compuesta QA `Checkin D Owner` sin resultado;
+- no bloquea el PASS porque documento y apellido funcionan correctamente.
+
+Proximo paso recomendado:
+
+- ASK / DOCS - definir scanner camara para Check-in de Eventos.
+
+## 22. No-goals
 
 Fuera de este documento:
 

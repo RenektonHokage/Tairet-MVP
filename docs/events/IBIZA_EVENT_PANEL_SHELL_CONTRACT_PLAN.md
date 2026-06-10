@@ -562,11 +562,22 @@ Checkin-C:
 - QA frontend/manual PASS: owner/staff Ibiza, token valido, already used, URL, invalid, outside window, voided, event not operable, sin sesion, seguridad visual, regresiones y limpieza QA.
 - Sin fallback manual, sin scanner camara, sin backend, SQL, pagos ni flujos operativos modificados.
 
+Checkin-D:
+
+- Fallback manual agregado dentro de `EventCheckinSection`.
+- Busqueda manual usa `getEventEntries`.
+- Query vacio y query de 1 caracter quedan controlados localmente.
+- Resultados compactos muestran asistente, documento, ticket, status, `checkin_status` y `used_at`.
+- Confirmacion fuerte validada antes de `checkInEventEntryManually`.
+- Cancelar no muta DB; confirmar marca entry como usada.
+- Activity de validacion manual queda registrada con `source = manual`.
+- QA frontend/manual PASS: owner/staff, busqueda, confirmacion, estados controlados, seguridad visual, regresiones y limpieza QA.
+- Sin scanner camara, backend, SQL, pagos ni flujos operativos modificados.
+
 Proximo paso recomendado:
 
-- Checkin-D - fallback manual por busqueda de entry.
-- Reutilizar `getEventEntries`, mostrar resultados compactos, pedir confirmacion fuerte y llamar `checkInEventEntryManually`.
-- Mantener scanner camara como futuro y mantener separada la validacion de la lista general de `Entradas`.
+- ASK / DOCS - definir scanner camara para Check-in de Eventos.
+- Mantener hardening especifico: permisos de camara, fallback si no hay camara, pausa durante request, dedupe de lecturas, no logs de token raw, control de doble validacion, mobile, compatibilidad con `@zxing/browser` y QA en dispositivo.
 
 Tooling futuro:
 

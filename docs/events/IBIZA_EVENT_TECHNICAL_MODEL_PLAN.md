@@ -2084,16 +2084,16 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-### Estado Checkin-A/B/C - contrato, cliente y UI input Check-in
+### Estado Checkin-A/B/C/D - contrato, cliente, input y fallback manual Check-in
 
-Estado: Checkin-A documentado, Checkin-B implementado con PASS tecnico y Checkin-C implementado con QA frontend/manual PASS.
+Estado: Checkin-A documentado, Checkin-B implementado con PASS tecnico, Checkin-C implementado con QA frontend/manual PASS y Checkin-D implementado con QA frontend/manual PASS.
 
 Se registro:
 
 - `docs/events/IBIZA_EVENT_CHECKIN_UI_CONTRACT_PLAN.md` creado para definir la pantalla futura de puerta dentro de `EventPanelShell`;
 - ruta implementada: `/panel/events/[eventId]/checkin`;
 - decision MVP: input manual de QR/token/URL antes de scanner camara;
-- fallback manual futuro por busqueda en `/entries?q=...` y confirmacion;
+- fallback manual implementado por busqueda en `/entries?q=...` y confirmacion;
 - `apps/web-next/lib/eventCheckin.ts` creado;
 - tipos TS creados para estados, entry, attendee, event, response, error, inputs y variantes visuales;
 - `parseEventCheckinToken(input)` creado para UUID directo y URL completa;
@@ -2105,7 +2105,13 @@ Se registro:
 - `EventPanelNav` actualizado con `Entradas`, `Check-in` y `Actividad`;
 - input QR/token/URL implementado con resultado visual persistente;
 - parser validado para UUID directo, URL completa y URL con slash/query/hash;
-- sin fallback manual, sin scanner camara, sin backend, SQL, pagos ni flujos modificados en Checkin-C.
+- fallback manual agregado dentro de Check-in en `EventCheckinSection`;
+- busqueda manual con `getEventEntries`;
+- query vacio y query de 1 caracter controlados localmente;
+- resultados compactos sin buyer PII ni attendee email/phone;
+- confirmacion fuerte antes de `checkInEventEntryManually`;
+- resultado manual reutiliza el resultado visual semantico;
+- sin scanner camara, backend, SQL, pagos ni flujos modificados en Checkin-C/D.
 
 QA Checkin-C registrado:
 
@@ -2120,13 +2126,26 @@ QA Checkin-C registrado:
 - regresiones `/entries` y `/activity` PASS;
 - limpieza QA dejo orders/items/entries/activity en cero e Ibiza restaurado a `draft` con ventana original.
 
+QA Checkin-D registrado:
+
+- regresion QR/token PASS: token valido, `already_used` y UUID inexistente;
+- busqueda manual PASS: query vacio, query de 1 caracter, busqueda por documento, busqueda por apellido y empty state sin resultados;
+- confirmacion fuerte PASS: `Cancelar` no muta DB y `Confirmar validacion` llama la mutacion manual;
+- validacion manual PASS: DB queda `issued/used`, `used_at != null`, `used_by_auth_user_id != null`;
+- segundo intento sobre entrada usada queda deshabilitado;
+- `outside_window`, `voided` y `event_not_operable` quedan controlados sin mutacion de check-in;
+- activity manual registra `source = manual`; regresion QR registra `source = qr`;
+- owner/staff operan y sin sesion queda bloqueado;
+- seguridad visual PASS y limpieza QA en cero;
+- observacion no bloqueante: busqueda por apellido funciono, busqueda compuesta QA `Checkin D Owner` no devolvio resultado y no bloquea PASS.
+
 Validaciones registradas:
 
 - `pnpm -C apps/web-next typecheck` -> PASS.
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso recomendado: Checkin-D - fallback manual por busqueda de entry, seleccion con confirmacion fuerte y llamada a `checkInEventEntryManually`.
+Proximo paso recomendado: ASK / DOCS - definir scanner camara para Check-in de Eventos con hardening de permisos, fallback, pausa, dedupe, no logs de token raw, mobile y QA en dispositivo.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

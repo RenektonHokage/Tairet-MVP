@@ -1722,7 +1722,50 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-Proximo paso recomendado: Checkin-D - fallback manual por busqueda de entry, seleccion con confirmacion fuerte y llamada a `checkInEventEntryManually`.
+Checkin-D queda documentado como estado cerrado en la seccion siguiente.
+
+### Checkin-D - fallback manual dentro de Check-in
+
+Estado: implementado y QA frontend/manual PASS.
+
+Se registro que:
+
+- fallback manual vive dentro de `/panel/events/[eventId]/checkin`;
+- usa `getEventEntries` para buscar entries del evento;
+- query vacio y query de 1 caracter quedan controlados;
+- resultados compactos muestran asistente, documento, ticket, status, `checkin_status` y `used_at`;
+- confirmacion fuerte se muestra antes de validar;
+- `Cancelar` no muta DB;
+- `Confirmar validacion` llama `checkInEventEntryManually`;
+- resultado manual reutiliza el resultado visual semantico de Check-in;
+- entries `used` y `voided` no quedan accionables;
+- no se implemento scanner camara ni se tocaron backend, SQL, pagos o flujos operativos.
+
+QA frontend/manual PASS:
+
+- regresion QR/token: token valido, segundo intento `Entrada ya utilizada` y UUID inexistente `QR invalido`;
+- busqueda manual: query vacio, query de 1 caracter, busqueda por documento, busqueda por apellido y sin resultados;
+- confirmacion/cancelacion: cancelar no muto DB y confirmar ejecuto mutacion manual;
+- validacion manual: entry quedo `issued/used`, `used_at != null`, `used_by_auth_user_id != null`;
+- estados controlados: `outside_window`, `voided` y `event_not_operable` sin mutacion de check-in;
+- activity: validacion manual e intento outside window registrados con `source = manual`; regresion QR con `source = qr`;
+- owner/staff Ibiza PASS; sin sesion bloqueado sin datos;
+- seguridad visual PASS sin tokens, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda, buyer PII ni attendee phone/email;
+- limpieza QA dejo `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0` e Ibiza restaurado a `draft` con ventana original.
+
+Observacion no bloqueante:
+
+- la busqueda por apellido funciono;
+- la busqueda compuesta QA `Checkin D Owner` no devolvio resultado;
+- no bloquea el PASS porque busqueda por documento y apellido funcionan correctamente.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Proximo paso recomendado: ASK / DOCS - definir scanner camara para Check-in de Eventos con permisos, fallback, pausa durante request, dedupe, no logs de token raw, mobile, compatibilidad con `@zxing/browser` y QA en dispositivo.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

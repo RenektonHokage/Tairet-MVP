@@ -605,3 +605,31 @@ Cobertura final registrada:
 Proximo paso recomendado:
 
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
+
+## 22. Estado Checkin-D - UI fallback manual QA frontend PASS
+
+Checkin-D queda registrado como implementado y validado desde UI:
+
+- fallback manual agregado dentro de `/panel/events/:eventId/checkin`;
+- busqueda de entries mediante `getEventEntries`;
+- query vacio y query de 1 caracter controlados localmente;
+- resultados compactos sin buyer PII ni attendee email/phone;
+- confirmacion fuerte antes de llamar `checkInEventEntryManually`;
+- `Cancelar` no muta DB;
+- `Confirmar validacion` muta DB correctamente a `checkin_status = used`, `used_at != null`, `used_by_auth_user_id != null`;
+- entries usadas o anuladas no quedan accionables;
+- respuesta manual reutiliza el resultado visual semantico de Check-in;
+- activity de validacion manual queda registrada con `source = manual`;
+- owner/staff Ibiza pueden operar, sin sesion queda bloqueado;
+- seguridad visual PASS sin tokens, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda ni PII no prevista;
+- limpieza QA dejo orders/items/entries/activity en cero e Ibiza restaurado a `draft` con ventana original.
+
+Observacion no bloqueante:
+
+- la busqueda por apellido funciono;
+- la busqueda compuesta QA `Checkin D Owner` no devolvio resultado;
+- no bloquea el PASS porque busqueda por documento y apellido funcionan correctamente.
+
+Proximo paso recomendado:
+
+- ASK / DOCS - definir scanner camara para Check-in de Eventos con hardening especifico.

@@ -421,13 +421,16 @@ Checkin-C:
 
 Checkin-D:
 
-- Implementar fallback manual por busqueda de entry.
-- Reutilizar `getEventEntries`.
+- Implementado y QA frontend/manual PASS.
+- Fallback manual agregado dentro de la pantalla `Check-in`.
+- Reutiliza `getEventEntries`.
 - Confirmacion fuerte antes de `PATCH /entries/:entryId/use`.
+- Resultado manual reutiliza el resultado visual semantico de Check-in.
+- Sin scanner camara, backend, SQL, pagos ni flujos operativos modificados.
 
 Checkin-F futuro:
 
-- Scanner camara con `@zxing/browser` o `BarcodeDetector` si se confirma compatibilidad.
+- ASK / DOCS de scanner camara con `@zxing/browser` o `BarcodeDetector` si se confirma compatibilidad.
 - Re-hardening de permisos, dedupe, pausa/reanudacion y logs sin token raw.
 
 ## 15. Estado Checkin-C - input QR/token/URL
@@ -505,7 +508,73 @@ Validaciones tecnicas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abre configuracion interactiva de ESLint.
 
-## 16. QA futuro restante
+## 16. Estado Checkin-D - fallback manual por busqueda de entry
+
+Estado: implementado y QA frontend/manual PASS.
+
+Alcance implementado:
+
+- fallback manual agregado dentro de `EventCheckinSection`;
+- busqueda manual usando entries del evento mediante `getEventEntries`;
+- query vacio controlado localmente;
+- query de 1 caracter controlado localmente;
+- resultados compactos;
+- confirmacion fuerte antes de validar;
+- cancelar no ejecuta mutacion;
+- confirmar llama `checkInEventEntryManually`;
+- resultado manual reutiliza el resultado visual semantico de Check-in;
+- validacion manual registra activity con `source = manual`;
+- entries `used` y `voided` no quedan accionables;
+- scanner camara no implementado;
+- no se toco backend, SQL, pagos ni flujos operativos.
+
+QA frontend/manual PASS:
+
+- Regresion QR/token: token valido marco entrada como `used`, segundo intento mostro `Entrada ya utilizada`, UUID inexistente mostro `QR invalido`.
+- Busqueda manual: query vacio quedo controlado, query de 1 caracter mostro `La busqueda requiere al menos 2 caracteres`, busqueda por documento encontro la entry, busqueda por apellido encontro la entry y busqueda sin resultados mostro `No se encontraron entradas`.
+- Resultados compactos: se mostraron asistente, documento del asistente, ticket, status, `checkin_status`, `used_at` y evento; no se observo buyer PII ni attendee email/phone.
+- Confirmacion fuerte: `Validar manualmente` abre confirmacion, muestra datos operativos, `Cancelar` cierra la confirmacion y no muta DB, `Confirmar validacion` ejecuta la mutacion manual.
+- Cancelar no muta DB: la entry quedo `status = issued`, `checkin_status = unused`, `used_at = null`, `used_by_auth_user_id = null`.
+- Confirmar validacion manual: la entry quedo `status = issued`, `checkin_status = used`, `used_at != null`, `used_by_auth_user_id != null`.
+- Segundo intento sobre entrada usada: la UI mostro la entrada como usada y la accion de validacion manual quedo deshabilitada.
+- Estados controlados: `outside_window` mostro `Fuera de la ventana de validacion` y no muto DB; `voided` mostro entrada anulada y no hizo check-in; `event_not_operable` mostro `Evento no habilitado para check-in` y no muto DB.
+- Activity: validacion manual registrada con `source = manual`, intento `outside_window` manual registrado con `source = manual`, regresion QR registrada con `source = qr`.
+- Roles/acceso: owner Ibiza tuvo acceso y busqueda PASS; staff Ibiza tuvo busqueda y validacion manual PASS; sin sesion pide iniciar sesion y no muestra datos.
+- Regresiones: Entradas PASS, Actividad PASS, Panel del evento PASS y fallback manual sigue dentro de Check-in.
+
+Seguridad visual validada:
+
+- no se observo token;
+- no se observo payload QR;
+- no se observo raw URL;
+- no se observo QR base64;
+- no se observaron auth IDs, `used_by_auth_user_id`, `created_by_auth_user_id` ni `local_id`;
+- no se observo metadata cruda, request/response crudo, SQL, stack ni headers;
+- no se observo buyer phone/email/document ni attendee phone/email;
+- visible permitido: asistente, documento del asistente, ticket, status, `checkin_status`, `used_at` y evento.
+
+Observacion no bloqueante:
+
+- la busqueda por apellido funciono;
+- la busqueda compuesta QA `Checkin D Owner` no devolvio resultado;
+- no bloquea el PASS porque busqueda por documento y apellido funcionan correctamente;
+- no se trata como bug UI salvo que un contrato futuro exija busqueda compuesta multi-campo.
+
+Regresiones y limpieza:
+
+- `qa_order_remaining = 0`;
+- `qa_item_remaining = 0`;
+- `qa_entries_remaining = 0`;
+- `qa_activity_remaining = 0`;
+- evento Ibiza restaurado a `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Validaciones tecnicas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abre configuracion interactiva de ESLint.
+
+## 17. QA futuro restante
 
 Casos minimos:
 
@@ -540,7 +609,7 @@ QA futuro de scanner camara:
 - scanner se pausa durante procesamiento.
 - no se loggea token raw.
 
-## 17. No-goals
+## 18. No-goals
 
 Fuera de este contrato:
 
@@ -564,7 +633,7 @@ Fuera de este contrato:
 - crear edicion/anulacion;
 - configurar ESLint.
 
-## 18. Estado final
+## 19. Estado final
 
 Marcar:
 
@@ -572,5 +641,14 @@ Marcar:
 - Ruta implementada: `/panel/events/[eventId]/checkin`.
 - Checkin-B implementado: tipos/cliente `eventCheckin.ts` PASS tecnico.
 - Checkin-C implementado: input QR/token/URL + resultado visual con QA frontend/manual PASS.
-- Proximo CODE recomendado: Checkin-D, fallback manual por busqueda en `/entries?q=...` + confirmacion fuerte.
+- Checkin-D implementado: fallback manual por busqueda en `/entries?q=...` + confirmacion fuerte con QA frontend/manual PASS.
+- Fallback manual operativo dentro de Check-in.
+- Busqueda manual operativa.
+- Cancelar no muta DB.
+- Confirmar muta DB correctamente.
+- Activity registra `source = manual`.
+- Staff puede operar y sin sesion queda bloqueado.
+- No hay exposicion sensible.
+- Datos QA limpiados y evento restaurado.
+- Proximo paso recomendado: ASK / DOCS de scanner camara para Check-in de Eventos.
 - Scanner camara queda futuro hasta validar runtime/permisos y hardening sin token raw.

@@ -787,6 +787,43 @@ Proximo paso recomendado:
 
 - Slice 3E.4E: endpoint read-only `GET /panel/events/:eventId/activity`.
 
+## 26. Estado Checkin-D - fallback manual UI QA frontend PASS
+
+Checkin-D queda registrado como implementado y validado en frontend:
+
+- fallback manual vive dentro de la pantalla `/panel/events/:eventId/checkin`;
+- la busqueda usa `getEventEntries` y entries del evento;
+- query vacio y query de 1 caracter quedan controlados localmente;
+- resultados compactos muestran solo datos operativos permitidos;
+- confirmacion fuerte requerida antes de mutar;
+- `Cancelar` no muta DB;
+- `Confirmar validacion` llama `checkInEventEntryManually`;
+- resultado manual reutiliza el resultado visual semantico de Check-in;
+- activity de la validacion manual queda registrada con `source = manual`;
+- scanner camara no fue implementado;
+- no se tocaron backend, SQL, migraciones, endpoints, pagos ni flujos operativos.
+
+QA frontend/manual registrado:
+
+- regresion QR/token PASS: token valido, `already_used` y UUID inexistente;
+- busqueda manual PASS: query vacio, query de 1 caracter, documento, apellido y sin resultados;
+- confirmacion/cancelacion PASS: cancelar mantiene `issued/unused`, `used_at = null`, `used_by_auth_user_id = null`;
+- validacion manual PASS: confirmar deja `issued/used`, `used_at != null`, `used_by_auth_user_id != null`;
+- estados `outside_window`, `voided` y `event_not_operable` quedan controlados sin mutacion de check-in;
+- owner/staff operan y sin sesion queda bloqueado;
+- seguridad visual PASS sin tokens, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda ni PII no prevista;
+- limpieza QA en cero y evento restaurado.
+
+Observacion no bloqueante:
+
+- busqueda por apellido PASS;
+- busqueda compuesta QA `Checkin D Owner` sin resultado;
+- no bloquea el PASS porque documento y apellido funcionan correctamente.
+
+Proximo paso recomendado:
+
+- ASK / DOCS - definir scanner camara para Check-in de Eventos.
+
 ## 25. Estado Slice 3E.4G2 - activity en fallback manual QA runtime PASS
 
 Slice 3E.4G2 queda registrado como implementado, deployado y validado:
