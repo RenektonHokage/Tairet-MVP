@@ -38,10 +38,12 @@ Frontend Eventos cerrado:
 - Entries QR/email QA PASS.
 - Existen `getEventPanelMe`, `getEventEntries`, `getEventEntryQrBlob` y `sendEventEntryQrEmail`.
 - Checkin-B implementado y validado tecnicamente: `apps/web-next/lib/eventCheckin.ts` existe con tipos, parser, helpers PATCH y labels de estado.
+- Checkin-C implementado y QA frontend/manual PASS: ruta real `/panel/events/[eventId]/checkin`, link `Check-in`, input QR/token/URL y resultado visual operativo.
 
 Rutas actuales:
 
 - `/panel/events/[eventId]/entries`
+- `/panel/events/[eventId]/checkin`
 - `/panel/events/[eventId]/activity`
 
 ## 3. Fuentes revisadas
@@ -411,10 +413,11 @@ Checkin-B:
 
 Checkin-C:
 
-- Crear ruta `/panel/events/[eventId]/checkin`.
-- Agregar link real `Check-in` a `EventPanelNav`.
-- Implementar input QR/token/URL y resultado visual.
-- Sin scanner camara.
+- Implementado y QA frontend/manual PASS.
+- Ruta `/panel/events/[eventId]/checkin` creada dentro de `EventPanelShell`.
+- Link real `Check-in` agregado a `EventPanelNav`.
+- Input manual QR/token/URL implementado con resultado visual por estado semantico.
+- Sin scanner camara y sin fallback manual en este slice.
 
 Checkin-D:
 
@@ -422,17 +425,87 @@ Checkin-D:
 - Reutilizar `getEventEntries`.
 - Confirmacion fuerte antes de `PATCH /entries/:entryId/use`.
 
-Checkin-E:
-
-- QA frontend/manual completo desktop/mobile.
-- Validar activity y regresiones de Entries/Activity.
-
 Checkin-F futuro:
 
 - Scanner camara con `@zxing/browser` o `BarcodeDetector` si se confirma compatibilidad.
 - Re-hardening de permisos, dedupe, pausa/reanudacion y logs sin token raw.
 
-## 15. QA futuro
+## 15. Estado Checkin-C - input QR/token/URL
+
+Estado: implementado y QA frontend/manual PASS.
+
+Archivos de runtime que quedaron registrados como parte de Checkin-C:
+
+- `apps/web-next/app/panel/events/[eventId]/checkin/page.tsx`;
+- `apps/web-next/components/panel/EventCheckinSection.tsx`;
+- `apps/web-next/components/panel/EventPanelNav.tsx`.
+
+Ruta y navegacion:
+
+- ruta real `/panel/events/[eventId]/checkin`;
+- pantalla dentro de `EventPanelShell`;
+- `EventPanelNav` muestra `Entradas`, `Check-in` y `Actividad`;
+- `Check-in` queda activo en su ruta;
+- `Entradas` y `Actividad` siguen navegando correctamente.
+
+Input y parser:
+
+- input manual acepta token UUID directo;
+- input manual acepta URL completa;
+- parser extrae UUID desde URL con path, slash final, query o hash;
+- la UI llama `checkInEventEntryByToken`;
+- input y boton quedan disabled durante request;
+- resultado queda visible despues de la validacion;
+- input se limpia despues de cada intento procesado;
+- formato invalido muestra error local y no llama backend;
+- no se implemento fallback manual ni scanner camara.
+
+QA frontend/manual registrado:
+
+- se crearon 6 entries QA con `manual-issue`; API respondio `201 Created`, `entries.length = 6`, `email_delivery.status = sent`;
+- se recuperaron 6 `checkin_token` solo por SQL controlado;
+- estado inicial DB: entries `issued`, `unused`, `used_at = null`, `used_by_auth_user_id = null`;
+- ventana de check-in abierta temporalmente y DB time dentro de ventana;
+- `/checkin` carga dentro de `EventPanelShell`;
+- input vacio no permite submit;
+- texto invalido muestra error local sin raw response, stack ni error tecnico;
+- token UUID valido directo valida la entry y DB queda `checkin_status = used`, `used_at != null`, `used_by_auth_user_id != null`;
+- segundo intento del mismo token muestra `Entrada ya utilizada` sin romper pantalla;
+- URL completa valida y parser extrae token;
+- URL con slash final, query o hash valida y DB queda usada;
+- UUID bien formado inexistente muestra `QR invalido` y `No se encontro una entrada valida para este QR.`;
+- entry `issued/unused` fuera de ventana muestra `Fuera de la ventana de validacion` y no muta DB;
+- entry `voided` muestra `Entrada anulada` y no hace check-in;
+- evento no operable muestra `Evento no habilitado para check-in` y no muta DB;
+- owner y staff Ibiza pueden entrar y operar el input;
+- sin sesion se muestra login/bloqueo de panel, sin datos del evento ni input usable.
+
+Seguridad visual validada:
+
+- no se observo `checkin_token`;
+- no se observo raw token despues de validar;
+- no se observo raw URL;
+- no se observo QR payload/base64;
+- no se observaron auth IDs, `used_by_auth_user_id`, `created_by_auth_user_id` ni `local_id`;
+- no se observo metadata cruda, request/response crudo, stack, headers ni SQL;
+- no se observo buyer phone/email/document ni attendee phone/email;
+- visible permitido: ticket, asistente, documento del asistente, `checkin_status`, evento y fecha de uso cuando aplica.
+
+Regresiones y limpieza:
+
+- `/entries` sigue cargando;
+- `/activity` sigue cargando;
+- la nav no rompe `Entradas`, `Check-in` ni `Actividad`;
+- limpieza QA dejo `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`;
+- evento Ibiza restaurado a `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Validaciones tecnicas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abre configuracion interactiva de ESLint.
+
+## 16. QA futuro restante
 
 Casos minimos:
 
@@ -467,7 +540,7 @@ QA futuro de scanner camara:
 - scanner se pausa durante procesamiento.
 - no se loggea token raw.
 
-## 16. No-goals
+## 17. No-goals
 
 Fuera de este contrato:
 
@@ -491,13 +564,13 @@ Fuera de este contrato:
 - crear edicion/anulacion;
 - configurar ESLint.
 
-## 17. Estado final recomendado
+## 18. Estado final
 
 Marcar:
 
 - Check-in UI contrato definido.
-- Ruta recomendada: `/panel/events/[eventId]/checkin`.
+- Ruta implementada: `/panel/events/[eventId]/checkin`.
 - Checkin-B implementado: tipos/cliente `eventCheckin.ts` PASS tecnico.
-- Proximo CODE recomendado: Checkin-C, input QR/token/URL + resultado visual.
-- Fallback manual recomendado: busqueda por `/entries?q=...` + confirmacion.
+- Checkin-C implementado: input QR/token/URL + resultado visual con QA frontend/manual PASS.
+- Proximo CODE recomendado: Checkin-D, fallback manual por busqueda en `/entries?q=...` + confirmacion fuerte.
 - Scanner camara queda futuro hasta validar runtime/permisos y hardening sin token raw.

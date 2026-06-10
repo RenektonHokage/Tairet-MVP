@@ -1685,7 +1685,44 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso recomendado: Checkin-C - crear ruta `/panel/events/[eventId]/checkin`, agregar link real `Check-in` en `EventPanelNav` e implementar input QR/token/URL con resultado visual.
+### Checkin-C - ruta Check-in e input QR/token/URL
+
+Estado: implementado y QA frontend/manual PASS.
+
+Se registro que:
+
+- `apps/web-next/app/panel/events/[eventId]/checkin/page.tsx` fue creado;
+- `apps/web-next/components/panel/EventCheckinSection.tsx` fue creado;
+- `apps/web-next/components/panel/EventPanelNav.tsx` incluye `Entradas`, `Check-in` y `Actividad`;
+- ruta real `/panel/events/[eventId]/checkin` carga dentro de `EventPanelShell`;
+- input manual acepta UUID directo y URL completa;
+- parser valida URL con slash, query o hash y extrae solo UUID;
+- UI llama `checkInEventEntryByToken`;
+- input/boton quedan disabled durante request;
+- resultado visual queda persistente y el input se limpia luego del intento;
+- no se implemento fallback manual, scanner camara, backend, SQL, pagos ni flujos extra.
+
+QA frontend/manual PASS:
+
+- 6 entries QA creadas con `manual-issue`, `201 Created`, `entries.length = 6`, `email_delivery.status = sent`;
+- tokens recuperados solo por SQL controlado;
+- token valido directo y URL completa validaron entries y DB quedo `used`, `used_at != null`, `used_by_auth_user_id != null`;
+- segundo intento mostro `Entrada ya utilizada`;
+- UUID inexistente mostro `QR invalido` sin error tecnico;
+- outside window, `voided` y evento no operable mostraron estados correctos sin mutar DB;
+- owner y staff Ibiza operaron la pantalla;
+- sin sesion quedo bloqueado sin datos de evento ni input usable;
+- seguridad visual PASS sin `checkin_token`, raw token/URL, QR payload/base64, auth IDs, `local_id`, metadata cruda, buyer PII ni attendee phone/email;
+- `/entries` y `/activity` siguieron cargando;
+- limpieza QA dejo orders/items/entries/activity en cero e Ibiza restaurado a `draft` con ventana original.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Proximo paso recomendado: Checkin-D - fallback manual por busqueda de entry, seleccion con confirmacion fuerte y llamada a `checkInEventEntryManually`.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

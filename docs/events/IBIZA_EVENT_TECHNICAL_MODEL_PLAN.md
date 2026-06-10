@@ -2084,14 +2084,14 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-### Estado Checkin-A/B - contrato y cliente/tipos frontend Check-in
+### Estado Checkin-A/B/C - contrato, cliente y UI input Check-in
 
-Estado: Checkin-A documentado y Checkin-B implementado con PASS tecnico.
+Estado: Checkin-A documentado, Checkin-B implementado con PASS tecnico y Checkin-C implementado con QA frontend/manual PASS.
 
 Se registro:
 
 - `docs/events/IBIZA_EVENT_CHECKIN_UI_CONTRACT_PLAN.md` creado para definir la pantalla futura de puerta dentro de `EventPanelShell`;
-- ruta futura recomendada: `/panel/events/[eventId]/checkin`;
+- ruta implementada: `/panel/events/[eventId]/checkin`;
 - decision MVP: input manual de QR/token/URL antes de scanner camara;
 - fallback manual futuro por busqueda en `/entries?q=...` y confirmacion;
 - `apps/web-next/lib/eventCheckin.ts` creado;
@@ -2100,7 +2100,25 @@ Se registro:
 - `checkInEventEntryByToken(input)` creado con `apiPatchWithAuth`;
 - `checkInEventEntryManually(input)` creado con `apiPatchWithAuth`;
 - labels/helpers de estados creados;
-- sin UI visible, sin ruta `/checkin`, sin update de `EventPanelNav`, sin backend, SQL, pagos ni flujos modificados.
+- `apps/web-next/app/panel/events/[eventId]/checkin/page.tsx` creado;
+- `apps/web-next/components/panel/EventCheckinSection.tsx` creado;
+- `EventPanelNav` actualizado con `Entradas`, `Check-in` y `Actividad`;
+- input QR/token/URL implementado con resultado visual persistente;
+- parser validado para UUID directo, URL completa y URL con slash/query/hash;
+- sin fallback manual, sin scanner camara, sin backend, SQL, pagos ni flujos modificados en Checkin-C.
+
+QA Checkin-C registrado:
+
+- 6 entries QA creadas por `manual-issue`, con `email_delivery.status = sent` y tokens recuperados solo por SQL controlado;
+- token valido directo: UI muestra validacion y DB queda `used`, `used_at != null`, `used_by_auth_user_id != null`;
+- segundo intento: UI muestra `Entrada ya utilizada`;
+- URL completa y URL con slash/query/hash validan correctamente;
+- UUID inexistente muestra `QR invalido` sin error tecnico;
+- `outside_window`, `voided` y `event_not_operable` muestran estados visuales correctos sin mutar DB;
+- owner y staff Ibiza operan el input; sin sesion no ve datos ni input usable;
+- seguridad visual PASS: sin token, raw URL, QR payload/base64, auth IDs, `local_id`, metadata cruda, buyer PII ni attendee phone/email;
+- regresiones `/entries` y `/activity` PASS;
+- limpieza QA dejo orders/items/entries/activity en cero e Ibiza restaurado a `draft` con ventana original.
 
 Validaciones registradas:
 
@@ -2108,7 +2126,7 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso recomendado: Checkin-C - crear ruta `/panel/events/[eventId]/checkin`, agregar link real `Check-in` en `EventPanelNav` e implementar input QR/token/URL con resultado visual.
+Proximo paso recomendado: Checkin-D - fallback manual por busqueda de entry, seleccion con confirmacion fuerte y llamada a `checkInEventEntryManually`.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 

@@ -36,6 +36,7 @@ Estado actual:
 
 - Activity funciona dentro del shell propio de evento.
 - Entradas funciona dentro del shell propio de evento.
+- Check-in funciona dentro del shell propio de evento.
 - El panel de eventos tiene shell/nav/layout propio y queda separado del panel local.
 - El panel local sigue autenticandose contra `/panel/me`.
 - El panel de eventos usa `/panel/events/:eventId/me` y no depende de `PanelProvider` local.
@@ -147,10 +148,12 @@ Estado actual:
 - Existe `EventPanelNav`.
 - Existe helper frontend `getEventPanelMe`.
 - El shell consulta `/panel/events/:eventId/me`.
-- La nav propia muestra `Actividad` solamente.
+- La nav propia muestra rutas reales `Entradas`, `Check-in` y `Actividad`.
 - Activity queda montada dentro del shell.
+- Entradas queda montada dentro del shell.
+- Check-in queda montado dentro del shell.
 - No existe `EventPanelProvider`; el contexto se resuelve en el shell.
-- No existe pantalla frontend de evento para entries, check-in, summary, ticket-types o settings.
+- No existe pantalla frontend de evento para summary, ticket-types o settings.
 
 Endpoint de contexto disponible:
 
@@ -287,13 +290,12 @@ Estructura objetivo:
 
 MVP inmediato:
 
-- Mantener rutas reales ya implementadas: `/panel/events/[eventId]/activity` y `/panel/events/[eventId]/entries`.
+- Mantener rutas reales ya implementadas: `/panel/events/[eventId]/activity`, `/panel/events/[eventId]/entries` y `/panel/events/[eventId]/checkin`.
 - No crear rutas vacias.
-- Nav actual con `Entradas` y `Actividad`.
+- Nav actual con `Entradas`, `Check-in` y `Actividad`.
 
 Futuro:
 
-- Agregar `Check-in` cuando exista UI de QR/manual.
 - Agregar `Resumen` cuando exista UI de summary/ticket-types.
 - Agregar `Configuracion` solo si hay permisos y contrato especifico.
 
@@ -551,11 +553,20 @@ Entries-D/E:
 - Datos QA limpiados: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`.
 - Sin backend, SQL, pagos, `/payments/callback` ni flujos operativos modificados.
 
+Checkin-C:
+
+- Ruta `/panel/events/[eventId]/checkin` creada.
+- `EventPanelNav` actualizado con `Entradas`, `Check-in` y `Actividad`.
+- `EventCheckinSection` implementado con input QR/token/URL y resultado visual por estado.
+- Parser validado para UUID directo, URL completa y URL con slash/query/hash.
+- QA frontend/manual PASS: owner/staff Ibiza, token valido, already used, URL, invalid, outside window, voided, event not operable, sin sesion, seguridad visual, regresiones y limpieza QA.
+- Sin fallback manual, sin scanner camara, sin backend, SQL, pagos ni flujos operativos modificados.
+
 Proximo paso recomendado:
 
-- ASK/DOCS - definir Check-in UI como siguiente seccion operativa del `EventPanelShell`.
-- Evaluar pantalla de puerta para validacion QR/manual usando endpoints ya validados.
-- Mantener separada la validacion de la lista general de `Entradas`.
+- Checkin-D - fallback manual por busqueda de entry.
+- Reutilizar `getEventEntries`, mostrar resultados compactos, pedir confirmacion fuerte y llamar `checkInEventEntryManually`.
+- Mantener scanner camara como futuro y mantener separada la validacion de la lista general de `Entradas`.
 
 Tooling futuro:
 
