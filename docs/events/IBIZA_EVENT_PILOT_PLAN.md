@@ -1765,7 +1765,60 @@ Validaciones:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-Proximo paso recomendado: ASK / DOCS - definir scanner camara para Check-in de Eventos con permisos, fallback, pausa durante request, dedupe, no logs de token raw, mobile, compatibilidad con `@zxing/browser` y QA en dispositivo.
+### Scanner-C - scanner camara QR dentro de Check-in
+
+Estado: implementado y QA frontend/runtime PASS.
+
+Se registro que:
+
+- scanner camara vive dentro de `/panel/events/[eventId]/checkin`;
+- se creo `apps/web-next/components/panel/EventCheckinScanner.tsx`;
+- `apps/web-next/components/panel/EventCheckinSection.tsx` integra el scanner y conserva input/fallback;
+- boton explicito `Activar camara`, sin auto-start;
+- preview con `video playsInline muted`;
+- integracion ZXing;
+- parseo con `parseEventCheckinToken`;
+- validacion con `checkInEventEntryByToken`;
+- pausa durante `processing`;
+- dedupe de frames repetidos;
+- `Escanear otro`;
+- `Detener camara`;
+- cleanup de camara, stream, tracks, timers y refs;
+- input QR/token/URL preservado;
+- fallback manual preservado;
+- no se tocaron backend, SQL, pagos ni flujos operativos.
+
+QA frontend/runtime PASS:
+
+- preflight PASS: `/checkin` carga, camara sin auto-start, `Activar camara`, input QR/token/URL y fallback manual visibles;
+- camara PASS: permiso solicitado, preview visible, video no negro, sin error tecnico, desktop y mobile;
+- QR valido por camara PASS: `QA-SCANNER-C-VALID` mostro `Entrada validada`; DB quedo `status = issued`, `checkin_status = used`, `used_at != null`, `used_by_auth_user_id != null`;
+- Activity PASS: `event_entry_checked_in` con `source = qr` y mensaje `Entrada validada por QR`;
+- dedupe PASS: frames repetidos no generaron multiples validaciones principales;
+- `Escanear otro` PASS: segundo scan del mismo QR mostro `Entrada ya utilizada` y Activity registro `event_entry_already_used_attempt` con `source = qr`;
+- QR invalido PASS: mostro `QR invalido`, sin request backend y sin exponer decoded text, raw URL ni token;
+- input QR/token PASS: `QA-SCANNER-C-INPUT` valido correctamente;
+- fallback manual PASS: `QA-SCANNER-C-MANUAL` fue encontrado;
+- permiso denegado/no camara PASS: mensaje controlado, input/fallback disponibles y sin excepcion cruda;
+- seguridad visual/browser logs PASS sin tokens, decoded text, raw URL, QR payload/base64, auth IDs, `local_id`, metadata cruda, SQL, stack, headers ni datos sensibles no previstos;
+- roles/acceso PASS: owner Ibiza, staff Ibiza, permiso denegado/no camara y mobile;
+- regresiones PASS: Entradas, Actividad, Check-in, input QR/token y fallback manual;
+- limpieza QA dejo `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0` e Ibiza restaurado a `draft` con ventana original.
+
+Observacion no bloqueante:
+
+- input QR/token registra la validacion con `source = manual`;
+- scan por camara registra correctamente `source = qr`;
+- no bloquea Scanner-C;
+- si se quiere unificar semantica de activity para input QR/token, abrir analisis separado.
+
+Validaciones:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Proximo paso recomendado: cierre operativo del Check-in de Eventos y revision final del flujo Ibiza antes de agregar mejoras nuevas.
 
 ### Slice 4 - Panel reducido: Inicio + Entradas
 

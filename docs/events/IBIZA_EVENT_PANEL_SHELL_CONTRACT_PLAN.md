@@ -574,10 +574,21 @@ Checkin-D:
 - QA frontend/manual PASS: owner/staff, busqueda, confirmacion, estados controlados, seguridad visual, regresiones y limpieza QA.
 - Sin scanner camara, backend, SQL, pagos ni flujos operativos modificados.
 
+Scanner-C:
+
+- Scanner camara QR agregado dentro de `EventCheckinSection` mediante `EventCheckinScanner`.
+- Boton explicito `Activar camara`, sin auto-start.
+- Preview desktop/mobile validado.
+- ZXing, `parseEventCheckinToken` y `checkInEventEntryByToken` integrados.
+- Pausa durante `processing`, dedupe, `Escanear otro`, `Detener camara` y cleanup validados.
+- Input QR/token y fallback manual preservados.
+- Activity de scan por camara registrada con `source = qr`.
+- QA frontend/runtime PASS: owner/staff, permisos/no camara, QR valido, already used, QR invalido, seguridad visual/browser logs, regresiones y limpieza QA.
+- Sin backend, SQL, pagos ni flujos operativos modificados.
+
 Proximo paso recomendado:
 
-- ASK / DOCS - definir scanner camara para Check-in de Eventos.
-- Mantener hardening especifico: permisos de camara, fallback si no hay camara, pausa durante request, dedupe de lecturas, no logs de token raw, control de doble validacion, mobile, compatibilidad con `@zxing/browser` y QA en dispositivo.
+- Cierre operativo del Check-in de Eventos y revision final del flujo Ibiza antes de agregar mejoras nuevas.
 
 Tooling futuro:
 

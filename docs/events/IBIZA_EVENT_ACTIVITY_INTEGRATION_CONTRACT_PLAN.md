@@ -1032,9 +1032,35 @@ Observacion no bloqueante:
 
 Proximo paso recomendado:
 
-- ASK / DOCS - definir scanner camara para Check-in de Eventos.
+- Cierre operativo del Check-in de Eventos y revision final del flujo Ibiza.
 
-## 22. No-goals
+## 22. Estado Scanner-C - scanner camara QR y activity source qr PASS
+
+Scanner-C queda registrado como validacion frontend/runtime del flujo QR por camara:
+
+- scanner camara dentro de `/panel/events/:eventId/checkin`;
+- boton explicito `Activar camara`, sin auto-start;
+- preview desktop/mobile validado;
+- ZXing integrado con `parseEventCheckinToken` y `checkInEventEntryByToken`;
+- pausa durante `processing`, dedupe, `Escanear otro`, `Detener camara` y cleanup validados;
+- input QR/token y fallback manual preservados;
+- scan por camara registra activity con `source = qr`;
+- QR valido `QA-SCANNER-C-VALID` registro `event_entry_checked_in` con `source = qr` y mensaje `Entrada validada por QR`;
+- segundo scan del mismo QR registro `event_entry_already_used_attempt` con `source = qr`;
+- QR invalido no llamo backend y no genero exposicion de decoded text/token/raw URL;
+- seguridad visual y browser logs PASS sin tokens, QR payload/base64, raw URL, auth IDs, `local_id`, metadata cruda ni PII no prevista;
+- regresiones Entradas, Actividad, Check-in, input QR/token y fallback manual PASS;
+- limpieza QA dejo `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`;
+- no se tocaron backend, SQL, migraciones, endpoints, pagos, activity local ni flujos operativos.
+
+Observacion no bloqueante:
+
+- input QR/token registra la validacion con `source = manual`;
+- scan por camara registra correctamente `source = qr`;
+- no bloquea Scanner-C;
+- si se quiere unificar semantica de activity para input QR/token, abrir analisis separado de activity source semantics.
+
+## 23. No-goals
 
 Fuera de este documento:
 

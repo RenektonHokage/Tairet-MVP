@@ -432,22 +432,20 @@ Scanner-B:
 
 Scanner-C:
 
-- Implementar scanner camara detras de boton `Activar camara`.
-- Usar ZXing.
-- Usar `parseEventCheckinToken`.
-- Usar `checkInEventEntryByToken`.
-- Pausar durante `processing`.
-- Mostrar resultado existente.
-- Mantener input y fallback.
-- No tocar backend.
+- Implementado y QA frontend/runtime PASS.
+- Scanner camara agregado dentro de `/panel/events/[eventId]/checkin`.
+- Boton explicito `Activar camara`, sin auto-start.
+- Preview con `<video playsInline muted />`.
+- Usa ZXing, `parseEventCheckinToken` y `checkInEventEntryByToken`.
+- Pausa durante `processing`, dedupe de frames repetidos y `Escanear otro`.
+- `Detener camara` y cleanup de stream/tracks/timers/refs.
+- Input QR/token y fallback manual preservados.
+- No toco backend, SQL, pagos ni flujos operativos.
 
 Scanner-D:
 
-- QA frontend/manual en desktop y mobile.
-- QA permisos concedidos, denegados y sin camara.
-- QA dedupe y no doble PATCH.
-- QA cleanup al desmontar/cambiar ruta.
-- QA seguridad visual y `console.*` sin token.
+- QA frontend/runtime completado como parte de Scanner-C.
+- Desktop/mobile, permisos, dedupe, cleanup, seguridad visual y logs del browser quedaron PASS.
 
 Scanner-E futuro:
 
@@ -496,7 +494,101 @@ Casos minimos:
 - Regresion: check-in input sigue validando.
 - Regresion: fallback manual sigue validando.
 
-## 18. Riesgos
+## 18. Estado Scanner-C - camara QR QA frontend/runtime PASS
+
+Estado: implementado y QA frontend/runtime PASS.
+
+Archivos del slice:
+
+- `apps/web-next/components/panel/EventCheckinSection.tsx`
+- `apps/web-next/components/panel/EventCheckinScanner.tsx`
+
+Alcance implementado:
+
+- scanner QR con camara dentro de `/panel/events/[eventId]/checkin`;
+- boton explicito `Activar camara`;
+- sin auto-start;
+- preview con `<video playsInline muted />`;
+- integracion ZXing;
+- parseo con `parseEventCheckinToken`;
+- validacion con `checkInEventEntryByToken`;
+- pausa durante `processing`;
+- dedupe de frames repetidos;
+- `Escanear otro`;
+- `Detener camara`;
+- cleanup de camara, stream, tracks, timers y refs;
+- input QR/token/URL preservado;
+- fallback manual preservado;
+- sin tocar backend, SQL, pagos ni flujos operativos.
+
+QA frontend/runtime PASS:
+
+- Preflight: `/checkin` carga, la camara no inicia automaticamente, `Activar camara` visible, input QR/token/URL visible y fallback manual visible.
+- Camara: al activar camara el navegador solicita permiso, con permiso concedido aparece preview, el video no queda negro y no aparece error tecnico; preview validado en desktop y mobile.
+- QR valido por camara: `QA-SCANNER-C-VALID` mostro `Entrada validada`; DB quedo `status = issued`, `checkin_status = used`, `used_at != null`, `used_by_auth_user_id != null`.
+- Activity QR: se registro `event_entry_checked_in` con `source = qr` y mensaje `Entrada validada por QR`.
+- Dedupe: mantener el QR frente a camara no genero multiples validaciones principales; hubo una validacion principal `source = qr`.
+- `Escanear otro`: reanudo el flujo; segundo scan del mismo QR mostro `Entrada ya utilizada`, DB se mantuvo `used` y Activity registro `event_entry_already_used_attempt` con `source = qr`.
+- QR invalido: mostro `QR invalido`, no llamo backend y no expuso decoded text, raw URL ni token.
+- Input QR/token: `QA-SCANNER-C-INPUT` valido correctamente desde input y DB quedo `issued/used`, `used_at != null`, `used_by_auth_user_id != null`.
+- Fallback manual: `QA-SCANNER-C-MANUAL` fue encontrado correctamente y el fallback siguio disponible junto al scanner.
+- Permiso denegado/no camara: mostro `No se pudo acceder a la camara. Podes usar el input manual o el fallback.`, sin excepcion cruda; input y fallback quedaron disponibles.
+- Seguridad visual y browser logs: no se observo exposicion de tokens, decoded text, raw URL, payloads QR, QR base64, auth IDs, metadata cruda, SQL, stack, headers ni datos sensibles no previstos.
+- Datos visibles permitidos: asistente, documento del asistente, ticket, status, `checkin_status`, `used_at` y evento.
+- Roles/acceso: owner Ibiza PASS en scan QR por camara y segundo scan `already_used`; staff Ibiza PASS en acceso, fixture, input QR/token y fallback manual; permiso denegado/no camara PASS; mobile PASS.
+- Regresiones: Entradas PASS, Actividad PASS, Check-in PASS, input QR/token preservado PASS y fallback manual preservado PASS.
+- Limpieza: `qa_order_remaining = 0`, `qa_item_remaining = 0`, `qa_entries_remaining = 0`, `qa_activity_remaining = 0`; Ibiza restaurado a `status = draft`, `checkin_valid_from = 2026-08-01 22:00:00+00`, `checkin_valid_to = 2026-08-02 10:00:00+00`.
+
+Observacion no bloqueante:
+
+- Input QR/token registra la validacion con `source = manual`.
+- Scan por camara registra correctamente `source = qr`.
+- No bloquea Scanner-C porque el alcance principal era validar scanner camara con `source = qr`.
+- Si se quiere unificar semantica de activity para input QR/token, abrir analisis separado de activity source semantics.
+
+Validaciones tecnicas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Estado final:
+
+- Scanner-C implementado.
+- Scanner-C QA frontend/runtime PASS.
+- Scanner camara operativo dentro de Check-in de Eventos.
+- Activacion explicita validada.
+- Preview desktop/mobile validado.
+- QR valido por camara validado.
+- Dedupe validado.
+- `Escanear otro` validado.
+- `Detener camara` validado.
+- Cleanup por cambio de ruta validado.
+- Permiso denegado/no camara controlado.
+- Input QR/token preservado.
+- Fallback manual preservado.
+- Activity `source = qr` validado para scan por camara.
+- Seguridad visual/browser logs validada.
+- Datos QA limpiados.
+- Evento restaurado.
+
+Proximo paso recomendado:
+
+- Cierre operativo del Check-in de Eventos.
+- No agregar mejoras nuevas todavia.
+- Primero consolidar documentacion del estado actual del panel de eventos y preparar una revision final del flujo Ibiza.
+
+Opciones posteriores, no inmediatas:
+
+- sonido/vibracion;
+- modo pantalla grande;
+- selector de camara;
+- linterna si se valida compatibilidad;
+- historial por entry;
+- Summary UI;
+- login/entrypoint especifico de EventPanel.
+
+## 19. Riesgos
 
 Riesgos identificados:
 
@@ -524,9 +616,11 @@ Mitigaciones:
 - Input/fallback siempre disponibles como respaldo.
 - QA en dispositivos reales antes de considerar PASS operativo.
 
-## 19. Decision final para CODE
+## 20. Decision final para CODE
 
-Se recomienda avanzar a CODE de scanner solo si el slice cumple:
+Scanner-C ya fue implementado y QA frontend/runtime PASS. Cualquier CODE posterior debe mantenerse fuera del alcance de Scanner-C y abrir un slice nuevo.
+
+Criterios que quedaron validados:
 
 - usar boton `Activar camara`;
 - no auto-start;
@@ -542,7 +636,7 @@ Se recomienda avanzar a CODE de scanner solo si el slice cumple:
 - no tocar backend, SQL, pagos ni endpoints;
 - validar en QA con navegador real.
 
-## 20. No-goals
+## 21. No-goals
 
 Fuera de este contrato:
 

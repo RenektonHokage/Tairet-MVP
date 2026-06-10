@@ -2084,9 +2084,9 @@ Validaciones registradas:
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
 
-### Estado Checkin-A/B/C/D - contrato, cliente, input y fallback manual Check-in
+### Estado Checkin-A/B/C/D + Scanner-C - Check-in Eventos
 
-Estado: Checkin-A documentado, Checkin-B implementado con PASS tecnico, Checkin-C implementado con QA frontend/manual PASS y Checkin-D implementado con QA frontend/manual PASS.
+Estado: Checkin-A documentado, Checkin-B implementado con PASS tecnico, Checkin-C implementado con QA frontend/manual PASS, Checkin-D implementado con QA frontend/manual PASS y Scanner-C implementado con QA frontend/runtime PASS.
 
 Se registro:
 
@@ -2111,7 +2111,17 @@ Se registro:
 - resultados compactos sin buyer PII ni attendee email/phone;
 - confirmacion fuerte antes de `checkInEventEntryManually`;
 - resultado manual reutiliza el resultado visual semantico;
-- sin scanner camara, backend, SQL, pagos ni flujos modificados en Checkin-C/D.
+- scanner camara agregado dentro de Check-in mediante `EventCheckinScanner`;
+- boton explicito `Activar camara`, sin auto-start;
+- preview con `video playsInline muted`;
+- integracion ZXing;
+- scanner usa `parseEventCheckinToken` y `checkInEventEntryByToken`;
+- pausa durante `processing`;
+- dedupe de frames repetidos;
+- `Escanear otro` y `Detener camara`;
+- cleanup de camara, stream, tracks, timers y refs;
+- input QR/token y fallback manual preservados;
+- sin backend, SQL, pagos ni flujos operativos modificados en Checkin-C/D/Scanner-C.
 
 QA Checkin-C registrado:
 
@@ -2139,13 +2149,38 @@ QA Checkin-D registrado:
 - seguridad visual PASS y limpieza QA en cero;
 - observacion no bloqueante: busqueda por apellido funciono, busqueda compuesta QA `Checkin D Owner` no devolvio resultado y no bloquea PASS.
 
+QA Scanner-C registrado:
+
+- preflight PASS: `/checkin` carga, camara sin auto-start, `Activar camara` visible, input QR/token/URL y fallback manual visibles;
+- camara PASS: permiso solicitado, preview visible, video no negro, sin error tecnico, desktop y mobile;
+- QR valido por camara PASS: `QA-SCANNER-C-VALID` mostro `Entrada validada` y DB quedo `issued/used`, `used_at != null`, `used_by_auth_user_id != null`;
+- activity QR PASS: `event_entry_checked_in` con `source = qr` y mensaje `Entrada validada por QR`;
+- dedupe PASS: frames repetidos no generaron multiples validaciones principales;
+- `Escanear otro` PASS: segundo scan del mismo QR mostro `Entrada ya utilizada`, DB se mantuvo `used` y Activity registro `event_entry_already_used_attempt` con `source = qr`;
+- QR invalido PASS: mostro `QR invalido`, sin request backend y sin exponer decoded text, raw URL ni token;
+- input QR/token PASS: `QA-SCANNER-C-INPUT` valido correctamente;
+- fallback manual PASS: `QA-SCANNER-C-MANUAL` fue encontrado y el fallback siguio disponible;
+- permiso denegado/no camara PASS: mensaje controlado, input/fallback disponibles y sin excepcion cruda;
+- seguridad visual/browser logs PASS: sin tokens, decoded text, raw URL, QR payload/base64, auth IDs, `local_id`, metadata cruda, SQL, stack, headers ni datos sensibles no previstos;
+- roles/mobile PASS: owner Ibiza, staff Ibiza y mobile;
+- regresiones PASS: Entradas, Actividad, Check-in, input QR/token y fallback manual;
+- limpieza QA dejo orders/items/entries/activity en cero e Ibiza restaurado a `draft` con ventana original.
+
 Validaciones registradas:
 
 - `pnpm -C apps/web-next typecheck` -> PASS.
 - `git diff --check` -> PASS.
 - `pnpm -C apps/web-next lint` -> N/A/no concluyente porque `next lint` abrio configuracion interactiva de ESLint.
 
-Proximo paso recomendado: ASK / DOCS - definir scanner camara para Check-in de Eventos con hardening de permisos, fallback, pausa, dedupe, no logs de token raw, mobile y QA en dispositivo.
+Observacion no bloqueante Scanner-C: input QR/token registra la validacion con `source = manual`, mientras scan por camara registra correctamente `source = qr`. No bloquea Scanner-C; si se quiere unificar semantica de activity para input QR/token, abrir analisis separado.
+
+Validaciones registradas:
+
+- `pnpm -C apps/web-next typecheck` -> PASS.
+- `git diff --check` -> PASS.
+- `pnpm -C apps/web-next lint` -> N/A/no concluyente por configuracion interactiva de ESLint.
+
+Proximo paso recomendado: cierre operativo del Check-in de Eventos y revision final del flujo Ibiza antes de agregar mejoras nuevas.
 
 ### Slice 3 - Endpoints de lectura/listado de entradas
 
