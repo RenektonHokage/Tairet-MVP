@@ -18,6 +18,7 @@ import {
   getEventEntryStatusLabel,
   type EventEntryListItem,
 } from "@/lib/eventEntries";
+import { EventCheckinScanner } from "./EventCheckinScanner";
 import {
   Badge,
   Card,
@@ -384,13 +385,21 @@ export function EventCheckinSection({ eventId, className }: EventCheckinSectionP
   const [confirmEntry, setConfirmEntry] = useState<EventEntryListItem | null>(null);
   const [manualSubmittingEntryId, setManualSubmittingEntryId] = useState<string | null>(null);
   const [manualNotice, setManualNotice] = useState<string | null>(null);
+  const [scannerProcessing, setScannerProcessing] = useState(false);
   const normalizedEventId = useMemo(() => eventId.trim(), [eventId]);
   const isManualSubmitting = manualSubmittingEntryId !== null;
-  const canSubmit = inputValue.trim().length > 0 && !isSubmitting && !isManualSubmitting;
-  const manualRequestBusy = manualSearchLoading || isSubmitting || isManualSubmitting;
+  const canSubmit =
+    inputValue.trim().length > 0 && !isSubmitting && !isManualSubmitting && !scannerProcessing;
+  const manualRequestBusy =
+    manualSearchLoading || isSubmitting || isManualSubmitting || scannerProcessing;
+  const scannerDisabled = isSubmitting || isManualSubmitting || manualSearchLoading;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (scannerProcessing) {
+      return;
+    }
+
     setLocalError(null);
 
     const parsedToken = parseEventCheckinToken(inputValue);
@@ -421,6 +430,10 @@ export function EventCheckinSection({ eventId, className }: EventCheckinSectionP
 
   async function handleManualSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (scannerProcessing) {
+      return;
+    }
+
     const normalizedQuery = manualQuery.trim();
 
     setManualSearchError(null);
@@ -467,7 +480,7 @@ export function EventCheckinSection({ eventId, className }: EventCheckinSectionP
   }
 
   async function handleManualConfirm() {
-    if (!confirmEntry || manualSubmittingEntryId) {
+    if (!confirmEntry || manualSubmittingEntryId || scannerProcessing) {
       return;
     }
 
@@ -515,6 +528,17 @@ export function EventCheckinSection({ eventId, className }: EventCheckinSectionP
       <PageHeader
         title="Check-in"
         subtitle="Validá entradas del evento por QR, token o URL."
+      />
+
+      <EventCheckinScanner
+        disabled={scannerDisabled}
+        eventId={normalizedEventId}
+        onProcessingChange={setScannerProcessing}
+        onResult={(scannerResult) => {
+          setLocalError(null);
+          setManualSearchError(null);
+          setResult(scannerResult);
+        }}
       />
 
       <Card>
