@@ -143,12 +143,19 @@ Constraints conceptuales:
 
 - `source_type in ('local', 'event')`;
 - coherencia entre `source_type`, `local_id` y `event_id`;
+- las referencias a `locals` y `events` deben usar `ON DELETE RESTRICT` en el core `access_*`;
 - `price_gs >= 0`;
 - `currency = 'PYG'` en el primer corte;
 - `payment_kind in ('paid', 'free_pass')`;
 - `payment_kind = 'free_pass'` requiere `price_gs = 0`;
 - `payment_kind = 'paid'` requiere `price_gs > 0`;
 - `entries_per_unit > 0`.
+
+Decision de Slice 1:
+
+- no se permiten dos ticket types activos con el mismo nombre dentro del mismo local o evento;
+- se permiten historicos inactivos con nombre repetido para conservar auditoria y permitir reemplazos comerciales;
+- la unicidad recomendada es parcial por source y nombre normalizado solo para rows activas.
 
 ## 8. Free pass
 
@@ -262,7 +269,10 @@ Campos conceptuales:
 Reglas:
 
 - `stock_mode = 'unlimited'` significa sin limite configurado;
+- `stock_mode = 'unlimited'` debe existir explicitamente cuando se quiera vender sin limite;
 - `stock_mode = 'limited'` con `capacity = 0` significa cupo cero;
+- la ausencia de una fila en `access_stock_limits` no debe interpretarse como `unlimited`;
+- si no existe configuracion de stock para un tipo y fecha donde el sistema la requiere, debe tratarse como `stock_unconfigured` o no vendible;
 - para discotecas, el stock es por `access_ticket_type_id + access_date`;
 - para eventos single-date, tambien se usa `access_date` para evitar reglas especiales;
 - free pass y entradas pagas pueden tener cupos separados porque son ticket types distintos;
@@ -403,7 +413,7 @@ Campos conceptuales:
 | `shop_process_id` | `bigint` | Identificador numerico para Bancard. |
 | `provider_process_id` | `text null` | ID devuelto por proveedor. |
 | `amount_gs` | `bigint` | Monto interno. |
-| `bancard_amount` | `text` | Monto para Bancard, ej. `"50000.00"`. |
+| `provider_amount_text` | `text` | Monto formateado para el proveedor, ej. `"50000.00"` para Bancard. |
 | `currency` | `text` | Moneda. |
 | `status` | `text` | Estado del intento. |
 | `request_payload` | `jsonb null` | Payload inicial sanitizado. |
@@ -419,6 +429,13 @@ Campos conceptuales:
 
 `shop_process_id` debe generarse con una estrategia numerica unica, compatible con longitud Bancard y trazable hacia `payment_attempts`.
 
+Regla de dinero para proveedores:
+
+- `amount_gs` es el monto interno canonico en guaranies;
+- `provider_amount_text` es el monto formateado para el proveedor;
+- para Bancard, ejemplo: `amount_gs = 50000` y `provider_amount_text = "50000.00"`;
+- no se debe usar un nombre de columna acoplado a Bancard para el monto formateado.
+
 ## 16. Admin Tairet
 
 `platform_admin_users` modela admin/soporte de Tairet separado de owner/local/staff.
@@ -426,10 +443,18 @@ Campos conceptuales:
 Reglas:
 
 - no se asume que owner/local/staff son admin Tairet;
+- en Slice 1, `platform_admin_users` no debe tener FK a `auth.users`, siguiendo el patron actual del repo;
 - admin Tairet puede ver payloads tecnicos Bancard;
 - admin Tairet puede operar `manual_review`;
 - soporte/admin Tairet puede reenviar entradas/QR internamente;
 - owner/local/staff no ven `request_payload`, `response_payload`, `confirm_payload`, `rollback_payload`, tokens/hashes ni notas internas de manual review.
+- el primer admin Tairet no debe seedearse en una migracion con datos personales o sensibles.
+
+Opciones aceptadas para crear el primer admin:
+
+- carga manual segura desde Supabase Dashboard;
+- script de provisioning fuera del repo;
+- operacion interna documentada usando `auth_user_id` y email desde entorno seguro.
 
 Campos conceptuales:
 
