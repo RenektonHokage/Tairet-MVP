@@ -287,7 +287,11 @@ No usar `AO_` como formato final recomendado. El comprador consulta estado media
 
 Reglas:
 
-- `stock_mode = 'unlimited'` significa sin limite configurado;
+- `capacity` mide unidades comerciales vendibles del `access_ticket_type`;
+- no cuenta entries/personas;
+- `entries_per_unit` no multiplica stock, solo afecta la emision posterior de `access_entries`;
+- aforo/personas queda como concepto futuro separado si hace falta;
+- `stock_mode = 'unlimited'` significa sin limite comercial de capacidad;
 - `stock_mode = 'unlimited'` debe existir explicitamente cuando se quiera vender sin limite;
 - `stock_mode = 'limited'` con `capacity = 0` significa cupo cero;
 - la ausencia de una fila en `access_stock_limits` no debe interpretarse como `unlimited`;
@@ -332,7 +336,16 @@ Reglas:
 - si falla stock en un item, no se reserva ningun item;
 - si Bancard queda ambiguo, no se libera automaticamente;
 - estado ambiguo pasa a `manual_hold` y/o la orden pasa a `manual_review`;
-- liberar stock requiere certeza operacional o resolucion admin.
+- liberar stock requiere certeza operacional o resolucion admin;
+- `quantity` mide unidades comerciales reservadas;
+- una reservation debe apuntar a un stock limit existente por `(access_ticket_type_id, access_date)`;
+- una reservation debe coincidir con `access_order_items.quantity`;
+- hay una reservation por `order_item_id`;
+- `manual_hold` bloquea disponibilidad;
+- `consumed` bloquea disponibilidad como stock confirmado;
+- `reserved` bloquea solo si `expires_at > now()`;
+- `released` y `expired` no bloquean disponibilidad;
+- `released_at` representa el momento en que la reserva dejo de bloquear stock, incluso si el motivo fue expiracion.
 
 Campos conceptuales:
 
@@ -631,7 +644,18 @@ Transaccion:
 Disponibilidad:
 
 - si stock es `unlimited`, no falla por capacidad;
-- si stock es `limited`, disponibilidad = `capacity - emitidas/pagadas - reservas activas no expiradas - manual_hold`;
+- si stock es `limited`, la formula conceptual es:
+
+```text
+available =
+  capacity
+  - sum(quantity where status = 'consumed')
+  - sum(quantity where status = 'manual_hold')
+  - sum(quantity where status = 'reserved' and expires_at > now())
+```
+
+- no se cuentan `released` ni `expired`;
+- no se cuentan `access_entries` en la formula principal para evitar doble conteo;
 - si cualquier item no alcanza, abortar toda la transaccion.
 
 Errores conceptuales:

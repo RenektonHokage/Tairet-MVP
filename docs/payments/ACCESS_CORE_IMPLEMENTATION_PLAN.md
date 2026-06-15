@@ -20,7 +20,7 @@ Reglas de direccion:
 | --- | --- | --- | --- | --- | --- |
 | 1 | `platform_admin_users`, `access_ticket_types` | PASS | `infra/sql/migrations/033_access_core_slice_1.sql` | Si | No tocado |
 | 2 | `access_orders`, `access_order_items`, `access_entries` | PASS | `infra/sql/migrations/034_access_core_slice_2.sql` | Si | No tocado |
-| 3 | `access_stock_limits`, `access_stock_reservations` | pending design | Pendiente | No | No tocado |
+| 3 | `access_stock_limits`, `access_stock_reservations` | PASS | `infra/sql/migrations/035_access_core_slice_3.sql` | Si | No tocado |
 | 4 | `payment_attempts` | pending design | Pendiente | No | No tocado |
 | 5 | RPC de reserva atomica | pending design | Pendiente | No | No tocado |
 | 6 | RPC de emision idempotente | pending design | Pendiente | No | No tocado |
@@ -272,12 +272,153 @@ Decisiones cerradas:
 - `access_order_items` debe agregar items repetidos por `access_ticket_type_id`.
 - Se recomienda unique `(order_id, access_ticket_type_id)`.
 
-## 9. Riesgos y notas
+## 9. Slice 3 - Resultado
+
+Slice 3 creo unicamente:
+
+- `access_stock_limits`;
+- `access_stock_reservations`.
+
+Slice 3 tambien agrego support unique constraints en:
+
+- `access_ticket_types(id, local_id)`;
+- `access_ticket_types(id, event_id)`;
+- `access_orders(id, local_id)`;
+- `access_orders(id, event_id)`;
+- `access_order_items(id, quantity)`.
+
+Slice 3 no creo:
+
+- `payment_attempts`;
+- `access_activity_events`;
+- RPCs;
+- endpoints;
+- backend runtime;
+- frontend;
+- Bancard;
+- callback;
+- reconciliation jobs;
+- rollback;
+- seeds;
+- adapters.
+
+Slice 3 es PASS estructural. Todavia no representa checkout funcional.
+
+## 10. Slice 3 - Validacion Supabase
+
+### 10.1 Pre-check
+
+Evidencias registradas antes de aplicar la migracion:
+
+- tablas base Slice 1 y Slice 2 existian;
+- `access_stock_limits` no existia antes;
+- `access_stock_reservations` no existia antes;
+- `service_role` existia;
+- support constraints no existian antes o eran idempotentes.
+
+### 10.2 Aplicacion
+
+Resultado:
+
+- Migracion `035_access_core_slice_3.sql` ejecutada con PASS en Supabase SQL Editor.
+
+### 10.3 Post-check
+
+Evidencias registradas despues de aplicar la migracion:
+
+- `access_stock_limits` existe.
+- `access_stock_reservations` existe.
+
+### 10.4 Constraints confirmadas
+
+Constraints confirmadas:
+
+- `access_ticket_types_id_local_id_unique`;
+- `access_ticket_types_id_event_id_unique`;
+- `access_orders_id_local_id_unique`;
+- `access_orders_id_event_id_unique`;
+- `access_order_items_id_quantity_unique`;
+- `access_stock_limits_ticket_type_date_unique`;
+- `access_stock_limits_ticket_type_local_alignment_fk`;
+- `access_stock_limits_ticket_type_event_alignment_fk`;
+- `access_stock_limits_source_consistency_chk`;
+- `access_stock_limits_stock_mode_chk`;
+- `access_stock_limits_capacity_chk`;
+- `access_stock_reservations_order_item_unique`;
+- `access_stock_reservations_order_item_alignment_fk`;
+- `access_stock_reservations_order_access_date_alignment_fk`;
+- `access_stock_reservations_order_local_alignment_fk`;
+- `access_stock_reservations_order_event_alignment_fk`;
+- `access_stock_reservations_ticket_type_local_alignment_fk`;
+- `access_stock_reservations_ticket_type_event_alignment_fk`;
+- `access_stock_reservations_stock_limit_alignment_fk`;
+- `access_stock_reservations_order_item_quantity_fk`;
+- `access_stock_reservations_source_consistency_chk`;
+- `access_stock_reservations_quantity_positive_chk`;
+- `access_stock_reservations_status_chk`;
+- `access_stock_reservations_released_at_chk`;
+- `access_stock_reservations_expires_at_chk`.
+
+### 10.5 Indices confirmados
+
+Indices confirmados:
+
+- stock limits por ticket/date;
+- stock limits por local/date;
+- stock limits por event/date;
+- reservations por ticket/date/status/expires;
+- reservations por order_id;
+- reservations por order_item_id unique;
+- reservations por status/expires_at;
+- reservations por local/date/status;
+- reservations por event/date/status.
+
+### 10.6 RLS, grants y policies
+
+RLS:
+
+- RLS enabled en `access_stock_limits`.
+- RLS enabled en `access_stock_reservations`.
+
+Grants:
+
+- `service_role` tiene permisos.
+- `anon` no aparece con permisos directos.
+- `authenticated` no aparece con permisos directos.
+
+Policies:
+
+- `pg_policies` no devolvio rows para estas tablas.
+- Esto es esperado porque las tablas quedan cerradas y seran operadas por backend/service role.
+
+## 11. Decisiones cerradas en Slice 3
+
+Decisiones cerradas:
+
+- `access_stock_limits.capacity` mide unidades comerciales vendibles del `access_ticket_type`.
+- `access_stock_reservations.quantity` mide unidades comerciales reservadas.
+- Stock no cuenta entries/personas.
+- `entries_per_unit` no multiplica stock; solo afecta la emision posterior de `access_entries`.
+- Aforo/personas queda como concepto futuro separado si hace falta.
+- Ausencia de `access_stock_limits` significa `stock_unconfigured` o no vendible.
+- `stock_mode = 'unlimited'` debe existir explicitamente.
+- `stock_mode = 'limited'` con `capacity = 0` significa cupo cero.
+- Hay una reservation por `order_item_id`.
+- Reservation debe apuntar a un stock limit existente por `(access_ticket_type_id, access_date)`.
+- Reservation quantity debe coincidir con `access_order_items.quantity`.
+- `manual_hold` bloquea disponibilidad.
+- `consumed` bloquea disponibilidad como stock confirmado.
+- `reserved` bloquea solo si `expires_at > now()`.
+- `released` y `expired` no bloquean disponibilidad.
+- `released_at` representa el momento en que la reserva dejo de bloquear stock, incluso si el motivo fue expiracion.
+
+## 12. Riesgos y notas
 
 Notas:
 
 - No se hicieron pruebas de inserts contra constraints en DB descartable.
 - Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
+- Slice 3 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -286,31 +427,31 @@ Riesgos:
 - Las policies finas owner/staff/admin quedan para slices posteriores.
 - Todavia no existe API que consuma `access_ticket_types`.
 - Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
+- Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
-- Slice 3: `access_stock_limits` y `access_stock_reservations`.
 - Slice 4: `payment_attempts`.
-- Slice 5: RPC de reserva atomica.
+- Slice 5: RPC de reserva atomica / creacion de orden.
 - Slice 6: RPC de emision idempotente.
 - Luego Bancard Single Buy, callback, pantalla de estado, reconciliacion y rollback operativo.
 
-## 10. Siguiente paso recomendado
+## 13. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / DESIGN ONLY para Slice 3:
+ASK / PLAN MODE ONLY para Slice 4:
 
-- `access_stock_limits`;
-- `access_stock_reservations`;
-- stock explicito;
-- unlimited explicito;
-- `stock_unconfigured`;
-- limited capacity `0`;
-- reservas `reserved`, `consumed`, `released`, `expired`, `manual_hold`;
-- sin `payment_attempts` todavia;
-- sin Bancard todavia;
-- sin RPC todavia, salvo diseno conceptual si hace falta.
+- `payment_attempts`;
+- provider generico;
+- Bancard como provider futuro;
+- `provider_amount_text`;
+- estados de intento de pago;
+- payloads tecnicos;
+- idempotencia por provider/reference;
+- sin Bancard runtime todavia;
+- sin endpoint todavia;
+- sin callback todavia.
