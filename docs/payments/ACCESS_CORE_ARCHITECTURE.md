@@ -217,14 +217,22 @@ Campos snapshot en `access_order_items`:
 | `order_id` | `uuid` | Orden asociada. |
 | `access_ticket_type_id` | `uuid` | Tipo comprado. |
 | `name_snapshot` | `text` | Nombre al momento de compra. |
+| `payment_kind` | `text` | Snapshot `paid` o `free_pass`. |
 | `unit_price_gs` | `bigint` | Precio unitario al comprar. |
 | `quantity` | `integer` | Cantidad comercial. |
 | `entries_per_unit` | `integer` | Entries por unidad. |
 | `subtotal_gs` | `bigint` | `unit_price_gs * quantity`. |
 | `created_at` | `timestamptz` | Creacion. |
 
+Los items repetidos deben agregarse por `access_ticket_type_id` antes de persistir la orden. Slice 2 recomienda unique `(order_id, access_ticket_type_id)` para evitar lineas duplicadas del mismo ticket type dentro de una orden.
+
+`payment_kind` es snapshot de compra: conserva si el item era pago o free pass aunque `access_ticket_types` cambie despues.
+
 Constraints conceptuales:
 
+- `payment_kind in ('paid', 'free_pass')`;
+- `payment_kind = 'free_pass'` exige `unit_price_gs = 0`;
+- `payment_kind = 'paid'` exige `unit_price_gs > 0`;
 - `unit_price_gs >= 0`;
 - `quantity > 0`;
 - `entries_per_unit > 0`;
@@ -251,6 +259,7 @@ Campos conceptuales:
 | `buyer_document` | `text` | Cedula/documento. |
 | `amount_gs` | `bigint` | Total interno en guaranies. |
 | `currency` | `text` | Moneda. |
+| `payment_required` | `boolean` | `true` si requiere pago monetario. |
 | `status` | `text` | Estado comercial. |
 | `expires_at` | `timestamptz null` | Vencimiento de orden/reserva. |
 | `paid_at` | `timestamptz null` | Fecha de pago aprobado. |
@@ -260,7 +269,17 @@ Campos conceptuales:
 | `created_at` | `timestamptz` | Creacion. |
 | `updated_at` | `timestamptz` | Ultima actualizacion. |
 
-`public_ref` no debe exponer IDs internos sensibles. El comprador consulta estado mediante endpoint controlado por backend, no por SELECT directo a tablas.
+Reglas de pago:
+
+- `payment_required = true` para ordenes que requieren pago;
+- `payment_required = false` para free pass o accesos sin Bancard;
+- free pass puro usa `amount_gs = 0`;
+- una orden free pass pura puede quedar `status = 'paid'` como acceso confirmado, aunque no exista pago monetario;
+- UI y serializers pueden mostrar ese caso como "free pass confirmado" o equivalente.
+
+`public_ref` no debe exponer IDs internos sensibles. Debe ser no adivinable, apto para URL y no derivado de `id`. En Slice 2 se recomienda default DB con prefijo `acc_` mas `encode(gen_random_bytes(16), 'hex')`, con unique constraint. Ejemplo: `acc_8f5d2c1a9b0e4d7c90a11e22bb33cc44`.
+
+No usar `AO_` como formato final recomendado. El comprador consulta estado mediante endpoint controlado por backend, no por SELECT directo a tablas.
 
 ## 12. Stock
 
@@ -355,7 +374,8 @@ Reglas:
 - el check-in arranca `unused`;
 - una entry usada no puede anularse automaticamente;
 - la emision debe ser idempotente por `(order_item_id, unit_index)`;
-- callback duplicado no puede emitir QR duplicado.
+- callback duplicado no puede emitir QR duplicado;
+- si la UI inicial no recolecta datos por cada entry, la emision puede copiar los datos del comprador en cada entry.
 
 Campos conceptuales:
 
@@ -366,6 +386,11 @@ Campos conceptuales:
 | `order_item_id` | `uuid` | Linea asociada. |
 | `unit_index` | `integer` | Indice idempotente dentro del item. |
 | `checkin_token` | `uuid` | Token unico para QR/check-in. |
+| `attendee_name` | `text` | Nombre del asistente. |
+| `attendee_last_name` | `text` | Apellido del asistente. |
+| `attendee_email` | `text` | Email del asistente. |
+| `attendee_phone` | `text` | Telefono del asistente. |
+| `attendee_document` | `text` | Documento del asistente. |
 | `status` | `text` | `issued` o `voided`. |
 | `checkin_status` | `text` | `unused` o `used`. |
 | `access_date` | `date` | Fecha de validez. |
@@ -478,8 +503,9 @@ Usar `text CHECK` en vez de enums PostgreSQL para mantener consistencia con el r
 - `paid`;
 - `cancelled`;
 - `expired`;
-- `manual_review`;
-- futuro `refunded`.
+- `manual_review`.
+
+Slice 2 no debe incluir `refunded` en el CHECK inicial de `access_orders.status`. Reembolsos quedan como alcance futuro y requeriran documento/migracion cuando exista politica comercial.
 
 ### 17.2 `payment_attempts`
 
@@ -526,11 +552,16 @@ Constraints minimas:
 - dinero interno en `bigint`;
 - `price_gs >= 0`;
 - `amount_gs >= 0`;
+- `payment_required = false` exige `amount_gs = 0`;
 - `unit_price_gs >= 0`;
+- `payment_kind in ('paid', 'free_pass')`;
+- `payment_kind = 'free_pass'` exige `unit_price_gs = 0`;
+- `payment_kind = 'paid'` exige `unit_price_gs > 0`;
 - `quantity > 0`;
 - `entries_per_unit > 0`;
 - `subtotal_gs = unit_price_gs * quantity`;
 - unique `access_orders.public_ref`;
+- unique `(access_order_items.order_id, access_order_items.access_ticket_type_id)`;
 - unique `access_entries.checkin_token`;
 - unique `(access_entries.order_item_id, access_entries.unit_index)`;
 - unique `payment_attempts.shop_process_id`;

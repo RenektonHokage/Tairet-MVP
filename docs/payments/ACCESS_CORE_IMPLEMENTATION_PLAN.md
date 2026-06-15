@@ -19,7 +19,7 @@ Reglas de direccion:
 | Slice | Alcance | Estado | Migration | Aplicado en Supabase | Runtime/backend/frontend |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `platform_admin_users`, `access_ticket_types` | PASS | `infra/sql/migrations/033_access_core_slice_1.sql` | Si | No tocado |
-| 2 | `access_orders`, `access_order_items`, `access_entries` | pending design | Pendiente | No | No tocado |
+| 2 | `access_orders`, `access_order_items`, `access_entries` | PASS | `infra/sql/migrations/034_access_core_slice_2.sql` | Si | No tocado |
 | 3 | `access_stock_limits`, `access_stock_reservations` | pending design | Pendiente | No | No tocado |
 | 4 | `payment_attempts` | pending design | Pendiente | No | No tocado |
 | 5 | RPC de reserva atomica | pending design | Pendiente | No | No tocado |
@@ -141,12 +141,143 @@ Decisiones cerradas:
 - Free pass no va a Bancard.
 - `payment_attempts` futuro usara `provider_amount_text`, no `bancard_amount`.
 
-## 6. Riesgos y notas
+## 6. Slice 2 - Resultado
+
+Slice 2 creo unicamente:
+
+- `access_orders`;
+- `access_order_items`;
+- `access_entries`.
+
+Slice 2 no creo:
+
+- `access_stock_limits`;
+- `access_stock_reservations`;
+- `payment_attempts`;
+- `access_activity_events`;
+- RPCs;
+- endpoints;
+- frontend;
+- backend runtime;
+- Bancard;
+- seeds;
+- adapters.
+
+Slice 2 es PASS estructural. No representa checkout funcional todavia.
+
+## 7. Slice 2 - Validacion Supabase
+
+### 7.1 Pre-check
+
+Evidencias registradas antes de aplicar la migracion:
+
+- `locals` existe.
+- `events` existe.
+- `access_ticket_types` existe.
+- `access_orders` no existia antes.
+- `access_order_items` no existia antes.
+- `access_entries` no existia antes.
+- `service_role` existe.
+
+### 7.2 Aplicacion
+
+Resultado:
+
+- Migracion `034_access_core_slice_2.sql` ejecutada con PASS en Supabase SQL Editor.
+
+### 7.3 Post-check
+
+Evidencias registradas despues de aplicar la migracion:
+
+- `access_orders` existe.
+- `access_order_items` existe.
+- `access_entries` existe.
+
+### 7.4 Constraints confirmadas
+
+Constraints confirmadas:
+
+- `access_orders_public_ref_unique`;
+- `access_orders_id_access_date_unique`;
+- `access_orders_source_consistency_chk`;
+- `access_orders_payment_required_amount_chk`;
+- `access_order_items_order_ticket_type_unique`;
+- `access_order_items_entry_alignment_unique`;
+- `access_order_items_payment_kind_price_chk`;
+- `access_order_items_subtotal_gs_chk`;
+- `access_entries_order_item_alignment_fk`;
+- `access_entries_order_access_date_alignment_fk`;
+- `access_entries_checkin_token_unique`;
+- `access_entries_order_item_unit_index_unique`;
+- `access_entries_checkin_used_at_chk`;
+- `access_entries_voided_not_used_chk`;
+- `access_entries_voided_at_chk`;
+- `access_entries_email_sent_at_chk`.
+
+### 7.5 Indices confirmados
+
+Indices confirmados:
+
+- public_ref;
+- buyer_email;
+- local/date/status;
+- event/date/status;
+- status/expires_at;
+- order items por order_id;
+- order items por access_ticket_type_id;
+- entries por checkin_token;
+- entries por order_id;
+- entries por order_item_id;
+- entries por ticket type/date;
+- entries por access_date/status/checkin;
+- entries por attendee_email.
+
+### 7.6 RLS, grants y policies
+
+RLS:
+
+- RLS enabled en `access_orders`.
+- RLS enabled en `access_order_items`.
+- RLS enabled en `access_entries`.
+
+Grants:
+
+- `service_role` tiene permisos.
+- `anon` no aparece con permisos directos.
+- `authenticated` no aparece con permisos directos.
+
+Policies:
+
+- `pg_policies` no devolvio rows para estas tablas.
+- Esto es esperado en este slice porque las tablas quedan cerradas y seran operadas por backend/service role.
+
+## 8. Decisiones cerradas en Slice 2
+
+Decisiones cerradas:
+
+- `access_orders` tendra `payment_required boolean not null default true`.
+- `payment_required = true` representa ordenes que requieren pago.
+- `payment_required = false` representa free pass o accesos sin Bancard.
+- Free pass puro usa `amount_gs = 0`.
+- Free pass puro puede quedar `status = 'paid'` como acceso confirmado sin pago monetario.
+- `access_order_items` tendra snapshot `payment_kind text not null`.
+- `payment_kind in ('paid', 'free_pass')`.
+- `payment_kind = 'free_pass'` exige `unit_price_gs = 0`.
+- `payment_kind = 'paid'` exige `unit_price_gs > 0`.
+- `access_entries` tendra campos `attendee_name`, `attendee_last_name`, `attendee_email`, `attendee_phone` y `attendee_document`.
+- Si la UI inicial no recolecta datos por entry, la emision puede copiar los datos del comprador.
+- `public_ref` usara formato recomendado `acc_` + `encode(gen_random_bytes(16), 'hex')`.
+- `public_ref` debe ser no adivinable, apto para URL, no derivado de `id` y unico.
+- Slice 2 no incluye `refunded` en el CHECK inicial de `access_orders.status`.
+- `access_order_items` debe agregar items repetidos por `access_ticket_type_id`.
+- Se recomienda unique `(order_id, access_ticket_type_id)`.
+
+## 9. Riesgos y notas
 
 Notas:
 
 - No se hicieron pruebas de inserts contra constraints en DB descartable.
-- Esto no bloquea el avance porque la estructura fue validada por catalogos de Postgres.
+- Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -154,26 +285,32 @@ Riesgos:
 
 - Las policies finas owner/staff/admin quedan para slices posteriores.
 - Todavia no existe API que consuma `access_ticket_types`.
+- Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
-## 7. Siguiente paso recomendado
+Pendientes principales:
+
+- Slice 3: `access_stock_limits` y `access_stock_reservations`.
+- Slice 4: `payment_attempts`.
+- Slice 5: RPC de reserva atomica.
+- Slice 6: RPC de emision idempotente.
+- Luego Bancard Single Buy, callback, pantalla de estado, reconciliacion y rollback operativo.
+
+## 10. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / DESIGN ONLY para Slice 2:
+ASK / DESIGN ONLY para Slice 3:
 
-- `access_orders`;
-- `access_order_items`;
-- `access_entries`;
-- estrategia de `public_ref`;
-- status checks;
-- constraints;
-- indices;
-- relacion con `access_ticket_types`;
-- sin stock todavia;
+- `access_stock_limits`;
+- `access_stock_reservations`;
+- stock explicito;
+- unlimited explicito;
+- `stock_unconfigured`;
+- limited capacity `0`;
+- reservas `reserved`, `consumed`, `released`, `expired`, `manual_hold`;
 - sin `payment_attempts` todavia;
-- sin Bancard todavia.
-
-Slice 2 debe mantenerse como diseno antes de crear migraciones nuevas.
+- sin Bancard todavia;
+- sin RPC todavia, salvo diseno conceptual si hace falta.
