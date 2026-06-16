@@ -22,7 +22,7 @@ Reglas de direccion:
 | 2 | `access_orders`, `access_order_items`, `access_entries` | PASS | `infra/sql/migrations/034_access_core_slice_2.sql` | Si | No tocado |
 | 3 | `access_stock_limits`, `access_stock_reservations` | PASS | `infra/sql/migrations/035_access_core_slice_3.sql` | Si | No tocado |
 | 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
-| 5 | RPC de reserva atomica | pending design | Pendiente | No | No tocado |
+| 5 | RPC `create_access_paid_checkout` | design locked | Pendiente: `infra/sql/migrations/037_access_core_slice_5.sql` | No | No tocado |
 | 6 | RPC de emision idempotente | pending design | Pendiente | No | No tocado |
 | 7 | Bancard Single Buy | pending | Pendiente | No | No tocado |
 | 8 | Callback Bancard | pending | Pendiente | No | No tocado |
@@ -546,7 +546,63 @@ Decisiones cerradas:
 - Callback/query/reconciliacion quedan para slices posteriores.
 - `expires_at`, si existe, debe ser posterior a `created_at`.
 
-## 15. Riesgos y notas
+## 15. Slice 5 - Diseno cerrado / migration pending
+
+Slice 5 queda documentado como diseno cerrado y migracion pendiente.
+
+RPC conceptual:
+
+- `public.create_access_paid_checkout`.
+
+Slice 5 debe crear atomicamente, cuando se implemente la migracion `037`:
+
+- `access_orders`;
+- `access_order_items`;
+- `access_stock_reservations`;
+- `payment_attempts`.
+
+Slice 5 no debe crear ni tocar:
+
+- `infra/sql/migrations/037_access_core_slice_5.sql` en este patch documental;
+- backend;
+- frontend;
+- runtime;
+- Bancard runtime;
+- iframe;
+- endpoints;
+- callback;
+- query/reconciliacion;
+- `access_entries`;
+- QR;
+- email;
+- rollback;
+- adapters;
+- seeds;
+- `access_activity_events`;
+- `payment_events`.
+
+Decisiones cerradas:
+
+- Slice 5 es paid checkout only.
+- La RPC soporta multi-item desde el inicio.
+- La orden se crea con `payment_required = true`.
+- La orden inicia `status = 'pending_payment'`.
+- Cada reserva inicia `status = 'reserved'`.
+- El payment attempt inicial inicia `status = 'created'` y `attempt_number = 1`.
+- Free pass queda fuera de Slice 5 y requiere una operacion separada.
+- No se mezcla paid y free pass en una misma orden.
+- `provider_attempt_ref` queda null en Slice 5.
+- Bancard `shop_process_id` queda para el slice de Bancard runtime.
+- `provider_amount_text` se calcula internamente desde `amount_gs`.
+- La migracion `037_access_core_slice_5.sql` queda pendiente para un CODE posterior, no para este patch.
+
+Validaciones condicionadas por schema:
+
+- Las validaciones de evento publicado, fecha de evento y local cerrado solo deben implementarse en CODE si el schema actual confirma exactamente las columnas/tablas necesarias.
+- No asumir columnas como `events.published`, `events.starts_at` o `local_daily_ops.is_open` sin verificar schema en el CODE.
+- Si el schema no es claro, esas validaciones quedan condicionadas o no implementadas en Slice 5 CODE.
+
+## 16. Riesgos y notas
 
 Notas:
 
@@ -554,6 +610,7 @@ Notas:
 - Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 3 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 4 fue aplicado como estructura base en Supabase, pero todavia no tiene runtime Bancard ni API/RPC que lo consuma.
+- Slice 5 esta design locked, pero todavia no tiene migracion `037`, SQL aplicado ni runtime que lo consuma.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -570,22 +627,26 @@ Riesgos:
 
 Pendientes principales:
 
-- Slice 5: RPC de creacion de orden + reserva atomica + payment attempt inicial.
+- Slice 5 CODE: migracion `037_access_core_slice_5.sql` con RPC `public.create_access_paid_checkout`.
 - Slice 6: RPC de emision idempotente.
 - Luego Bancard Single Buy, callback, pantalla de estado, reconciliacion y rollback operativo.
 
-## 16. Siguiente paso recomendado
+## 17. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY para Slice 5:
+CODE posterior para Slice 5, no en este patch documental:
 
-- creacion de orden;
+- crear `infra/sql/migrations/037_access_core_slice_5.sql`;
+- implementar RPC `public.create_access_paid_checkout`;
+- creacion de orden paid checkout;
 - validacion de ticket types;
 - validacion de stock explicito;
 - reserva atomica;
 - creacion de `payment_attempt` inicial;
 - bloqueo anti-sobreventa;
+- sin crear `access_entries`;
 - sin Bancard runtime todavia;
 - sin callback todavia;
-- sin frontend todavia.
+- sin frontend todavia;
+- sin backend/runtime todavia.

@@ -637,13 +637,53 @@ Indices recomendados:
 - `access_activity_events(order_id, created_at desc)`;
 - `access_activity_events(entity_type, entity_id, created_at desc)`.
 
-## 19. RPC futura: crear orden y reservar stock
+## 19. RPC futura: paid checkout atomico
 
 RPC conceptual:
 
-- `create_access_order_with_reservation`
+- `public.create_access_paid_checkout`
 
-No se define SQL definitivo en este documento.
+Slice 5 queda como diseno cerrado / migration pending. La migracion `037_access_core_slice_5.sql` no se crea en este paso documental.
+
+Objetivo:
+
+- crear `access_orders`;
+- crear `access_order_items`;
+- validar stock explicito;
+- reservar stock en `access_stock_reservations`;
+- crear `payment_attempts` inicial;
+- evitar sobreventa;
+- preparar Bancard Single Buy para un slice posterior.
+
+No debe implementar:
+
+- Bancard runtime;
+- iframe;
+- endpoints;
+- callback;
+- query/reconciliacion;
+- emision de `access_entries`;
+- QR;
+- email;
+- rollback;
+- frontend;
+- backend runtime;
+- adapters;
+- seeds.
+
+Reglas de alcance:
+
+- paid checkout only;
+- multi-item desde el inicio;
+- `payment_required = true`;
+- orden inicial `status = 'pending_payment'`;
+- reservation inicial `status = 'reserved'`;
+- payment attempt inicial `status = 'created'` y `attempt_number = 1`;
+- no genera `provider_attempt_ref` todavia;
+- no genera Bancard `shop_process_id` todavia;
+- `provider_amount_text` se calcula internamente desde `amount_gs`;
+- free pass se rechaza y queda reservado para otra operacion;
+- no se mezclan paid y free pass en una misma orden.
 
 Input conceptual:
 
@@ -652,30 +692,52 @@ Input conceptual:
 - `access_date`;
 - buyer fields;
 - `items`;
+- `provider`;
+- `provider_operation`;
 - TTL de reserva, default 10 minutos.
 
 Validaciones:
 
 - source coherente;
-- local abierto si source es `local`;
-- evento disponible si source es `event`;
 - buyer fields minimos;
 - items no vacios;
+- items sin duplicados por `access_ticket_type_id`;
 - ticket types activos;
+- ticket types `payment_kind = 'paid'`;
 - ticket types pertenecen al source;
 - moneda `PYG`;
 - cantidades positivas;
-- items repetidos se agregan por ticket type.
+- amount total calculado desde snapshot `price_gs * quantity`;
+- amount total mayor que 0;
+- existe `access_stock_limits` para cada item/date;
+- ausencia de stock limit devuelve `stock_unconfigured`;
+- `stock_mode = 'limited'` con `capacity = 0` devuelve sin cupo;
+- `stock_mode = 'unlimited'` permite reservar, pero requiere stock limit explicito.
+
+Validaciones condicionadas por schema:
+
+- Las validaciones de evento publicado, fecha de evento y local cerrado solo deben implementarse en CODE si el schema actual confirma exactamente las columnas/tablas necesarias.
+- No asumir columnas como `events.published`, `events.starts_at` o `local_daily_ops.is_open` sin verificar schema.
+- Si el schema no es claro, esas validaciones quedan condicionadas o no implementadas en Slice 5 CODE.
 
 Transaccion:
 
 1. Ordenar locks por `access_ticket_type_id`.
-2. Bloquear filas relevantes con `FOR UPDATE`.
+2. Bloquear filas relevantes de `access_stock_limits` con `FOR UPDATE`.
 3. Calcular disponibilidad.
 4. Crear `access_order`.
 5. Crear `access_order_items`.
 6. Crear `access_stock_reservations`.
-7. Retornar orden y vencimiento.
+7. Crear `payment_attempts` inicial.
+8. Retornar orden, payment attempt, monto y vencimiento.
+
+Concurrencia:
+
+- los locks se toman sobre `access_stock_limits`;
+- se ordenan por `access_ticket_type_id` para reducir deadlocks;
+- `READ COMMITTED` con row locks alcanza si todas las reservas usan esta RPC;
+- no usar advisory locks en Slice 5;
+- no usar `SKIP LOCKED`; esperar lock y recalcular disponibilidad.
 
 Disponibilidad:
 
@@ -691,18 +753,43 @@ available =
 ```
 
 - no se cuentan `released` ni `expired`;
+- reservas `reserved` vencidas con `expires_at <= now()` se ignoran;
+- Slice 5 no necesita actualizar filas vencidas a `expired` antes de calcular;
+- expirar filas queda para job/slice posterior;
 - no se cuentan `access_entries` en la formula principal para evitar doble conteo;
 - si cualquier item no alcanza, abortar toda la transaccion.
+
+Output conceptual:
+
+- `order_id`;
+- `public_ref`;
+- `payment_attempt_id`;
+- `amount_gs`;
+- `currency`;
+- `provider_amount_text`;
+- `expires_at`;
+- resumen de items;
+- resumen de reservations.
 
 Errores conceptuales:
 
 - `invalid_source`;
+- `invalid_buyer`;
+- `invalid_item`;
+- `duplicate_item`;
+- `ticket_type_not_found`;
 - `local_closed`;
 - `event_not_available`;
 - `ticket_type_inactive`;
+- `ticket_type_not_paid`;
 - `invalid_quantity`;
 - `currency_mismatch`;
-- `insufficient_stock`.
+- `stock_unconfigured`;
+- `sold_out`;
+- `stock_conflict`;
+- `amount_mismatch`;
+- `provider_invalid`;
+- `internal_error`.
 
 ## 20. RPC futura: emitir entries idempotentes
 
