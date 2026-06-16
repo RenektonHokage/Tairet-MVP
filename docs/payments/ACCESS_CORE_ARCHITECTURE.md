@@ -637,13 +637,30 @@ Indices recomendados:
 - `access_activity_events(order_id, created_at desc)`;
 - `access_activity_events(entity_type, entity_id, created_at desc)`.
 
-## 19. RPC futura: paid checkout atomico
+## 19. RPC paid checkout atomico
 
-RPC conceptual:
+RPC aplicada en Slice 5:
 
 - `public.create_access_paid_checkout`
 
-Slice 5 queda como diseno cerrado / migration pending. La migracion `037_access_core_slice_5.sql` no se crea en este paso documental.
+Slice 5 quedo aplicado como PASS estructural mediante `infra/sql/migrations/037_access_core_slice_5.sql`.
+
+Contrato:
+
+- `security definer`;
+- `set search_path = public, pg_temp`;
+- execute solo para `service_role`;
+- paid checkout only;
+- multi-item desde el inicio;
+- `payment_required = true`;
+- orden inicial `status = 'pending_payment'`;
+- reservation inicial `status = 'reserved'`;
+- payment attempt inicial `status = 'created'`;
+- `attempt_number = 1`;
+- `provider_attempt_ref = null`;
+- `provider_transaction_id = null`;
+- `provider_amount_text` calculado internamente desde `amount_gs`;
+- free pass queda fuera.
 
 Objetivo:
 
@@ -655,7 +672,7 @@ Objetivo:
 - evitar sobreventa;
 - preparar Bancard Single Buy para un slice posterior.
 
-No debe implementar:
+No implementa:
 
 - Bancard runtime;
 - iframe;
@@ -670,20 +687,6 @@ No debe implementar:
 - backend runtime;
 - adapters;
 - seeds.
-
-Reglas de alcance:
-
-- paid checkout only;
-- multi-item desde el inicio;
-- `payment_required = true`;
-- orden inicial `status = 'pending_payment'`;
-- reservation inicial `status = 'reserved'`;
-- payment attempt inicial `status = 'created'` y `attempt_number = 1`;
-- no genera `provider_attempt_ref` todavia;
-- no genera Bancard `shop_process_id` todavia;
-- `provider_amount_text` se calcula internamente desde `amount_gs`;
-- free pass se rechaza y queda reservado para otra operacion;
-- no se mezclan paid y free pass en una misma orden.
 
 Input conceptual:
 
@@ -713,12 +716,6 @@ Validaciones:
 - ausencia de stock limit devuelve `stock_unconfigured`;
 - `stock_mode = 'limited'` con `capacity = 0` devuelve sin cupo;
 - `stock_mode = 'unlimited'` permite reservar, pero requiere stock limit explicito.
-
-Validaciones condicionadas por schema:
-
-- Las validaciones de evento publicado, fecha de evento y local cerrado solo deben implementarse en CODE si el schema actual confirma exactamente las columnas/tablas necesarias.
-- No asumir columnas como `events.published`, `events.starts_at` o `local_daily_ops.is_open` sin verificar schema.
-- Si el schema no es claro, esas validaciones quedan condicionadas o no implementadas en Slice 5 CODE.
 
 Transaccion:
 
@@ -758,6 +755,13 @@ available =
 - expirar filas queda para job/slice posterior;
 - no se cuentan `access_entries` en la formula principal para evitar doble conteo;
 - si cualquier item no alcanza, abortar toda la transaccion.
+
+Observaciones futuras antes de exponer checkout publico:
+
+- agregar limite maximo de `quantity` en endpoint/backend;
+- implementar idempotency key en backend/endpoint para evitar ordenes duplicadas por retry/timeout del cliente;
+- Bancard runtime debe generar `shop_process_id` y persistirlo luego en `provider_attempt_ref`;
+- callback server-to-server, query/reconciliacion, emision de entries, QR, email y rollback operativo quedan fuera de Slice 5.
 
 Output conceptual:
 

@@ -22,7 +22,7 @@ Reglas de direccion:
 | 2 | `access_orders`, `access_order_items`, `access_entries` | PASS | `infra/sql/migrations/034_access_core_slice_2.sql` | Si | No tocado |
 | 3 | `access_stock_limits`, `access_stock_reservations` | PASS | `infra/sql/migrations/035_access_core_slice_3.sql` | Si | No tocado |
 | 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
-| 5 | RPC `create_access_paid_checkout` | design locked | Pendiente: `infra/sql/migrations/037_access_core_slice_5.sql` | No | No tocado |
+| 5 | RPC `create_access_paid_checkout` | PASS | `infra/sql/migrations/037_access_core_slice_5.sql` | Si | No tocado |
 | 6 | RPC de emision idempotente | pending design | Pendiente | No | No tocado |
 | 7 | Bancard Single Buy | pending | Pendiente | No | No tocado |
 | 8 | Callback Bancard | pending | Pendiente | No | No tocado |
@@ -546,27 +546,30 @@ Decisiones cerradas:
 - Callback/query/reconciliacion quedan para slices posteriores.
 - `expires_at`, si existe, debe ser posterior a `created_at`.
 
-## 15. Slice 5 - Diseno cerrado / migration pending
+## 15. Slice 5 - Resultado
 
-Slice 5 queda documentado como diseno cerrado y migracion pendiente.
+Slice 5 creo unicamente:
 
-RPC conceptual:
+- RPC `public.create_access_paid_checkout`.
 
-- `public.create_access_paid_checkout`.
-
-Slice 5 debe crear atomicamente, cuando se implemente la migracion `037`:
+La RPC crea atomicamente:
 
 - `access_orders`;
 - `access_order_items`;
 - `access_stock_reservations`;
-- `payment_attempts`.
+- `payment_attempts` inicial.
 
-Slice 5 no debe crear ni tocar:
+La RPC:
 
-- `infra/sql/migrations/037_access_core_slice_5.sql` en este patch documental;
-- backend;
-- frontend;
-- runtime;
+- usa `FOR UPDATE` sobre `access_stock_limits`;
+- valida stock explicito;
+- rechaza `free_pass`;
+- no genera `provider_attempt_ref`;
+- no llama a Bancard;
+- no emite `access_entries`.
+
+Slice 5 no creo:
+
 - Bancard runtime;
 - iframe;
 - endpoints;
@@ -576,10 +579,48 @@ Slice 5 no debe crear ni tocar:
 - QR;
 - email;
 - rollback;
+- backend runtime;
+- frontend;
 - adapters;
 - seeds;
 - `access_activity_events`;
-- `payment_events`.
+- `payment_events`;
+- nuevas tablas.
+
+Slice 5 es PASS estructural. Todavia no representa integracion Bancard funcional.
+
+## 16. Slice 5 - Validacion Supabase
+
+### 16.1 Pre-check
+
+Evidencias registradas antes de aplicar la migracion:
+
+- funcion `create_access_paid_checkout` no existia antes o era reemplazable.
+- columnas minimas usadas por la RPC existian.
+- prechecks pasaron con resultado esperado.
+
+### 16.2 Aplicacion
+
+Resultado:
+
+- Migracion `037_access_core_slice_5.sql` ejecutada con PASS en Supabase SQL Editor.
+
+### 16.3 Post-check
+
+Evidencias registradas despues de aplicar la migracion:
+
+- funcion registrada con firma `create_access_paid_checkout(text,uuid,uuid,date,jsonb,jsonb,text,text,integer)`.
+- `security_definer = true`.
+- routine registrada como `FUNCTION` en schema `public`.
+
+Grants:
+
+- `postgres` tiene `EXECUTE`.
+- `service_role` tiene `EXECUTE`.
+- `anon` no aparece con `EXECUTE`.
+- `authenticated` no aparece con `EXECUTE`.
+
+## 17. Decisiones cerradas en Slice 5
 
 Decisiones cerradas:
 
@@ -594,15 +635,16 @@ Decisiones cerradas:
 - `provider_attempt_ref` queda null en Slice 5.
 - Bancard `shop_process_id` queda para el slice de Bancard runtime.
 - `provider_amount_text` se calcula internamente desde `amount_gs`.
-- La migracion `037_access_core_slice_5.sql` queda pendiente para un CODE posterior, no para este patch.
+- La RPC ignora reservas vencidas con `expires_at <= now()` al calcular disponibilidad.
+- La RPC no actualiza reservas vencidas a `expired`.
+- Stock limited calcula disponibilidad como `capacity - consumed - manual_hold - reserved vigente`.
+- No cuenta `access_entries` para disponibilidad.
+- No cuenta reservas `released`.
+- No cuenta reservas `expired`.
+- Antes de exponer checkout publico, el endpoint/backend debe agregar limite maximo de `quantity`.
+- Antes de exponer checkout publico, el endpoint/backend debe implementar idempotency key para evitar ordenes duplicadas por retry/timeout del cliente.
 
-Validaciones condicionadas por schema:
-
-- Las validaciones de evento publicado, fecha de evento y local cerrado solo deben implementarse en CODE si el schema actual confirma exactamente las columnas/tablas necesarias.
-- No asumir columnas como `events.published`, `events.starts_at` o `local_daily_ops.is_open` sin verificar schema en el CODE.
-- Si el schema no es claro, esas validaciones quedan condicionadas o no implementadas en Slice 5 CODE.
-
-## 16. Riesgos y notas
+## 18. Riesgos y notas
 
 Notas:
 
@@ -610,7 +652,7 @@ Notas:
 - Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 3 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 4 fue aplicado como estructura base en Supabase, pero todavia no tiene runtime Bancard ni API/RPC que lo consuma.
-- Slice 5 esta design locked, pero todavia no tiene migracion `037`, SQL aplicado ni runtime que lo consuma.
+- Slice 5 fue aplicado como estructura base en Supabase, pero todavia no tiene endpoint/backend publico, runtime Bancard ni callback que lo consuma.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -621,32 +663,41 @@ Riesgos:
 - Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
 - Todavia no existe API que consuma `payment_attempts`.
+- Todavia no existe endpoint backend que invoque `create_access_paid_checkout`.
+- Todavia no existe idempotency key publica.
+- Todavia no existe limite maximo de `quantity` en endpoint/backend.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
-- Slice 5 CODE: migracion `037_access_core_slice_5.sql` con RPC `public.create_access_paid_checkout`.
 - Slice 6: RPC de emision idempotente.
-- Luego Bancard Single Buy, callback, pantalla de estado, reconciliacion y rollback operativo.
+- Endpoint backend que invoque `create_access_paid_checkout`.
+- Idempotency key publica.
+- Limite maximo de `quantity`.
+- Bancard Single Buy runtime.
+- Generacion de `shop_process_id`.
+- Persistencia de `provider_attempt_ref`.
+- Iframe/redirect.
+- Callback server-to-server.
+- Query/reconciliacion.
+- Emision idempotente de `access_entries`.
+- QR/email.
+- Rollback operativo/manual review.
 
-## 17. Siguiente paso recomendado
+## 19. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-CODE posterior para Slice 5, no en este patch documental:
+ASK / PLAN MODE ONLY para el slice de Bancard Single Buy runtime.
 
-- crear `infra/sql/migrations/037_access_core_slice_5.sql`;
-- implementar RPC `public.create_access_paid_checkout`;
-- creacion de orden paid checkout;
-- validacion de ticket types;
-- validacion de stock explicito;
-- reserva atomica;
-- creacion de `payment_attempt` inicial;
-- bloqueo anti-sobreventa;
-- sin crear `access_entries`;
-- sin Bancard runtime todavia;
-- sin callback todavia;
-- sin frontend todavia;
-- sin backend/runtime todavia.
+Ese proximo slice debe disenar:
+
+- endpoint/backend que llama `create_access_paid_checkout`;
+- generacion de `shop_process_id`;
+- llamada a Bancard Single Buy;
+- actualizacion de `payment_attempts.provider_attempt_ref`;
+- transicion `created -> provider_ready` o `technical_error` / `manual_review`;
+- idempotency key antes de exposicion publica;
+- sin callback todavia si se decide separar.
