@@ -763,6 +763,158 @@ Observaciones futuras antes de exponer checkout publico:
 - Bancard runtime debe generar `shop_process_id` y persistirlo luego en `provider_attempt_ref`;
 - callback server-to-server, query/reconciliacion, emision de entries, QR, email y rollback operativo quedan fuera de Slice 5.
 
+### 19.1 Bancard Single Buy runtime futuro
+
+El runtime Bancard queda design locked como consumidor del core `access_*`.
+
+Endpoint futuro:
+
+- `POST /payments/access/bancard/single-buy`.
+
+Contrato del endpoint:
+
+- endpoint especifico Bancard, no provider generico publico;
+- internamente usa `provider = 'bancard'`;
+- internamente usa `provider_operation = 'single_buy'`;
+- llama RPC `public.create_access_paid_checkout`;
+- genera `shop_process_id`;
+- guarda `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- llama Bancard Single Buy;
+- guarda `request_payload` y `response_payload` sanitizados;
+- devuelve datos minimos para iframe.
+
+SQL support requerido antes del endpoint:
+
+- tabla conceptual `access_checkout_idempotency_keys`;
+- sequence `bancard_shop_process_id_seq`;
+- RLS enabled;
+- grants/revokes cerrados;
+- sin policies publicas.
+
+`access_checkout_idempotency_keys` debe guardar conceptualmente:
+
+- `id`;
+- `provider`;
+- `provider_operation`;
+- `idempotency_key`;
+- `request_hash`;
+- `status`;
+- `order_id`;
+- `payment_attempt_id`;
+- `response_payload`;
+- `error_payload`;
+- `locked_until`;
+- `expires_at`;
+- `created_at`;
+- `updated_at`.
+
+Unique requerido:
+
+- `(provider, provider_operation, idempotency_key)`.
+
+Reglas de idempotency:
+
+- misma key + mismo hash + success devuelve respuesta guardada;
+- misma key + mismo hash + error terminal devuelve error guardado si corresponde;
+- misma key + hash distinto devuelve `409 idempotency_conflict`;
+- key en proceso y `locked_until > now()` devuelve `409 checkout_in_progress`;
+- key vencida o lock vencido requiere regla explicita en backend.
+
+Quantity limits del endpoint:
+
+- maximo `10` por item;
+- maximo `20` unidades comerciales totales por checkout;
+- maximo `10` ticket types distintos;
+- error normalizado `quantity_limit_exceeded`.
+
+`shop_process_id`:
+
+- se guarda en `payment_attempts.provider_attempt_ref`;
+- se genera desde sequence `bancard_shop_process_id_seq`;
+- formato inicial: `YYMMDD` + sequence left-padded a 9 digitos;
+- ejemplo: `260616000000001`;
+- debe ser numerico y compatible con Bancard;
+- antes de produccion se debe confirmar en staging longitud/tipo exacto aceptado;
+- ante colision, reintentar apoyandose en el unique parcial existente de `payment_attempts(provider, provider_operation, provider_attempt_ref)`.
+
+Flujo runtime:
+
+1. Validar config/env.
+2. Validar body.
+3. Validar idempotency.
+4. Validar quantity limits.
+5. Llamar RPC `create_access_paid_checkout`.
+6. Si la RPC devuelve `ok:false`, no llamar Bancard.
+7. Generar `shop_process_id`.
+8. Actualizar `payment_attempts.provider_attempt_ref`.
+9. Guardar `request_payload` sanitizado antes de llamar Bancard.
+10. Calcular token `md5(private_key + shop_process_id + amount + currency)`.
+11. Llamar `POST {BANCARD_BASE_URL}/vpos/api/0.3/single_buy`.
+12. Guardar `response_payload` sanitizado.
+13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
+14. Devolver datos minimos para iframe.
+
+Payload Bancard:
+
+- enviar `public_key`;
+- enviar `operation.token`;
+- enviar `operation.shop_process_id`;
+- enviar `operation.amount`;
+- enviar `operation.currency`;
+- enviar `operation.description`;
+- enviar `operation.return_url`;
+- enviar `operation.cancel_url`;
+- enviar `operation.extra_response_attributes` con `payment_card_type` si se mantiene.
+
+No enviar:
+
+- private key;
+- token al frontend;
+- datos de tarjeta;
+- datos sensibles;
+- metadata interna en `additional_data`;
+- `confirmation_url` dentro del payload `single_buy`.
+
+Env/config conceptual:
+
+- revisar nombres existentes antes de CODE;
+- `BANCARD_PUBLIC_KEY`;
+- `BANCARD_PRIVATE_KEY`;
+- `BANCARD_ENVIRONMENT`;
+- `BANCARD_BASE_URL`;
+- `B2C_BASE_URL`;
+- `SUPABASE_URL`;
+- `SUPABASE_SERVICE_ROLE`;
+- `BANCARD_CONFIRM_URL` queda para configuracion/callback futuro, no como payload de `single_buy`.
+
+Transiciones de `payment_attempts`:
+
+- `created -> provider_ready` si Bancard devuelve `status = success` y `process_id`;
+- `created -> technical_error` si falla antes de enviar request o hay error local/config;
+- `created -> manual_review` si hay timeout o ambiguedad despues de enviar request;
+- `rejected` solo si Bancard confirma rechazo definitivo de operacion inicial.
+
+Stock ante falla:
+
+- si RPC falla, no hay orden/reserva/attempt;
+- si falla antes de llamar Bancard, no debe quedar provider iniciado;
+- si falla despues de llamar Bancard o hay timeout, pasar a `manual_review` y retener stock con `manual_hold` si el CODE lo soporta;
+- no liberar stock automaticamente en estados ambiguos.
+
+Fuera de alcance del runtime inicial:
+
+- callback;
+- query/reconciliacion;
+- emision de `access_entries`;
+- QR;
+- email;
+- frontend final;
+- panel manual review;
+- rollback operativo;
+- free pass;
+- adapters legacy;
+- seeds.
+
 Output conceptual:
 
 - `order_id`;

@@ -496,6 +496,93 @@ Reglas:
 
 ## 13. Bancard Single Buy
 
+Estado sobre Access Core:
+
+- diseno locked;
+- endpoint futuro `POST /payments/access/bancard/single-buy`;
+- SQL support previo requerido antes del endpoint;
+- backend/runtime todavia no implementado;
+- callback queda en slice separado.
+
+El endpoint futuro debe:
+
+- usar `provider = 'bancard'`;
+- usar `provider_operation = 'single_buy'`;
+- llamar RPC `public.create_access_paid_checkout`;
+- generar `shop_process_id`;
+- guardar `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- llamar Bancard Single Buy;
+- guardar `request_payload` y `response_payload` sanitizados;
+- devolver datos minimos para iframe.
+
+Fuera de alcance del runtime inicial:
+
+- callback;
+- query/reconciliacion;
+- emision de `access_entries`;
+- QR;
+- email;
+- frontend final;
+- panel manual review;
+- rollback operativo;
+- free pass;
+- adapters legacy;
+- seeds.
+
+Antes del endpoint debe existir SQL support:
+
+- tabla conceptual `access_checkout_idempotency_keys`;
+- sequence `bancard_shop_process_id_seq`;
+- RLS enabled;
+- grants/revokes cerrados;
+- sin policies publicas.
+
+`access_checkout_idempotency_keys` debe guardar conceptualmente:
+
+- `id`;
+- `provider`;
+- `provider_operation`;
+- `idempotency_key`;
+- `request_hash`;
+- `status`;
+- `order_id`;
+- `payment_attempt_id`;
+- `response_payload`;
+- `error_payload`;
+- `locked_until`;
+- `expires_at`;
+- `created_at`;
+- `updated_at`.
+
+Unique requerido:
+
+- `(provider, provider_operation, idempotency_key)`.
+
+Reglas de idempotency:
+
+- misma key + mismo hash + success devuelve respuesta guardada;
+- misma key + mismo hash + error terminal devuelve error guardado si corresponde;
+- misma key + hash distinto devuelve `409 idempotency_conflict`;
+- key en proceso y `locked_until > now()` devuelve `409 checkout_in_progress`;
+- key vencida o lock vencido requiere regla explicita en backend.
+
+Quantity limits:
+
+- maximo `10` por item;
+- maximo `20` unidades comerciales totales por checkout;
+- maximo `10` ticket types distintos;
+- error normalizado `quantity_limit_exceeded`.
+
+`shop_process_id`:
+
+- se guarda en `payment_attempts.provider_attempt_ref`;
+- se genera desde sequence `bancard_shop_process_id_seq`;
+- formato inicial: `YYMMDD` + sequence left-padded a 9 digitos;
+- ejemplo: `260616000000001`;
+- debe ser numerico y compatible con Bancard;
+- antes de produccion se debe confirmar en staging longitud/tipo exacto aceptado;
+- ante colision, reintentar apoyandose en el unique parcial existente de `payment_attempts(provider, provider_operation, provider_attempt_ref)`.
+
 Endpoint Bancard:
 
 - `POST {environment}/vpos/api/0.3/single_buy`
@@ -524,15 +611,14 @@ Reglas de formato:
 Campos que Tairet debe enviar en el primer slice:
 
 - `public_key`;
-- `operation`;
-- `shop_process_id`;
-- `amount`;
-- `currency`;
-- `description`;
-- `return_url`;
-- `cancel_url`;
-- `token`;
-- `extra_response_attributes` con `payment_card_type` recomendado para trazabilidad.
+- `operation.token`;
+- `operation.shop_process_id`;
+- `operation.amount`;
+- `operation.currency`;
+- `operation.description`;
+- `operation.return_url`;
+- `operation.cancel_url`;
+- `operation.extra_response_attributes` con `payment_card_type` recomendado para trazabilidad.
 
 La URL de confirmacion de Bancard se configura en el portal de comercio Bancard. No debe documentarse ni implementarse como campo enviado a `single_buy`. Puede existir una variable interna `BANCARD_CONFIRM_URL`, pero su uso es configuracion/operacion, no payload de `single_buy`.
 
@@ -540,6 +626,8 @@ La URL de confirmacion de Bancard se configura en el portal de comercio Bancard.
 
 Campos que no deben entrar en el primer slice:
 
+- private key;
+- token al frontend;
 - datos de tarjeta;
 - datos para tokenizacion;
 - BIN/entity promos;
@@ -552,6 +640,37 @@ Campos que no deben entrar en el primer slice:
 - `Tairet Ticket`
 
 Se deben almacenar `request_payload` y `response_payload` utiles para auditoria, excluyendo private key, token si se considera secreto operativo y cualquier dato sensible.
+
+Flujo runtime:
+
+1. Validar config/env.
+2. Validar body.
+3. Validar idempotency.
+4. Validar quantity limits.
+5. Llamar RPC `create_access_paid_checkout`.
+6. Si la RPC devuelve `ok:false`, no llamar Bancard.
+7. Generar `shop_process_id`.
+8. Actualizar `payment_attempts.provider_attempt_ref`.
+9. Guardar `request_payload` sanitizado antes de llamar Bancard.
+10. Calcular token `md5(private_key + shop_process_id + amount + currency)`.
+11. Llamar `POST {BANCARD_BASE_URL}/vpos/api/0.3/single_buy`.
+12. Guardar `response_payload` sanitizado.
+13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
+14. Devolver datos minimos para iframe.
+
+Transiciones de `payment_attempts`:
+
+- `created -> provider_ready` si Bancard devuelve `status = success` y `process_id`;
+- `created -> technical_error` si falla antes de enviar request o hay error local/config;
+- `created -> manual_review` si hay timeout o ambiguedad despues de enviar request;
+- `rejected` solo si Bancard confirma rechazo definitivo de operacion inicial.
+
+Stock ante falla:
+
+- si RPC falla, no hay orden/reserva/attempt;
+- si falla antes de llamar Bancard, no debe quedar provider iniciado;
+- si falla despues de llamar Bancard o hay timeout, pasar a `manual_review` y retener stock con `manual_hold` si el CODE lo soporta;
+- no liberar stock automaticamente en estados ambiguos.
 
 ## 14. Iframe Bancard
 
@@ -740,15 +859,20 @@ Se requiere un documento contable/legal separado antes de implementar factura el
 
 Variables sugeridas:
 
+- revisar nombres existentes antes de CODE;
 - `BANCARD_PUBLIC_KEY`;
 - `BANCARD_PRIVATE_KEY`;
 - `BANCARD_ENVIRONMENT`;
 - `BANCARD_BASE_URL`;
+- `B2C_BASE_URL`;
+- `SUPABASE_URL`;
+- `SUPABASE_SERVICE_ROLE`;
 - `BANCARD_CONFIRM_URL`.
 
 Reglas:
 
 - `BANCARD_PRIVATE_KEY` solo backend.
+- `BANCARD_CONFIRM_URL` queda para configuracion/callback futuro, no como payload de `single_buy`.
 - Ninguna clave privada debe usar prefijo `VITE_` o `NEXT_PUBLIC_`.
 - No se loguea private key.
 - No se loguean datos sensibles de tarjeta.
@@ -850,6 +974,13 @@ Riesgos que el diseno debe prevenir:
 - cerrar una fecha con entradas pagadas/emitidas sin resolucion admin;
 - exponer payloads tecnicos Bancard a owner/local/staff;
 - usar `additional_data` como metadata interna;
+- guardar token/private key en payload tecnico;
+- crear doble orden por retry sin idempotency;
+- crear doble iframe por retry o race;
+- recibir callback antes de persistir `provider_attempt_ref`;
+- dejar stock bloqueado indefinidamente por falla operativa;
+- liberar stock en estado ambiguo post-Bancard;
+- colisionar `shop_process_id`;
 - asumir que `description` sirve para conciliacion;
 - tratar eventos como extension simple de discotecas;
 - tratar discotecas como eventos single-date.
@@ -900,6 +1031,12 @@ Decisiones ya fijadas por este documento:
 - eventos del alcance actual son single-date;
 - free pass queda fuera de Bancard;
 - solo admin Tairet ve detalle tecnico Bancard.
+- runtime inicial usa `POST /payments/access/bancard/single-buy`;
+- runtime inicial consume Access Core con `provider = 'bancard'` y `provider_operation = 'single_buy'`;
+- antes del endpoint se requiere SQL support para `access_checkout_idempotency_keys` y `bancard_shop_process_id_seq`;
+- `shop_process_id` se guarda en `payment_attempts.provider_attempt_ref`;
+- formato inicial de `shop_process_id`: `YYMMDD` + sequence left-padded a 9 digitos;
+- quantity limits iniciales: `10` por item, `20` unidades totales, `10` ticket types distintos.
 
 Preguntas que siguen abiertas:
 
@@ -914,7 +1051,7 @@ Preguntas que siguen abiertas:
 - Diseno de factura electronica.
 - Infraestructura final de reconciliacion: cron, worker, queue o job interno.
 - Retencion de payloads del proveedor.
-- Formato final de `shop_process_id` y estrategia de correlacion con IDs internos.
+- Longitud/tipo exacto aceptado por Bancard staging para `shop_process_id`.
 
 ## 27. Orden futuro de implementacion
 
@@ -924,16 +1061,18 @@ Orden recomendado de slices:
 2. ASK tecnico de modelo comun discotecas/eventos.
 3. Modelo de base para ordenes vendibles, items, entries e intentos de pago.
 4. Reserva temporal de stock por origen, fecha de acceso y tipo de entrada.
-5. Endpoint backend para crear Single Buy.
-6. Iframe Bancard en B2C.
-7. Callback especifico `POST /payments/bancard/confirm`.
-8. Emision idempotente de QR.
-9. Pantalla de estado.
-10. Recuperacion/reenvio interno por admin Tairet.
-11. Reconciliacion/query.
-12. Rollback operativo.
-13. Panel y observabilidad.
-14. Factura electronica futura.
-15. Token payment futuro.
+5. RPC `public.create_access_paid_checkout`.
+6. SQL support para `access_checkout_idempotency_keys` y `bancard_shop_process_id_seq`.
+7. Endpoint backend `POST /payments/access/bancard/single-buy`.
+8. Callback especifico `POST /payments/bancard/confirm`.
+9. Emision idempotente de entries/QR/email.
+10. Iframe Bancard en B2C.
+11. Pantalla de estado.
+12. Recuperacion/reenvio interno por admin Tairet.
+13. Reconciliacion/query.
+14. Rollback operativo.
+15. Panel y observabilidad.
+16. Factura electronica futura.
+17. Token payment futuro.
 
 Ningun slice posterior debe debilitar los principios no negociables de este documento.
