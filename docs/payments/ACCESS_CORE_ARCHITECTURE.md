@@ -428,16 +428,20 @@ Constraints conceptuales:
 
 ## 15. Payment attempts
 
-`payment_attempts` representa intentos contra proveedores de pago.
+`payment_attempts` representa intentos contra proveedores de pago. Es una tabla generica de pagos y no lleva prefijo `access_` porque puede servir para distintos flows/proveedores.
 
 Reglas:
 
-- es generico, no `access_payment_attempts`;
-- soporta Bancard y futuros proveedores;
+- referencia `access_orders`, no `access_stock_reservations`;
+- la relacion con reservations se resuelve por `order_id`;
 - una orden puede tener mas de un intento historico;
-- una orden solo puede tener un intento Bancard activo a la vez;
-- si un intento esta `pending_confirmation`, no se crea otro hasta query/reconciliacion;
-- payloads tecnicos son visibles solo para admin Tairet;
+- se evita mas de un attempt bloqueante por `order_id + provider + provider_operation`;
+- estados bloqueantes: `created`, `provider_ready`, `pending_confirmation`, `approved`, `manual_review`;
+- estados que permiten retry posterior: `rejected`, `cancelled`, `expired`, `technical_error`;
+- `manual_review` representa ambiguedad y no debe liberar stock automaticamente;
+- `approved` tambien bloquea nuevos attempts del mismo provider/operation para evitar doble cobro;
+- `amount_gs > 0`, por lo tanto free pass no crea payment attempt;
+- payloads tecnicos quedan cerrados por RLS/service_role;
 - owner/local/staff solo ven estados comerciales.
 
 Campos conceptuales:
@@ -446,33 +450,63 @@ Campos conceptuales:
 | --- | --- | --- |
 | `id` | `uuid` | Identificador. |
 | `order_id` | `uuid` | Orden asociada. |
-| `provider` | `text` | Proveedor, inicialmente `bancard`. |
-| `flow` | `text` | Flujo, inicialmente `single_buy`. |
-| `shop_process_id` | `bigint` | Identificador numerico para Bancard. |
-| `provider_process_id` | `text null` | ID devuelto por proveedor. |
-| `amount_gs` | `bigint` | Monto interno. |
-| `provider_amount_text` | `text` | Monto formateado para el proveedor, ej. `"50000.00"` para Bancard. |
-| `currency` | `text` | Moneda. |
+| `source_type` | `text` | `local` o `event`. |
+| `local_id` | `uuid null` | Local si aplica. |
+| `event_id` | `uuid null` | Evento si aplica. |
+| `access_date` | `date` | Fecha de acceso de la orden. |
+| `attempt_number` | `integer` | Numero historico del intento dentro de la orden. |
+| `provider` | `text` | Proveedor. Bancard usara `bancard` cuando exista runtime. |
+| `provider_operation` | `text` | Operacion/flow del proveedor, por ejemplo `single_buy`. |
+| `provider_attempt_ref` | `text null` | Referencia/idempotency key del intento en el proveedor. Bancard `shop_process_id` puede mapearse aqui. |
+| `provider_transaction_id` | `text null` | Transaction/reference del proveedor cuando exista. |
+| `provider_status` | `text null` | Estado crudo reportado por el proveedor. |
+| `provider_response_code` | `text null` | Codigo crudo reportado por el proveedor. |
+| `amount_gs` | `bigint` | Monto interno canonico en guaranies. |
+| `currency` | `text` | Moneda, inicialmente `PYG`. |
+| `provider_amount_text` | `text` | Representacion enviada/recibida por el proveedor. |
 | `status` | `text` | Estado del intento. |
-| `request_payload` | `jsonb null` | Payload inicial sanitizado. |
-| `response_payload` | `jsonb null` | Respuesta inicial sanitizada. |
-| `confirm_payload` | `jsonb null` | Confirmacion sanitizada. |
-| `last_query_payload` | `jsonb null` | Ultima query sanitizada. |
-| `rollback_payload` | `jsonb null` | Rollback sanitizado. |
-| `expires_at` | `timestamptz null` | Vencimiento. |
-| `confirmed_at` | `timestamptz null` | Confirmacion aprobada. |
+| `request_payload` | `jsonb null` | Payload tecnico de request. |
+| `response_payload` | `jsonb null` | Payload tecnico de respuesta inicial. |
+| `callback_payload` | `jsonb null` | Payload tecnico de callback/confirmacion cuando exista. |
+| `last_error` | `text null` | Ultimo error tecnico registrado. |
 | `manual_review_reason` | `text null` | Motivo de revision. |
+| `initiated_at` | `timestamptz null` | Inicio del intento. |
+| `provider_ready_at` | `timestamptz null` | Provider listo para continuar flujo. |
+| `confirmed_at` | `timestamptz null` | Confirmacion aprobada. |
+| `rejected_at` | `timestamptz null` | Rechazo. |
+| `cancelled_at` | `timestamptz null` | Cancelacion. |
+| `expired_at` | `timestamptz null` | Expiracion. |
+| `expires_at` | `timestamptz null` | Vencimiento opcional. |
 | `created_at` | `timestamptz` | Creacion. |
 | `updated_at` | `timestamptz` | Ultima actualizacion. |
 
-`shop_process_id` debe generarse con una estrategia numerica unica, compatible con longitud Bancard y trazable hacia `payment_attempts`.
+`return_url` no confirma pago. Callback/query/reconciliacion quedan para slices posteriores.
 
 Regla de dinero para proveedores:
 
 - `amount_gs` es el monto interno canonico en guaranies;
-- `provider_amount_text` es el monto formateado para el proveedor;
+- `amount_gs > 0`;
+- `currency = 'PYG'`;
+- `provider_amount_text` guarda la representacion enviada/recibida por el proveedor;
 - para Bancard, ejemplo: `amount_gs = 50000` y `provider_amount_text = "50000.00"`;
-- no se debe usar un nombre de columna acoplado a Bancard para el monto formateado.
+- no se debe usar `bancard_amount`.
+
+Constraints conceptuales:
+
+- unique `(order_id, attempt_number)`;
+- unique parcial `(provider, provider_operation, provider_attempt_ref)` cuando `provider_attempt_ref is not null`;
+- unique parcial `(provider, provider_operation, provider_transaction_id)` cuando `provider_transaction_id is not null`;
+- unique parcial bloqueante `(order_id, provider, provider_operation)` para estados `created`, `provider_ready`, `pending_confirmation`, `approved`, `manual_review`;
+- FK a `access_orders(id)`;
+- FK compuesta a `access_orders(id, access_date)`;
+- FK compuesta a `access_orders(id, local_id)` y `access_orders(id, event_id)`;
+- FK compuesta a `access_orders(id, amount_gs, currency)`;
+- coherencia de source;
+- `attempt_number > 0`;
+- `amount_gs > 0`;
+- `currency = 'PYG'`;
+- `provider_amount_text` no vacio;
+- `expires_at`, si existe, debe ser posterior a `created_at`.
 
 ## 16. Admin Tairet
 
@@ -485,7 +519,7 @@ Reglas:
 - admin Tairet puede ver payloads tecnicos Bancard;
 - admin Tairet puede operar `manual_review`;
 - soporte/admin Tairet puede reenviar entradas/QR internamente;
-- owner/local/staff no ven `request_payload`, `response_payload`, `confirm_payload`, `rollback_payload`, tokens/hashes ni notas internas de manual review.
+- owner/local/staff no ven `request_payload`, `response_payload`, `callback_payload`, tokens/hashes ni notas internas de manual review.
 - el primer admin Tairet no debe seedearse en una migracion con datos personales o sensibles.
 
 Opciones aceptadas para crear el primer admin:
@@ -523,14 +557,13 @@ Slice 2 no debe incluir `refunded` en el CHECK inicial de `access_orders.status`
 ### 17.2 `payment_attempts`
 
 - `created`;
-- `payment_initiated`;
+- `provider_ready`;
 - `pending_confirmation`;
 - `approved`;
 - `rejected`;
+- `cancelled`;
 - `expired`;
-- `rollback_requested`;
-- `rollback_success`;
-- `rollback_failed`;
+- `technical_error`;
 - `manual_review`.
 
 ### 17.3 `access_stock_reservations`
@@ -577,8 +610,10 @@ Constraints minimas:
 - unique `(access_order_items.order_id, access_order_items.access_ticket_type_id)`;
 - unique `access_entries.checkin_token`;
 - unique `(access_entries.order_item_id, access_entries.unit_index)`;
-- unique `payment_attempts.shop_process_id`;
-- unique parcial para intento activo por orden/proveedor/flujo.
+- unique `(payment_attempts.order_id, payment_attempts.attempt_number)`;
+- unique parcial para `payment_attempts(provider, provider_operation, provider_attempt_ref)`;
+- unique parcial para `payment_attempts(provider, provider_operation, provider_transaction_id)`;
+- unique parcial para intento bloqueante por orden/proveedor/operacion.
 
 Indices recomendados:
 
@@ -591,9 +626,10 @@ Indices recomendados:
 - `access_stock_limits(access_ticket_type_id, access_date)`;
 - `access_stock_reservations(access_ticket_type_id, access_date, status, expires_at)`;
 - `access_stock_reservations(order_id)`;
-- `payment_attempts(shop_process_id)`;
-- `payment_attempts(order_id, status)`;
-- `payment_attempts(provider, flow, status, expires_at)`;
+- `payment_attempts(order_id)`;
+- `payment_attempts(provider, provider_operation, status)`;
+- `payment_attempts(status, expires_at)`;
+- `payment_attempts(created_at desc)`;
 - `access_entries(checkin_token)`;
 - `access_entries(order_id)`;
 - `access_entries(order_item_id)`;
@@ -769,7 +805,7 @@ Flujo conceptual:
 3. Backend llama a Single Buy.
 4. Frontend abre iframe con datos publicos minimos.
 5. Bancard confirma server-to-server.
-6. Backend valida hash, monto, moneda, `shop_process_id` y `response_code`.
+6. Backend valida hash, monto, moneda, `provider_attempt_ref`/`shop_process_id` y `provider_response_code`.
 7. Backend marca intento `approved`.
 8. Backend marca orden `paid`.
 9. Backend emite entries de forma idempotente.

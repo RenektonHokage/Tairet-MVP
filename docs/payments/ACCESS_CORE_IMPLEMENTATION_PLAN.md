@@ -21,7 +21,7 @@ Reglas de direccion:
 | 1 | `platform_admin_users`, `access_ticket_types` | PASS | `infra/sql/migrations/033_access_core_slice_1.sql` | Si | No tocado |
 | 2 | `access_orders`, `access_order_items`, `access_entries` | PASS | `infra/sql/migrations/034_access_core_slice_2.sql` | Si | No tocado |
 | 3 | `access_stock_limits`, `access_stock_reservations` | PASS | `infra/sql/migrations/035_access_core_slice_3.sql` | Si | No tocado |
-| 4 | `payment_attempts` | pending design | Pendiente | No | No tocado |
+| 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
 | 5 | RPC de reserva atomica | pending design | Pendiente | No | No tocado |
 | 6 | RPC de emision idempotente | pending design | Pendiente | No | No tocado |
 | 7 | Bancard Single Buy | pending | Pendiente | No | No tocado |
@@ -412,13 +412,148 @@ Decisiones cerradas:
 - `released` y `expired` no bloquean disponibilidad.
 - `released_at` representa el momento en que la reserva dejo de bloquear stock, incluso si el motivo fue expiracion.
 
-## 12. Riesgos y notas
+## 12. Slice 4 - Resultado
+
+Slice 4 creo unicamente:
+
+- `payment_attempts`.
+
+Slice 4 tambien agrego support unique constraint en:
+
+- `access_orders(id, amount_gs, currency)`.
+
+Slice 4 no creo:
+
+- Bancard runtime;
+- iframe;
+- endpoints;
+- callback;
+- query/reconciliacion;
+- rollback;
+- RPCs;
+- `access_activity_events`;
+- `payment_events`;
+- backend runtime;
+- frontend;
+- seeds;
+- adapters.
+
+Slice 4 es PASS estructural. Todavia no representa integracion Bancard funcional.
+
+## 13. Slice 4 - Validacion Supabase
+
+### 13.1 Pre-check
+
+Evidencias registradas antes de aplicar la migracion:
+
+- `access_orders` existia.
+- `payment_attempts` no existia antes.
+- `service_role` existia.
+- support constraint `access_orders_id_amount_currency_unique` no existia antes o era idempotente.
+
+### 13.2 Aplicacion
+
+Resultado:
+
+- Migracion `036_access_core_slice_4.sql` ejecutada con PASS en Supabase SQL Editor.
+
+### 13.3 Post-check
+
+Evidencias registradas despues de aplicar la migracion:
+
+- `payment_attempts` existe.
+
+### 13.4 Constraints confirmadas
+
+Constraints confirmadas:
+
+- `access_orders_id_amount_currency_unique`;
+- `payment_attempts_order_attempt_number_unique`;
+- `payment_attempts_order_access_date_alignment_fk`;
+- `payment_attempts_order_local_alignment_fk`;
+- `payment_attempts_order_event_alignment_fk`;
+- `payment_attempts_order_amount_currency_alignment_fk`;
+- `payment_attempts_source_consistency_chk`;
+- `payment_attempts_attempt_number_positive_chk`;
+- `payment_attempts_provider_non_empty_chk`;
+- `payment_attempts_provider_operation_non_empty_chk`;
+- `payment_attempts_provider_attempt_ref_non_empty_chk`;
+- `payment_attempts_provider_transaction_id_non_empty_chk`;
+- `payment_attempts_provider_status_non_empty_chk`;
+- `payment_attempts_provider_response_code_non_empty_chk`;
+- `payment_attempts_amount_gs_positive_chk`;
+- `payment_attempts_currency_chk`;
+- `payment_attempts_provider_amount_text_non_empty_chk`;
+- `payment_attempts_status_chk`;
+- `payment_attempts_expires_at_chk`.
+
+### 13.5 Indices confirmados
+
+Indices confirmados:
+
+- `payment_attempts_order_attempt_number_unique`;
+- `idx_payment_attempts_provider_attempt_ref_unique`;
+- `idx_payment_attempts_provider_transaction_unique`;
+- `idx_payment_attempts_blocking_provider_operation_unique`;
+- `idx_payment_attempts_order_id`;
+- `idx_payment_attempts_provider_operation_status`;
+- `idx_payment_attempts_status_expires_at`;
+- `idx_payment_attempts_created_at_desc`;
+- `idx_payment_attempts_local_access_date_status`;
+- `idx_payment_attempts_event_access_date_status`.
+
+### 13.6 RLS, grants y policies
+
+RLS:
+
+- RLS enabled en `payment_attempts`.
+
+Grants:
+
+- `service_role` tiene permisos.
+- `anon` no aparece con permisos directos.
+- `authenticated` no aparece con permisos directos.
+
+Policies:
+
+- `pg_policies` no devolvio rows para `payment_attempts`.
+- Esto es esperado porque la tabla queda cerrada y sera operada por backend/service role.
+
+## 14. Decisiones cerradas en Slice 4
+
+Decisiones cerradas:
+
+- `payment_attempts` es tabla generica de intentos de pago.
+- No tiene prefijo `access_` porque puede servir para distintos flows/proveedores.
+- Referencia `access_orders`, no `access_stock_reservations`.
+- La relacion con reservations se resuelve por `order_id`.
+- Una orden puede tener multiples attempts historicos.
+- Se evita mas de un attempt bloqueante por `order_id + provider + provider_operation`.
+- Estados bloqueantes: `created`, `provider_ready`, `pending_confirmation`, `approved`, `manual_review`.
+- Estados que permiten retry posterior: `rejected`, `cancelled`, `expired`, `technical_error`.
+- `manual_review` representa ambiguedad y no debe liberar stock automaticamente.
+- `approved` tambien bloquea nuevos attempts del mismo provider/operation para evitar doble cobro.
+- `amount_gs` es monto interno en bigint.
+- `amount_gs > 0`, por lo tanto free pass no crea payment attempt.
+- `currency = 'PYG'`.
+- `provider_amount_text` guarda la representacion enviada/recibida por el provider.
+- No usar `bancard_amount`.
+- Bancard usara `provider = 'bancard'` cuando se implemente runtime.
+- Bancard `shop_process_id` puede mapearse a `provider_attempt_ref`.
+- `provider_transaction_id` queda para transaction/reference del provider cuando exista.
+- `request_payload`, `response_payload`, `callback_payload` son payloads tecnicos y deben quedar cerrados por RLS/service_role.
+- `return_url` no confirma pago.
+- Callback/query/reconciliacion quedan para slices posteriores.
+- `expires_at`, si existe, debe ser posterior a `created_at`.
+
+## 15. Riesgos y notas
 
 Notas:
 
 - No se hicieron pruebas de inserts contra constraints en DB descartable.
 - Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 3 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
+- Slice 4 fue aplicado como estructura base en Supabase, pero todavia no tiene runtime Bancard ni API/RPC que lo consuma.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -428,30 +563,29 @@ Riesgos:
 - Todavia no existe API que consuma `access_ticket_types`.
 - Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
+- Todavia no existe API que consuma `payment_attempts`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
-- Slice 4: `payment_attempts`.
-- Slice 5: RPC de reserva atomica / creacion de orden.
+- Slice 5: RPC de creacion de orden + reserva atomica + payment attempt inicial.
 - Slice 6: RPC de emision idempotente.
 - Luego Bancard Single Buy, callback, pantalla de estado, reconciliacion y rollback operativo.
 
-## 13. Siguiente paso recomendado
+## 16. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY para Slice 4:
+ASK / PLAN MODE ONLY para Slice 5:
 
-- `payment_attempts`;
-- provider generico;
-- Bancard como provider futuro;
-- `provider_amount_text`;
-- estados de intento de pago;
-- payloads tecnicos;
-- idempotencia por provider/reference;
+- creacion de orden;
+- validacion de ticket types;
+- validacion de stock explicito;
+- reserva atomica;
+- creacion de `payment_attempt` inicial;
+- bloqueo anti-sobreventa;
 - sin Bancard runtime todavia;
-- sin endpoint todavia;
-- sin callback todavia.
+- sin callback todavia;
+- sin frontend todavia.
