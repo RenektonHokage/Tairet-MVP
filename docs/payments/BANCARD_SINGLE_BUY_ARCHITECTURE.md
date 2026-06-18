@@ -503,17 +503,22 @@ Estado sobre Access Core:
 - tabla `access_checkout_idempotency_keys` implementada;
 - sequence `bancard_shop_process_id_seq` implementada;
 - funcion `public.next_bancard_shop_process_id()` implementada;
-- endpoint futuro `POST /payments/access/bancard/single-buy`;
-- backend/runtime todavia no implementado;
+- endpoint backend init checkout `POST /payments/access/bancard/single-buy` implementado;
+- backend endpoint init checkout: PASS estatico;
 - callback queda en slice separado.
 
-El endpoint futuro debe:
+El endpoint implementado:
 
 - usar `provider = 'bancard'`;
 - usar `provider_operation = 'single_buy'`;
+- validar body con schema estricto;
+- aplicar quantity limits;
+- usar `access_checkout_idempotency_keys`;
+- calcular `request_hash` SHA-256 sobre payload normalizado;
 - llamar RPC `public.create_access_paid_checkout`;
-- generar `shop_process_id`;
+- llamar RPC `public.next_bancard_shop_process_id()`;
 - guardar `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- armar payload Bancard `single_buy`;
 - llamar Bancard Single Buy;
 - guardar `request_payload` y `response_payload` sanitizados;
 - devolver datos minimos para iframe.
@@ -606,8 +611,9 @@ Quantity limits:
 Nota de alcance:
 
 - Slice 6 es PASS estructural.
-- Slice 6 no representa integracion funcional con Bancard todavia.
-- Todavia falta endpoint backend, quantity validation, uso runtime de idempotency, llamada RPC, generacion de `shop_process_id` desde la funcion, actualizacion de `payment_attempts.provider_attempt_ref`, llamada Single Buy, payloads sanitizados, callback y emision de entries/QR/email.
+- El endpoint backend init checkout esta implementado como PASS estatico.
+- El endpoint inicia `single_buy`, pero no confirma pagos.
+- Todavia faltan staging Bancard, callback, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -643,8 +649,13 @@ Campos que Tairet debe enviar en el primer slice:
 - `operation.currency`;
 - `operation.description`;
 - `operation.return_url`;
-- `operation.cancel_url`;
-- `operation.extra_response_attributes` con `payment_card_type` recomendado para trazabilidad.
+- `operation.cancel_url`.
+
+Campos omitidos en el endpoint implementado:
+
+- `confirmation_url`;
+- `additional_data`;
+- `extra_response_attributes`.
 
 La URL de confirmacion de Bancard se configura en el portal de comercio Bancard. No debe documentarse ni implementarse como campo enviado a `single_buy`. Puede existir una variable interna `BANCARD_CONFIRM_URL`, pero su uso es configuracion/operacion, no payload de `single_buy`.
 
@@ -665,7 +676,7 @@ Campos que no deben entrar en el primer slice:
 - `Ticket Tairet`
 - `Tairet Ticket`
 
-Se deben almacenar `request_payload` y `response_payload` utiles para auditoria, excluyendo private key, token si se considera secreto operativo y cualquier dato sensible.
+Se deben almacenar `request_payload` y `response_payload` utiles para auditoria, excluyendo private key, token y cualquier dato sensible.
 
 Flujo runtime:
 
@@ -684,6 +695,20 @@ Flujo runtime:
 13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
 14. Devolver datos minimos para iframe.
 
+Validacion estatica del endpoint backend:
+
+- `git diff --check`: PASS;
+- `pnpm -C functions/api typecheck`: PASS;
+- lint no aplicable por falta de config ESLint en `functions/api`;
+- revision estatica final: PASS;
+- High original de idempotency resuelto;
+- falla pre-Bancard de `assignShopProcessId` resuelta con respuesta conservadora;
+- no se persiste token/private key;
+- no se devuelve token/private key;
+- no se devuelve `order_id` ni `payment_attempt_id`;
+- no reutiliza `/payments/callback` legacy;
+- no usa `payment_events` en Access Core Bancard init.
+
 Transiciones de `payment_attempts`:
 
 - `created -> provider_ready` si Bancard devuelve `status = success` y `process_id`;
@@ -700,7 +725,7 @@ Stock ante falla:
 
 ## 14. Iframe Bancard
 
-El frontend recibe `process_id` y datos publicos minimos para levantar el iframe de Bancard.
+El endpoint backend ya devuelve `process_id` y datos publicos minimos para levantar el iframe de Bancard. La integracion frontend del iframe sigue pendiente.
 
 Reglas:
 
@@ -1045,6 +1070,7 @@ Escenarios minimos:
 - URL de confirmacion publica HTTPS/TLS 1.2 configurada en portal Bancard;
 - trazas revisadas en portal Bancard staging;
 - `additional_data` omitido por defecto;
+- `extra_response_attributes` omitido en el endpoint implementado;
 - `confirmation_url` no enviado en payload `single_buy`.
 
 Ningun escenario debe producir QR duplicado, stock negativo o pago aprobado sin auditoria.
@@ -1058,6 +1084,7 @@ Decisiones ya fijadas por este documento:
 - free pass queda fuera de Bancard;
 - solo admin Tairet ve detalle tecnico Bancard.
 - runtime inicial usa `POST /payments/access/bancard/single-buy`;
+- backend endpoint init checkout esta implementado como PASS estatico;
 - runtime inicial consume Access Core con `provider = 'bancard'` y `provider_operation = 'single_buy'`;
 - SQL support Slice 6 ya implemento `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `public.next_bancard_shop_process_id()`;
 - `shop_process_id` se guarda en `payment_attempts.provider_attempt_ref`;
@@ -1089,16 +1116,17 @@ Orden recomendado de slices:
 4. Reserva temporal de stock por origen, fecha de acceso y tipo de entrada.
 5. RPC `public.create_access_paid_checkout`.
 6. SQL support para `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `next_bancard_shop_process_id()` aplicado en Slice 6.
-7. Endpoint backend `POST /payments/access/bancard/single-buy`.
-8. Callback especifico `POST /payments/bancard/confirm`.
-9. Emision idempotente de entries/QR/email.
-10. Iframe Bancard en B2C.
-11. Pantalla de estado.
-12. Recuperacion/reenvio interno por admin Tairet.
-13. Reconciliacion/query.
-14. Rollback operativo.
-15. Panel y observabilidad.
-16. Factura electronica futura.
-17. Token payment futuro.
+7. Endpoint backend `POST /payments/access/bancard/single-buy` implementado como PASS estatico.
+8. ASK / PLAN MODE ONLY - Bancard confirm callback sobre Access Core.
+9. Callback especifico `POST /payments/bancard/confirm`.
+10. Emision idempotente de entries/QR/email.
+11. Iframe Bancard en B2C.
+12. Pantalla de estado.
+13. Recuperacion/reenvio interno por admin Tairet.
+14. Reconciliacion/query.
+15. Rollback operativo.
+16. Panel y observabilidad.
+17. Factura electronica futura.
+18. Token payment futuro.
 
 Ningun slice posterior debe debilitar los principios no negociables de este documento.

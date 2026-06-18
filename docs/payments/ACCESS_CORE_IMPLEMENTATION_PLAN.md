@@ -24,7 +24,7 @@ Reglas de direccion:
 | 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
 | 5 | RPC `create_access_paid_checkout` | PASS | `infra/sql/migrations/037_access_core_slice_5.sql` | Si | No tocado |
 | 6 | SQL support Bancard runtime: `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq`, `next_bancard_shop_process_id()` | PASS | `infra/sql/migrations/038_access_core_slice_6.sql` | Si | No tocado |
-| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | design locked | Pendiente | No | No tocado |
+| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; frontend/callback pendiente |
 | 8 | Callback Bancard `POST /payments/bancard/confirm` | pending design | Pendiente | No | No tocado |
 | 9 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
 | 10 | Pantalla de estado | pending | Pendiente | No | No tocado |
@@ -779,28 +779,36 @@ Decisiones cerradas:
 - El execute de la funcion queda solo para `service_role`.
 - La longitud/tipo exacto aceptado por Bancard debe confirmarse en staging.
 
-## 21. Bancard Single Buy runtime - diseno cerrado
+## 21. Bancard Single Buy endpoint - PASS estatico
 
 Estado documental:
 
-- design locked;
+- PASS estatico;
 - SQL support aplicado como PASS estructural en Slice 6;
-- backend endpoint pendiente;
-- endpoint runtime pendiente;
-- runtime/backend/frontend no tocado en este documento.
+- endpoint backend implementado;
+- SQL nuevo: No;
+- frontend no tocado;
+- callback pendiente;
+- entries/QR/email pendiente;
+- staging Bancard pendiente.
 
-Endpoint futuro:
+Endpoint implementado:
 
 - `POST /payments/access/bancard/single-buy`.
 
-Scope del runtime:
+Scope del endpoint:
 
 - endpoint especifico Bancard;
 - internamente usa `provider = 'bancard'`;
 - internamente usa `provider_operation = 'single_buy'`;
+- valida body con schema estricto;
+- aplica quantity limits;
+- usa `access_checkout_idempotency_keys`;
+- calcula `request_hash` SHA-256 sobre payload normalizado;
 - llama RPC `public.create_access_paid_checkout`;
-- genera `shop_process_id`;
+- llama RPC `public.next_bancard_shop_process_id()`;
 - guarda `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- arma payload Bancard `single_buy`;
 - llama Bancard Single Buy;
 - guarda `request_payload` y `response_payload` sanitizados;
 - devuelve datos minimos para iframe.
@@ -898,7 +906,7 @@ Flujo runtime:
 13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
 14. Devolver datos minimos para iframe.
 
-Payload Bancard:
+Payload Bancard implementado:
 
 - enviar `public_key`;
 - enviar `operation.token`;
@@ -907,8 +915,7 @@ Payload Bancard:
 - enviar `operation.currency`;
 - enviar `operation.description`;
 - enviar `operation.return_url`;
-- enviar `operation.cancel_url`;
-- enviar `operation.extra_response_attributes` con `payment_card_type` si se mantiene.
+- enviar `operation.cancel_url`.
 
 No enviar:
 
@@ -916,12 +923,12 @@ No enviar:
 - token al frontend;
 - datos de tarjeta;
 - datos sensibles;
-- metadata interna en `additional_data`;
+- `additional_data`;
+- `extra_response_attributes`;
 - `confirmation_url` dentro del payload `single_buy`.
 
-Env/config conceptual:
+Env/config implementado:
 
-- revisar nombres existentes antes de CODE;
 - `BANCARD_PUBLIC_KEY`;
 - `BANCARD_PRIVATE_KEY`;
 - `BANCARD_ENVIRONMENT`;
@@ -937,6 +944,20 @@ Transiciones de `payment_attempts`:
 - `created -> technical_error` si falla antes de enviar request o hay error local/config;
 - `created -> manual_review` si hay timeout o ambiguedad despues de enviar request;
 - `rejected` solo si Bancard confirma rechazo definitivo de operacion inicial.
+
+Validacion estatica del endpoint:
+
+- `git diff --check`: PASS;
+- `pnpm -C functions/api typecheck`: PASS;
+- lint no aplicable por falta de config ESLint en `functions/api`;
+- revision estatica: PASS;
+- High original de idempotency resuelto: no se devuelve iframe si `succeeded` no queda cerrado;
+- falla pre-Bancard de `assignShopProcessId` resuelta con respuesta conservadora;
+- no token/private key en logs, payloads persistidos ni response publica;
+- no `order_id` ni `payment_attempt_id` en response publica;
+- no `confirmation_url`, `additional_data` ni `extra_response_attributes`;
+- no reutiliza `/payments/callback` legacy;
+- no usa `payment_events` en el flujo Access Core.
 
 Stock ante falla:
 
@@ -969,8 +990,8 @@ Riesgos especificos:
 
 Orden de implementacion recomendado:
 
-1. CODE backend endpoint `POST /payments/access/bancard/single-buy`.
-2. Callback especifico `POST /payments/bancard/confirm`.
+1. ASK / PLAN MODE ONLY - Bancard confirm callback sobre Access Core.
+2. CODE callback especifico `POST /payments/bancard/confirm`.
 3. Emision idempotente de entries/QR/email.
 4. Query/reconciliacion.
 5. Rollback operativo.
@@ -983,8 +1004,8 @@ Notas:
 - Slice 2 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 3 fue aplicado como estructura base en Supabase, pero todavia no tiene API/RPC que lo consuma.
 - Slice 4 fue aplicado como estructura base en Supabase, pero todavia no tiene runtime Bancard ni API/RPC que lo consuma.
-- Slice 5 fue aplicado como estructura base en Supabase, pero todavia no tiene endpoint/backend publico, runtime Bancard ni callback que lo consuma.
-- Slice 6 fue aplicado como estructura base en Supabase, pero todavia no tiene endpoint/backend publico ni llamada HTTP a Bancard que lo consuma.
+- Slice 5 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que lo consume.
+- Slice 6 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que consume idempotency y `next_bancard_shop_process_id()`.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -994,23 +1015,15 @@ Riesgos:
 - Todavia no existe API que consuma `access_ticket_types`.
 - Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
-- Todavia no existe API que consuma `payment_attempts`.
-- Todavia no existe endpoint backend que invoque `create_access_paid_checkout`.
-- Todavia no existe endpoint backend que use `access_checkout_idempotency_keys`.
-- Todavia no existe limite maximo de `quantity` en backend.
+- El endpoint backend init checkout ya consume `payment_attempts` para iniciar Bancard, pero no confirma pagos.
+- El endpoint backend init checkout ya invoca `create_access_paid_checkout`, usa `access_checkout_idempotency_keys` y aplica limites maximos de `quantity`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
-- Endpoint backend que invoque `create_access_paid_checkout`.
-- Uso backend de idempotency key publica.
-- Limite maximo de `quantity`.
-- Bancard Single Buy runtime.
-- Generacion de `shop_process_id` via `next_bancard_shop_process_id()`.
-- Persistencia de `provider_attempt_ref`.
-- Iframe/redirect.
+- Staging Bancard con credenciales reales.
 - Callback server-to-server.
 - Query/reconciliacion.
 - Emision idempotente de `access_entries`.
@@ -1021,18 +1034,15 @@ Pendientes principales:
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY para el endpoint backend Bancard Single Buy.
+ASK / PLAN MODE ONLY - BANCARD CONFIRM CALLBACK SOBRE ACCESS CORE.
 
 Ese proximo paso debe disenar:
 
-- endpoint `POST /payments/access/bancard/single-buy`;
-- validacion de idempotency usando `access_checkout_idempotency_keys`;
-- validacion de quantity limits;
-- llamada a `public.create_access_paid_checkout`;
-- generacion de `shop_process_id` con `public.next_bancard_shop_process_id()`;
-- persistencia de `payment_attempts.provider_attempt_ref`;
-- llamada Bancard Single Buy;
-- persistencia de payloads sanitizados;
+- endpoint `POST /payments/bancard/confirm`;
+- validacion server-to-server de Bancard;
+- busqueda por `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- validacion de monto, moneda, status y token/hash;
+- transiciones a aprobado/manual review segun consistencia;
+- no reutilizar `/payments/callback` legacy;
 - sin frontend;
-- sin callback;
-- sin entries/QR/email.
+- sin entries/QR/email en el primer plan de callback, salvo decision explicita posterior.

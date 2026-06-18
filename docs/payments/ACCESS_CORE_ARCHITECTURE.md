@@ -763,11 +763,11 @@ Observaciones futuras antes de exponer checkout publico:
 - Bancard runtime debe generar `shop_process_id` y persistirlo luego en `provider_attempt_ref`;
 - callback server-to-server, query/reconciliacion, emision de entries, QR, email y rollback operativo quedan fuera de Slice 5.
 
-### 19.1 Bancard Single Buy runtime futuro
+### 19.1 Bancard Single Buy endpoint backend
 
-El runtime Bancard queda design locked como consumidor del core `access_*`.
+El runtime Bancard init checkout existe como PASS estatico y consume el core `access_*`.
 
-Endpoint futuro:
+Endpoint implementado:
 
 - `POST /payments/access/bancard/single-buy`.
 
@@ -776,12 +776,29 @@ Contrato del endpoint:
 - endpoint especifico Bancard, no provider generico publico;
 - internamente usa `provider = 'bancard'`;
 - internamente usa `provider_operation = 'single_buy'`;
+- valida body con schema estricto;
+- aplica quantity limits;
+- usa `access_checkout_idempotency_keys`;
+- calcula `request_hash` SHA-256 sobre payload normalizado;
 - llama RPC `public.create_access_paid_checkout`;
-- genera `shop_process_id`;
+- llama RPC `public.next_bancard_shop_process_id()`;
 - guarda `shop_process_id` en `payment_attempts.provider_attempt_ref`;
+- arma payload Bancard `single_buy`;
 - llama Bancard Single Buy;
 - guarda `request_payload` y `response_payload` sanitizados;
 - devuelve datos minimos para iframe.
+
+Limites del endpoint:
+
+- no confirma pagos;
+- no emite `access_entries`;
+- no emite QR;
+- no envia email;
+- solo inicia `single_buy`;
+- solo deja `payment_attempts.status = 'provider_ready'` cuando Bancard responde `status = success` y `process_id`;
+- la aprobacion queda para callback futuro;
+- `return_url` es solo UX y no confirma pago;
+- la fuente futura de confirmacion sera `POST /payments/bancard/confirm`.
 
 SQL support aplicado en Slice 6:
 
@@ -871,7 +888,7 @@ Flujo runtime:
 13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
 14. Devolver datos minimos para iframe.
 
-Payload Bancard:
+Payload Bancard implementado:
 
 - enviar `public_key`;
 - enviar `operation.token`;
@@ -880,8 +897,7 @@ Payload Bancard:
 - enviar `operation.currency`;
 - enviar `operation.description`;
 - enviar `operation.return_url`;
-- enviar `operation.cancel_url`;
-- enviar `operation.extra_response_attributes` con `payment_card_type` si se mantiene.
+- enviar `operation.cancel_url`.
 
 No enviar:
 
@@ -889,12 +905,12 @@ No enviar:
 - token al frontend;
 - datos de tarjeta;
 - datos sensibles;
-- metadata interna en `additional_data`;
+- `additional_data`;
+- `extra_response_attributes`;
 - `confirmation_url` dentro del payload `single_buy`.
 
-Env/config conceptual:
+Env/config implementado:
 
-- revisar nombres existentes antes de CODE;
 - `BANCARD_PUBLIC_KEY`;
 - `BANCARD_PRIVATE_KEY`;
 - `BANCARD_ENVIRONMENT`;
@@ -910,6 +926,18 @@ Transiciones de `payment_attempts`:
 - `created -> technical_error` si falla antes de enviar request o hay error local/config;
 - `created -> manual_review` si hay timeout o ambiguedad despues de enviar request;
 - `rejected` solo si Bancard confirma rechazo definitivo de operacion inicial.
+
+Validacion estatica:
+
+- `git diff --check`: PASS;
+- `pnpm -C functions/api typecheck`: PASS;
+- lint no aplicable por falta de config ESLint en `functions/api`;
+- revision estatica: PASS;
+- idempotency terminal no es best-effort;
+- falla pre-Bancard de `assignShopProcessId` responde de forma conservadora;
+- no se persiste token/private key;
+- no se devuelve token/private key;
+- no se devuelve `order_id` ni `payment_attempt_id`.
 
 Stock ante falla:
 
@@ -932,17 +960,19 @@ Fuera de alcance del runtime inicial:
 - adapters legacy;
 - seeds.
 
-Output conceptual:
+Output publico del endpoint:
 
-- `order_id`;
 - `public_ref`;
-- `payment_attempt_id`;
+- `expires_at`;
 - `amount_gs`;
 - `currency`;
 - `provider_amount_text`;
-- `expires_at`;
-- resumen de items;
-- resumen de reservations.
+- `provider = 'bancard'`;
+- `provider_operation = 'single_buy'`;
+- `shop_process_id`;
+- `process_id`;
+- `iframe.public_key`;
+- `iframe.process_id`.
 
 Errores conceptuales:
 
