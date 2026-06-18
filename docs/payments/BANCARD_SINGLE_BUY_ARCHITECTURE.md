@@ -499,8 +499,11 @@ Reglas:
 Estado sobre Access Core:
 
 - diseno locked;
+- SQL support Slice 6 PASS estructural;
+- tabla `access_checkout_idempotency_keys` implementada;
+- sequence `bancard_shop_process_id_seq` implementada;
+- funcion `public.next_bancard_shop_process_id()` implementada;
 - endpoint futuro `POST /payments/access/bancard/single-buy`;
-- SQL support previo requerido antes del endpoint;
 - backend/runtime todavia no implementado;
 - callback queda en slice separado.
 
@@ -529,15 +532,16 @@ Fuera de alcance del runtime inicial:
 - adapters legacy;
 - seeds.
 
-Antes del endpoint debe existir SQL support:
+SQL support disponible antes del endpoint:
 
-- tabla conceptual `access_checkout_idempotency_keys`;
+- tabla `access_checkout_idempotency_keys`;
 - sequence `bancard_shop_process_id_seq`;
+- funcion `public.next_bancard_shop_process_id()`;
 - RLS enabled;
 - grants/revokes cerrados;
 - sin policies publicas.
 
-`access_checkout_idempotency_keys` debe guardar conceptualmente:
+`access_checkout_idempotency_keys` guarda idempotency publica de checkout Access Core:
 
 - `id`;
 - `provider`;
@@ -549,14 +553,26 @@ Antes del endpoint debe existir SQL support:
 - `payment_attempt_id`;
 - `response_payload`;
 - `error_payload`;
+- `last_error`;
 - `locked_until`;
 - `expires_at`;
+- `completed_at`;
+- `failed_at`;
 - `created_at`;
 - `updated_at`.
 
-Unique requerido:
+Reglas estructurales:
 
-- `(provider, provider_operation, idempotency_key)`.
+- unicidad logica `(provider, provider_operation, idempotency_key)`;
+- `request_hash` debe ser SHA-256 lowercase hex;
+- `provider` y `provider_operation` deben estar lowercase y sin espacios externos;
+- `idempotency_key` debe estar trimmed;
+- estados: `processing`, `succeeded`, `failed`, `manual_review`, `expired`;
+- `processing` requiere `locked_until`;
+- `order_id` y `payment_attempt_id` deben ser ambos null o ambos non-null;
+- la FK compuesta valida que `payment_attempt_id` pertenezca al mismo `order_id`;
+- `response_payload` y `error_payload` deben guardarse sanitizados;
+- no se guardan secrets, token Bancard, datos de tarjeta ni headers completos.
 
 Reglas de idempotency:
 
@@ -576,12 +592,22 @@ Quantity limits:
 `shop_process_id`:
 
 - se guarda en `payment_attempts.provider_attempt_ref`;
-- se genera desde sequence `bancard_shop_process_id_seq`;
+- se genera con `public.next_bancard_shop_process_id()`;
+- la funcion usa sequence global simple `bancard_shop_process_id_seq`;
+- la sequence usa rango `1..999999999`, `no cycle`, `cache 1`;
 - formato inicial: `YYMMDD` + sequence left-padded a 9 digitos;
 - ejemplo: `260616000000001`;
+- la funcion devuelve texto numerico de 15 digitos;
+- el execute queda solo para `service_role`;
 - debe ser numerico y compatible con Bancard;
 - antes de produccion se debe confirmar en staging longitud/tipo exacto aceptado;
 - ante colision, reintentar apoyandose en el unique parcial existente de `payment_attempts(provider, provider_operation, provider_attempt_ref)`.
+
+Nota de alcance:
+
+- Slice 6 es PASS estructural.
+- Slice 6 no representa integracion funcional con Bancard todavia.
+- Todavia falta endpoint backend, quantity validation, uso runtime de idempotency, llamada RPC, generacion de `shop_process_id` desde la funcion, actualizacion de `payment_attempts.provider_attempt_ref`, llamada Single Buy, payloads sanitizados, callback y emision de entries/QR/email.
 
 Endpoint Bancard:
 
@@ -1033,7 +1059,7 @@ Decisiones ya fijadas por este documento:
 - solo admin Tairet ve detalle tecnico Bancard.
 - runtime inicial usa `POST /payments/access/bancard/single-buy`;
 - runtime inicial consume Access Core con `provider = 'bancard'` y `provider_operation = 'single_buy'`;
-- antes del endpoint se requiere SQL support para `access_checkout_idempotency_keys` y `bancard_shop_process_id_seq`;
+- SQL support Slice 6 ya implemento `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `public.next_bancard_shop_process_id()`;
 - `shop_process_id` se guarda en `payment_attempts.provider_attempt_ref`;
 - formato inicial de `shop_process_id`: `YYMMDD` + sequence left-padded a 9 digitos;
 - quantity limits iniciales: `10` por item, `20` unidades totales, `10` ticket types distintos.
@@ -1062,7 +1088,7 @@ Orden recomendado de slices:
 3. Modelo de base para ordenes vendibles, items, entries e intentos de pago.
 4. Reserva temporal de stock por origen, fecha de acceso y tipo de entrada.
 5. RPC `public.create_access_paid_checkout`.
-6. SQL support para `access_checkout_idempotency_keys` y `bancard_shop_process_id_seq`.
+6. SQL support para `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `next_bancard_shop_process_id()` aplicado en Slice 6.
 7. Endpoint backend `POST /payments/access/bancard/single-buy`.
 8. Callback especifico `POST /payments/bancard/confirm`.
 9. Emision idempotente de entries/QR/email.
