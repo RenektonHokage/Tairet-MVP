@@ -1,8 +1,36 @@
 import { Router } from "express";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
+import {
+  accessBancardSingleBuyErrorCode,
+  accessBancardSingleBuySchema,
+} from "../schemas/accessBancardSingleBuy";
+import { createAccessBancardSingleBuy } from "../services/bancardSingleBuy";
 
 export const paymentsRouter = Router();
+
+// POST /payments/access/bancard/single-buy
+// Inicia un checkout Bancard Single Buy sobre Access Core.
+paymentsRouter.post("/access/bancard/single-buy", async (req, res, next) => {
+  try {
+    const parsedBody = accessBancardSingleBuySchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      const code = accessBancardSingleBuyErrorCode(parsedBody.error);
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code,
+          message: code === "quantity_limit_exceeded" ? "Quantity limit exceeded" : "Invalid request",
+        },
+      });
+    }
+
+    const result = await createAccessBancardSingleBuy(parsedBody.data);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /payments/callback
 // Endpoint idempotente para recibir callbacks de Bancard/Dinelco
