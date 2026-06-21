@@ -5,7 +5,9 @@ import {
   accessBancardSingleBuyErrorCode,
   accessBancardSingleBuySchema,
 } from "../schemas/accessBancardSingleBuy";
+import { bancardConfirmSchema } from "../schemas/bancardConfirm";
 import { createAccessBancardSingleBuy } from "../services/bancardSingleBuy";
+import { confirmBancardAccessPayment } from "../services/bancardConfirm";
 
 export const paymentsRouter = Router();
 
@@ -26,6 +28,22 @@ paymentsRouter.post("/access/bancard/single-buy", async (req, res, next) => {
     }
 
     const result = await createAccessBancardSingleBuy(parsedBody.data);
+    return res.status(result.status).json(result.body);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /payments/bancard/confirm
+// Recibe confirmaciones server-to-server de Bancard para Access Core.
+paymentsRouter.post("/bancard/confirm", async (req, res, next) => {
+  try {
+    const parsedBody = bancardConfirmSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({ status: "error" });
+    }
+
+    const result = await confirmBancardAccessPayment(parsedBody.data);
     return res.status(result.status).json(result.body);
   } catch (error) {
     next(error);
