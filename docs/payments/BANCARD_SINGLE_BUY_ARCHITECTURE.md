@@ -506,7 +506,7 @@ Estado sobre Access Core:
 - endpoint backend init checkout `POST /payments/access/bancard/single-buy` implementado;
 - backend endpoint init checkout: PASS estatico;
 - confirm RPC Slice 8 `public.confirm_bancard_access_payment(...)`: PASS aplicado;
-- backend confirm endpoint `POST /payments/bancard/confirm`: pendiente;
+- backend confirm callback `POST /payments/bancard/confirm`: PASS estatico;
 - staging Bancard end-to-end: pendiente;
 - query/reconciliacion: pendiente;
 - entries/QR/email: pendiente;
@@ -618,8 +618,9 @@ Nota de alcance:
 - Slice 6 es PASS estructural.
 - El endpoint backend init checkout esta implementado como PASS estatico.
 - La Confirm RPC de Slice 8 esta aplicada como PASS y cierra transaccionalmente callbacks ya validados por backend.
-- El endpoint inicia `single_buy`, pero no confirma pagos.
-- Todavia faltan endpoint backend confirm, staging Bancard end-to-end, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
+- El backend confirm callback `POST /payments/bancard/confirm` esta implementado como PASS estatico.
+- El endpoint init inicia `single_buy`, pero no confirma pagos.
+- Todavia faltan staging Bancard end-to-end, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -750,19 +751,41 @@ Endpoint recomendado en Tairet:
 
 No se recomienda reutilizar `/payments/callback` as-is porque el flujo actual es generico/mock y no expresa el contrato especifico de Bancard, idempotencia, validaciones de monto/moneda ni reglas de emision de entradas.
 
-El handler de confirmacion debe:
+El handler de confirmacion existe como PASS estatico y:
 
 - validar hash/token de Bancard;
-- ubicar el intento por `shop_process_id`;
-- validar proveedor y flujo;
-- validar monto exacto;
-- validar moneda exacta;
-- validar estado/codigo de respuesta;
-- guardar `confirm_payload` sin datos sensibles;
+- validar shape minimo del payload;
+- sanitizar payload;
+- llamar `public.confirm_bancard_access_payment(...)`;
 - responder rapido a Bancard;
-- ser idempotente ante duplicados;
-- no emitir QR si hay mismatch;
-- mover a `manual_review` si hay datos inconsistentes.
+- no emitir `access_entries`;
+- no emitir QR;
+- no enviar email;
+- no usar `payment_events`;
+- no reutilizar `/payments/callback` legacy.
+
+Reglas de seguridad del handler:
+
+- token: `md5(private_key + shop_process_id + "confirm" + amount + currency)`;
+- `BANCARD_PRIVATE_KEY` solo backend;
+- no loguea token recibido;
+- no loguea token calculado;
+- no persiste token;
+- no devuelve token;
+- no guarda `security_information` completa;
+- no guarda `billing_response`;
+- no usa IP allowlist en este slice;
+- la seguridad principal es token Bancard.
+
+Response mapping:
+
+- payload invalido: HTTP 400;
+- config faltante: HTTP 500;
+- token invalido: HTTP 401;
+- RPC `approved`, `rejected` o `manual_review`: HTTP 200 `{ "status": "success" }`;
+- RPC `invalid_request`: HTTP 400;
+- RPC `payment_attempt_not_found`: HTTP 409;
+- error Supabase/RPC inesperado: HTTP 500.
 
 Confirmaciones duplicadas de un pago ya aprobado deben devolver respuesta exitosa sin reemitir entradas ni reenviar efectos irreversibles.
 
@@ -1159,15 +1182,16 @@ Orden recomendado de slices:
 6. SQL support para `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `next_bancard_shop_process_id()` aplicado en Slice 6.
 7. Endpoint backend `POST /payments/access/bancard/single-buy` implementado como PASS estatico.
 8. Confirm RPC `public.confirm_bancard_access_payment(...)` aplicada como PASS.
-9. Backend callback especifico `POST /payments/bancard/confirm`.
-10. Emision idempotente de entries/QR/email.
-11. Iframe Bancard en B2C.
-12. Pantalla de estado.
-13. Recuperacion/reenvio interno por admin Tairet.
-14. Reconciliacion/query.
-15. Rollback operativo.
-16. Panel y observabilidad.
-17. Factura electronica futura.
-18. Token payment futuro.
+9. Backend callback especifico `POST /payments/bancard/confirm` implementado como PASS estatico.
+10. Checklist staging Bancard init + confirm.
+11. Emision idempotente de entries/QR/email, solo despues de decision consciente post-staging.
+12. Iframe Bancard en B2C.
+13. Pantalla de estado.
+14. Recuperacion/reenvio interno por admin Tairet.
+15. Reconciliacion/query.
+16. Rollback operativo.
+17. Panel y observabilidad.
+18. Factura electronica futura.
+19. Token payment futuro.
 
 Ningun slice posterior debe debilitar los principios no negociables de este documento.

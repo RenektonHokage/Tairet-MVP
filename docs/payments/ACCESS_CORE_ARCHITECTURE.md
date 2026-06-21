@@ -796,9 +796,9 @@ Limites del endpoint:
 - no envia email;
 - solo inicia `single_buy`;
 - solo deja `payment_attempts.status = 'provider_ready'` cuando Bancard responde `status = success` y `process_id`;
-- la aprobacion queda para callback futuro;
+- la aprobacion queda para `POST /payments/bancard/confirm`;
 - `return_url` es solo UX y no confirma pago;
-- la fuente futura de confirmacion sera `POST /payments/bancard/confirm`.
+- la fuente de confirmacion server-to-server es `POST /payments/bancard/confirm`.
 
 ### 19.2 Bancard Confirm RPC transaccional
 
@@ -827,13 +827,60 @@ Responsabilidades de la RPC:
 
 La RPC no conoce `BANCARD_PRIVATE_KEY`, no calcula token, no valida firma Bancard y no emite `access_entries`, QR ni email.
 
-El backend futuro `POST /payments/bancard/confirm` debe:
+El backend `POST /payments/bancard/confirm` esta implementado como PASS estatico y debe:
 
 - validar token/hash con `BANCARD_PRIVATE_KEY`;
 - validar y sanitizar payload Bancard;
 - remover secretos, token, headers completos y datos sensibles;
 - llamar `public.confirm_bancard_access_payment(...)`;
 - responder a Bancard segun el resultado de la RPC.
+
+### 19.3 Backend Bancard Confirm callback
+
+Endpoint implementado:
+
+- `POST /payments/bancard/confirm`.
+
+Responsabilidad:
+
+- recibir callback Bancard;
+- validar shape minimo del payload;
+- validar token Bancard;
+- sanitizar payload;
+- llamar `public.confirm_bancard_access_payment(...)`;
+- responder rapido a Bancard.
+
+Reglas de seguridad:
+
+- token: `md5(private_key + shop_process_id + "confirm" + amount + currency)`;
+- `BANCARD_PRIVATE_KEY` solo vive en backend;
+- no loguea token recibido;
+- no loguea token calculado;
+- no persiste token;
+- no devuelve token;
+- no guarda `security_information` completa;
+- no guarda `billing_response`;
+- no usa IP allowlist en este slice;
+- la seguridad principal es token Bancard.
+
+Response mapping:
+
+- payload invalido: HTTP 400;
+- config faltante: HTTP 500;
+- token invalido: HTTP 401;
+- RPC `approved`, `rejected` o `manual_review`: HTTP 200 `{ "status": "success" }`;
+- RPC `invalid_request`: HTTP 400;
+- RPC `payment_attempt_not_found`: HTTP 409;
+- error Supabase/RPC inesperado: HTTP 500.
+
+Limites:
+
+- no emite `access_entries`;
+- no genera QR;
+- no envia email;
+- no ejecuta query/reconciliacion;
+- no toca `/payments/callback` legacy;
+- no usa `payment_events`.
 
 SQL support aplicado en Slice 6:
 

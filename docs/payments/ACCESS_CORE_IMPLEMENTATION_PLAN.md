@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard esta implementado por slices parciales: init checkout y Confirm RPC existen, pero falta callback backend, staging end-to-end, entries/QR/email y frontend.
+- Bancard esta implementado por slices parciales: init checkout, Confirm RPC y callback backend existen, pero falta staging end-to-end, entries/QR/email y frontend.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -24,9 +24,9 @@ Reglas de direccion:
 | 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
 | 5 | RPC `create_access_paid_checkout` | PASS | `infra/sql/migrations/037_access_core_slice_5.sql` | Si | No tocado |
 | 6 | SQL support Bancard runtime: `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq`, `next_bancard_shop_process_id()` | PASS | `infra/sql/migrations/038_access_core_slice_6.sql` | Si | No tocado |
-| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; frontend/callback pendiente |
+| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; frontend/staging pendiente |
 | 8 | Bancard confirm RPC transaccional | PASS aplicado | `infra/sql/migrations/039_access_core_slice_8.sql` | Si | No backend/frontend |
-| 9 | Backend callback Bancard `POST /payments/bancard/confirm` | pending design | Pendiente | No | No tocado |
+| 9 | Backend callback Bancard `POST /payments/bancard/confirm` | PASS estatico | No aplica | No | Backend implementado; staging pendiente |
 | 10 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
 | 11 | Pantalla de estado | pending | Pendiente | No | No tocado |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
@@ -789,7 +789,7 @@ Estado documental:
 - endpoint backend implementado;
 - SQL nuevo: No;
 - frontend no tocado;
-- callback pendiente;
+- callback backend implementado como PASS estatico;
 - entries/QR/email pendiente;
 - staging Bancard pendiente.
 
@@ -997,9 +997,8 @@ Estado:
 - PASS aplicado;
 - migration `infra/sql/migrations/039_access_core_slice_8.sql`;
 - funcion `public.confirm_bancard_access_payment(...)`;
-- no backend;
+- backend callback implementado como PASS estatico;
 - no frontend;
-- no callback endpoint todavia;
 - no entries/QR/email;
 - no `payment_events`.
 
@@ -1049,9 +1048,98 @@ Post-checks aplicados en Supabase:
 - smoke test `shop_process_id` inexistente: `payment_attempt_not_found`;
 - routine privileges: solo `postgres` y `service_role` con EXECUTE.
 
-La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. El backend futuro debe validar token con `BANCARD_PRIVATE_KEY`, sanitizar payload y llamar esta RPC.
+La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. El backend `POST /payments/bancard/confirm` valida token con `BANCARD_PRIVATE_KEY`, sanitiza payload y llama esta RPC.
 
-## 23. Riesgos y notas
+## 23. Backend Bancard Confirm callback - PASS estatico
+
+Estado:
+
+- PASS estatico;
+- endpoint `POST /payments/bancard/confirm`;
+- SQL nuevo: No;
+- frontend no tocado;
+- entries/QR/email pendiente;
+- staging Bancard end-to-end pendiente;
+- no `payment_events`;
+- sin cambios funcionales en `/payments/callback` legacy.
+
+Responsabilidad:
+
+- recibir callback Bancard;
+- validar payload minimo;
+- validar token con `BANCARD_PRIVATE_KEY`;
+- sanitizar payload;
+- llamar RPC `public.confirm_bancard_access_payment(...)`;
+- responder a Bancard.
+
+Archivos implementados:
+
+- `functions/api/src/routes/payments.ts`;
+- `functions/api/src/schemas/bancardConfirm.ts`;
+- `functions/api/src/services/bancardConfirm.ts`.
+
+Fuera de alcance:
+
+- emision de `access_entries`;
+- QR;
+- email;
+- frontend;
+- query/reconciliacion;
+- staging end-to-end;
+- refunds;
+- panel manual review.
+
+Reglas de seguridad:
+
+- token Bancard: `md5(private_key + shop_process_id + "confirm" + amount + currency)`;
+- no loguear token recibido;
+- no loguear token calculado;
+- no persistir token;
+- no devolver token;
+- no guardar `security_information` completa;
+- no guardar `billing_response`;
+- no usar IP allowlist en este slice;
+- la seguridad principal es token Bancard.
+
+Payload persistido:
+
+- `shop_process_id`;
+- `amount`;
+- `currency`;
+- `response_code`;
+- `response`;
+- `response_details`;
+- `extended_response_description`;
+- `iva_amount`;
+- `authorization_number`;
+- `ticket_number`;
+- `response_description`;
+- `received_at`.
+
+Response mapping:
+
+- payload invalido: HTTP 400 `{ "status": "error" }`;
+- config faltante: HTTP 500 `{ "status": "error" }`;
+- token invalido: HTTP 401 `{ "status": "error" }`;
+- RPC `approved`, `rejected` o `manual_review`: HTTP 200 `{ "status": "success" }`;
+- RPC `invalid_request`: HTTP 400 `{ "status": "error" }`;
+- RPC `payment_attempt_not_found`: HTTP 409 `{ "status": "error" }`;
+- error Supabase/RPC inesperado: HTTP 500 `{ "status": "error" }`.
+
+Validacion estatica antes del commit:
+
+- `git diff --check`: PASS;
+- `pnpm -C functions/api typecheck`: PASS;
+- lint no aplicable por falta de config ESLint en `functions/api`;
+- review estatica: PASS;
+- no SQL/migraciones;
+- no frontend;
+- no dependencies;
+- no entries/QR/email;
+- no `payment_events`;
+- no cambios funcionales en `/payments/callback` legacy.
+
+## 24. Riesgos y notas
 
 Notas:
 
@@ -1062,6 +1150,7 @@ Notas:
 - Slice 5 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que lo consume.
 - Slice 6 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que consume idempotency y `next_bancard_shop_process_id()`.
 - Slice 8 fue aplicado en Supabase y cierra callbacks Bancard validados por backend mediante RPC transaccional.
+- El endpoint backend `POST /payments/bancard/confirm` ya existe como PASS estatico y llama la RPC despues de validar token.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -1073,33 +1162,33 @@ Riesgos:
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
 - El endpoint backend init checkout ya consume `payment_attempts` para iniciar Bancard, pero no confirma pagos.
 - El endpoint backend init checkout ya invoca `create_access_paid_checkout`, usa `access_checkout_idempotency_keys` y aplica limites maximos de `quantity`.
-- La RPC `confirm_bancard_access_payment(...)` ya existe, pero todavia no hay endpoint backend publico que reciba callbacks Bancard y la invoque.
+- El endpoint backend confirm ya recibe callbacks Bancard, valida token, sanitiza payload e invoca `confirm_bancard_access_payment(...)`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
+- Checklist staging Bancard.
 - Staging Bancard con credenciales reales.
-- Backend callback server-to-server `POST /payments/bancard/confirm`.
+- Prueba init + confirm con payload staging.
 - Query/reconciliacion.
 - Emision idempotente de `access_entries`.
 - QR/email.
 - Rollback operativo/manual review.
 
-## 24. Siguiente paso recomendado
+## 25. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - BACKEND BANCARD CONFIRM ENDPOINT SOBRE ACCESS CORE.
+ASK / PLAN MODE ONLY - CHECKLIST STAGING BANCARD ACCESS CORE.
 
 Ese proximo paso debe disenar:
 
-- endpoint `POST /payments/bancard/confirm`;
-- validacion server-to-server de Bancard;
-- busqueda por `shop_process_id` en `payment_attempts.provider_attempt_ref`;
-- validacion de monto, moneda, status y token/hash;
-- llamada a RPC `public.confirm_bancard_access_payment(...)`;
-- no reutilizar `/payments/callback` legacy;
-- sin frontend;
-- sin entries/QR/email.
+- checklist staging Bancard para init + confirm;
+- prueba de `POST /payments/access/bancard/single-buy`;
+- prueba de callback `POST /payments/bancard/confirm` con payload staging;
+- verificacion de estados `payment_attempts`, `access_orders` y `access_stock_reservations`;
+- decision posterior y consciente sobre emision idempotente de `access_entries`, QR y email.
+
+No ir directo a QR/email salvo decision explicita posterior a staging.
