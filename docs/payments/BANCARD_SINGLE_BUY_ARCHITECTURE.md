@@ -505,7 +505,12 @@ Estado sobre Access Core:
 - funcion `public.next_bancard_shop_process_id()` implementada;
 - endpoint backend init checkout `POST /payments/access/bancard/single-buy` implementado;
 - backend endpoint init checkout: PASS estatico;
-- callback queda en slice separado.
+- confirm RPC Slice 8 `public.confirm_bancard_access_payment(...)`: PASS aplicado;
+- backend confirm endpoint `POST /payments/bancard/confirm`: pendiente;
+- staging Bancard end-to-end: pendiente;
+- query/reconciliacion: pendiente;
+- entries/QR/email: pendiente;
+- frontend iframe/status: pendiente.
 
 El endpoint implementado:
 
@@ -525,7 +530,7 @@ El endpoint implementado:
 
 Fuera de alcance del runtime inicial:
 
-- callback;
+- backend confirm endpoint;
 - query/reconciliacion;
 - emision de `access_entries`;
 - QR;
@@ -612,8 +617,9 @@ Nota de alcance:
 
 - Slice 6 es PASS estructural.
 - El endpoint backend init checkout esta implementado como PASS estatico.
+- La Confirm RPC de Slice 8 esta aplicada como PASS y cierra transaccionalmente callbacks ya validados por backend.
 - El endpoint inicia `single_buy`, pero no confirma pagos.
-- Todavia faltan staging Bancard, callback, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
+- Todavia faltan endpoint backend confirm, staging Bancard end-to-end, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -759,6 +765,41 @@ El handler de confirmacion debe:
 - mover a `manual_review` si hay datos inconsistentes.
 
 Confirmaciones duplicadas de un pago ya aprobado deben devolver respuesta exitosa sin reemitir entradas ni reenviar efectos irreversibles.
+
+SQL transaccional disponible:
+
+- Slice 8 esta aplicado como PASS;
+- migration `infra/sql/migrations/039_access_core_slice_8.sql`;
+- RPC `public.confirm_bancard_access_payment(...)`;
+- `security_definer = true`;
+- `search_path = public, pg_temp`;
+- execute solo para `service_role`.
+
+Responsabilidad de la RPC:
+
+- recibir datos ya autenticados y sanitizados por backend;
+- buscar `payment_attempts` por `provider = 'bancard'`, `provider_operation = 'single_buy'` y `provider_attempt_ref = shop_process_id`;
+- validar amount/currency contra `provider_amount_text`, `amount_gs` y `currency`;
+- cerrar `approved` con `response_code = '00'`;
+- cerrar `rejected` con `response_code <> '00'`;
+- mover inconsistencias a `manual_review`;
+- actualizar `payment_attempts`, `access_orders` y `access_stock_reservations`;
+- consumir stock solo si esta en `manual_hold` o `reserved` vigente;
+- enviar `reserved` vencido a `manual_review`;
+- no consumir ni liberar stock ya `consumed`;
+- responder idempotente solo cuando order y stock terminales estan consistentes.
+
+La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email.
+
+Post-checks aplicados:
+
+- function exists;
+- `security_definer = true`;
+- `search_path = public, pg_temp`;
+- `service_role` tiene EXECUTE;
+- `anon` y `authenticated` no tienen EXECUTE;
+- smoke test `shop_process_id` vacio: `invalid_request`;
+- smoke test `shop_process_id` inexistente: `payment_attempt_not_found`.
 
 Tairet solo considera pago aprobado si se cumplen todas estas condiciones:
 
@@ -1117,8 +1158,8 @@ Orden recomendado de slices:
 5. RPC `public.create_access_paid_checkout`.
 6. SQL support para `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq` y `next_bancard_shop_process_id()` aplicado en Slice 6.
 7. Endpoint backend `POST /payments/access/bancard/single-buy` implementado como PASS estatico.
-8. ASK / PLAN MODE ONLY - Bancard confirm callback sobre Access Core.
-9. Callback especifico `POST /payments/bancard/confirm`.
+8. Confirm RPC `public.confirm_bancard_access_payment(...)` aplicada como PASS.
+9. Backend callback especifico `POST /payments/bancard/confirm`.
 10. Emision idempotente de entries/QR/email.
 11. Iframe Bancard en B2C.
 12. Pantalla de estado.

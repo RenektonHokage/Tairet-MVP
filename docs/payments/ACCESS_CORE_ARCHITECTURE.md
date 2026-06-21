@@ -800,6 +800,41 @@ Limites del endpoint:
 - `return_url` es solo UX y no confirma pago;
 - la fuente futura de confirmacion sera `POST /payments/bancard/confirm`.
 
+### 19.2 Bancard Confirm RPC transaccional
+
+Slice 8 esta aplicado como PASS y agrega la RPC SQL:
+
+- `public.confirm_bancard_access_payment(...)`.
+
+La RPC existe para cerrar de forma atomica un callback Bancard ya validado por backend. Actualiza en una transaccion logica:
+
+- `payment_attempts`;
+- `access_orders`;
+- `access_stock_reservations`.
+
+Responsabilidades de la RPC:
+
+- buscar el intento por `provider = 'bancard'`, `provider_operation = 'single_buy'` y `provider_attempt_ref = shop_process_id`;
+- validar monto contra `provider_amount_text` y `amount_gs`;
+- validar moneda contra `currency`;
+- cerrar approved si `response_code = '00'`;
+- cerrar rejected si `response_code <> '00'`;
+- mover inconsistencias a `manual_review`;
+- consumir stock solo si esta en `manual_hold` o `reserved` vigente;
+- enviar `reserved` vencido a `manual_review`;
+- no consumir ni liberar stock ya `consumed`;
+- responder idempotente en callbacks terminales solo si order y stock estan consistentes.
+
+La RPC no conoce `BANCARD_PRIVATE_KEY`, no calcula token, no valida firma Bancard y no emite `access_entries`, QR ni email.
+
+El backend futuro `POST /payments/bancard/confirm` debe:
+
+- validar token/hash con `BANCARD_PRIVATE_KEY`;
+- validar y sanitizar payload Bancard;
+- remover secretos, token, headers completos y datos sensibles;
+- llamar `public.confirm_bancard_access_payment(...)`;
+- responder a Bancard segun el resultado de la RPC.
+
 SQL support aplicado en Slice 6:
 
 - tabla `access_checkout_idempotency_keys`;
@@ -1095,13 +1130,16 @@ Flujo conceptual:
 3. Backend llama a Single Buy.
 4. Frontend abre iframe con datos publicos minimos.
 5. Bancard confirma server-to-server.
-6. Backend valida hash, monto, moneda, `provider_attempt_ref`/`shop_process_id` y `provider_response_code`.
-7. Backend marca intento `approved`.
-8. Backend marca orden `paid`.
-9. Backend emite entries de forma idempotente.
-10. Email se dispara aparte.
-11. Query/reconciliacion opera sobre `payment_attempts`.
-12. Rollback operativo registra payload y activity.
+6. Backend valida token/hash con `BANCARD_PRIVATE_KEY`.
+7. Backend sanitiza payload y llama `public.confirm_bancard_access_payment(...)`.
+8. La RPC valida monto, moneda, `provider_attempt_ref`/`shop_process_id` y `provider_response_code`.
+9. La RPC marca intento `approved`, `rejected` o `manual_review`.
+10. La RPC marca orden `paid`, `cancelled` o `manual_review`.
+11. La RPC consume, libera o retiene stock segun consistencia.
+12. Backend posterior emite entries de forma idempotente.
+13. Email se dispara aparte.
+14. Query/reconciliacion opera sobre `payment_attempts`.
+15. Rollback operativo registra payload y activity.
 
 Factura electronica, token payment, promociones Bancard por entidad/BIN y otros flujos quedan futuros.
 
@@ -1259,13 +1297,14 @@ Orden recomendado de slices:
 5. RPC `public.create_access_paid_checkout`.
 6. SQL support Bancard: `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq`, `next_bancard_shop_process_id()`.
 7. Endpoint backend `POST /payments/access/bancard/single-buy`.
-8. Callback Bancard `POST /payments/bancard/confirm`.
-9. RPC de emision idempotente, entries, QR y email.
-10. Pantalla de estado.
-11. Admin/support y manual review.
-12. Reconciliacion/query.
-13. Rollback operativo.
-14. Factura electronica futura.
+8. Bancard Confirm RPC transaccional `public.confirm_bancard_access_payment(...)`.
+9. Backend callback Bancard `POST /payments/bancard/confirm`.
+10. RPC de emision idempotente, entries, QR y email.
+11. Pantalla de estado.
+12. Admin/support y manual review.
+13. Reconciliacion/query.
+14. Rollback operativo.
+15. Factura electronica futura.
 
 Ningun slice posterior debe debilitar la separacion entre orden comercial, intento de pago, entry validable, check-in, email y auditoria.
 

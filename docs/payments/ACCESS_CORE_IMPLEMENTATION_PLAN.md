@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard todavia no esta implementado.
+- Bancard esta implementado por slices parciales: init checkout y Confirm RPC existen, pero falta callback backend, staging end-to-end, entries/QR/email y frontend.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -25,12 +25,13 @@ Reglas de direccion:
 | 5 | RPC `create_access_paid_checkout` | PASS | `infra/sql/migrations/037_access_core_slice_5.sql` | Si | No tocado |
 | 6 | SQL support Bancard runtime: `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq`, `next_bancard_shop_process_id()` | PASS | `infra/sql/migrations/038_access_core_slice_6.sql` | Si | No tocado |
 | 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; frontend/callback pendiente |
-| 8 | Callback Bancard `POST /payments/bancard/confirm` | pending design | Pendiente | No | No tocado |
-| 9 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
-| 10 | Pantalla de estado | pending | Pendiente | No | No tocado |
-| 11 | Admin/support y manual review | pending | Pendiente | No | No tocado |
-| 12 | Reconciliacion/query | pending | Pendiente | No | No tocado |
-| 13 | Rollback operativo | pending | Pendiente | No | No tocado |
+| 8 | Bancard confirm RPC transaccional | PASS aplicado | `infra/sql/migrations/039_access_core_slice_8.sql` | Si | No backend/frontend |
+| 9 | Backend callback Bancard `POST /payments/bancard/confirm` | pending design | Pendiente | No | No tocado |
+| 10 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
+| 11 | Pantalla de estado | pending | Pendiente | No | No tocado |
+| 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
+| 13 | Reconciliacion/query | pending | Pendiente | No | No tocado |
+| 14 | Rollback operativo | pending | Pendiente | No | No tocado |
 
 ## 3. Slice 1 - Resultado
 
@@ -968,7 +969,8 @@ Stock ante falla:
 
 Callback separado:
 
-- siguiente slice posterior: `POST /payments/bancard/confirm`;
+- RPC SQL de cierre transaccional aplicada en Slice 8;
+- endpoint backend posterior: `POST /payments/bancard/confirm`;
 - no reutilizar `/payments/callback` legacy;
 - confirmar por `shop_process_id`;
 - validar monto, moneda, status y token;
@@ -988,15 +990,68 @@ Riesgos especificos:
 - `shop_process_id` colisiona;
 - `return_url` usado como confirmacion.
 
-Orden de implementacion recomendado:
+## 22. Slice 8 - Bancard confirm RPC transaccional - PASS aplicado
 
-1. ASK / PLAN MODE ONLY - Bancard confirm callback sobre Access Core.
-2. CODE callback especifico `POST /payments/bancard/confirm`.
-3. Emision idempotente de entries/QR/email.
-4. Query/reconciliacion.
-5. Rollback operativo.
+Estado:
 
-## 22. Riesgos y notas
+- PASS aplicado;
+- migration `infra/sql/migrations/039_access_core_slice_8.sql`;
+- funcion `public.confirm_bancard_access_payment(...)`;
+- no backend;
+- no frontend;
+- no callback endpoint todavia;
+- no entries/QR/email;
+- no `payment_events`.
+
+Responsabilidad:
+
+- cerrar transaccionalmente callbacks Bancard ya validados por backend;
+- actualizar `payment_attempts`;
+- actualizar `access_orders`;
+- actualizar `access_stock_reservations`;
+- manejar `approved`, `rejected`, `manual_review` e idempotencia terminal;
+- devolver JSON normalizado para el backend futuro.
+
+Fuera de alcance:
+
+- endpoint backend;
+- validacion token/private key;
+- emision de `access_entries`;
+- QR;
+- email;
+- frontend;
+- query/reconciliacion;
+- panel manual review.
+
+Validaciones de la RPC:
+
+- lookup por `provider = 'bancard'`, `provider_operation = 'single_buy'` y `provider_attempt_ref = shop_process_id`;
+- `amount` coincide con `payment_attempts.provider_amount_text`;
+- `amount` coincide con `payment_attempts.amount_gs::text || '.00'`;
+- `currency` coincide con `payment_attempts.currency`;
+- approved solo con `response_code = '00'`;
+- rejected con `response_code <> '00'`;
+- stock consumible solo si esta en `manual_hold` o `reserved` vigente;
+- `reserved` vencido pasa a `manual_review`;
+- no consume stock ya `consumed`;
+- no libera stock ya `consumed`;
+- callbacks duplicados `approved`/`rejected` son idempotentes solo si order y stock estan consistentes.
+
+Post-checks aplicados en Supabase:
+
+- funcion existe;
+- `security_definer = true`;
+- `search_path = public, pg_temp`;
+- `service_role_execute = true`;
+- `anon_execute = false`;
+- `authenticated_execute = false`;
+- smoke test `shop_process_id` vacio: `invalid_request`;
+- smoke test `shop_process_id` inexistente: `payment_attempt_not_found`;
+- routine privileges: solo `postgres` y `service_role` con EXECUTE.
+
+La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. El backend futuro debe validar token con `BANCARD_PRIVATE_KEY`, sanitizar payload y llamar esta RPC.
+
+## 23. Riesgos y notas
 
 Notas:
 
@@ -1006,6 +1061,7 @@ Notas:
 - Slice 4 fue aplicado como estructura base en Supabase, pero todavia no tiene runtime Bancard ni API/RPC que lo consuma.
 - Slice 5 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que lo consume.
 - Slice 6 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que consume idempotency y `next_bancard_shop_process_id()`.
+- Slice 8 fue aplicado en Supabase y cierra callbacks Bancard validados por backend mediante RPC transaccional.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -1017,6 +1073,7 @@ Riesgos:
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
 - El endpoint backend init checkout ya consume `payment_attempts` para iniciar Bancard, pero no confirma pagos.
 - El endpoint backend init checkout ya invoca `create_access_paid_checkout`, usa `access_checkout_idempotency_keys` y aplica limites maximos de `quantity`.
+- La RPC `confirm_bancard_access_payment(...)` ya existe, pero todavia no hay endpoint backend publico que reciba callbacks Bancard y la invoque.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
@@ -1024,17 +1081,17 @@ Riesgos:
 Pendientes principales:
 
 - Staging Bancard con credenciales reales.
-- Callback server-to-server.
+- Backend callback server-to-server `POST /payments/bancard/confirm`.
 - Query/reconciliacion.
 - Emision idempotente de `access_entries`.
 - QR/email.
 - Rollback operativo/manual review.
 
-## 23. Siguiente paso recomendado
+## 24. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - BANCARD CONFIRM CALLBACK SOBRE ACCESS CORE.
+ASK / PLAN MODE ONLY - BACKEND BANCARD CONFIRM ENDPOINT SOBRE ACCESS CORE.
 
 Ese proximo paso debe disenar:
 
@@ -1042,7 +1099,7 @@ Ese proximo paso debe disenar:
 - validacion server-to-server de Bancard;
 - busqueda por `shop_process_id` en `payment_attempts.provider_attempt_ref`;
 - validacion de monto, moneda, status y token/hash;
-- transiciones a aprobado/manual review segun consistencia;
+- llamada a RPC `public.confirm_bancard_access_payment(...)`;
 - no reutilizar `/payments/callback` legacy;
 - sin frontend;
-- sin entries/QR/email en el primer plan de callback, salvo decision explicita posterior.
+- sin entries/QR/email.
