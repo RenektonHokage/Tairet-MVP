@@ -532,8 +532,8 @@ async function getNextShopProcessId(): Promise<string | null> {
 function buildUrls(config: BancardConfig, publicRef: string): { returnUrl: string; cancelUrl: string } {
   const ref = encodeURIComponent(publicRef);
   return {
-    returnUrl: `${config.b2cBaseUrl}/payments/access/status?ref=${ref}`,
-    cancelUrl: `${config.b2cBaseUrl}/payments/access/status?ref=${ref}&cancelled=1`,
+    returnUrl: `${config.b2cBaseUrl}/#/payments/access/status?ref=${ref}`,
+    cancelUrl: `${config.b2cBaseUrl}/#/payments/access/status?ref=${ref}&cancelled=1`,
   };
 }
 
