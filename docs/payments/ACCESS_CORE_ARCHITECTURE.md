@@ -897,6 +897,64 @@ El cierre de pago aprobado por Bancard Access Core fue validado en staging de pu
 
 La aprobacion de pago queda definida por callback server-to-server validado, no por `return_url`. El retorno de usuario sigue siendo UX: debe mostrar estado, reintentos o espera de confirmacion, pero no puede confirmar pagos por si mismo.
 
+### 19.5 Estado publico post-pago - PASS estatico
+
+El retorno visual post-pago quedo resuelto con:
+
+- endpoint publico `GET /payments/access/status?ref=acc_...`;
+- pantalla B2C `/#/payments/access/status?ref=acc_...`;
+- `return_url` HashRouter `${B2C_BASE_URL}/#/payments/access/status?ref=${public_ref}`;
+- `cancel_url` HashRouter `${B2C_BASE_URL}/#/payments/access/status?ref=${public_ref}&cancelled=1`.
+
+Reglas:
+
+- la fuente de verdad del pago sigue siendo el callback server-to-server Bancard;
+- `return_url` y `cancel_url` son UX;
+- el frontend no aprueba pagos;
+- la pantalla publica consulta backend por `public_ref`;
+- si backend devuelve `paid`, la pantalla muestra pago confirmado;
+- si backend devuelve `pending_payment`, la pantalla muestra verificacion y puede hacer polling;
+- si `pending_payment` esta vencido, el endpoint puede devolver `expired` sin mutar DB;
+- no se generan `access_entries`, QR ni email en este bloque.
+
+Respuesta publica:
+
+- no expone `order_id`;
+- no expone `payment_attempt_id`;
+- no expone `local_id`;
+- no expone `event_id`;
+- no expone buyer data;
+- no expone payloads Bancard;
+- no expone token;
+- no expone datos internos.
+
+Validacion local contra Railway:
+
+- API respondio `ok: true`;
+- `order.status = 'paid'`;
+- `venue_name = 'Boliche'`;
+- `amount_gs = 10000`;
+- `currency = 'PYG'`;
+- la pantalla mostro `Pago confirmado.` con lugar `Boliche`, fecha `01 de agosto de 2026` y monto `Gs. 10.000`.
+
+Pendiente:
+
+- validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo y no la landing temporal;
+- nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
+
+### 19.6 Nota operativa CORS/env
+
+El API usa allowlist por `FRONTEND_ORIGIN`.
+
+Reglas operativas:
+
+- el valor debe ser una lista de origins separados por coma;
+- no debe incluir `FRONTEND_ORIGIN=` dentro del valor;
+- origins productivos requeridos: `https://tairet.com.py` y `https://www.tairet.com.py` si aplica;
+- origins locales solo para debug: `http://localhost:5173` y `http://127.0.0.1:5173` si se usa ese host.
+
+El 403 local observado fue de CORS/env, no de Bancard ni del endpoint publico de estado.
+
 SQL support aplicado en Slice 6:
 
 - tabla `access_checkout_idempotency_keys`;
@@ -1058,11 +1116,11 @@ Fuera de alcance del runtime inicial:
 
 Pendientes explicitos post-PASS staging:
 
-- resolver 404 post-pago / retorno usuario;
+- validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
+- nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
 - disenar emision idempotente de `access_entries`;
 - generar QR;
 - enviar email post-pago;
-- implementar pantalla publica de estado;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.

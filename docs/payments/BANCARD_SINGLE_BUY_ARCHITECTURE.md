@@ -511,8 +511,9 @@ Estado sobre Access Core:
 - callback duplicado/idempotencia sobre pago aprobado: PASS;
 - query/reconciliacion: pendiente;
 - entries/QR/email: pendiente;
-- frontend iframe/status/retorno usuario: pendiente;
-- 404 post-pago / retorno usuario: pendiente UX, no bloqueo del core de pagos.
+- frontend status/retorno usuario: PASS estatico;
+- iframe final B2C: pendiente;
+- 404 post-pago / retorno usuario: corregido tecnicamente; validacion final en `tairet.com.py` pendiente.
 
 El endpoint implementado:
 
@@ -659,6 +660,13 @@ Campos que Tairet debe enviar en el primer slice:
 - `operation.description`;
 - `operation.return_url`;
 - `operation.cancel_url`.
+
+URLs actuales:
+
+- `return_url = ${B2C_BASE_URL}/#/payments/access/status?ref={public_ref}`;
+- `cancel_url = ${B2C_BASE_URL}/#/payments/access/status?ref={public_ref}&cancelled=1`.
+
+Se usa HashRouter en B2C. El segmento `/#/payments/access/status` evita 404 de servidor cuando Bancard redirige al usuario despues del pago.
 
 Campos omitidos en el endpoint implementado:
 
@@ -874,7 +882,13 @@ Cualquier mismatch debe:
 
 `cancel_url` permite cancelar, reintentar o volver al checkout solo si la orden sigue valida.
 
-La pantalla de resultado debe consultar backend por una referencia publica segura, no por identificadores internos sensibles.
+La pantalla de resultado esta implementada como PASS estatico en B2C:
+
+- ruta HashRouter `/#/payments/access/status?ref=acc_...`;
+- consulta backend publico `GET /payments/access/status?ref=acc_...`;
+- usa `public_ref`, no identificadores internos sensibles.
+
+El cierre de pago no depende del retorno visual. La fuente de verdad sigue siendo el callback server-to-server Bancard.
 
 Estados visibles recomendados:
 
@@ -886,6 +900,47 @@ Estados visibles recomendados:
 - revision manual.
 
 Si el usuario vuelve desde Bancard antes de que llegue el callback, la pantalla debe quedar en "verificando" y hacer polling controlado.
+
+Validacion local contra Railway:
+
+- API respondio `ok: true`;
+- `order.status = 'paid'`;
+- `venue_name = 'Boliche'`;
+- `amount_gs = 10000`;
+- `currency = 'PYG'`;
+- la pantalla mostro `Pago confirmado.`;
+- datos visibles: lugar `Boliche`, fecha `01 de agosto de 2026`, monto `Gs. 10.000`.
+
+La respuesta publica no expone:
+
+- `order_id`;
+- `payment_attempt_id`;
+- `local_id`;
+- `event_id`;
+- buyer data;
+- payloads Bancard;
+- token;
+- datos internos.
+
+El 404 post-pago quedo corregido a nivel tecnico mediante pantalla de estado, endpoint publico y URL hash-compatible.
+
+Pendiente:
+
+- validacion final en `tairet.com.py` cuando el dominio sirva el B2C actualizado y no la landing temporal;
+- nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
+
+### 16.1 Nota operativa CORS/env
+
+El API usa allowlist por `FRONTEND_ORIGIN`.
+
+Reglas:
+
+- el valor debe ser una lista de origins separados por coma;
+- no debe incluir `FRONTEND_ORIGIN=` dentro del valor;
+- origins productivos requeridos: `https://tairet.com.py` y `https://www.tairet.com.py` si aplica;
+- origins locales solo para debug: `http://localhost:5173` y `http://127.0.0.1:5173` si se usa ese host.
+
+El 403 local fue de CORS/env, no de Bancard ni del endpoint publico de estado.
 
 ## 17. Reconciliacion y query
 
@@ -1203,11 +1258,11 @@ Preguntas que siguen abiertas:
 
 Pendientes explicitos post-PASS staging:
 
-- resolver 404 post-pago / retorno usuario;
+- validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
+- nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
 - disenar emision idempotente de `access_entries`;
 - generar QR;
 - enviar email post-pago;
-- implementar pantalla publica de estado;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.
@@ -1226,10 +1281,10 @@ Orden recomendado de slices:
 8. Confirm RPC `public.confirm_bancard_access_payment(...)` aplicada como PASS.
 9. Backend callback especifico `POST /payments/bancard/confirm` implementado como PASS estatico.
 10. Staging approved flow y callback duplicado idempotente.
-11. Resolver retorno usuario / 404 post-pago.
-12. Emision idempotente de entries/QR/email.
-13. Iframe Bancard en B2C.
-14. Pantalla de estado.
+11. Endpoint publico y pantalla B2C de estado post-pago implementados como PASS estatico.
+12. Validacion final en `tairet.com.py` y nuevo pago Bancard post-fix.
+13. Emision idempotente de entries/QR/email.
+14. Iframe Bancard en B2C.
 15. Reconciliacion/query.
 16. Caso rejected end-to-end.
 17. Recuperacion/reenvio interno por admin Tairet.
