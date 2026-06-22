@@ -507,10 +507,12 @@ Estado sobre Access Core:
 - backend endpoint init checkout: PASS estatico;
 - confirm RPC Slice 8 `public.confirm_bancard_access_payment(...)`: PASS aplicado;
 - backend confirm callback `POST /payments/bancard/confirm`: PASS estatico;
-- staging Bancard end-to-end: pendiente;
+- staging Bancard approved flow: PASS;
+- callback duplicado/idempotencia sobre pago aprobado: PASS;
 - query/reconciliacion: pendiente;
 - entries/QR/email: pendiente;
-- frontend iframe/status: pendiente.
+- frontend iframe/status/retorno usuario: pendiente;
+- 404 post-pago / retorno usuario: pendiente UX, no bloqueo del core de pagos.
 
 El endpoint implementado:
 
@@ -530,7 +532,6 @@ El endpoint implementado:
 
 Fuera de alcance del runtime inicial:
 
-- backend confirm endpoint;
 - query/reconciliacion;
 - emision de `access_entries`;
 - QR;
@@ -620,7 +621,8 @@ Nota de alcance:
 - La Confirm RPC de Slice 8 esta aplicada como PASS y cierra transaccionalmente callbacks ya validados por backend.
 - El backend confirm callback `POST /payments/bancard/confirm` esta implementado como PASS estatico.
 - El endpoint init inicia `single_buy`, pero no confirma pagos.
-- Todavia faltan staging Bancard end-to-end, query/reconciliacion, emision de entries/QR/email, frontend iframe/status y validacion productiva.
+- Staging approved flow ya valido init, callback aprobado, cierre de orden y consumo de stock.
+- Todavia faltan query/reconciliacion, rejected end-to-end, emision de entries/QR/email, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -664,7 +666,7 @@ Campos omitidos en el endpoint implementado:
 - `additional_data`;
 - `extra_response_attributes`.
 
-La URL de confirmacion de Bancard se configura en el portal de comercio Bancard. No debe documentarse ni implementarse como campo enviado a `single_buy`. Puede existir una variable interna `BANCARD_CONFIRM_URL`, pero su uso es configuracion/operacion, no payload de `single_buy`.
+La URL de confirmacion de Bancard se configura en el portal de comercio Bancard. En staging quedo configurada apuntando a `https://tairetapi-production.up.railway.app/payments/bancard/confirm`. No debe documentarse ni implementarse como campo enviado a `single_buy`. Puede existir una variable interna `BANCARD_CONFIRM_URL`, pero su uso es configuracion/operacion, no payload de `single_buy`.
 
 `additional_data` no debe enviarse por defecto. No debe usarse para metadata interna de Tairet ni para datos del comprador. Solo puede usarse si Bancard confirma una promocion, convenio o caso especifico que requiera ese campo.
 
@@ -730,6 +732,29 @@ Stock ante falla:
 - si falla despues de llamar Bancard o hay timeout, pasar a `manual_review` y retener stock con `manual_hold` si el CODE lo soporta;
 - no liberar stock automaticamente en estados ambiguos.
 
+### 13.1 Staging approved flow - PASS
+
+Flujo aprobado validado en staging:
+
+- Init `POST /payments/access/bancard/single-buy` devolvio `ok: true` para Access Core local, monto `10000` y `provider_amount_text = "10000.00"`.
+- El iframe/proceso Bancard abrio correctamente.
+- Bancard aprobo la operacion con `response_code = "00"`.
+- El callback llego a `/payments/bancard/confirm`; el backend valido token, sanitizo payload y llamo la RPC.
+- La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
+- `provider_transaction_id` se guarda desde `ticket_number`.
+- `authorization_number` puede conservarse como dato de autorizacion.
+- `access_entries` quedo en `0`, esperado para este bloque.
+- El callback duplicado devolvio HTTP 200 `{ "status": "success" }`, registro `idempotent = true` y mantuvo estables pago, orden y stock.
+
+Sanitizacion validada:
+
+- no se persiste token;
+- no se persiste `security_information`;
+- no se persiste `billing_response`;
+- no se documentan secretos, claves Bancard, tarjetas, CVV, vencimientos ni payload completo del callback.
+
+El 404 observado despues del pago pertenece al retorno usuario / UX. No bloquea el core de pagos porque la aprobacion se define por callback server-to-server validado.
+
 ## 14. Iframe Bancard
 
 El endpoint backend ya devuelve `process_id` y datos publicos minimos para levantar el iframe de Bancard. La integracion frontend del iframe sigue pendiente.
@@ -789,6 +814,8 @@ Response mapping:
 
 Confirmaciones duplicadas de un pago ya aprobado deben devolver respuesta exitosa sin reemitir entradas ni reenviar efectos irreversibles.
 
+Este comportamiento ya fue validado en staging para un pago aprobado: el callback original cerro el intento como `approved`, la orden como `paid` y el stock como `consumed`; el replay manual del mismo callback devolvio HTTP 200, marco `idempotent = true` y no modifico estados terminales.
+
 SQL transaccional disponible:
 
 - Slice 8 esta aplicado como PASS;
@@ -832,6 +859,8 @@ Tairet solo considera pago aprobado si se cumplen todas estas condiciones:
 - moneda coincide con `PYG`;
 - respuesta Bancard indica aprobacion;
 - `response_code` es aprobado segun contrato Bancard, inicialmente `00`.
+
+Staging valido el caso aprobado con `response_code = "00"`.
 
 Cualquier mismatch debe:
 
@@ -1154,6 +1183,8 @@ Decisiones ya fijadas por este documento:
 - `shop_process_id` se guarda en `payment_attempts.provider_attempt_ref`;
 - formato inicial de `shop_process_id`: `YYMMDD` + sequence left-padded a 9 digitos;
 - quantity limits iniciales: `10` por item, `20` unidades totales, `10` ticket types distintos.
+- staging approved flow ya tiene PASS para init, callback aprobado, cierre de orden y consumo de stock.
+- callback duplicado sobre pago aprobado ya tiene PASS idempotente.
 
 Preguntas que siguen abiertas:
 
@@ -1168,7 +1199,18 @@ Preguntas que siguen abiertas:
 - Diseno de factura electronica.
 - Infraestructura final de reconciliacion: cron, worker, queue o job interno.
 - Retencion de payloads del proveedor.
-- Longitud/tipo exacto aceptado por Bancard staging para `shop_process_id`.
+- Validacion final productiva del formato de `shop_process_id`, aunque staging ya acepto el formato actual.
+
+Pendientes explicitos post-PASS staging:
+
+- resolver 404 post-pago / retorno usuario;
+- disenar emision idempotente de `access_entries`;
+- generar QR;
+- enviar email post-pago;
+- implementar pantalla publica de estado;
+- query/reconciliacion;
+- caso rejected end-to-end;
+- panel/manual review.
 
 ## 27. Orden futuro de implementacion
 
@@ -1183,15 +1225,17 @@ Orden recomendado de slices:
 7. Endpoint backend `POST /payments/access/bancard/single-buy` implementado como PASS estatico.
 8. Confirm RPC `public.confirm_bancard_access_payment(...)` aplicada como PASS.
 9. Backend callback especifico `POST /payments/bancard/confirm` implementado como PASS estatico.
-10. Checklist staging Bancard init + confirm.
-11. Emision idempotente de entries/QR/email, solo despues de decision consciente post-staging.
-12. Iframe Bancard en B2C.
-13. Pantalla de estado.
-14. Recuperacion/reenvio interno por admin Tairet.
+10. Staging approved flow y callback duplicado idempotente.
+11. Resolver retorno usuario / 404 post-pago.
+12. Emision idempotente de entries/QR/email.
+13. Iframe Bancard en B2C.
+14. Pantalla de estado.
 15. Reconciliacion/query.
-16. Rollback operativo.
-17. Panel y observabilidad.
-18. Factura electronica futura.
-19. Token payment futuro.
+16. Caso rejected end-to-end.
+17. Recuperacion/reenvio interno por admin Tairet.
+18. Rollback operativo.
+19. Panel y observabilidad.
+20. Factura electronica futura.
+21. Token payment futuro.
 
 Ningun slice posterior debe debilitar los principios no negociables de este documento.

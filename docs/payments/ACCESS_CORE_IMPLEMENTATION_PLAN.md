@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard esta implementado por slices parciales: init checkout, Confirm RPC y callback backend existen, pero falta staging end-to-end, entries/QR/email y frontend.
+- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden y consumo de stock. Siguen pendientes entries/QR/email, frontend de retorno/status, query/reconciliacion, rejected end-to-end y panel/manual review.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -24,14 +24,29 @@ Reglas de direccion:
 | 4 | `payment_attempts` | PASS | `infra/sql/migrations/036_access_core_slice_4.sql` | Si | No tocado |
 | 5 | RPC `create_access_paid_checkout` | PASS | `infra/sql/migrations/037_access_core_slice_5.sql` | Si | No tocado |
 | 6 | SQL support Bancard runtime: `access_checkout_idempotency_keys`, `bancard_shop_process_id_seq`, `next_bancard_shop_process_id()` | PASS | `infra/sql/migrations/038_access_core_slice_6.sql` | Si | No tocado |
-| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; frontend/staging pendiente |
+| 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; staging approved flow PASS; frontend pendiente |
 | 8 | Bancard confirm RPC transaccional | PASS aplicado | `infra/sql/migrations/039_access_core_slice_8.sql` | Si | No backend/frontend |
-| 9 | Backend callback Bancard `POST /payments/bancard/confirm` | PASS estatico | No aplica | No | Backend implementado; staging pendiente |
+| 9 | Backend callback Bancard `POST /payments/bancard/confirm` | PASS estatico | No aplica | No | Backend implementado; staging approved callback PASS |
 | 10 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
 | 11 | Pantalla de estado | pending | Pendiente | No | No tocado |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
 | 13 | Reconciliacion/query | pending | Pendiente | No | No tocado |
 | 14 | Rollback operativo | pending | Pendiente | No | No tocado |
+
+### 2.1 Estado Bancard Access Core
+
+Estado actualizado despues del PASS staging aprobado:
+
+- Backend init Single Buy `POST /payments/access/bancard/single-buy`: PASS estatico.
+- Confirm RPC `public.confirm_bancard_access_payment(...)`: PASS aplicado.
+- Backend confirm callback `POST /payments/bancard/confirm`: PASS estatico.
+- Staging approved flow init -> callback -> orden paid -> stock consumed: PASS.
+- Callback duplicado/idempotencia sobre pago aprobado: PASS.
+- Entries/QR/email: pendiente.
+- Frontend iframe/status/retorno usuario: pendiente.
+- Query/reconciliacion: pendiente.
+- Caso rejected end-to-end: pendiente.
+- Panel manual review: pendiente.
 
 ## 3. Slice 1 - Resultado
 
@@ -791,7 +806,7 @@ Estado documental:
 - frontend no tocado;
 - callback backend implementado como PASS estatico;
 - entries/QR/email pendiente;
-- staging Bancard pendiente.
+- staging Bancard approved flow PASS.
 
 Endpoint implementado:
 
@@ -906,6 +921,20 @@ Flujo runtime:
 12. Guardar `response_payload` sanitizado.
 13. Si respuesta contiene `status = success` y `process_id`, pasar attempt a `provider_ready`.
 14. Devolver datos minimos para iframe.
+
+### 21.1 Staging approved flow - PASS
+
+Validacion staging aprobada para Access Core Bancard:
+
+- Datos manuales Access Core usados: local `Boliche` / `dlirio`, `source_type = 'local'`, ticket pago `Entrada Staging Bancard`, `price_gs = 10000`, `access_date = 2026-08-01`, stock limitado con capacidad `5`.
+- Init staging creo `access_orders.status = 'pending_payment'`, un `access_order_items`, una reserva `access_stock_reservations.status = 'reserved'` y un `payment_attempts.status = 'provider_ready'`.
+- Bancard aprobo la operacion staging con `response_code = '00'`.
+- El callback llego a `POST /payments/bancard/confirm`.
+- Backend valido el callback, sanitizo payload y llamo `public.confirm_bancard_access_payment(...)`.
+- La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
+- No se crearon `access_entries`; esto es esperado porque entries/QR/email pertenecen al siguiente bloque separado.
+- El callback duplicado del mismo pago respondio HTTP 200 `{ "status": "success" }`, registro `idempotent = true` y mantuvo estables pago, orden y stock sin abrir `manual_review`.
+- No se documentan tokens, tarjetas, CVV, vencimientos, claves Bancard ni payload completo del callback.
 
 Payload Bancard implementado:
 
@@ -1059,7 +1088,7 @@ Estado:
 - SQL nuevo: No;
 - frontend no tocado;
 - entries/QR/email pendiente;
-- staging Bancard end-to-end pendiente;
+- staging Bancard approved flow PASS;
 - no `payment_events`;
 - sin cambios funcionales en `/payments/callback` legacy.
 
@@ -1151,6 +1180,8 @@ Notas:
 - Slice 6 fue aplicado como estructura base en Supabase y ya tiene endpoint backend init checkout que consume idempotency y `next_bancard_shop_process_id()`.
 - Slice 8 fue aplicado en Supabase y cierra callbacks Bancard validados por backend mediante RPC transaccional.
 - El endpoint backend `POST /payments/bancard/confirm` ya existe como PASS estatico y llama la RPC despues de validar token.
+- Staging Bancard approved flow ya tiene PASS para init, callback aprobado, cierre de orden y consumo de stock.
+- Callback duplicado sobre pago aprobado ya tiene PASS idempotente.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -1163,32 +1194,38 @@ Riesgos:
 - El endpoint backend init checkout ya consume `payment_attempts` para iniciar Bancard, pero no confirma pagos.
 - El endpoint backend init checkout ya invoca `create_access_paid_checkout`, usa `access_checkout_idempotency_keys` y aplica limites maximos de `quantity`.
 - El endpoint backend confirm ya recibe callbacks Bancard, valida token, sanitiza payload e invoca `confirm_bancard_access_payment(...)`.
+- El core de pago aprobado ya cierra `payment_attempts`, `access_orders` y `access_stock_reservations`; no emite `access_entries` todavia.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
 
 Pendientes principales:
 
-- Checklist staging Bancard.
-- Staging Bancard con credenciales reales.
-- Prueba init + confirm con payload staging.
+- Resolver 404 post-pago / retorno usuario.
+- Disenar emision idempotente de `access_entries`.
+- Generar QR.
+- Enviar email post-pago.
+- Implementar pantalla publica de estado.
 - Query/reconciliacion.
-- Emision idempotente de `access_entries`.
-- QR/email.
-- Rollback operativo/manual review.
+- Caso rejected end-to-end.
+- Panel/manual review.
+- Rollback operativo.
 
 ## 25. Siguiente paso recomendado
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - CHECKLIST STAGING BANCARD ACCESS CORE.
+ASK / PLAN MODE ONLY - BLOQUE POST-PAGO ACCESS CORE.
 
 Ese proximo paso debe disenar:
 
-- checklist staging Bancard para init + confirm;
-- prueba de `POST /payments/access/bancard/single-buy`;
-- prueba de callback `POST /payments/bancard/confirm` con payload staging;
-- verificacion de estados `payment_attempts`, `access_orders` y `access_stock_reservations`;
-- decision posterior y consciente sobre emision idempotente de `access_entries`, QR y email.
+- resolucion del 404 post-pago / retorno usuario;
+- pantalla publica de estado;
+- emision idempotente de `access_entries`;
+- generacion de QR;
+- envio de email post-pago;
+- query/reconciliacion;
+- caso rejected end-to-end;
+- panel/manual review.
 
-No ir directo a QR/email salvo decision explicita posterior a staging.
+No marcar QR/email ni frontend/status como implementados hasta que esos bloques tengan PASS propio.

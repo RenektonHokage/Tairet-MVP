@@ -767,6 +767,8 @@ Observaciones futuras antes de exponer checkout publico:
 
 El runtime Bancard init checkout existe como PASS estatico y consume el core `access_*`.
 
+Staging approved flow ya valido que este init crea orden, item, reserva de stock e intento Bancard, y que deja el intento en `provider_ready` cuando Bancard devuelve `status = success` y `process_id`.
+
 Endpoint implementado:
 
 - `POST /payments/access/bancard/single-buy`.
@@ -881,6 +883,19 @@ Limites:
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
 - no usa `payment_events`.
+
+### 19.4 Staging approved flow - PASS
+
+El cierre de pago aprobado por Bancard Access Core fue validado en staging de punta a punta:
+
+- Init `POST /payments/access/bancard/single-buy` creo `access_orders.status = 'pending_payment'`, `access_order_items`, `access_stock_reservations.status = 'reserved'` y `payment_attempts.status = 'provider_ready'`.
+- Bancard aprobo la operacion staging con `response_code = '00'`.
+- El callback server-to-server llego a `POST /payments/bancard/confirm`; el backend valido token, sanitizo payload y llamo la RPC transaccional.
+- La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
+- `access_entries` quedo en `0`, esperado para este bloque: entries, QR y email son el siguiente bloque separado.
+- El callback duplicado respondio HTTP 200, marco `idempotent = true` y no duplico stock ni altero estados terminales.
+
+La aprobacion de pago queda definida por callback server-to-server validado, no por `return_url`. El retorno de usuario sigue siendo UX: debe mostrar estado, reintentos o espera de confirmacion, pero no puede confirmar pagos por si mismo.
 
 SQL support aplicado en Slice 6:
 
@@ -1000,7 +1015,7 @@ Env/config implementado:
 - `B2C_BASE_URL`;
 - `SUPABASE_URL`;
 - `SUPABASE_SERVICE_ROLE`;
-- `BANCARD_CONFIRM_URL` queda para configuracion/callback futuro, no como payload de `single_buy`.
+- `confirmation_url` queda configurada en el portal Bancard apuntando a `/payments/bancard/confirm`; no se envia como payload de `single_buy`.
 
 Transiciones de `payment_attempts`:
 
@@ -1030,7 +1045,6 @@ Stock ante falla:
 
 Fuera de alcance del runtime inicial:
 
-- callback;
 - query/reconciliacion;
 - emision de `access_entries`;
 - QR;
@@ -1041,6 +1055,17 @@ Fuera de alcance del runtime inicial:
 - free pass;
 - adapters legacy;
 - seeds.
+
+Pendientes explicitos post-PASS staging:
+
+- resolver 404 post-pago / retorno usuario;
+- disenar emision idempotente de `access_entries`;
+- generar QR;
+- enviar email post-pago;
+- implementar pantalla publica de estado;
+- query/reconciliacion;
+- caso rejected end-to-end;
+- panel/manual review.
 
 Output publico del endpoint:
 
@@ -1187,6 +1212,8 @@ Flujo conceptual:
 13. Email se dispara aparte.
 14. Query/reconciliacion opera sobre `payment_attempts`.
 15. Rollback operativo registra payload y activity.
+
+Staging ya valido los pasos 1 a 11 para un flujo aprobado con callback server-to-server. Los pasos 12 a 15 siguen pendientes y deben implementarse como bloques separados.
 
 Factura electronica, token payment, promociones Bancard por entidad/BIN y otros flujos quedan futuros.
 
@@ -1346,12 +1373,14 @@ Orden recomendado de slices:
 7. Endpoint backend `POST /payments/access/bancard/single-buy`.
 8. Bancard Confirm RPC transaccional `public.confirm_bancard_access_payment(...)`.
 9. Backend callback Bancard `POST /payments/bancard/confirm`.
-10. RPC de emision idempotente, entries, QR y email.
-11. Pantalla de estado.
-12. Admin/support y manual review.
-13. Reconciliacion/query.
-14. Rollback operativo.
-15. Factura electronica futura.
+10. Staging approved flow y callback duplicado idempotente.
+11. RPC de emision idempotente, entries, QR y email.
+12. Pantalla de estado y retorno usuario.
+13. Admin/support y manual review.
+14. Reconciliacion/query.
+15. Rejected end-to-end.
+16. Rollback operativo.
+17. Factura electronica futura.
 
 Ningun slice posterior debe debilitar la separacion entre orden comercial, intento de pago, entry validable, check-in, email y auditoria.
 
