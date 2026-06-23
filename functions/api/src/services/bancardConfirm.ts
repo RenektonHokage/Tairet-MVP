@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { sendAccessOrderEntriesEmail } from "./accessEmails";
 import { supabase } from "./supabase";
 import { logger } from "../utils/logger";
 import type { BancardConfirmInput } from "../schemas/bancardConfirm";
@@ -170,6 +171,41 @@ async function issueEntriesForApprovedPayment(input: {
       errorCode: readNestedErrorCode(data),
     });
     return result(500, ERROR_BODY);
+  }
+
+  try {
+    const emailResult = await sendAccessOrderEntriesEmail({
+      orderId,
+      publicRef: readStringField(data, "public_ref") ?? publicRef,
+    });
+    const emailLogPayload = {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      publicRef: readStringField(data, "public_ref") ?? publicRef,
+      emailStatus: emailResult.status,
+      entriesClaimed: emailResult.entriesClaimed,
+      entriesSent: emailResult.entriesSent,
+      errorCode: emailResult.errorCode,
+    };
+
+    if (emailResult.ok) {
+      logger.info("Access Core entries email handled after Bancard confirm", emailLogPayload);
+    } else if (
+      emailResult.errorCode === "email_sent_update_failed"
+      || emailResult.errorCode === "email_sent_partial_update_failed"
+    ) {
+      logger.error("Access Core entries email sent but status update failed after Bancard confirm", emailLogPayload);
+    } else {
+      logger.warn("Access Core entries email failed after Bancard confirm", emailLogPayload);
+    }
+  } catch (emailError) {
+    logger.error("Unexpected Access Core entries email failure after Bancard confirm", {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      publicRef: readStringField(data, "public_ref") ?? publicRef,
+      errorCode: "access_email_unexpected_error",
+      error: emailError instanceof Error ? emailError.message : String(emailError),
+    });
   }
 
   logger.info("Access Core entries issued after Bancard confirm", {

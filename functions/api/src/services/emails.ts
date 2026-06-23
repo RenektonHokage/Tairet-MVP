@@ -238,9 +238,31 @@ function renderReservationEmail(input: ReservationTemplateInput): { subject: str
  * Envía un email usando Resend.
  * Si EMAIL_ENABLED !== 'true' o no hay API key, solo loguea (stub).
  */
+function getEmailLogMetadata(options: EmailOptions): Record<string, unknown> {
+  const recipientCount = options.to
+    .split(",")
+    .map((recipient) => recipient.trim())
+    .filter(Boolean).length;
+
+  return {
+    recipientCount,
+    hasSubject: options.subject.trim().length > 0,
+    subjectLength: options.subject.length,
+    attachmentCount: options.attachments?.length ?? 0,
+    emailEnabled: process.env.EMAIL_ENABLED === "true",
+    provider: "resend",
+  };
+}
+
+function getEmailErrorCode(error: unknown): string {
+  return error instanceof Error && error.message === "resend_send_failed"
+    ? "resend_send_failed"
+    : "email_send_failed";
+}
+
 export async function sendEmail(options: EmailOptions): Promise<void> {
   if (!resend || process.env.EMAIL_ENABLED !== "true") {
-    logger.info("[EMAIL STUB]", { to: options.to, subject: options.subject });
+    logger.info("[EMAIL STUB]", getEmailLogMetadata(options));
     return;
   }
 
@@ -255,24 +277,21 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
 
     if (error) {
       logger.error("Error sending email via Resend", {
-        to: options.to,
-        subject: options.subject,
-        error: error.message,
+        ...getEmailLogMetadata(options),
+        errorCode: "resend_send_failed",
       });
-      throw new Error(error.message);
+      throw new Error("resend_send_failed");
     }
 
-    logger.info("Email sent successfully", {
-      to: options.to,
-      subject: options.subject,
-    });
+    logger.info("Email sent successfully", getEmailLogMetadata(options));
   } catch (err) {
+    const errorCode = getEmailErrorCode(err);
+
     logger.error("Failed to send email", {
-      to: options.to,
-      subject: options.subject,
-      error: err instanceof Error ? err.message : String(err),
+      ...getEmailLogMetadata(options),
+      errorCode,
     });
-    throw err;
+    throw new Error(errorCode);
   }
 }
 
