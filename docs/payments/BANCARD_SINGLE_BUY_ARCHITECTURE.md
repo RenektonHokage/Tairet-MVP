@@ -509,8 +509,9 @@ Estado sobre Access Core:
 - backend confirm callback `POST /payments/bancard/confirm`: PASS estatico;
 - staging Bancard approved flow: PASS;
 - callback duplicado/idempotencia sobre pago aprobado: PASS;
+- Slice 9A emision idempotente de `access_entries`: PASS;
 - query/reconciliacion: pendiente;
-- entries/QR/email: pendiente;
+- QR/email/status extendido/check-in: pendiente;
 - frontend status/retorno usuario: PASS estatico;
 - iframe final B2C: pendiente;
 - 404 post-pago / retorno usuario: corregido tecnicamente; validacion final en `tairet.com.py` pendiente.
@@ -623,7 +624,8 @@ Nota de alcance:
 - El backend confirm callback `POST /payments/bancard/confirm` esta implementado como PASS estatico.
 - El endpoint init inicia `single_buy`, pero no confirma pagos.
 - Staging approved flow ya valido init, callback aprobado, cierre de orden y consumo de stock.
-- Todavia faltan query/reconciliacion, rejected end-to-end, emision de entries/QR/email, frontend iframe/status y validacion productiva.
+- Slice 9A ya valido emision idempotente de `access_entries`.
+- Todavia faltan QR/email/status extendido/check-in, query/reconciliacion, rejected end-to-end, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -749,10 +751,19 @@ Flujo aprobado validado en staging:
 - Bancard aprobo la operacion con `response_code = "00"`.
 - El callback llego a `/payments/bancard/confirm`; el backend valido token, sanitizo payload y llamo la RPC.
 - La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
+- Slice 9A emitio `access_entries` despues del confirm approved usando `public.issue_access_entries_for_paid_order(...)`.
 - `provider_transaction_id` se guarda desde `ticket_number`.
 - `authorization_number` puede conservarse como dato de autorizacion.
-- `access_entries` quedo en `0`, esperado para este bloque.
 - El callback duplicado devolvio HTTP 200 `{ "status": "success" }`, registro `idempotent = true` y mantuvo estables pago, orden y stock.
+- El replay duplicado post-Slice 9A no duplico entries.
+
+Evidencia Slice 9A post-deploy:
+
+- `shop_process_id = 260623000000004`;
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- primer callback aprobado: `entriesInserted = 1`, `entriesTotal = 1`, `entriesIdempotent = false`;
+- replay duplicado: `entriesInserted = 0`, `entriesTotal = 1`, `entriesIdempotent = true`;
+- SQL final: order `paid`, attempt `approved`, stock `consumed`, `access_entries_count = 1`.
 
 Sanitizacion validada:
 
@@ -847,7 +858,7 @@ Responsabilidad de la RPC:
 - no consumir ni liberar stock ya `consumed`;
 - responder idempotente solo cuando order y stock terminales estan consistentes.
 
-La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email.
+La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. Slice 9A emite `access_entries` en una RPC separada despues de Confirm RPC `approved`.
 
 Post-checks aplicados:
 
@@ -1260,9 +1271,10 @@ Pendientes explicitos post-PASS staging:
 
 - validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
-- disenar emision idempotente de `access_entries`;
 - generar QR;
 - enviar email post-pago;
+- extender status page con estado seguro de entrega;
+- implementar check-in Access Core;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.
@@ -1283,14 +1295,18 @@ Orden recomendado de slices:
 10. Staging approved flow y callback duplicado idempotente.
 11. Endpoint publico y pantalla B2C de estado post-pago implementados como PASS estatico.
 12. Validacion final en `tairet.com.py` y nuevo pago Bancard post-fix.
-13. Emision idempotente de entries/QR/email.
-14. Iframe Bancard en B2C.
-15. Reconciliacion/query.
-16. Caso rejected end-to-end.
-17. Recuperacion/reenvio interno por admin Tairet.
-18. Rollback operativo.
-19. Panel y observabilidad.
-20. Factura electronica futura.
-21. Token payment futuro.
+13. Slice 9A emision idempotente de `access_entries` post-pago: PASS.
+14. QR/token interno para entries.
+15. Email post-pago.
+16. Status page extendida de entrega.
+17. Check-in Access Core.
+18. Iframe Bancard en B2C.
+19. Reconciliacion/query.
+20. Caso rejected end-to-end.
+21. Recuperacion/reenvio interno por admin Tairet.
+22. Rollback operativo.
+23. Panel y observabilidad.
+24. Factura electronica futura.
+25. Token payment futuro.
 
 Ningun slice posterior debe debilitar los principios no negociables de este documento.

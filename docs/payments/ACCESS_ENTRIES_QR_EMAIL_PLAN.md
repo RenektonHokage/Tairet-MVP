@@ -13,15 +13,16 @@ Bancard Access Core ya tiene estos hitos cerrados:
 - Endpoint publico de estado: PASS.
 - Pantalla B2C de estado: PASS.
 - Fix tecnico del 404 post-pago: PASS.
+- Slice 9A emision idempotente de `access_entries`: PASS.
 
-El siguiente bloque empieza desde una orden aprobada por Bancard y cerrada por Access Core:
+Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cerrada por Access Core:
 
 - `payment_attempts.status = 'approved'`;
 - `access_orders.status = 'paid'`;
 - `access_stock_reservations.status = 'consumed'`;
 - `access_entries_count = 0`.
 
-Ese `access_entries_count = 0` es esperado hasta este punto. La emision de entradas, QR, email y check-in quedo fuera de los bloques anteriores.
+Despues de Slice 9A, un pago aprobado debe emitir `access_entries` automaticamente y de forma idempotente. QR, email, status extendido y check-in siguen fuera de Slice 9A.
 
 ## 2. Objetivo del bloque
 
@@ -193,7 +194,7 @@ Pendiente para slices futuros:
 
 ## 5. Slices propuestos
 
-### Slice 9A - Emision idempotente de `access_entries` sin email ni QR publico
+### Slice 9A - Emision idempotente de `access_entries` sin email ni QR publico - PASS
 
 Objetivo:
 
@@ -222,6 +223,33 @@ Validaciones:
 - orden sigue `paid`;
 - payment attempt sigue `approved`;
 - stock sigue `consumed`.
+
+Implementacion PASS:
+
+- migracion `infra/sql/migrations/040_access_core_slice_9_issue_entries.sql`;
+- RPC `public.issue_access_entries_for_paid_order(p_order_id uuid, p_payment_attempt_id uuid)`;
+- backend integrado en `functions/api/src/services/bancardConfirm.ts`;
+- despues de Confirm RPC `approved`, backend llama la RPC de emision;
+- la Confirm RPC existente no fue modificada.
+
+Evidencia staging:
+
+- `shop_process_id = 260623000000004`;
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- primer callback aprobado post-deploy: `entriesInserted = 1`, `entriesTotal = 1`, `entriesIdempotent = false`;
+- replay duplicado: `entriesInserted = 0`, `entriesTotal = 1`, `entriesIdempotent = true`;
+- SQL final: order `paid`, payment attempt `approved`, stock `consumed`, `access_entries_count = 1`;
+- duplicados por `order_item_id + unit_index`: `0 rows`.
+
+Seguridad validada:
+
+- la RPC no retorna `checkin_token`;
+- backend no loguea tokens completos;
+- backend no loguea buyer data;
+- backend no loguea payload Bancard completo;
+- no se envio email;
+- no se expuso QR publico;
+- no se implemento check-in.
 
 ### Slice 9B - QR/token interno para entries
 
@@ -286,28 +314,28 @@ Fuera de alcance inicial:
 
 ## 6. Recomendacion de orden
 
-Implementar primero solo Slice 9A.
+Slice 9A ya fue implementado y validado como PASS.
 
-Motivos:
+Motivos por los que se implemento primero:
 
 - reduce riesgo;
 - desbloquea la fuente de verdad `access_entries`;
 - prueba idempotencia antes de QR/email;
 - no mezcla transporte email ni frontend;
-- permite validar contra una orden staging ya pagada;
+- permitio validar contra una orden staging pagada;
 - mantiene separada la Confirm RPC existente.
 
-No avanzar a QR/email/status/check-in hasta que Slice 9A tenga PASS propio.
+Siguiente recomendacion: avanzar a Slice 9B, QR/token interno para entries, sin email ni check-in todavia.
 
-## 7. Diseno preliminar Slice 9A
+## 7. Diseno aplicado Slice 9A
 
 ### RPC sugerida
 
-Crear una RPC nueva, separada de la Confirm RPC existente:
+Se creo una RPC nueva, separada de la Confirm RPC existente:
 
 - `public.issue_access_entries_for_paid_order(...)`.
 
-No modificar `public.confirm_bancard_access_payment(...)` salvo que una revision posterior demuestre que es estrictamente necesario.
+No se modifico `public.confirm_bancard_access_payment(...)`.
 
 ### Parametros sugeridos
 
@@ -547,28 +575,27 @@ Fuera de alcance de este bloque maestro o de Slice 9A inicial:
 - adapters legacy/event;
 - facturacion.
 
-## 11. Prompt recomendado para el proximo CODE
+## 11. Prompt recomendado para el proximo ASK
 
 ```text
-CODE — Slice 9A Access Core — emision idempotente de access_entries sin email ni QR publico
+ASK / PLAN MODE ONLY — Access Core Slice 9B QR/token interno para access_entries
 
 Contexto:
-Bancard Access Core ya cierra pagos aprobados con:
+Slice 9A ya quedo PASS:
 - payment_attempts.status = approved
 - access_orders.status = paid
 - access_stock_reservations.status = consumed
-- access_entries_count = 0
+- access_entries emitidas de forma idempotente
+- callback duplicado no duplica entries
 
 Objetivo:
-Implementar solo Slice 9A:
-- crear una RPC nueva `public.issue_access_entries_for_paid_order(...)`;
-- emitir `access_entries` para ordenes paid;
-- usar idempotencia por `(order_item_id, unit_index)`;
-- crear `quantity * entries_per_unit` entries por item;
-- completar faltantes si hubo emision parcial;
-- integrar backend despues de confirm approved;
+Disenar Slice 9B:
+- payload QR seguro para `access_entries.checkin_token`;
+- helper backend Access Core para generar QR/token interno;
+- reglas de no exponer IDs internos;
+- reglas de no loguear tokens completos;
 - no emitir email;
-- no generar QR visible;
+- no exponer QR publico en status page todavia;
 - no modificar status page;
 - no implementar check-in;
 - no tocar legacy/event tables.
@@ -576,13 +603,6 @@ Implementar solo Slice 9A:
 Validacion:
 - `git diff --check`;
 - `pnpm -C functions/api typecheck`;
-- primera ejecucion crea entries;
-- segunda ejecucion no duplica;
-- callback duplicado no duplica;
-- count entries = sum(quantity * entries_per_unit);
-- orden sigue paid;
-- attempt sigue approved;
-- stock sigue consumed;
 - no tokens completos en logs;
 - no commit.
 ```

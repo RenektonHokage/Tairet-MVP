@@ -875,10 +875,10 @@ Response mapping:
 - RPC `payment_attempt_not_found`: HTTP 409;
 - error Supabase/RPC inesperado: HTTP 500.
 
-Limites:
+Limites despues de Slice 9A:
 
-- no emite `access_entries`;
-- no genera QR;
+- emite `access_entries` idempotentes solo cuando Confirm RPC devuelve `approved`;
+- no genera QR publico;
 - no envia email;
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
@@ -892,8 +892,9 @@ El cierre de pago aprobado por Bancard Access Core fue validado en staging de pu
 - Bancard aprobo la operacion staging con `response_code = '00'`.
 - El callback server-to-server llego a `POST /payments/bancard/confirm`; el backend valido token, sanitizo payload y llamo la RPC transaccional.
 - La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
-- `access_entries` quedo en `0`, esperado para este bloque: entries, QR y email son el siguiente bloque separado.
+- Slice 9A posterior emite `access_entries` idempotentes para ordenes `paid` con attempt `approved`.
 - El callback duplicado respondio HTTP 200, marco `idempotent = true` y no duplico stock ni altero estados terminales.
+- El replay posterior a Slice 9A no duplica entries: `inserted_entries = 0`, `total_entries = expected_entries`.
 
 La aprobacion de pago queda definida por callback server-to-server validado, no por `return_url`. El retorno de usuario sigue siendo UX: debe mostrar estado, reintentos o espera de confirmacion, pero no puede confirmar pagos por si mismo.
 
@@ -915,7 +916,8 @@ Reglas:
 - si backend devuelve `paid`, la pantalla muestra pago confirmado;
 - si backend devuelve `pending_payment`, la pantalla muestra verificacion y puede hacer polling;
 - si `pending_payment` esta vencido, el endpoint puede devolver `expired` sin mutar DB;
-- no se generan `access_entries`, QR ni email en este bloque.
+- la pantalla de estado no genera entries, QR ni email;
+- la emision de entries ocurre en backend despues del callback aprobado, no desde frontend.
 
 Respuesta publica:
 
@@ -1104,7 +1106,6 @@ Stock ante falla:
 Fuera de alcance del runtime inicial:
 
 - query/reconciliacion;
-- emision de `access_entries`;
 - QR;
 - email;
 - frontend final;
@@ -1118,9 +1119,10 @@ Pendientes explicitos post-PASS staging:
 
 - validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
-- disenar emision idempotente de `access_entries`;
 - generar QR;
 - enviar email post-pago;
+- extender status page con estado seguro de entrega;
+- implementar check-in Access Core;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.
@@ -1159,27 +1161,31 @@ Errores conceptuales:
 - `provider_invalid`;
 - `internal_error`.
 
-## 20. RPC futura: emitir entries idempotentes
+## 20. Slice 9A - RPC aplicada: emitir entries idempotentes
 
-RPC conceptual:
+RPC aplicada:
 
-- `issue_access_entries_for_paid_order`
+- `public.issue_access_entries_for_paid_order(p_order_id uuid, p_payment_attempt_id uuid)`;
+- migracion `infra/sql/migrations/040_access_core_slice_9_issue_entries.sql`;
+- `security definer`;
+- execute solo para `service_role`.
 
-No se define SQL definitivo en este documento.
-
-Input conceptual:
+Input:
 
 - `order_id`;
-- actor/proceso;
-- motivo opcional.
+- `payment_attempt_id`.
 
 Validaciones:
 
 - orden existe;
 - orden esta `paid`;
-- no esta `manual_review`;
-- si corresponde, existe intento de pago aprobado;
+- payment attempt existe;
+- `payment_attempts.order_id = access_orders.id`;
+- payment attempt esta `approved`;
+- provider `bancard`;
+- provider operation `single_buy`;
 - items existen;
+- stock reservations estan `consumed`;
 - no emitir si hay mismatch operativo.
 
 Idempotencia:
@@ -1191,10 +1197,28 @@ Idempotencia:
 
 Efectos:
 
-- reservas pasan a `consumed`;
+- no cambia payment/order/stock;
+- requiere `paid + approved + consumed`;
 - entries nacen `issued` y `unused`;
-- se registra `entries_issued` en activity;
+- entries nacen con `email_status = 'not_sent'`;
+- `checkin_token` lo genera DB;
 - email queda separado y no forma parte de la transaccion de pago.
+
+Evidencia staging Slice 9A:
+
+- `shop_process_id = 260623000000004`;
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- primer callback aprobado post-deploy: `entriesInserted = 1`, `entriesTotal = 1`, `entriesIdempotent = false`;
+- replay duplicado: `entriesInserted = 0`, `entriesTotal = 1`, `entriesIdempotent = true`;
+- SQL final: order `paid`, payment attempt `approved`, stock `consumed`, `access_entries_count = 1`.
+
+Seguridad:
+
+- la RPC no retorna `checkin_token`;
+- la integracion backend no loguea tokens completos;
+- no loguea buyer data;
+- no loguea payload Bancard completo;
+- no envia email ni genera QR publico.
 
 ## 21. Bloqueo de cierre de fecha
 

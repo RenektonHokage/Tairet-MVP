@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, endpoint publico de estado y pantalla B2C de estado post-pago. Siguen pendientes entries/QR/email, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
+- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, emision idempotente de `access_entries`, endpoint publico de estado y pantalla B2C de estado post-pago. Siguen pendientes QR/email, status extendido, check-in, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -27,7 +27,8 @@ Reglas de direccion:
 | 7 | Endpoint backend `POST /payments/access/bancard/single-buy` | PASS estatico | No aplica | No | Backend implementado; staging approved flow PASS; frontend pendiente |
 | 8 | Bancard confirm RPC transaccional | PASS aplicado | `infra/sql/migrations/039_access_core_slice_8.sql` | Si | No backend/frontend |
 | 9 | Backend callback Bancard `POST /payments/bancard/confirm` | PASS estatico | No aplica | No | Backend implementado; staging approved callback PASS |
-| 10 | RPC de emision idempotente, entries, QR y email | pending design | Pendiente | No | No tocado |
+| 9A | Emision idempotente de `access_entries` post-pago | PASS | `infra/sql/migrations/040_access_core_slice_9_issue_entries.sql` | Si | Backend integrado despues de Confirm RPC `approved`; sin email/QR |
+| 10 | QR/email/status extendido/check-in post-entries | pending design | Pendiente | No | No tocado |
 | 11 | API publica de estado por `public_ref` + pantalla B2C status | PASS estatico | No aplica | No | Backend/frontend implementado; dominio final pendiente |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
 | 13 | Reconciliacion/query | pending | Pendiente | No | No tocado |
@@ -46,7 +47,10 @@ Estado actualizado despues del PASS staging aprobado:
 - Pantalla B2C `/#/payments/access/status?ref=acc_...`: PASS estatico.
 - Fix tecnico del 404 post-pago mediante HashRouter/status page: PASS.
 - Validacion local B2C contra Railway mostrando pago `paid`: PASS.
-- Entries/QR/email: pendiente.
+- Slice 9A `public.issue_access_entries_for_paid_order(...)`: PASS.
+- Nuevo pago Bancard aprobado crea `access_entries` automaticamente despues de Confirm RPC `approved`: PASS.
+- Callback duplicado no duplica `access_entries`: PASS.
+- QR/email/status extendido/check-in: pendiente.
 - Validacion final en `tairet.com.py`: pendiente hasta que el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo a `/#/payments/access/status`: pendiente.
 - Query/reconciliacion: pendiente.
@@ -810,7 +814,8 @@ Estado documental:
 - SQL nuevo: No;
 - frontend no tocado;
 - callback backend implementado como PASS estatico;
-- entries/QR/email pendiente;
+- entries post-pago cubiertas por Slice 9A;
+- QR/email pendiente;
 - staging Bancard approved flow PASS.
 
 Endpoint implementado:
@@ -937,7 +942,7 @@ Validacion staging aprobada para Access Core Bancard:
 - El callback llego a `POST /payments/bancard/confirm`.
 - Backend valido el callback, sanitizo payload y llamo `public.confirm_bancard_access_payment(...)`.
 - La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
-- No se crearon `access_entries`; esto es esperado porque entries/QR/email pertenecen al siguiente bloque separado.
+- Slice 9A posterior emitio `access_entries` idempotentes para pagos aprobados.
 - El callback duplicado del mismo pago respondio HTTP 200 `{ "status": "success" }`, registro `idempotent = true` y mantuvo estables pago, orden y stock sin abrir `manual_review`.
 - No se documentan tokens, tarjetas, CVV, vencimientos, claves Bancard ni payload completo del callback.
 
@@ -1154,7 +1159,8 @@ Estado:
 - endpoint `POST /payments/bancard/confirm`;
 - SQL nuevo: No;
 - frontend no tocado;
-- entries/QR/email pendiente;
+- entries post-pago cubiertas por Slice 9A;
+- QR/email pendiente;
 - staging Bancard approved flow PASS;
 - no `payment_events`;
 - sin cambios funcionales en `/payments/callback` legacy.
@@ -1174,9 +1180,8 @@ Archivos implementados:
 - `functions/api/src/schemas/bancardConfirm.ts`;
 - `functions/api/src/services/bancardConfirm.ts`.
 
-Fuera de alcance:
+Fuera de alcance del callback base:
 
-- emision de `access_entries`;
 - QR;
 - email;
 - frontend;
@@ -1231,9 +1236,49 @@ Validacion estatica antes del commit:
 - no SQL/migraciones;
 - no frontend;
 - no dependencies;
-- no entries/QR/email;
+- no QR/email;
 - no `payment_events`;
 - no cambios funcionales en `/payments/callback` legacy.
+
+### 23.1 Slice 9A - Access entries post-pago - PASS
+
+Estado:
+
+- PASS completo;
+- migracion `infra/sql/migrations/040_access_core_slice_9_issue_entries.sql`;
+- RPC `public.issue_access_entries_for_paid_order(p_order_id uuid, p_payment_attempt_id uuid)`;
+- backend integrado en `functions/api/src/services/bancardConfirm.ts`;
+- no se modifico la Confirm RPC existente.
+
+Comportamiento:
+
+- `paid + approved + consumed` llama `issue_access_entries_for_paid_order`;
+- la cantidad emitida es `quantity * entries_per_unit`;
+- la idempotencia usa unique `(order_item_id, unit_index)`;
+- estado inicial de entries: `status = 'issued'`;
+- estado inicial de check-in: `checkin_status = 'unused'`;
+- estado inicial de email: `email_status = 'not_sent'`;
+- `checkin_token` lo genera DB;
+- no se envia email todavia;
+- no se expone QR todavia.
+
+Evidencia staging:
+
+- `shop_process_id = 260623000000004`;
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- primer callback aprobado: `entriesInserted = 1`, `entriesTotal = 1`, `entriesIdempotent = false`;
+- replay duplicado: `entriesInserted = 0`, `entriesTotal = 1`, `entriesIdempotent = true`;
+- SQL final: order `paid`, payment attempt `approved`, stock `consumed`, `access_entries_count = 1`;
+- duplicados por `order_item_id + unit_index`: `0 rows`.
+
+Seguridad:
+
+- la RPC no retorna `checkin_token`;
+- no se loguean tokens completos;
+- no se loguea buyer data;
+- no se loguea payload Bancard completo;
+- el frontend no emite entries;
+- payment/order/stock no se cambian indebidamente.
 
 ## 24. Riesgos y notas
 
@@ -1256,12 +1301,12 @@ Riesgos:
 
 - Las policies finas owner/staff/admin quedan para slices posteriores.
 - Todavia no existe API que consuma `access_ticket_types`.
-- Todavia no existe API que consuma `access_orders`, `access_order_items` ni `access_entries`.
+- Access Core ya consume `access_orders`, `access_order_items` y `access_entries` en checkout, confirmacion y Slice 9A; todavia falta exposicion publica segura de entries/QR.
 - Todavia no existe API que consuma `access_stock_limits` ni `access_stock_reservations`.
 - El endpoint backend init checkout ya consume `payment_attempts` para iniciar Bancard, pero no confirma pagos.
 - El endpoint backend init checkout ya invoca `create_access_paid_checkout`, usa `access_checkout_idempotency_keys` y aplica limites maximos de `quantity`.
 - El endpoint backend confirm ya recibe callbacks Bancard, valida token, sanitiza payload e invoca `confirm_bancard_access_payment(...)`.
-- El core de pago aprobado ya cierra `payment_attempts`, `access_orders` y `access_stock_reservations`; no emite `access_entries` todavia.
+- El core de pago aprobado ya cierra `payment_attempts`, `access_orders` y `access_stock_reservations`; Slice 9A emite `access_entries` idempotentes despues de `approved`.
 - Todavia no existe adapter desde `ticket_types` ni `event_ticket_types`.
 - Todavia no existe flujo de seed/provisioning del primer admin Tairet.
 - La validacion de comportamiento real depende de pruebas futuras con API/RPC o base descartable.
@@ -1270,9 +1315,10 @@ Pendientes principales:
 
 - Validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
-- Disenar emision idempotente de `access_entries`.
 - Generar QR.
 - Enviar email post-pago.
+- Extender status page con estado seguro de entrega.
+- Implementar check-in Access Core.
 - Query/reconciliacion.
 - Caso rejected end-to-end.
 - Panel/manual review.
@@ -1282,17 +1328,13 @@ Pendientes principales:
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - VALIDACION FINAL POST-FIX BANCARD STATUS.
+ASK / PLAN MODE ONLY - ACCESS CORE SLICE 9B QR/TOKEN INTERNO.
 
 Ese proximo paso debe disenar:
 
-- validacion en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
-- nuevo pago Bancard post-fix para validar redirect completo hacia `/#/payments/access/status`;
-- emision idempotente de `access_entries`;
-- generacion de QR;
-- envio de email post-pago;
-- query/reconciliacion;
-- caso rejected end-to-end;
-- panel/manual review.
+- payload QR seguro sobre `access_entries.checkin_token`;
+- helper backend Access Core para QR/token interno;
+- limites de exposicion publica antes de status extendido;
+- contrato de no exponer IDs internos ni tokens completos en logs.
 
 No marcar QR/email ni frontend/status como implementados hasta que esos bloques tengan PASS propio.
