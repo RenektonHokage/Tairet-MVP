@@ -22,6 +22,21 @@ interface ConfirmRpcResult {
   status?: string;
   idempotent?: boolean;
   manual_review?: boolean;
+  order_id?: string;
+  payment_attempt_id?: string;
+  public_ref?: string;
+  error?: ConfirmRpcError;
+}
+
+interface IssueEntriesRpcResult {
+  ok?: boolean;
+  status?: string;
+  public_ref?: string;
+  expected_entries?: number;
+  existing_entries_before?: number;
+  inserted_entries?: number;
+  total_entries?: number;
+  idempotent?: boolean;
   error?: ConfirmRpcError;
 }
 
@@ -44,6 +59,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readNestedErrorCode(data: unknown): string | null {
   if (!isRecord(data) || !isRecord(data.error)) return null;
   return typeof data.error.code === "string" ? data.error.code : null;
+}
+
+function readStringField(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function readNumberField(data: Record<string, unknown>, key: string): number | null {
+  const value = data[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function md5Hex(value: string): string {
@@ -93,11 +118,77 @@ function sanitizeBancardConfirmPayload(
   return payload;
 }
 
-function mapRpcResult(
+async function issueEntriesForApprovedPayment(input: {
+  rpcResult: ConfirmRpcResult;
+  shopProcessId: string;
+  responseCode: string;
+}): Promise<BancardConfirmResult | null> {
+  const orderId = input.rpcResult.order_id;
+  const paymentAttemptId = input.rpcResult.payment_attempt_id;
+  const publicRef = input.rpcResult.public_ref;
+
+  if (!orderId || !paymentAttemptId) {
+    logger.error("Bancard confirm approved response missing entry issue identifiers", {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      rpcStatus: input.rpcResult.status,
+    });
+    return result(500, ERROR_BODY);
+  }
+
+  const { data, error } = await supabase.rpc("issue_access_entries_for_paid_order", {
+    p_order_id: orderId,
+    p_payment_attempt_id: paymentAttemptId,
+  });
+
+  if (error) {
+    logger.error("Failed to call Access Core entry issue RPC", {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      publicRef,
+      errorCode: error.code,
+      error: error.message,
+    });
+    return result(500, ERROR_BODY);
+  }
+
+  if (!isRecord(data)) {
+    logger.error("Unexpected Access Core entry issue RPC response", {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      publicRef,
+    });
+    return result(500, ERROR_BODY);
+  }
+
+  const issueResult = data as IssueEntriesRpcResult;
+  if (issueResult.ok !== true || issueResult.status !== "issued") {
+    logger.error("Access Core entry issue RPC failed", {
+      shopProcessId: input.shopProcessId,
+      responseCode: input.responseCode,
+      publicRef: readStringField(data, "public_ref") ?? publicRef,
+      errorCode: readNestedErrorCode(data),
+    });
+    return result(500, ERROR_BODY);
+  }
+
+  logger.info("Access Core entries issued after Bancard confirm", {
+    shopProcessId: input.shopProcessId,
+    responseCode: input.responseCode,
+    publicRef: readStringField(data, "public_ref") ?? publicRef,
+    entriesInserted: readNumberField(data, "inserted_entries"),
+    entriesTotal: readNumberField(data, "total_entries"),
+    entriesIdempotent: issueResult.idempotent === true,
+  });
+
+  return null;
+}
+
+async function mapRpcResult(
   data: unknown,
   shopProcessId: string,
   responseCode: string
-): BancardConfirmResult {
+): Promise<BancardConfirmResult> {
   if (!isRecord(data)) {
     logger.error("Unexpected Bancard confirm RPC response", {
       shopProcessId,
@@ -115,6 +206,18 @@ function mapRpcResult(
         rpcStatus: rpcResult.status,
       });
       return result(500, ERROR_BODY);
+    }
+
+    if (rpcResult.status === "approved") {
+      const issueErrorResult = await issueEntriesForApprovedPayment({
+        rpcResult,
+        shopProcessId,
+        responseCode,
+      });
+
+      if (issueErrorResult) {
+        return issueErrorResult;
+      }
     }
 
     logger.info("Bancard confirm callback processed", {
