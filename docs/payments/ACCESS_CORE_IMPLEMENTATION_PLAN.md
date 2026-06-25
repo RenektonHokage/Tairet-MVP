@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, emision idempotente de `access_entries`, endpoint publico de estado y pantalla B2C de estado post-pago. Siguen pendientes QR/email, status extendido, check-in, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
+- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, emision idempotente de `access_entries`, helper QR interno, email post-pago, endpoint publico de estado y pantalla B2C de estado post-pago. Siguen pendientes status extendido, check-in, reenvio administrativo, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -28,7 +28,9 @@ Reglas de direccion:
 | 8 | Bancard confirm RPC transaccional | PASS aplicado | `infra/sql/migrations/039_access_core_slice_8.sql` | Si | No backend/frontend |
 | 9 | Backend callback Bancard `POST /payments/bancard/confirm` | PASS estatico | No aplica | No | Backend implementado; staging approved callback PASS |
 | 9A | Emision idempotente de `access_entries` post-pago | PASS | `infra/sql/migrations/040_access_core_slice_9_issue_entries.sql` | Si | Backend integrado despues de Confirm RPC `approved`; sin email/QR |
-| 10 | QR/email/status extendido/check-in post-entries | pending design | Pendiente | No | No tocado |
+| 9B | QR/token interno para entries | PASS | No aplica | No | Helper `accessQr.ts`; sin endpoint publico/status/check-in |
+| 9C | Email post-pago | PASS tecnico | No aplica | No | Backend envia bundle con QR por entry; no revierte pago/stock/entries |
+| 10 | Status extendido/check-in/reenvio post-entries | pending design | Pendiente | No | No tocado |
 | 11 | API publica de estado por `public_ref` + pantalla B2C status | PASS estatico | No aplica | No | Backend/frontend implementado; dominio final pendiente |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
 | 13 | Reconciliacion/query | pending | Pendiente | No | No tocado |
@@ -50,7 +52,10 @@ Estado actualizado despues del PASS staging aprobado:
 - Slice 9A `public.issue_access_entries_for_paid_order(...)`: PASS.
 - Nuevo pago Bancard aprobado crea `access_entries` automaticamente despues de Confirm RPC `approved`: PASS.
 - Callback duplicado no duplica `access_entries`: PASS.
-- QR/email/status extendido/check-in: pendiente.
+- Slice 9B helper QR/token interno `accessQr.ts`: PASS.
+- Slice 9C email post-pago: PASS tecnico.
+- Callback duplicado despues de email `sent` no reenvia y devuelve `skipped_already_sent`: PASS.
+- Status extendido/check-in/reenvio administrativo: pendiente.
 - Validacion final en `tairet.com.py`: pendiente hasta que el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo a `/#/payments/access/status`: pendiente.
 - Query/reconciliacion: pendiente.
@@ -815,7 +820,7 @@ Estado documental:
 - frontend no tocado;
 - callback backend implementado como PASS estatico;
 - entries post-pago cubiertas por Slice 9A;
-- QR/email pendiente;
+- QR interno y email post-pago cubiertos por Slice 9B y Slice 9C;
 - staging Bancard approved flow PASS.
 
 Endpoint implementado:
@@ -844,8 +849,9 @@ Fuera de alcance:
 - callback;
 - query/reconciliacion;
 - emision de `access_entries`;
-- QR;
-- email;
+- status extendido;
+- check-in;
+- reenvio administrativo;
 - frontend final;
 - panel manual review;
 - rollback operativo;
@@ -1160,7 +1166,8 @@ Estado:
 - SQL nuevo: No;
 - frontend no tocado;
 - entries post-pago cubiertas por Slice 9A;
-- QR/email pendiente;
+- QR interno cubierto por Slice 9B;
+- email post-pago cubierto por Slice 9C;
 - staging Bancard approved flow PASS;
 - no `payment_events`;
 - sin cambios funcionales en `/payments/callback` legacy.
@@ -1236,7 +1243,7 @@ Validacion estatica antes del commit:
 - no SQL/migraciones;
 - no frontend;
 - no dependencies;
-- no QR/email;
+- no QR/email en el callback base antes de Slice 9B/9C;
 - no `payment_events`;
 - no cambios funcionales en `/payments/callback` legacy.
 
@@ -1259,8 +1266,105 @@ Comportamiento:
 - estado inicial de check-in: `checkin_status = 'unused'`;
 - estado inicial de email: `email_status = 'not_sent'`;
 - `checkin_token` lo genera DB;
-- no se envia email todavia;
-- no se expone QR todavia.
+- el email post-pago queda cubierto por Slice 9C;
+- el QR interno queda cubierto por Slice 9B;
+- no se expone QR por status page todavia.
+
+### 23.2 Slice 9B - QR/token interno - PASS
+
+Estado:
+
+- PASS;
+- servicio `functions/api/src/services/accessQr.ts`;
+- usa `access_entries.checkin_token` como token opaco;
+- payload interno: `${B2C_BASE_URL}/#/access/checkin/<checkin_token>`;
+- fallback base URL: `https://tairet.com.py`;
+- genera PNG con `qrcode`;
+- no consulta DB;
+- no expone endpoint publico;
+- no modifica status page;
+- no implementa check-in;
+- no loguea `checkin_token`.
+
+Seguridad:
+
+- no incluye `entry_id`;
+- no incluye `order_id`;
+- no incluye `order_item_id`;
+- no incluye `payment_attempt_id`;
+- no incluye buyer data;
+- no incluye monto;
+- no incluye datos Bancard;
+- no incluye secretos.
+
+### 23.3 Slice 9C - Email post-pago - PASS tecnico
+
+Estado:
+
+- PASS tecnico;
+- servicio `functions/api/src/services/accessEmails.ts`;
+- integracion en `functions/api/src/services/bancardConfirm.ts`;
+- logging seguro ajustado en `functions/api/src/services/emails.ts`;
+- usa `sendEmail()`;
+- usa `generateAccessEntryQrPng()`;
+- no usa `eventQr.ts`;
+- no usa `eventEmails.ts`;
+- no usa `payment_events`;
+- no modifica SQL/migraciones;
+- no modifica frontend/status page;
+- no implementa check-in;
+- no crea endpoint publico de QR.
+
+Flujo:
+
+- Confirm RPC devuelve `approved`;
+- `issue_access_entries_for_paid_order(...)` devuelve `ok: true` y `status = 'issued'`;
+- backend intenta email post-pago;
+- claim idempotente `access_entries.email_status: not_sent -> failed`;
+- si email sale bien, `failed -> sent` y `email_sent_at` queda no nulo;
+- si email falla, queda `failed`;
+- la falla de email no revierte pago, stock ni entries;
+- la falla de email no rompe callback Bancard.
+
+Idempotencia:
+
+- callback duplicado despues de `sent` no reenvia;
+- devuelve `skipped_already_sent`;
+- `entriesClaimed = 0`;
+- `entriesSent = 0`;
+- `email_status` permanece `sent`;
+- `email_sent_at` permanece no nulo.
+
+Evidencia staging:
+
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- `shop_process_id = 260623000000004`;
+- replay controlado post-deploy respondio HTTP 200 `{ "status": "success" }`;
+- logs seguros de Resend: `provider = resend`, `recipientCount = 1`, `hasSubject = true`, `subjectLength = 32`, `attachmentCount = 1`, `emailEnabled = true`;
+- logs Access Core: `emailStatus = sent`, `entriesClaimed = 1`, `entriesSent = 1`;
+- SQL: `email_status = 'sent'`, `count = 1`, `with_sent_at = 1`;
+- integridad: order `paid`, payment attempt `approved`, `provider_response_code = '00'`, stock `consumed`, `access_entries_count = 1`;
+- replay duplicado despues de `sent`: `emailStatus = skipped_already_sent`, `entriesClaimed = 0`, `entriesSent = 0`.
+
+Logging seguro:
+
+- `sendEmail()` no loguea destinatario completo;
+- `sendEmail()` no loguea subject completo;
+- logs usan `recipientCount`, `hasSubject`, `subjectLength`, `attachmentCount`, `emailEnabled`, `provider` y `errorCode`;
+- no se loguea `checkin_token`;
+- no se loguea buyer email completo;
+- no se loguea buyer document;
+- no se loguea payload Bancard completo;
+- no se loguea token Bancard;
+- no se loguea private key;
+- no se loguean datos de tarjeta ni CVV.
+
+Aclaracion:
+
+- Slice 9C valida envio tecnico por backend/Resend y estado DB `sent`;
+- la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
+- el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
+- la ruta/check-in todavia no esta implementada y queda pendiente para Slice 9E.
 
 Evidencia staging:
 
@@ -1315,10 +1419,9 @@ Pendientes principales:
 
 - Validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
-- Generar QR.
-- Enviar email post-pago.
 - Extender status page con estado seguro de entrega.
 - Implementar check-in Access Core.
+- Reenvio administrativo.
 - Query/reconciliacion.
 - Caso rejected end-to-end.
 - Panel/manual review.
@@ -1328,13 +1431,13 @@ Pendientes principales:
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - ACCESS CORE SLICE 9B QR/TOKEN INTERNO.
+ASK / PLAN MODE ONLY - ACCESS CORE SLICE 9D STATUS PAGE EXTENDIDA O SLICE 9E CHECK-IN.
 
 Ese proximo paso debe disenar:
 
-- payload QR seguro sobre `access_entries.checkin_token`;
-- helper backend Access Core para QR/token interno;
-- limites de exposicion publica antes de status extendido;
-- contrato de no exponer IDs internos ni tokens completos en logs.
+- si se muestra solo estado de entrega o tambien recuperacion segura;
+- si se habilita check-in por `checkin_token`;
+- contrato de no exponer IDs internos ni tokens completos en logs;
+- reglas para no permitir reenvio automatico sin decision explicita.
 
-No marcar QR/email ni frontend/status como implementados hasta que esos bloques tengan PASS propio.
+No marcar status extendido, check-in ni reenvio administrativo como implementados hasta que esos bloques tengan PASS propio.

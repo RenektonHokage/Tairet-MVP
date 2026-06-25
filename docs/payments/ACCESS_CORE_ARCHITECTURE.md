@@ -875,11 +875,14 @@ Response mapping:
 - RPC `payment_attempt_not_found`: HTTP 409;
 - error Supabase/RPC inesperado: HTTP 500.
 
-Limites despues de Slice 9A:
+Alcance actual despues de Slice 9C:
 
 - emite `access_entries` idempotentes solo cuando Confirm RPC devuelve `approved`;
-- no genera QR publico;
-- no envia email;
+- genera QR interno por entry para email mediante helper Access Core;
+- envia email post-pago como efecto posterior a entries issued;
+- una falla de email no cambia la respuesta exitosa a Bancard si confirm + entries estan OK;
+- no expone QR por endpoint publico;
+- no implementa check-in;
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
 - no usa `payment_events`.
@@ -895,6 +898,10 @@ El cierre de pago aprobado por Bancard Access Core fue validado en staging de pu
 - Slice 9A posterior emite `access_entries` idempotentes para ordenes `paid` con attempt `approved`.
 - El callback duplicado respondio HTTP 200, marco `idempotent = true` y no duplico stock ni altero estados terminales.
 - El replay posterior a Slice 9A no duplica entries: `inserted_entries = 0`, `total_entries = expected_entries`.
+- Slice 9C posterior intenta email post-pago despues de Confirm RPC `approved` y entries `issued`.
+- Si el email sale bien, `access_entries.email_status = 'sent'` y `email_sent_at` queda no nulo.
+- Si el email falla, la entry queda `failed` sin revertir pago, orden, stock ni entries.
+- El callback duplicado despues de `sent` devuelve `skipped_already_sent` y no reenvia email.
 
 La aprobacion de pago queda definida por callback server-to-server validado, no por `return_url`. El retorno de usuario sigue siendo UX: debe mostrar estado, reintentos o espera de confirmacion, pero no puede confirmar pagos por si mismo.
 
@@ -1218,7 +1225,8 @@ Seguridad:
 - la integracion backend no loguea tokens completos;
 - no loguea buyer data;
 - no loguea payload Bancard completo;
-- no envia email ni genera QR publico.
+- la RPC de Slice 9A no envia email ni genera QR publico;
+- Slice 9B y Slice 9C cubren QR interno y email post-pago como efectos backend separados.
 
 ## 21. Bloqueo de cierre de fecha
 
@@ -1291,11 +1299,11 @@ Flujo conceptual:
 10. La RPC marca orden `paid`, `cancelled` o `manual_review`.
 11. La RPC consume, libera o retiene stock segun consistencia.
 12. Backend posterior emite entries de forma idempotente.
-13. Email se dispara aparte.
+13. Backend posterior intenta email post-pago con QR por entry.
 14. Query/reconciliacion opera sobre `payment_attempts`.
 15. Rollback operativo registra payload y activity.
 
-Staging ya valido los pasos 1 a 11 para un flujo aprobado con callback server-to-server. Los pasos 12 a 15 siguen pendientes y deben implementarse como bloques separados.
+Staging ya valido los pasos 1 a 13 para un flujo aprobado con callback server-to-server y email post-pago tecnico. Los pasos 14 y 15 siguen pendientes y deben implementarse como bloques separados.
 
 Factura electronica, token payment, promociones Bancard por entidad/BIN y otros flujos quedan futuros.
 

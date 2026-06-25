@@ -510,8 +510,10 @@ Estado sobre Access Core:
 - staging Bancard approved flow: PASS;
 - callback duplicado/idempotencia sobre pago aprobado: PASS;
 - Slice 9A emision idempotente de `access_entries`: PASS;
+- Slice 9B QR/token interno `accessQr.ts`: PASS;
+- Slice 9C email post-pago: PASS tecnico;
 - query/reconciliacion: pendiente;
-- QR/email/status extendido/check-in: pendiente;
+- status extendido/check-in/reenvio administrativo: pendiente;
 - frontend status/retorno usuario: PASS estatico;
 - iframe final B2C: pendiente;
 - 404 post-pago / retorno usuario: corregido tecnicamente; validacion final en `tairet.com.py` pendiente.
@@ -625,7 +627,9 @@ Nota de alcance:
 - El endpoint init inicia `single_buy`, pero no confirma pagos.
 - Staging approved flow ya valido init, callback aprobado, cierre de orden y consumo de stock.
 - Slice 9A ya valido emision idempotente de `access_entries`.
-- Todavia faltan QR/email/status extendido/check-in, query/reconciliacion, rejected end-to-end, frontend iframe/status y validacion productiva.
+- Slice 9B ya valido QR/token interno.
+- Slice 9C ya valido email post-pago tecnico.
+- Todavia faltan status extendido/check-in/reenvio administrativo, query/reconciliacion, rejected end-to-end, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -752,6 +756,7 @@ Flujo aprobado validado en staging:
 - El callback llego a `/payments/bancard/confirm`; el backend valido token, sanitizo payload y llamo la RPC.
 - La RPC cerro `payment_attempts.status = 'approved'`, `access_orders.status = 'paid'` y `access_stock_reservations.status = 'consumed'`.
 - Slice 9A emitio `access_entries` despues del confirm approved usando `public.issue_access_entries_for_paid_order(...)`.
+- Slice 9C envio email post-pago despues de entries `issued`, con QR por entry.
 - `provider_transaction_id` se guarda desde `ticket_number`.
 - `authorization_number` puede conservarse como dato de autorizacion.
 - El callback duplicado devolvio HTTP 200 `{ "status": "success" }`, registro `idempotent = true` y mantuvo estables pago, orden y stock.
@@ -764,6 +769,15 @@ Evidencia Slice 9A post-deploy:
 - primer callback aprobado: `entriesInserted = 1`, `entriesTotal = 1`, `entriesIdempotent = false`;
 - replay duplicado: `entriesInserted = 0`, `entriesTotal = 1`, `entriesIdempotent = true`;
 - SQL final: order `paid`, attempt `approved`, stock `consumed`, `access_entries_count = 1`.
+
+Evidencia Slice 9C post-deploy:
+
+- replay controlado post-deploy respondio HTTP 200 `{ "status": "success" }`;
+- logs seguros de Resend: `provider = resend`, `recipientCount = 1`, `hasSubject = true`, `subjectLength = 32`, `attachmentCount = 1`, `emailEnabled = true`;
+- logs Access Core: `emailStatus = sent`, `entriesClaimed = 1`, `entriesSent = 1`;
+- SQL: `email_status = 'sent'`, `count = 1`, `with_sent_at = 1`;
+- integridad: order `paid`, attempt `approved`, `provider_response_code = '00'`, stock `consumed`, `access_entries_count = 1`;
+- replay duplicado despues de `sent`: `emailStatus = skipped_already_sent`, `entriesClaimed = 0`, `entriesSent = 0`.
 
 Sanitizacion validada:
 
@@ -802,9 +816,10 @@ El handler de confirmacion existe como PASS estatico y:
 - sanitizar payload;
 - llamar `public.confirm_bancard_access_payment(...)`;
 - responder rapido a Bancard;
-- no emitir `access_entries`;
-- no emitir QR;
-- no enviar email;
+- emitir `access_entries` mediante Slice 9A cuando Confirm RPC devuelve `approved`;
+- intentar email post-pago mediante Slice 9C despues de entries `issued`;
+- no exponer QR por endpoint publico;
+- no implementar check-in;
 - no usar `payment_events`;
 - no reutilizar `/payments/callback` legacy.
 
@@ -858,7 +873,7 @@ Responsabilidad de la RPC:
 - no consumir ni liberar stock ya `consumed`;
 - responder idempotente solo cuando order y stock terminales estan consistentes.
 
-La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. Slice 9A emite `access_entries` en una RPC separada despues de Confirm RPC `approved`.
+La RPC no conoce private key, no calcula token, no valida firma Bancard y no emite entries/QR/email. Slice 9A emite `access_entries` en una RPC separada despues de Confirm RPC `approved`; Slice 9B genera QR interno y Slice 9C envia email post-pago como efectos backend separados.
 
 Post-checks aplicados:
 
@@ -1044,6 +1059,59 @@ Reglas:
 - Soporte/admin Tairet debe poder buscar orden, verificar comprador, verificar estado y reenviar entrada/QR.
 
 La pantalla de resultado debe permitir que el comprador vea estado aprobado aunque el email tarde o falle.
+
+Slice 9C quedo validado como PASS tecnico:
+
+- servicio `functions/api/src/services/accessEmails.ts`;
+- integracion en `functions/api/src/services/bancardConfirm.ts`;
+- logging seguro ajustado en `functions/api/src/services/emails.ts`;
+- usa `sendEmail()`;
+- usa `generateAccessEntryQrPng()`;
+- no usa `eventQr.ts`;
+- no usa `eventEmails.ts`;
+- no usa `payment_events`;
+- no toca SQL/migraciones;
+- no toca frontend/status page;
+- no implementa check-in;
+- no crea endpoint publico de QR.
+
+Flujo Slice 9C:
+
+- Confirm RPC devuelve `approved`;
+- `issue_access_entries_for_paid_order(...)` devuelve `ok: true` y `status = 'issued'`;
+- backend intenta email post-pago;
+- claim idempotente `access_entries.email_status: not_sent -> failed`;
+- si email sale bien, `failed -> sent` y `email_sent_at` queda no nulo;
+- si email falla, queda `failed`;
+- la falla de email no revierte pago, stock ni entries;
+- la falla de email no rompe callback Bancard.
+
+Idempotencia Slice 9C:
+
+- callback duplicado despues de `sent` no reenvia;
+- devuelve `skipped_already_sent`;
+- `entriesClaimed = 0`;
+- `entriesSent = 0`.
+
+Logging seguro Slice 9C:
+
+- `sendEmail()` no loguea destinatario completo;
+- `sendEmail()` no loguea subject completo;
+- logs usan `recipientCount`, `hasSubject`, `subjectLength`, `attachmentCount`, `emailEnabled`, `provider` y `errorCode`;
+- no se loguea `checkin_token`;
+- no se loguea buyer email completo;
+- no se loguea buyer document;
+- no se loguea payload Bancard completo;
+- no se loguea token Bancard;
+- no se loguea private key;
+- no se loguean datos de tarjeta ni CVV.
+
+Aclaracion:
+
+- Slice 9C valida envio tecnico por backend/Resend y estado DB `sent`;
+- la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
+- el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
+- la ruta/check-in todavia no esta implementada y queda pendiente para Slice 9E.
 
 ## 21. Factura electronica futura
 

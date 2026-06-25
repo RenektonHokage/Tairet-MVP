@@ -14,6 +14,8 @@ Bancard Access Core ya tiene estos hitos cerrados:
 - Pantalla B2C de estado: PASS.
 - Fix tecnico del 404 post-pago: PASS.
 - Slice 9A emision idempotente de `access_entries`: PASS.
+- Slice 9B QR/token interno `accessQr.ts`: PASS.
+- Slice 9C email post-pago: PASS tecnico.
 
 Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cerrada por Access Core:
 
@@ -22,7 +24,7 @@ Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cer
 - `access_stock_reservations.status = 'consumed'`;
 - `access_entries_count = 0`.
 
-Despues de Slice 9A, un pago aprobado debe emitir `access_entries` automaticamente y de forma idempotente. QR, email, status extendido y check-in siguen fuera de Slice 9A.
+Despues de Slice 9A, un pago aprobado emite `access_entries` automaticamente y de forma idempotente. Slice 9B agrego helper interno de QR/token y Slice 9C agrego email post-pago. Status extendido, check-in, reenvio administrativo, rejected end-to-end, query/reconciliacion y panel/manual review siguen pendientes.
 
 ## 2. Objetivo del bloque
 
@@ -251,7 +253,7 @@ Seguridad validada:
 - no se expuso QR publico;
 - no se implemento check-in.
 
-### Slice 9B - QR/token interno para entries
+### Slice 9B - QR/token interno para entries - PASS
 
 Objetivo:
 
@@ -260,14 +262,26 @@ Objetivo:
 - crear helper Access Core de QR;
 - no exponer IDs internos.
 
+Implementacion PASS:
+
+- servicio `functions/api/src/services/accessQr.ts`;
+- payload QR interno: `${B2C_BASE_URL}/#/access/checkin/<checkin_token>`;
+- fallback conservador de base URL: `https://tairet.com.py`;
+- QR PNG generado con `qrcode`;
+- no consulta DB;
+- no loguea `checkin_token`;
+- no expone QR por endpoint publico;
+- no modifica status page;
+- no implementa check-in.
+
 Fuera de alcance:
 
 - check-in completo;
 - panel;
-- email masivo si todavia no corresponde;
+- email post-pago, cubierto despues por Slice 9C;
 - publicacion de QR en status page sin contrato seguro.
 
-### Slice 9C - Email post-pago
+### Slice 9C - Email post-pago - PASS tecnico
 
 Objetivo:
 
@@ -275,6 +289,84 @@ Objetivo:
 - manejar multiples entries en un mismo email;
 - marcar `email_status` y `email_sent_at`;
 - asegurar que una falla de email no rompe pago ni entries.
+
+Implementacion PASS:
+
+- servicio `functions/api/src/services/accessEmails.ts`;
+- integracion en `functions/api/src/services/bancardConfirm.ts`;
+- logging seguro ajustado en `functions/api/src/services/emails.ts`;
+- usa `sendEmail()` y `generateAccessEntryQrPng()`;
+- no usa `eventQr.ts`;
+- no usa `eventEmails.ts`;
+- no usa `payment_events`;
+- no toca SQL/migraciones;
+- no toca frontend/status page;
+- no implementa check-in;
+- no crea endpoint publico de QR.
+
+Flujo validado:
+
+- Confirm RPC devuelve `approved`;
+- `issue_access_entries_for_paid_order(...)` devuelve `ok: true` y `status = 'issued'`;
+- backend intenta email post-pago;
+- claim idempotente `access_entries.email_status: not_sent -> failed`;
+- si email sale bien, `failed -> sent` y `email_sent_at` queda no nulo;
+- si email falla, queda `failed`;
+- la falla de email no revierte pago, stock ni entries;
+- la falla de email no rompe callback Bancard.
+
+Idempotencia validada:
+
+- callback duplicado despues de `sent` no reenvia;
+- devuelve `skipped_already_sent`;
+- `entriesClaimed = 0`;
+- `entriesSent = 0`;
+- `email_status` permanece `sent`;
+- `email_sent_at` permanece no nulo.
+
+Evidencia staging principal:
+
+- `public_ref = acc_b95579d85d962fca3bdc5f7f3ec92f0c`;
+- `shop_process_id = 260623000000004`;
+- replay controlado post-deploy respondio HTTP 200 `{ "status": "success" }`;
+- logs seguros de Resend: `provider = resend`, `recipientCount = 1`, `hasSubject = true`, `subjectLength = 32`, `attachmentCount = 1`, `emailEnabled = true`;
+- logs Access Core: `emailStatus = sent`, `entriesClaimed = 1`, `entriesSent = 1`;
+- SQL: `email_status = 'sent'`, `count = 1`, `with_sent_at = 1`;
+- integridad: order `paid`, payment attempt `approved`, `provider_response_code = '00'`, stock `consumed`, `access_entries_count = 1`.
+
+Evidencia callback duplicado despues de `sent`:
+
+- HTTP 200 `{ "status": "success" }`;
+- `entriesInserted = 0`;
+- `entriesTotal = 1`;
+- `entriesIdempotent = true`;
+- `rpcStatus = approved`;
+- `idempotent = true`;
+- `manualReview = false`;
+- `emailStatus = skipped_already_sent`;
+- `entriesClaimed = 0`;
+- `entriesSent = 0`;
+- SQL final: `email_status = 'sent'`, `count = 1`, `with_sent_at = 1`.
+
+Logging seguro:
+
+- `sendEmail()` no loguea destinatario completo;
+- `sendEmail()` no loguea subject completo;
+- logs usan `recipientCount`, `hasSubject`, `subjectLength`, `attachmentCount`, `emailEnabled`, `provider` y `errorCode`;
+- no se loguea `checkin_token`;
+- no se loguea buyer email completo;
+- no se loguea buyer document;
+- no se loguea payload Bancard completo;
+- no se loguea token Bancard;
+- no se loguea private key;
+- no se loguean datos de tarjeta ni CVV.
+
+Aclaracion:
+
+- Slice 9C valida envio tecnico por backend/Resend y estado DB `sent`;
+- la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
+- el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
+- la ruta/check-in todavia no esta implementada y queda pendiente para Slice 9E.
 
 Fuera de alcance:
 
@@ -314,7 +406,7 @@ Fuera de alcance inicial:
 
 ## 6. Recomendacion de orden
 
-Slice 9A ya fue implementado y validado como PASS.
+Slice 9A, Slice 9B y Slice 9C ya fueron implementados y validados como PASS en su alcance.
 
 Motivos por los que se implemento primero:
 
@@ -325,7 +417,7 @@ Motivos por los que se implemento primero:
 - permitio validar contra una orden staging pagada;
 - mantiene separada la Confirm RPC existente.
 
-Siguiente recomendacion: avanzar a Slice 9B, QR/token interno para entries, sin email ni check-in todavia.
+Siguiente recomendacion: no avanzar directamente a check-in o reenvio sin plan. Los siguientes bloques deben decidirse conscientemente entre Slice 9D status page extendida, reenvio administrativo y Slice 9E check-in Access Core.
 
 ## 7. Diseno aplicado Slice 9A
 
@@ -509,8 +601,11 @@ Pruebas:
 Evidencia:
 
 - logs sin token completo;
-- captura de email staging sin datos sensibles;
-- queries de `email_status`.
+- logs Resend seguros sin destinatario completo ni subject completo;
+- queries de `email_status`;
+- `email_status = 'sent'`;
+- `email_sent_at` no nulo;
+- callback duplicado despues de `sent` devuelve `skipped_already_sent` sin reenvio.
 
 ### Slice 9D
 
@@ -578,26 +673,25 @@ Fuera de alcance de este bloque maestro o de Slice 9A inicial:
 ## 11. Prompt recomendado para el proximo ASK
 
 ```text
-ASK / PLAN MODE ONLY — Access Core Slice 9B QR/token interno para access_entries
+ASK / PLAN MODE ONLY — Access Core Slice 9D status page extendida o Slice 9E check-in
 
 Contexto:
-Slice 9A ya quedo PASS:
+Slice 9A, Slice 9B y Slice 9C ya quedaron PASS:
 - payment_attempts.status = approved
 - access_orders.status = paid
 - access_stock_reservations.status = consumed
 - access_entries emitidas de forma idempotente
-- callback duplicado no duplica entries
+- QR interno generado por helper Access Core
+- email post-pago validado tecnicamente
+- callback duplicado no duplica entries ni reenvia email si ya esta sent
 
 Objetivo:
-Disenar Slice 9B:
-- payload QR seguro para `access_entries.checkin_token`;
-- helper backend Access Core para generar QR/token interno;
-- reglas de no exponer IDs internos;
-- reglas de no loguear tokens completos;
-- no emitir email;
-- no exponer QR publico en status page todavia;
-- no modificar status page;
-- no implementar check-in;
+Disenar el siguiente bloque sin implementar todavia:
+- Slice 9D status page extendida con estado seguro de entrega; o
+- Slice 9E check-in Access Core por `checkin_token`;
+- reglas para no exponer IDs internos;
+- reglas para no exponer ni loguear tokens completos;
+- estrategia de reenvio administrativo si corresponde;
 - no tocar legacy/event tables.
 
 Validacion:
