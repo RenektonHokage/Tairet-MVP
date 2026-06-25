@@ -388,7 +388,10 @@ Reglas:
 - una entry usada no puede anularse automaticamente;
 - la emision debe ser idempotente por `(order_item_id, unit_index)`;
 - callback duplicado no puede emitir QR duplicado;
-- si la UI inicial no recolecta datos por cada entry, la emision puede copiar los datos del comprador en cada entry.
+- si la UI inicial no recolecta datos por cada entry, la emision puede copiar los datos del comprador en cada entry;
+- abrir la URL del QR no debe marcar uso automaticamente;
+- validar una entry por token en panel puede ser read-only;
+- marcar uso debe quedar reservado a staff/owner autenticado y a una operacion transaccional posterior.
 
 Campos conceptuales:
 
@@ -875,14 +878,15 @@ Response mapping:
 - RPC `payment_attempt_not_found`: HTTP 409;
 - error Supabase/RPC inesperado: HTTP 500.
 
-Alcance actual despues de Slice 9C:
+Alcance actual despues de Slice 9E.1:
 
 - emite `access_entries` idempotentes solo cuando Confirm RPC devuelve `approved`;
 - genera QR interno por entry para email mediante helper Access Core;
 - envia email post-pago como efecto posterior a entries issued;
 - una falla de email no cambia la respuesta exitosa a Bancard si confirm + entries estan OK;
+- expone validacion read-only panel local por `GET /panel/access/checkin/:token`;
 - no expone QR por endpoint publico;
-- no implementa check-in;
+- no marca uso de entries;
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
 - no usa `payment_events`.
@@ -951,7 +955,63 @@ Pendiente:
 - validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo y no la landing temporal;
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
 
-### 19.6 Nota operativa CORS/env
+### 19.6 Check-in read-only panel local - PASS funcional post-deploy
+
+Slice 9E.1 agrega validacion read-only de `access_entries` por `checkin_token` para staff/owner autenticado del panel.
+
+Endpoint:
+
+- `GET /panel/access/checkin/:token`.
+
+Auth y scope:
+
+- usa `panelAuth`;
+- usa `requireRole(["owner", "staff"])`;
+- es panel-only;
+- es local-only;
+- es read-only;
+- no marca `checkin_status = 'used'`;
+- no setea `used_at`;
+- no setea `used_by`;
+- no toca `voided_at` ni `void_reason`;
+- no toca SQL/migraciones.
+
+Contrato runtime:
+
+- valida token UUID;
+- token no UUID devuelve HTTP 400 con `code = 'invalid_checkin_token'`;
+- carga `access_entries`, `access_orders` y `access_order_items`;
+- exige `access_orders.source_type = 'local'`;
+- exige `access_orders.local_id = req.panelUser.localId`;
+- token inexistente, tenant mismatch y `source_type <> 'local'` devuelven respuesta segura sin revelar existencia;
+- devuelve estados de negocio read-only: `valid`, `already_used`, `voided`, `not_paid`, `not_valid_status`;
+- `date_warning` solo advierte si `access_date` no coincide con la fecha actual en `America/Asuncion`.
+
+Response segura:
+
+- puede incluir estado de entry, `access_date`, `unit_index`, `ticket_name`, nombre/apellido de asistente, `order.public_ref` y `warnings`;
+- no incluye `checkin_token` completo;
+- no incluye `entry_id`, `order_id`, `order_item_id` ni `payment_attempt_id`;
+- no incluye buyer email, buyer phone ni buyer document;
+- no incluye payload Bancard, datos de tarjeta, CVV, private key ni secretos.
+
+Validacion post-deploy:
+
+- token no UUID con auth valido devolvio HTTP 400 `invalid_checkin_token`;
+- token valido `issued/unused` devolvio HTTP 200 con `status = 'valid'`;
+- SQL posterior confirmo que el GET no muta DB: `status = 'issued'`, `checkin_status = 'unused'`, `used_at = null`, `used_by = null`;
+- logs runtime usan path sanitizado `/panel/access/checkin/:token`;
+- logs usan `tokenHash` y no `checkin_token` completo.
+
+Pendientes:
+
+- Slice 9E.2 para marcar entrada como usada con auth staff/owner y operacion transaccional;
+- UI panel para escanear o pegar token;
+- B2C route publica del QR;
+- soporte `source_type = 'event'`;
+- pruebas adicionales de token inexistente, tenant mismatch, already_used, voided, not_paid y source event/no soportado.
+
+### 19.7 Nota operativa CORS/env
 
 El API usa allowlist por `FRONTEND_ORIGIN`.
 
@@ -1126,10 +1186,12 @@ Pendientes explicitos post-PASS staging:
 
 - validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
-- generar QR;
-- enviar email post-pago;
+- QR interno y email post-pago ya tienen PASS tecnico;
 - extender status page con estado seguro de entrega;
-- implementar check-in Access Core;
+- implementar Slice 9E.2 para marcar uso de `access_entries`;
+- agregar UI panel para escanear o pegar token;
+- agregar B2C route publica del QR;
+- disenar soporte `source_type = 'event'`;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.
