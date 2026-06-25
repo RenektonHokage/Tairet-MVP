@@ -5,6 +5,7 @@ import { panelAuth } from "../middlewares/panelAuth";
 import { requireRole } from "../middlewares/requireRole";
 import { calendarRouter } from "./calendar";
 import { panelCatalogRouter } from "./panelCatalog";
+import { panelAccessRouter } from "./panelAccess";
 import { panelLocalRouter } from "./panelLocal";
 import { updateReservationStatusSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
@@ -724,6 +725,7 @@ panelRouter.get("/me", panelAuth, async (req, res) => {
 });
 
 panelRouter.use("/local", panelLocalRouter);
+panelRouter.use("/access", panelAccessRouter);
 
 // GET /panel/activity/entity?entity_type=order|reservation&entity_id=<uuid>
 // Historial operativo por entidad para el local autenticado
