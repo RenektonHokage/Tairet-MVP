@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { supabase } from "./supabase";
 
-type AccessCheckinBusinessStatus = "valid" | "already_used" | "voided" | "not_paid" | "not_valid_status";
-type AccessCheckinWarning = "date_warning";
+export type AccessCheckinBusinessStatus = "valid" | "already_used" | "voided" | "not_paid" | "not_valid_status";
+export type AccessCheckinUseBusinessStatus = "used" | "already_used" | "voided" | "not_paid" | "not_valid_status";
+export type AccessCheckinWarning = "date_warning";
 
 interface AccessEntryRow {
   order_id: string;
@@ -39,21 +40,25 @@ export interface AccessCheckinLogContext {
   localId?: string | null;
   status?: string;
   checkinStatus?: string;
+  usedAt?: string | null;
   panelUserId: string;
   role: string;
   errorCode?: string;
 }
 
+export interface AccessCheckinEntryResponse {
+  status: string;
+  checkin_status: string;
+  used_at?: string | null;
+  access_date: string;
+  unit_index: number;
+  ticket_name: string;
+}
+
 export interface AccessCheckinLookupSuccess {
   ok: true;
   status: AccessCheckinBusinessStatus;
-  entry: {
-    status: string;
-    checkin_status: string;
-    access_date: string;
-    unit_index: number;
-    ticket_name: string;
-  };
+  entry: AccessCheckinEntryResponse;
   attendee: {
     name: string;
     last_name: string;
@@ -77,6 +82,33 @@ export interface AccessCheckinLookupFailure {
 
 export type AccessCheckinLookupResult = AccessCheckinLookupSuccess | AccessCheckinLookupFailure;
 
+export interface AccessCheckinUseSuccess {
+  ok: true;
+  status: AccessCheckinUseBusinessStatus;
+  entry: AccessCheckinEntryResponse;
+  attendee: {
+    name: string;
+    last_name: string;
+  };
+  order: {
+    public_ref: string;
+  };
+  warnings: AccessCheckinWarning[];
+  logContext: AccessCheckinLogContext;
+}
+
+export interface AccessCheckinUseFailure {
+  ok: false;
+  statusCode: 400 | 403 | 404 | 500;
+  error: {
+    code: "invalid_request" | "forbidden" | "entry_not_found" | "checkin_use_failed";
+    message: string;
+  };
+  logContext: AccessCheckinLogContext;
+}
+
+export type AccessCheckinUseResult = AccessCheckinUseSuccess | AccessCheckinUseFailure;
+
 function formatAsuncionDate(date: Date): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Asuncion",
@@ -98,6 +130,81 @@ function formatAsuncionDate(date: Date): string {
 
 export function accessCheckinTokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
+
+function buildAccessCheckinWarnings(accessDate: string, now?: Date): AccessCheckinWarning[] {
+  return accessDate !== formatAsuncionDate(now ?? new Date()) ? ["date_warning"] : [];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function readNestedErrorCode(data: unknown): string | null {
+  if (!isRecord(data) || !isRecord(data.error)) return null;
+  return typeof data.error.code === "string" ? data.error.code : null;
+}
+
+function readNestedErrorMessage(data: unknown): string | null {
+  if (!isRecord(data) || !isRecord(data.error)) return null;
+  return typeof data.error.message === "string" ? data.error.message : null;
+}
+
+const ACCESS_CHECKIN_USE_STATUSES: readonly AccessCheckinUseBusinessStatus[] = [
+  "used",
+  "already_used",
+  "voided",
+  "not_paid",
+  "not_valid_status",
+];
+
+function isAccessCheckinUseStatus(value: unknown): value is AccessCheckinUseBusinessStatus {
+  return (
+    typeof value === "string" &&
+    ACCESS_CHECKIN_USE_STATUSES.includes(value as AccessCheckinUseBusinessStatus)
+  );
+}
+
+function readAccessCheckinEntryResponse(value: unknown): AccessCheckinEntryResponse | null {
+  if (!isRecord(value)) return null;
+
+  const { status, checkin_status, used_at, access_date, unit_index, ticket_name } = value;
+  if (
+    typeof status !== "string" ||
+    typeof checkin_status !== "string" ||
+    typeof access_date !== "string" ||
+    typeof unit_index !== "number" ||
+    typeof ticket_name !== "string"
+  ) {
+    return null;
+  }
+
+  if (used_at !== undefined && used_at !== null && typeof used_at !== "string") {
+    return null;
+  }
+
+  return {
+    status,
+    checkin_status,
+    used_at: used_at ?? null,
+    access_date,
+    unit_index,
+    ticket_name,
+  };
+}
+
+function readAccessCheckinAttendee(value: unknown): { name: string; last_name: string } | null {
+  if (!isRecord(value)) return null;
+  const { name, last_name } = value;
+  if (typeof name !== "string" || typeof last_name !== "string") return null;
+  return { name, last_name };
+}
+
+function readAccessCheckinOrder(value: unknown): { public_ref: string } | null {
+  if (!isRecord(value)) return null;
+  const { public_ref } = value;
+  if (typeof public_ref !== "string") return null;
+  return { public_ref };
 }
 
 function buildNotFoundResult(
@@ -150,6 +257,7 @@ export async function lookupAccessCheckinByToken(input: {
   const { token, panelUser } = input;
   const baseLogContext: AccessCheckinLogContext = {
     tokenHash: accessCheckinTokenHash(token),
+    localId: panelUser.localId,
     panelUserId: panelUser.userId,
     role: panelUser.role,
   };
@@ -273,6 +381,138 @@ export async function lookupAccessCheckinByToken(input: {
     logContext: {
       ...baseLogContext,
       ...orderLogContext,
+      errorCode: undefined,
+    },
+  };
+}
+
+export async function checkInAccessEntryByToken(input: {
+  token: string;
+  panelUser: AccessCheckinPanelUser;
+  now?: Date;
+}): Promise<AccessCheckinUseResult> {
+  const { token, panelUser } = input;
+  const baseLogContext: AccessCheckinLogContext = {
+    tokenHash: accessCheckinTokenHash(token),
+    localId: panelUser.localId,
+    panelUserId: panelUser.userId,
+    role: panelUser.role,
+  };
+
+  const { data, error } = await supabase.rpc("check_in_access_entry_by_token", {
+    p_checkin_token: token,
+    p_actor_auth_user_id: panelUser.userId,
+    p_local_id: panelUser.localId,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      statusCode: 500,
+      error: {
+        code: "checkin_use_failed",
+        message: "Access check-in failed",
+      },
+      logContext: {
+        ...baseLogContext,
+        errorCode: error.code ?? "checkin_rpc_failed",
+      },
+    };
+  }
+
+  if (!isRecord(data)) {
+    return {
+      ok: false,
+      statusCode: 500,
+      error: {
+        code: "checkin_use_failed",
+        message: "Access check-in failed",
+      },
+      logContext: {
+        ...baseLogContext,
+        errorCode: "invalid_rpc_response",
+      },
+    };
+  }
+
+  if (data.ok !== true) {
+    const errorCode = readNestedErrorCode(data) ?? "checkin_use_failed";
+    const statusCode =
+      errorCode === "invalid_request"
+        ? 400
+        : errorCode === "forbidden"
+          ? 403
+          : errorCode === "entry_not_found"
+            ? 404
+            : 500;
+
+    return {
+      ok: false,
+      statusCode,
+      error: {
+        code:
+          errorCode === "invalid_request" ||
+          errorCode === "forbidden" ||
+          errorCode === "entry_not_found"
+            ? errorCode
+            : "checkin_use_failed",
+        message: readNestedErrorMessage(data) ?? "Access check-in failed",
+      },
+      logContext: {
+        ...baseLogContext,
+        errorCode,
+      },
+    };
+  }
+
+  if (!isAccessCheckinUseStatus(data.status)) {
+    return {
+      ok: false,
+      statusCode: 500,
+      error: {
+        code: "checkin_use_failed",
+        message: "Access check-in failed",
+      },
+      logContext: {
+        ...baseLogContext,
+        errorCode: "unexpected_business_status",
+      },
+    };
+  }
+
+  const entry = readAccessCheckinEntryResponse(data.entry);
+  const attendee = readAccessCheckinAttendee(data.attendee);
+  const order = readAccessCheckinOrder(data.order);
+  if (!entry || !attendee || !order) {
+    return {
+      ok: false,
+      statusCode: 500,
+      error: {
+        code: "checkin_use_failed",
+        message: "Access check-in failed",
+      },
+      logContext: {
+        ...baseLogContext,
+        errorCode: "invalid_rpc_response",
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    status: data.status,
+    entry,
+    attendee,
+    order,
+    warnings: buildAccessCheckinWarnings(entry.access_date, input.now),
+    logContext: {
+      ...baseLogContext,
+      publicRef: order.public_ref,
+      sourceType: "local",
+      localId: panelUser.localId,
+      status: entry.status,
+      checkinStatus: entry.checkin_status,
+      usedAt: entry.used_at ?? null,
       errorCode: undefined,
     },
   };
