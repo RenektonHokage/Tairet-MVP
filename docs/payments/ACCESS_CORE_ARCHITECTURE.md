@@ -878,15 +878,15 @@ Response mapping:
 - RPC `payment_attempt_not_found`: HTTP 409;
 - error Supabase/RPC inesperado: HTTP 500.
 
-Alcance actual despues de Slice 9E.1:
+Alcance actual despues de Slice 9E.2:
 
 - emite `access_entries` idempotentes solo cuando Confirm RPC devuelve `approved`;
 - genera QR interno por entry para email mediante helper Access Core;
 - envia email post-pago como efecto posterior a entries issued;
 - una falla de email no cambia la respuesta exitosa a Bancard si confirm + entries estan OK;
 - expone validacion read-only panel local por `GET /panel/access/checkin/:token`;
+- marca uso de entries por `POST /panel/access/checkin/:token/use` mediante RPC transaccional;
 - no expone QR por endpoint publico;
-- no marca uso de entries;
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
 - no usa `payment_events`.
@@ -1005,13 +1005,89 @@ Validacion post-deploy:
 
 Pendientes:
 
-- Slice 9E.2 para marcar entrada como usada con auth staff/owner y operacion transaccional;
 - UI panel para escanear o pegar token;
 - B2C route publica del QR;
 - soporte `source_type = 'event'`;
 - pruebas adicionales de token inexistente, tenant mismatch, already_used, voided, not_paid y source event/no soportado.
 
-### 19.7 Nota operativa CORS/env
+### 19.7 Check-in mark used panel local - PASS funcional post-deploy
+
+Slice 9E.2 agrega marcado transaccional de uso de `access_entries` por `checkin_token` para staff/owner autenticado del panel.
+
+Endpoint:
+
+- `POST /panel/access/checkin/:token/use`.
+
+RPC:
+
+- `public.check_in_access_entry_by_token(uuid, uuid, uuid)`;
+- migracion `infra/sql/migrations/041_access_core_slice_9e_checkin.sql`;
+- `security definer`;
+- `search_path = public, pg_temp`;
+- execute solo para `service_role`;
+- sin execute para `public`, `anon` ni `authenticated`.
+
+Auth y scope:
+
+- usa `panelAuth`;
+- usa `requireRole(["owner", "staff"])`;
+- es panel-only;
+- es local-only;
+- soporta inicialmente solo `source_type = 'local'`;
+- no reutiliza check-in legacy/event;
+- no toca frontend, B2C route, email, QR helper ni Bancard callback.
+
+Contrato runtime:
+
+- valida token UUID en backend;
+- valida actor panel en DB contra `panel_users.auth_user_id`, `panel_users.local_id` y role `owner` o `staff`;
+- token inexistente, tenant mismatch y `source_type <> 'local'` devuelven `entry_not_found` seguro;
+- `used_by` guarda el Supabase Auth user id del usuario panel;
+- `date_warning` solo advierte si `access_date` no coincide con la fecha actual en `America/Asuncion`;
+- no implementa ventana operativa.
+
+Operacion transaccional:
+
+- la RPC bloquea la entry con `FOR UPDATE`;
+- solo actualiza si `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
+- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- estados inconsistentes `unused` con `used_at` o `used_by` ya seteados devuelven `not_valid_status`;
+- doble uso devuelve `already_used`;
+- el segundo POST no pisa `used_at` ni `used_by`.
+
+Response segura:
+
+- puede incluir estado de entry, `used_at`, `access_date`, `unit_index`, `ticket_name`, nombre/apellido de asistente, `order.public_ref` y `warnings`;
+- no incluye `checkin_token` completo;
+- no incluye `entry_id`, `order_id`, `order_item_id` ni `payment_attempt_id`;
+- no incluye buyer email, buyer phone ni buyer document;
+- no incluye payload Bancard, datos de tarjeta, CVV, private key ni secretos.
+
+Validacion post-deploy:
+
+- health API respondio HTTP 200 `{ "ok": true }`;
+- SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
+- primer POST devolvio HTTP 200 con `status = 'used'`, `entry.checkin_status = 'used'`, `used_at` no nulo, `order.public_ref = 'acc_b95579d85d962fca3bdc5f7f3ec92f0c'` y `warnings = ['date_warning']`;
+- SQL posterior al primer POST confirmo `checkin_status = 'used'`, `used_at` no nulo y `used_by` no nulo;
+- segundo POST del mismo token devolvio HTTP 200 con `status = 'already_used'`;
+- SQL posterior al segundo POST confirmo que `used_at` y `used_by` no cambiaron;
+- GET read-only posterior devolvio HTTP 200 con `status = 'already_used'`.
+
+Logging seguro:
+
+- `panelAuth` loguea path sanitizado `/panel/access/checkin/:token/use`;
+- logs usan `tokenHash`, `publicRef`, `sourceType`, `localId`, `status`, `checkinStatus`, `panelUserId`, `role`, `errorCode` y `usedAt`;
+- no se loguea `checkin_token` completo ni PII.
+
+Pendientes:
+
+- Slice 9E.3 UI panel para escanear o pegar token;
+- Slice 9E.4 B2C route publica/minima del QR;
+- soporte `source_type = 'event'`;
+- pruebas adicionales de token inexistente, tenant mismatch, entry voided, order not paid y source event/no soportado;
+- prueba de dos POST estrictamente simultaneos si se requiere evidencia adicional.
+
+### 19.8 Nota operativa CORS/env
 
 El API usa allowlist por `FRONTEND_ORIGIN`.
 
@@ -1188,7 +1264,6 @@ Pendientes explicitos post-PASS staging:
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
 - QR interno y email post-pago ya tienen PASS tecnico;
 - extender status page con estado seguro de entrega;
-- implementar Slice 9E.2 para marcar uso de `access_entries`;
 - agregar UI panel para escanear o pegar token;
 - agregar B2C route publica del QR;
 - disenar soporte `source_type = 'event'`;

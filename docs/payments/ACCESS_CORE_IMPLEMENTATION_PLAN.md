@@ -8,7 +8,7 @@ El core comun `access_*` queda aprobado como direccion arquitectonica para venta
 
 Reglas de direccion:
 
-- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, emision idempotente de `access_entries`, helper QR interno, email post-pago, endpoint publico de estado y pantalla B2C de estado post-pago. Siguen pendientes status extendido, check-in, reenvio administrativo, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
+- Bancard Access Core ya tiene PASS staging para flujo aprobado: init checkout, Confirm RPC, callback backend, cierre de orden, consumo de stock, emision idempotente de `access_entries`, helper QR interno, email post-pago, endpoint publico de estado, pantalla B2C de estado post-pago, lookup panel read-only y marcado transaccional de uso local. Siguen pendientes UI panel, B2C route publica del QR, status extendido, reenvio administrativo, query/reconciliacion, rejected end-to-end, validacion final en `tairet.com.py` y panel/manual review.
 - `orders` legacy no se usara para pagos reales.
 - `event_orders` puede quedar como modelo temporal, piloto o manual para Eventos existentes.
 - El nuevo checkout pago debe nacer sobre `access_*`.
@@ -31,7 +31,8 @@ Reglas de direccion:
 | 9B | QR/token interno para entries | PASS | No aplica | No | Helper `accessQr.ts`; sin endpoint publico/status/check-in |
 | 9C | Email post-pago | PASS tecnico | No aplica | No | Backend envia bundle con QR por entry; no revierte pago/stock/entries |
 | 9E.1 | Check-in Access Core read-only panel local | PASS funcional post-deploy | No aplica | No | Endpoint `GET /panel/access/checkin/:token`; read-only/local-only |
-| 10 | Status extendido/check-in use/reenvio post-entries | pending design | Pendiente | No | 9E.2 use transaccional, UI panel y B2C route pendientes |
+| 9E.2 | Check-in Access Core mark used transaccional local | PASS funcional post-deploy | `infra/sql/migrations/041_access_core_slice_9e_checkin.sql` | Si | Endpoint `POST /panel/access/checkin/:token/use`; panel/local-only |
+| 10 | Status extendido/UI panel/B2C route/reenvio post-entries | pending design | Pendiente | No | 9E.3 UI panel, 9E.4 B2C route y reenvio pendientes |
 | 11 | API publica de estado por `public_ref` + pantalla B2C status | PASS estatico | No aplica | No | Backend/frontend implementado; dominio final pendiente |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
 | 13 | Reconciliacion/query | pending | Pendiente | No | No tocado |
@@ -57,7 +58,10 @@ Estado actualizado despues del PASS staging aprobado:
 - Slice 9C email post-pago: PASS tecnico.
 - Callback duplicado despues de email `sent` no reenvia y devuelve `skipped_already_sent`: PASS.
 - Slice 9E.1 check-in read-only panel local `GET /panel/access/checkin/:token`: PASS funcional post-deploy.
-- Status extendido/check-in use/reenvio administrativo: pendiente.
+- Slice 9E.2 check-in mark used transaccional local `POST /panel/access/checkin/:token/use`: PASS funcional post-deploy.
+- Primer POST marca `checkin_status = 'used'`, setea `used_at` y guarda `used_by` como Supabase Auth user id: PASS.
+- Segundo POST del mismo token devuelve `already_used` y no cambia `used_at` ni `used_by`: PASS.
+- Status extendido/UI panel/B2C route/reenvio administrativo: pendiente.
 - Validacion final en `tairet.com.py`: pendiente hasta que el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo a `/#/payments/access/status`: pendiente.
 - Query/reconciliacion: pendiente.
@@ -1367,7 +1371,7 @@ Aclaracion:
 - la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
 - el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
 - la validacion read-only por token ya esta implementada en Slice 9E.1;
-- marcar uso queda pendiente para Slice 9E.2.
+- marcar uso transaccional por panel local ya esta implementado en Slice 9E.2.
 
 Evidencia staging:
 
@@ -1468,11 +1472,95 @@ Logging seguro runtime:
 
 Pendientes de check-in:
 
-- Slice 9E.2: marcar entrada como usada con auth staff/owner y operacion transaccional;
 - UI panel para escanear o pegar token;
 - B2C route publica del QR;
 - soporte `source_type = 'event'`;
 - validaciones futuras: token inexistente, tenant mismatch, already_used, voided, not_paid y source event/no soportado.
+
+### 23.5 Slice 9E.2 - Check-in mark used transaccional local - PASS funcional post-deploy
+
+Estado:
+
+- PASS funcional post-deploy;
+- migracion `infra/sql/migrations/041_access_core_slice_9e_checkin.sql`;
+- RPC `public.check_in_access_entry_by_token(uuid, uuid, uuid)`;
+- endpoint `POST /panel/access/checkin/:token/use`;
+- auth `panelAuth` + `requireRole(["owner", "staff"])`;
+- scope panel-only, local-only y mutacion transaccional en DB;
+- sin frontend;
+- sin B2C route;
+- sin tocar email;
+- sin tocar QR helper;
+- sin tocar Bancard callback;
+- sin reutilizar check-in legacy/event.
+
+Archivos implementados:
+
+- `functions/api/src/services/accessCheckin.ts`;
+- `functions/api/src/routes/panelAccess.ts`.
+
+RPC y seguridad:
+
+- `security definer`;
+- `search_path = public, pg_temp`;
+- execute solo para `service_role`;
+- sin execute para `public`, `anon` ni `authenticated`;
+- valida actor panel en DB contra `panel_users.auth_user_id`, `panel_users.local_id` y role `owner` o `staff`;
+- `used_by` guarda el Supabase Auth user id del usuario panel;
+- token inexistente, tenant mismatch y `source_type <> 'local'` devuelven `entry_not_found` seguro;
+- no expone existencia cross-tenant.
+
+Operacion transaccional:
+
+- usa `FOR UPDATE` sobre `access_entries`;
+- solo marca uso si la entry esta `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
+- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- si una entry `unused` ya tiene `used_at` o `used_by`, devuelve `not_valid_status` y no muta;
+- si otro request ya gano el uso, devuelve `already_used`;
+- no pisa `used_at` ni `used_by` en reintentos.
+
+Estados de negocio:
+
+- `used`: uso aplicado correctamente;
+- `already_used`: entry `issued` ya estaba usada o el request llego despues de otro uso;
+- `voided`: entry anulada;
+- `not_paid`: orden no esta `paid`;
+- `not_valid_status`: combinacion no soportada o inconsistente;
+- `entry_not_found`: token inexistente, tenant mismatch o source no local;
+- `forbidden`: actor panel invalido o sin permiso;
+- `invalid_request`: parametros invalidos.
+
+Validacion post-deploy:
+
+- `GET /health` devolvio HTTP 200 `{ "ok": true }`;
+- SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
+- primer `POST /panel/access/checkin/<checkin_token>/use` devolvio HTTP 200 con `status = 'used'`, `entry.checkin_status = 'used'`, `used_at` no nulo, `order.public_ref = 'acc_b95579d85d962fca3bdc5f7f3ec92f0c'` y `warnings = ['date_warning']`;
+- SQL posterior al primer POST confirmo `checkin_status = 'used'`, `used_at` no nulo y `used_by` no nulo;
+- segundo POST del mismo token devolvio HTTP 200 con `status = 'already_used'`;
+- SQL posterior al segundo POST confirmo que `used_at` y `used_by` no cambiaron;
+- GET read-only posterior devolvio HTTP 200 con `status = 'already_used'`.
+
+Aclaracion de concurrencia:
+
+- se valido flujo principal `unused -> used`;
+- se valido idempotencia secuencial con segundo POST;
+- no se ejecuto prueba manual de dos POST estrictamente simultaneos;
+- la RPC fue revisada con `FOR UPDATE`, update condicional y fallback para resolver concurrencia en DB.
+
+Logging seguro runtime:
+
+- `panelAuth` loguea `path = '/panel/access/checkin/:token/use'`, no el token completo;
+- primer POST loguea `message = 'Access check-in use completed'`, `status = 'used'`, `checkinStatus = 'used'`, `usedAt` y `tokenHash`;
+- segundo POST loguea `status = 'already_used'`, `checkinStatus = 'used'`, el mismo `usedAt` y `tokenHash`;
+- no se loguea `checkin_token` completo;
+- no se loguean `entry_id`, `order_id`, `order_item_id`, `payment_attempt_id`, buyer email, buyer phone, buyer document, payload Bancard, datos de tarjeta, CVV, private key ni secretos.
+
+Pendientes de check-in:
+
+- Slice 9E.3: UI panel para escanear o pegar token;
+- Slice 9E.4: B2C route publica/minima del QR;
+- soporte `source_type = 'event'`;
+- validaciones futuras adicionales: token inexistente, tenant mismatch, entry voided, order not paid, source event/no soportado y concurrencia estrictamente simultanea si se quiere evidencia adicional.
 
 ## 24. Riesgos y notas
 
@@ -1488,6 +1576,7 @@ Notas:
 - El endpoint backend `POST /payments/bancard/confirm` ya existe como PASS estatico y llama la RPC despues de validar token.
 - Staging Bancard approved flow ya tiene PASS para init, callback aprobado, cierre de orden y consumo de stock.
 - Callback duplicado sobre pago aprobado ya tiene PASS idempotente.
+- Slice 9E.2 fue aplicado en staging y marca uso de `access_entries` por token con auth panel local de forma transaccional.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
@@ -1510,7 +1599,6 @@ Pendientes principales:
 - Validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`.
 - Extender status page con estado seguro de entrega.
-- Implementar Slice 9E.2 para marcar uso de `access_entries`.
 - UI panel para escanear o pegar token.
 - B2C route publica del QR.
 - Soporte `source_type = 'event'` para check-in Access Core.
@@ -1524,13 +1612,14 @@ Pendientes principales:
 
 Siguiente paso recomendado:
 
-ASK / PLAN MODE ONLY - ACCESS CORE SLICE 9E.2 CHECK-IN USE TRANSACCIONAL O SLICE 9D STATUS PAGE EXTENDIDA.
+ASK / PLAN MODE ONLY - ACCESS CORE SLICE 9E.3 UI PANEL CHECK-IN O SLICE 9E.4 B2C ROUTE PUBLICA DEL QR.
 
 Ese proximo paso debe disenar:
 
-- si se muestra solo estado de entrega o tambien recuperacion segura;
-- como marcar uso de `access_entries` por `checkin_token` con staff/owner autenticado;
+- si el panel escanea QR o permite pegar token;
+- como consumir `GET /panel/access/checkin/:token` y `POST /panel/access/checkin/:token/use` sin exponer tokens completos en logs;
+- si se agrega una B2C route minima solo para redirigir/mostrar estado controlado del QR;
 - contrato de no exponer IDs internos ni tokens completos en logs;
 - reglas para no permitir reenvio automatico sin decision explicita.
 
-No marcar status extendido, uso transaccional, UI panel, B2C route ni reenvio administrativo como implementados hasta que esos bloques tengan PASS propio.
+No marcar status extendido, UI panel, B2C route ni reenvio administrativo como implementados hasta que esos bloques tengan PASS propio.

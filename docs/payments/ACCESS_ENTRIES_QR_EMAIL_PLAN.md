@@ -17,6 +17,7 @@ Bancard Access Core ya tiene estos hitos cerrados:
 - Slice 9B QR/token interno `accessQr.ts`: PASS.
 - Slice 9C email post-pago: PASS tecnico.
 - Slice 9E.1 check-in read-only panel local: PASS funcional post-deploy.
+- Slice 9E.2 check-in mark used transaccional local: PASS funcional post-deploy.
 
 Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cerrada por Access Core:
 
@@ -25,7 +26,7 @@ Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cer
 - `access_stock_reservations.status = 'consumed'`;
 - `access_entries_count = 0`.
 
-Despues de Slice 9A, un pago aprobado emite `access_entries` automaticamente y de forma idempotente. Slice 9B agrego helper interno de QR/token, Slice 9C agrego email post-pago y Slice 9E.1 agrego validacion read-only panel por token. Marcar uso, UI panel, B2C route publica del QR, status extendido, reenvio administrativo, rejected end-to-end, query/reconciliacion y panel/manual review siguen pendientes.
+Despues de Slice 9A, un pago aprobado emite `access_entries` automaticamente y de forma idempotente. Slice 9B agrego helper interno de QR/token, Slice 9C agrego email post-pago, Slice 9E.1 agrego validacion read-only panel por token y Slice 9E.2 agrego marcado transaccional de uso. UI panel, B2C route publica del QR, status extendido, reenvio administrativo, rejected end-to-end, query/reconciliacion y panel/manual review siguen pendientes.
 
 ## 2. Objetivo del bloque
 
@@ -368,7 +369,7 @@ Aclaracion:
 - la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
 - el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
 - la validacion read-only panel por token ya existe en Slice 9E.1;
-- marcar uso de la entrada queda pendiente para Slice 9E.2.
+- marcar uso transaccional por panel local ya existe en Slice 9E.2.
 
 Fuera de alcance:
 
@@ -466,9 +467,102 @@ Fuera de alcance de 9E.1:
 - B2C route publica del QR;
 - soporte `source_type = 'event'`.
 
+#### Slice 9E.2 - Mark used transaccional panel local - PASS funcional post-deploy
+
+Objetivo:
+
+- marcar una `access_entry` como usada por `checkin_token`;
+- exigir staff/owner autenticado del panel;
+- validar tenant local antes de mutar;
+- impedir doble uso;
+- mantener la operacion atomica en DB.
+
+Implementacion PASS:
+
+- migracion `infra/sql/migrations/041_access_core_slice_9e_checkin.sql`;
+- RPC `public.check_in_access_entry_by_token(uuid, uuid, uuid)`;
+- endpoint `POST /panel/access/checkin/:token/use`;
+- auth `panelAuth` + `requireRole(["owner", "staff"])`;
+- scope panel-only;
+- scope local-only;
+- mutacion transaccional en DB;
+- archivos backend `functions/api/src/services/accessCheckin.ts` y `functions/api/src/routes/panelAccess.ts`.
+
+RPC y seguridad:
+
+- `security definer`;
+- `search_path = public, pg_temp`;
+- execute solo para `service_role`;
+- sin execute para `public`, `anon` ni `authenticated`;
+- valida actor panel en DB contra `panel_users.auth_user_id`, `panel_users.local_id` y role `owner` o `staff`;
+- `used_by` guarda el Supabase Auth user id del usuario panel;
+- token inexistente, tenant mismatch y `source_type <> 'local'` devuelven `entry_not_found` seguro;
+- no expone existencia cross-tenant.
+
+Operacion transaccional:
+
+- usa `FOR UPDATE` sobre `access_entries`;
+- actualiza solo si `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
+- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- entry `unused` con `used_at` o `used_by` ya seteados devuelve `not_valid_status` y no muta;
+- segundo uso devuelve `already_used`;
+- no pisa `used_at` ni `used_by` en reintentos.
+
+Estados de negocio:
+
+- `used`: uso aplicado correctamente;
+- `already_used`: entry ya estaba usada;
+- `voided`: entry anulada;
+- `not_paid`: order no `paid`;
+- `not_valid_status`: combinacion no soportada o inconsistente;
+- `entry_not_found`: token inexistente, tenant mismatch o source no local;
+- `forbidden`: actor panel invalido o sin permiso;
+- `invalid_request`: parametros invalidos.
+
+Respuesta segura:
+
+- puede devolver `status`, `entry.status`, `entry.checkin_status`, `entry.used_at`, `entry.access_date`, `entry.unit_index`, `entry.ticket_name`, `attendee.name`, `attendee.last_name`, `order.public_ref` y `warnings`;
+- no devuelve `checkin_token` completo;
+- no devuelve `entry_id`, `order_id`, `order_item_id` ni `payment_attempt_id`;
+- no devuelve buyer email, buyer phone ni buyer document;
+- no devuelve payload Bancard, datos de tarjeta, CVV, private key ni secretos.
+
+Validacion post-deploy:
+
+- health API devolvio HTTP 200 `{ "ok": true }`;
+- SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
+- primer POST devolvio HTTP 200 con `status = 'used'`, `entry.status = 'issued'`, `entry.checkin_status = 'used'`, `used_at` no nulo, `order.public_ref = 'acc_b95579d85d962fca3bdc5f7f3ec92f0c'` y `warnings = ['date_warning']`;
+- SQL posterior al primer POST confirmo `checkin_status = 'used'`, `used_at` no nulo y `used_by` no nulo;
+- segundo POST del mismo token devolvio HTTP 200 con `status = 'already_used'`;
+- SQL posterior al segundo POST confirmo que `used_at` y `used_by` no cambiaron;
+- GET read-only posterior devolvio HTTP 200 con `status = 'already_used'`.
+
+Aclaracion:
+
+- se valido flujo principal `unused -> used`;
+- se valido idempotencia secuencial con segundo POST;
+- no se ejecuto prueba manual de dos POST estrictamente simultaneos;
+- la RPC fue revisada con `FOR UPDATE`, update condicional y fallback para resolver concurrencia en DB.
+
+Logging seguro:
+
+- runtime usa path sanitizado `/panel/access/checkin/:token/use`;
+- logs usan `tokenHash`, `publicRef`, `sourceType`, `localId`, `status`, `checkinStatus`, `panelUserId`, `role`, `errorCode` y `usedAt`;
+- no se loguea `checkin_token` completo;
+- no se loguean IDs internos, buyer email, buyer phone, buyer document, payload Bancard, datos de tarjeta, CVV, private key ni secretos.
+
+Fuera de alcance de 9E.2:
+
+- UI panel para escanear o pegar token;
+- B2C route publica/minima del QR;
+- soporte `source_type = 'event'`;
+- status page extendida;
+- reenvio administrativo;
+- legacy/event check-in.
+
 ## 6. Recomendacion de orden
 
-Slice 9A, Slice 9B, Slice 9C y Slice 9E.1 ya fueron implementados y validados como PASS en su alcance.
+Slice 9A, Slice 9B, Slice 9C, Slice 9E.1 y Slice 9E.2 ya fueron implementados y validados como PASS en su alcance.
 
 Motivos por los que se implemento primero:
 
@@ -479,7 +573,7 @@ Motivos por los que se implemento primero:
 - permitio validar contra una orden staging pagada;
 - mantiene separada la Confirm RPC existente.
 
-Siguiente recomendacion: no avanzar directamente a uso transaccional, UI o reenvio sin plan. Los siguientes bloques deben decidirse conscientemente entre Slice 9E.2 uso transaccional, Slice 9D status page extendida, UI panel, B2C route publica del QR y reenvio administrativo.
+Siguiente recomendacion: no avanzar directamente a UI, B2C route o reenvio sin plan. Los siguientes bloques deben decidirse conscientemente entre Slice 9E.3 UI panel, Slice 9E.4 B2C route publica del QR, Slice 9D status page extendida y reenvio administrativo.
 
 ## 7. Diseno aplicado Slice 9A
 
@@ -692,6 +786,7 @@ Pruebas:
 - token valido `issued/unused` devuelve `valid`;
 - GET read-only no muta `status`, `checkin_status`, `used_at` ni `used_by`;
 - token usado devuelve `already_used`;
+- POST use marca `checkin_status = 'used'`, setea `used_at` y preserva `used_by` en reintentos;
 - token invalido/inexistente no revela datos;
 - operador sin permiso no puede hacer check-in;
 - entry voided no se puede usar.
@@ -715,7 +810,7 @@ Evidencia:
 | Mezcla legacy/event con Access Core | Crear servicios/RPC Access Core propios; usar legacy/event solo como referencia. |
 | Entries duplicadas por `entries_per_unit` mal calculado | Usar `quantity * entries_per_unit` desde snapshot de `access_order_items`. |
 | Email failure bloquea pago | Email nunca revierte `paid`, `approved` ni `issued`. |
-| Check-in antes de contrato de permisos | 9E.1 es read-only; marcar uso queda para 9E.2 transaccional con auth staff/owner. |
+| Check-in antes de contrato de permisos | 9E.1 fue read-only y 9E.2 marca uso transaccional con auth staff/owner. |
 
 ## 10. Fuera de alcance
 
@@ -737,10 +832,10 @@ Fuera de alcance de este bloque maestro o de Slice 9A inicial:
 ## 11. Prompt recomendado para el proximo ASK
 
 ```text
-ASK / PLAN MODE ONLY — Access Core Slice 9E.2 check-in use transaccional
+ASK / PLAN MODE ONLY — Access Core Slice 9E.3 UI panel check-in
 
 Contexto:
-Slice 9A, Slice 9B, Slice 9C y Slice 9E.1 ya quedaron PASS:
+Slice 9A, Slice 9B, Slice 9C, Slice 9E.1 y Slice 9E.2 ya quedaron PASS:
 - payment_attempts.status = approved
 - access_orders.status = paid
 - access_stock_reservations.status = consumed
@@ -750,12 +845,14 @@ Slice 9A, Slice 9B, Slice 9C y Slice 9E.1 ya quedaron PASS:
 - callback duplicado no duplica entries ni reenvia email si ya esta sent
 - GET /panel/access/checkin/:token valida read-only por token con auth panel local
 - el GET no muta checkin_status, used_at ni used_by
+- POST /panel/access/checkin/:token/use marca uso transaccional con auth panel local
+- segundo POST devuelve already_used y no cambia used_at ni used_by
 
 Objetivo:
 Disenar el siguiente bloque sin implementar todavia:
-- marcar `access_entries` como usadas por `checkin_token`;
-- operacion transaccional con auth staff/owner;
-- impedir doble uso;
+- UI panel para escanear o pegar token;
+- consumo seguro de GET read-only y POST use;
+- estados visuales para valid, used, already_used, voided, not_paid y not_valid_status;
 - mantener source_type event fuera o disenarlo explicitamente;
 - reglas para no exponer IDs internos;
 - reglas para no exponer ni loguear tokens completos;
