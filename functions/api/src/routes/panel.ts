@@ -1232,7 +1232,8 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
     // TENANT CHECK: validar que la orden pertenece al local del usuario
     if (order.local_id !== req.panelUser.localId) {
       logger.warn("Tenant mismatch in token check-in", {
-        token,
+        tokenPresent: true,
+        tokenLength: token.length,
         orderLocalId: order.local_id,
         userLocalId: req.panelUser.localId,
       });
@@ -1281,7 +1282,8 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
 
     if (localError || !local) {
       logger.error("Local not found while validating token check-in window", {
-        token,
+        tokenPresent: true,
+        tokenLength: token.length,
         localId: order.local_id,
         error: localError?.message,
       });
@@ -1307,7 +1309,8 @@ panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]),
     if (updateError) {
       logger.error("Error in token check-in", {
         error: updateError.message,
-        token,
+        tokenPresent: true,
+        tokenLength: token.length,
       });
       return res.status(500).json({ error: "Failed to check in" });
     }
