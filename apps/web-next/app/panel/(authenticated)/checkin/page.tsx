@@ -5,6 +5,7 @@ import type { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 import { usePanelContext } from "@/lib/panelContext";
 import { NotAvailable } from "@/components/panel/NotAvailable";
+import { AccessPaidCheckinSection } from "@/components/panel/AccessPaidCheckinSection";
 import { getApiBase, getAuthHeaders } from "@/lib/api";
 
 interface CheckinSuccess {
@@ -38,6 +39,7 @@ type CameraStatus =
   | "error";
 
 type OverlayTone = "success" | "warning" | "error";
+type CheckinMode = "legacy" | "paid";
 
 interface OverlayState {
   tone: OverlayTone;
@@ -152,6 +154,7 @@ export default function CheckinPage() {
   const overlayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [token, setToken] = useState("");
+  const [checkinMode, setCheckinMode] = useState<CheckinMode>("legacy");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckinResult | null>(null);
   const [isCheckinProcessing, setIsCheckinProcessing] = useState(false);
@@ -502,7 +505,8 @@ export default function CheckinPage() {
       if (checkinRequestInFlightRef.current) {
         console.info("[checkin] request ignored because another check-in is in flight", {
           source,
-          token: normalizedToken,
+          tokenPresent: true,
+          tokenLength: normalizedToken.length,
         });
         return;
       }
@@ -540,7 +544,8 @@ export default function CheckinPage() {
               sessionStatsRef.current.retries += 1;
               console.warn("[checkin] transient server error, retrying", {
                 source,
-                token: normalizedToken,
+                tokenPresent: true,
+                tokenLength: normalizedToken.length,
                 status: response.status,
                 attempt,
                 maxAttempts,
@@ -600,7 +605,8 @@ export default function CheckinPage() {
 
             console.info("[checkin] request settled", {
               source,
-              token: normalizedToken,
+              tokenPresent: true,
+              tokenLength: normalizedToken.length,
               attempt,
               status: response.status,
               resultType: nextResult.type,
@@ -623,7 +629,8 @@ export default function CheckinPage() {
               sessionStatsRef.current.retries += 1;
               console.warn("[checkin] transient network/timeout error, retrying", {
                 source,
-                token: normalizedToken,
+                tokenPresent: true,
+                tokenLength: normalizedToken.length,
                 attempt,
                 maxAttempts,
                 errorName: castedError.name,
@@ -658,7 +665,8 @@ export default function CheckinPage() {
 
             console.error("[checkin] request failed", {
               source,
-              token: normalizedToken,
+              tokenPresent: true,
+              tokenLength: normalizedToken.length,
               attempt,
               errorName: castedError.name,
               message: castedError.message,
@@ -677,7 +685,8 @@ export default function CheckinPage() {
         };
         console.error("[checkin] setup failure before request", {
           source,
-          token: normalizedToken,
+          tokenPresent: true,
+          tokenLength: normalizedToken.length,
           message: err instanceof Error ? err.message : "unknown error",
         });
         applyCheckinResult(requestSequence, nextResult, source);
@@ -850,6 +859,16 @@ export default function CheckinPage() {
     sameTokenCooldownUntilRef.current = 0;
   };
 
+  const handleCheckinModeChange = (nextMode: CheckinMode) => {
+    setCheckinMode(nextMode);
+
+    if (nextMode === "paid") {
+      stopCamera();
+      clearOverlayTimeout();
+      setOverlay(null);
+    }
+  };
+
   if (contextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -886,7 +905,42 @@ export default function CheckinPage() {
         <h2 className="text-3xl font-bold">Check-in en Puerta</h2>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+      <div className="rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="grid gap-1 sm:grid-cols-2">
+          <button
+            className={[
+              "rounded-md px-4 py-2 text-sm font-semibold transition",
+              checkinMode === "legacy"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-700 hover:bg-gray-50",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={() => handleCheckinModeChange("legacy")}
+            type="button"
+          >
+            Check-in actual
+          </button>
+          <button
+            className={[
+              "rounded-md px-4 py-2 text-sm font-semibold transition",
+              checkinMode === "paid"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-700 hover:bg-gray-50",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={() => handleCheckinModeChange("paid")}
+            type="button"
+          >
+            Entradas pagas
+          </button>
+        </div>
+      </div>
+
+      {checkinMode === "legacy" ? (
+        <>
+          <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Escanear QR</h3>
 
         <p className="text-xs text-gray-500 mb-2">
@@ -1034,9 +1088,9 @@ export default function CheckinPage() {
             )}
           </div>
         )}
-      </div>
+          </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Token Manual</h3>
         <p className="text-sm text-gray-500 mb-4">Pega el token del QR si la cámara no funciona:</p>
 
@@ -1065,7 +1119,7 @@ export default function CheckinPage() {
             </button>
           </div>
         </div>
-      </div>
+          </div>
 
       {result && (
         <div className="bg-white p-6 rounded-lg shadow">
@@ -1167,6 +1221,10 @@ export default function CheckinPage() {
             </div>
           )}
         </div>
+      )}
+        </>
+      ) : (
+        <AccessPaidCheckinSection />
       )}
     </div>
   );
