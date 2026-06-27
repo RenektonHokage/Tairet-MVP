@@ -39,6 +39,7 @@ const Rooftop = lazy(() => import("./pages/experiencias/Rooftop"));
 const AfterOffice = lazy(() => import("./pages/experiencias/AfterOffice"));
 const Promociones = lazy(() => import("./pages/experiencias/Promociones"));
 const AccessPaymentStatus = lazy(() => import("./pages/AccessPaymentStatus"));
+const AccessCheckinLanding = lazy(() => import("./pages/AccessCheckinLanding"));
 const PurchaseConfirmation = lazy(() => import("./pages/PurchaseConfirmation"));
 const ReservaForm = lazy(() => import("./pages/ReservaForm"));
 
@@ -87,6 +88,7 @@ const App = () => (
             <Route path="/auth/login" element={<Login />} />
             <Route path="/informacion" element={<Informacion />} />
             <Route path="/payments/access/status" element={<AccessPaymentStatus />} />
+            <Route path="/access/checkin/:token" element={<AccessCheckinLanding />} />
             <Route path="/confirmacion-compra" element={<PurchaseConfirmation />} />
             <Route path="/reservar/:barId" element={<ReservaForm />} />
             
