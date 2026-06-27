@@ -512,8 +512,11 @@ Estado sobre Access Core:
 - Slice 9A emision idempotente de `access_entries`: PASS;
 - Slice 9B QR/token interno `accessQr.ts`: PASS;
 - Slice 9C email post-pago: PASS tecnico;
+- Slice 9E.1 read-only panel local: PASS funcional post-deploy;
+- Slice 9E.2 mark used transaccional local: PASS funcional post-deploy;
+- Slice 9E.3 panel UI `Entradas pagas`: PASS funcional post-deploy;
 - query/reconciliacion: pendiente;
-- status extendido/check-in/reenvio administrativo: pendiente;
+- status extendido/B2C route publica del QR/reenvio administrativo: pendiente;
 - frontend status/retorno usuario: PASS estatico;
 - iframe final B2C: pendiente;
 - 404 post-pago / retorno usuario: corregido tecnicamente; validacion final en `tairet.com.py` pendiente.
@@ -629,7 +632,8 @@ Nota de alcance:
 - Slice 9A ya valido emision idempotente de `access_entries`.
 - Slice 9B ya valido QR/token interno.
 - Slice 9C ya valido email post-pago tecnico.
-- Todavia faltan status extendido/check-in/reenvio administrativo, query/reconciliacion, rejected end-to-end, frontend iframe/status y validacion productiva.
+- Slice 9E.1, 9E.2 y 9E.3 ya validaron lookup panel, marcado transaccional y UI panel `Entradas pagas`.
+- Todavia faltan status extendido/B2C route publica del QR/reenvio administrativo, query/reconciliacion, rejected end-to-end, frontend iframe/status y validacion productiva.
 
 Endpoint Bancard:
 
@@ -1111,7 +1115,8 @@ Aclaracion:
 - Slice 9C valida envio tecnico por backend/Resend y estado DB `sent`;
 - la recepcion final en inbox del comprador queda como verificacion manual opcional si se quiere evidencia visible;
 - el QR del email usa la URL futura `/#/access/checkin/<checkin_token>`;
-- la ruta/check-in todavia no esta implementada y queda pendiente para Slice 9E.
+- el lookup panel, marcado transaccional y UI panel `Entradas pagas` ya existen en Slice 9E.1, 9E.2 y 9E.3;
+- la B2C route publica/minima del QR y reenvio administrativo quedan pendientes.
 
 ## 21. Factura electronica futura
 
@@ -1339,10 +1344,10 @@ Pendientes explicitos post-PASS staging:
 
 - validacion final en `tairet.com.py` cuando el dominio sirva el B2C definitivo;
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
-- generar QR;
-- enviar email post-pago;
+- QR interno y email post-pago ya tienen PASS tecnico;
 - extender status page con estado seguro de entrega;
-- implementar check-in Access Core;
+- check-in panel local ya tiene PASS para lookup, marcado de uso y UI `Entradas pagas`;
+- implementar B2C route publica/minima del QR;
 - query/reconciliacion;
 - caso rejected end-to-end;
 - panel/manual review.

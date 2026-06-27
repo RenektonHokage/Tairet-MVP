@@ -18,6 +18,7 @@ Bancard Access Core ya tiene estos hitos cerrados:
 - Slice 9C email post-pago: PASS tecnico.
 - Slice 9E.1 check-in read-only panel local: PASS funcional post-deploy.
 - Slice 9E.2 check-in mark used transaccional local: PASS funcional post-deploy.
+- Slice 9E.3 panel UI `Entradas pagas`: PASS funcional post-deploy.
 
 Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cerrada por Access Core:
 
@@ -26,7 +27,7 @@ Antes de Slice 9A, el bloque empezaba desde una orden aprobada por Bancard y cer
 - `access_stock_reservations.status = 'consumed'`;
 - `access_entries_count = 0`.
 
-Despues de Slice 9A, un pago aprobado emite `access_entries` automaticamente y de forma idempotente. Slice 9B agrego helper interno de QR/token, Slice 9C agrego email post-pago, Slice 9E.1 agrego validacion read-only panel por token y Slice 9E.2 agrego marcado transaccional de uso. UI panel, B2C route publica del QR, status extendido, reenvio administrativo, rejected end-to-end, query/reconciliacion y panel/manual review siguen pendientes.
+Despues de Slice 9A, un pago aprobado emite `access_entries` automaticamente y de forma idempotente. Slice 9B agrego helper interno de QR/token, Slice 9C agrego email post-pago, Slice 9E.1 agrego validacion read-only panel por token, Slice 9E.2 agrego marcado transaccional de uso y Slice 9E.3 agrego UI panel `Entradas pagas` dentro de `/panel/checkin`. B2C route publica del QR, status extendido, reenvio administrativo, rejected end-to-end, query/reconciliacion y panel/manual review siguen pendientes.
 
 ## 2. Objetivo del bloque
 
@@ -553,16 +554,97 @@ Logging seguro:
 
 Fuera de alcance de 9E.2:
 
-- UI panel para escanear o pegar token;
+- UI panel para entradas pagas;
 - B2C route publica/minima del QR;
 - soporte `source_type = 'event'`;
 - status page extendida;
 - reenvio administrativo;
 - legacy/event check-in.
 
+#### Slice 9E.3 - Panel UI para check-in de entradas pagas - PASS funcional post-deploy
+
+Objetivo:
+
+- integrar validacion de entradas pagas/Bancard dentro del panel existente `/panel/checkin`;
+- mantener disponible el flujo anterior de check-in/free pass;
+- no crear una pantalla aislada;
+- no tocar backend ni SQL.
+
+Archivos funcionales:
+
+- `apps/web-next/app/panel/(authenticated)/checkin/page.tsx`;
+- `apps/web-next/components/panel/AccessPaidCheckinSection.tsx`;
+- `apps/web-next/lib/accessCheckin.ts`.
+
+Funcionalidad implementada:
+
+- modo visible `Entradas pagas` dentro de `/panel/checkin`;
+- modo legacy/free pass queda como default;
+- parser local para UUID puro, URL completa del QR, hash/path `/#/access/checkin/<token>` y path `/access/checkin/<token>`;
+- input invalido muestra `Código no válido` sin request backend;
+- `Buscar entrada` llama `GET /panel/access/checkin/:token`;
+- `Validar entrada` llama `POST /panel/access/checkin/:token/use`;
+- el POST solo ocurre con click explicito;
+- no hay POST automatico al pegar, buscar o renderizar;
+- no se agrego camara/scanner para entradas pagas;
+- al cambiar a `Entradas pagas`, se detiene la camara legacy;
+- logs legacy que exponian token completo fueron sanitizados.
+
+Estados cubiertos:
+
+- `valid`;
+- `used`;
+- `already_used`;
+- `voided`;
+- `not_paid`;
+- `not_valid_status`;
+- 404 generico como entrada no encontrada/no perteneciente al local;
+- `date_warning` como advertencia no bloqueante.
+
+Seguridad y privacidad:
+
+- no muestra el `checkin_token` completo;
+- no guarda token en `localStorage` ni `sessionStorage`;
+- no coloca token en query params;
+- no manda token a analytics;
+- no muestra IDs internos;
+- no muestra buyer email, buyer phone, buyer document, payload Bancard, datos de tarjeta, CVV, private key ni secretos;
+- no toca backend, SQL, email, QR helper, Bancard ni B2C.
+
+QA:
+
+- typecheck: PASS;
+- `git diff --check`: PASS;
+- input invalido: PASS, sin request backend;
+- token usado: PASS, devuelve `already_used`;
+- URL completa/hash/path: PASS, parser extrae token;
+- legacy check-in: PASS, sigue disponible;
+- entrada nueva `unused`: PASS;
+- GET inicial: PASS, devuelve entrada valida;
+- boton `Validar entrada`: PASS, aparece habilitado para `valid`;
+- POST `/panel/access/checkin/:token/use`: PASS desde UI con status 200;
+- UI posterior al POST: PASS, muestra `Entrada validada correctamente` y estado `used`;
+- reconsulta del mismo token: PASS, devuelve `already_used`;
+- no se observo POST indebido para `already_used`;
+- QA post-deploy: PASS.
+
+Fuera de alcance de 9E.3:
+
+- scanner/camara para entradas pagas;
+- modo puerta rapido;
+- listado nuevo de entradas;
+- "Mis entradas";
+- cuentas B2C;
+- reenvio de email;
+- soporte `source_type = 'event'`;
+- cambios backend;
+- cambios SQL/migraciones;
+- cambios Bancard;
+- cambios B2C.
+
 ## 6. Recomendacion de orden
 
-Slice 9A, Slice 9B, Slice 9C, Slice 9E.1 y Slice 9E.2 ya fueron implementados y validados como PASS en su alcance.
+Slice 9A, Slice 9B, Slice 9C, Slice 9E.1, Slice 9E.2 y Slice 9E.3 ya fueron implementados y validados como PASS en su alcance.
 
 Motivos por los que se implemento primero:
 
@@ -573,7 +655,7 @@ Motivos por los que se implemento primero:
 - permitio validar contra una orden staging pagada;
 - mantiene separada la Confirm RPC existente.
 
-Siguiente recomendacion: no avanzar directamente a UI, B2C route o reenvio sin plan. Los siguientes bloques deben decidirse conscientemente entre Slice 9E.3 UI panel, Slice 9E.4 B2C route publica del QR, Slice 9D status page extendida y reenvio administrativo.
+Siguiente recomendacion: no avanzar directamente a B2C route o reenvio sin plan. Los siguientes bloques deben decidirse conscientemente entre Slice 9E.4 B2C route publica del QR, Slice 9D status page extendida y reenvio administrativo.
 
 ## 7. Diseno aplicado Slice 9A
 
@@ -832,10 +914,10 @@ Fuera de alcance de este bloque maestro o de Slice 9A inicial:
 ## 11. Prompt recomendado para el proximo ASK
 
 ```text
-ASK / PLAN MODE ONLY — Access Core Slice 9E.3 UI panel check-in
+ASK / PLAN MODE ONLY — Access Core Slice 9E.4 B2C route minima para QR
 
 Contexto:
-Slice 9A, Slice 9B, Slice 9C, Slice 9E.1 y Slice 9E.2 ya quedaron PASS:
+Slice 9A, Slice 9B, Slice 9C, Slice 9E.1, Slice 9E.2 y Slice 9E.3 ya quedaron PASS:
 - payment_attempts.status = approved
 - access_orders.status = paid
 - access_stock_reservations.status = consumed
@@ -847,12 +929,14 @@ Slice 9A, Slice 9B, Slice 9C, Slice 9E.1 y Slice 9E.2 ya quedaron PASS:
 - el GET no muta checkin_status, used_at ni used_by
 - POST /panel/access/checkin/:token/use marca uso transaccional con auth panel local
 - segundo POST devuelve already_used y no cambia used_at ni used_by
+- /panel/checkin ya tiene modo Entradas pagas para buscar y validar entradas pagas
 
 Objetivo:
 Disenar el siguiente bloque sin implementar todavia:
-- UI panel para escanear o pegar token;
-- consumo seguro de GET read-only y POST use;
-- estados visuales para valid, used, already_used, voided, not_paid y not_valid_status;
+- B2C route minima para el destino del QR;
+- copy que no prometa validacion automatica;
+- sin exponer token completo en UI/logs;
+- sin consultar backend publico salvo contrato explicito;
 - mantener source_type event fuera o disenarlo explicitamente;
 - reglas para no exponer IDs internos;
 - reglas para no exponer ni loguear tokens completos;
@@ -860,7 +944,7 @@ Disenar el siguiente bloque sin implementar todavia:
 
 Validacion:
 - `git diff --check`;
-- `pnpm -C functions/api typecheck`;
+- typecheck del paquete que se toque;
 - no tokens completos en logs;
 - no commit.
 ```

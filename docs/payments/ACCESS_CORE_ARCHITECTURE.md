@@ -878,7 +878,7 @@ Response mapping:
 - RPC `payment_attempt_not_found`: HTTP 409;
 - error Supabase/RPC inesperado: HTTP 500.
 
-Alcance actual despues de Slice 9E.2:
+Alcance actual despues de Slice 9E.3:
 
 - emite `access_entries` idempotentes solo cuando Confirm RPC devuelve `approved`;
 - genera QR interno por entry para email mediante helper Access Core;
@@ -886,6 +886,7 @@ Alcance actual despues de Slice 9E.2:
 - una falla de email no cambia la respuesta exitosa a Bancard si confirm + entries estan OK;
 - expone validacion read-only panel local por `GET /panel/access/checkin/:token`;
 - marca uso de entries por `POST /panel/access/checkin/:token/use` mediante RPC transaccional;
+- integra UI panel `Entradas pagas` dentro de `/panel/checkin` sin reemplazar el flujo anterior;
 - no expone QR por endpoint publico;
 - no ejecuta query/reconciliacion;
 - no toca `/payments/callback` legacy;
@@ -1005,7 +1006,6 @@ Validacion post-deploy:
 
 Pendientes:
 
-- UI panel para escanear o pegar token;
 - B2C route publica del QR;
 - soporte `source_type = 'event'`;
 - pruebas adicionales de token inexistente, tenant mismatch, already_used, voided, not_paid y source event/no soportado.
@@ -1081,13 +1081,89 @@ Logging seguro:
 
 Pendientes:
 
-- Slice 9E.3 UI panel para escanear o pegar token;
 - Slice 9E.4 B2C route publica/minima del QR;
 - soporte `source_type = 'event'`;
 - pruebas adicionales de token inexistente, tenant mismatch, entry voided, order not paid y source event/no soportado;
 - prueba de dos POST estrictamente simultaneos si se requiere evidencia adicional.
 
-### 19.8 Nota operativa CORS/env
+### 19.8 Panel UI para check-in de entradas pagas - PASS funcional post-deploy
+
+Slice 9E.3 integra validacion de entradas pagas/Bancard dentro del panel existente `/panel/checkin`.
+
+Alcance:
+
+- modo visible `Entradas pagas`;
+- el flujo legacy/free pass sigue disponible;
+- el modo legacy queda como default;
+- no se crea pantalla aislada;
+- no se agrega camara/scanner para entradas pagas;
+- no toca backend, SQL, B2C, email, QR helper ni Bancard.
+
+Archivos funcionales:
+
+- `apps/web-next/app/panel/(authenticated)/checkin/page.tsx`;
+- `apps/web-next/components/panel/AccessPaidCheckinSection.tsx`;
+- `apps/web-next/lib/accessCheckin.ts`.
+
+Contrato UI:
+
+- parser local acepta UUID puro, URL completa del QR, hash/path `/#/access/checkin/<token>` y path `/access/checkin/<token>`;
+- input invalido muestra `Código no válido` y no llama backend;
+- `Buscar entrada` llama `GET /panel/access/checkin/:token`;
+- `Validar entrada` llama `POST /panel/access/checkin/:token/use`;
+- el POST solo ocurre con click explicito;
+- no hay validacion automatica al pegar, buscar o renderizar;
+- al cambiar a `Entradas pagas`, la camara legacy se detiene.
+
+Estados visuales:
+
+- `valid`;
+- `used`;
+- `already_used`;
+- `voided`;
+- `not_paid`;
+- `not_valid_status`;
+- 404 generico como entrada no encontrada/no perteneciente al local;
+- `date_warning` como advertencia no bloqueante.
+
+Seguridad:
+
+- no muestra el `checkin_token` completo;
+- no persiste token en `localStorage` ni `sessionStorage`;
+- no coloca token en query params;
+- no manda token a analytics;
+- no muestra IDs internos;
+- no muestra buyer email, buyer phone, buyer document, payload Bancard, datos de tarjeta, CVV, private key ni secretos;
+- logs legacy que exponian token completo fueron sanitizados.
+
+QA:
+
+- typecheck: PASS;
+- `git diff --check`: PASS;
+- input invalido no llama backend;
+- URL completa/hash/path extraen token;
+- legacy check-in sigue disponible;
+- GET inicial devuelve entrada valida para entry `unused`;
+- POST desde UI marca `used`;
+- reconsulta del mismo token devuelve `already_used`;
+- no se observo POST indebido para `already_used`;
+- QA post-deploy: PASS.
+
+Fuera de alcance:
+
+- scanner/camara para entradas pagas;
+- modo puerta rapido;
+- listado nuevo de entradas;
+- "Mis entradas";
+- cuentas B2C;
+- reenvio de email;
+- soporte `source_type = 'event'`;
+- cambios backend;
+- cambios SQL/migraciones;
+- cambios Bancard;
+- cambios B2C.
+
+### 19.9 Nota operativa CORS/env
 
 El API usa allowlist por `FRONTEND_ORIGIN`.
 
@@ -1264,7 +1340,6 @@ Pendientes explicitos post-PASS staging:
 - nuevo pago Bancard post-fix para validar redirect completo desde Bancard hacia `/#/payments/access/status`;
 - QR interno y email post-pago ya tienen PASS tecnico;
 - extender status page con estado seguro de entrega;
-- agregar UI panel para escanear o pegar token;
 - agregar B2C route publica del QR;
 - disenar soporte `source_type = 'event'`;
 - query/reconciliacion;
