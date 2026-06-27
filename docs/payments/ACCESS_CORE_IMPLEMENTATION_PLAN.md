@@ -33,6 +33,7 @@ Reglas de direccion:
 | 9E.1 | Check-in Access Core read-only panel local | PASS funcional post-deploy | No aplica | No | Endpoint `GET /panel/access/checkin/:token`; read-only/local-only |
 | 9E.2 | Check-in Access Core mark used transaccional local | PASS funcional post-deploy | `infra/sql/migrations/041_access_core_slice_9e_checkin.sql` | Si | Endpoint `POST /panel/access/checkin/:token/use`; panel/local-only |
 | 9E.3 | Panel UI para check-in de entradas pagas | PASS funcional post-deploy | No aplica | No | Modo `Entradas pagas` dentro de `/panel/checkin`; legacy sigue default |
+| 9G-lite | Legacy token logging hardening | PASS | No aplica | No | Sanitiza logs legacy de `PATCH /panel/checkin/:token`; sin cambio funcional |
 | 10 | Status extendido/B2C route/reenvio post-entries | pending design | Pendiente | No | 9E.4 B2C route y reenvio pendientes |
 | 11 | API publica de estado por `public_ref` + pantalla B2C status | PASS estatico | No aplica | No | Backend/frontend implementado; dominio final pendiente |
 | 12 | Admin/support y manual review | pending | Pendiente | No | No tocado |
@@ -63,6 +64,7 @@ Estado actualizado despues del PASS staging aprobado:
 - Primer POST marca `checkin_status = 'used'`, setea `used_at` y guarda `used_by` como Supabase Auth user id: PASS.
 - Segundo POST del mismo token devuelve `already_used` y no cambia `used_at` ni `used_by`: PASS.
 - Slice 9E.3 panel UI `Entradas pagas` dentro de `/panel/checkin`: PASS funcional local y post-deploy.
+- Slice 9G-lite legacy token logging hardening en `PATCH /panel/checkin/:token`: PASS.
 - Status extendido/B2C route/reenvio administrativo: pendiente.
 - Validacion final en `tairet.com.py`: pendiente hasta que el dominio sirva el B2C definitivo.
 - Nuevo pago Bancard post-fix para validar redirect completo a `/#/payments/access/status`: pendiente.
@@ -1663,6 +1665,61 @@ Fuera de alcance de 9E.3:
 - cambios Bancard;
 - cambios B2C.
 
+### 23.7 Slice 9G-lite - Legacy token logging hardening - PASS
+
+Estado:
+
+- PASS;
+- commit funcional `458947b chore: redact legacy checkin token logs`;
+- endurece el logging del flujo legacy de check-in;
+- reduce exposicion accidental de `checkin_token` en logs backend;
+- cambio intencionalmente limitado a logging;
+- sin cambio de comportamiento funcional.
+
+Alcance:
+
+- handler afectado: `PATCH /panel/checkin/:token`;
+- archivo funcional: `functions/api/src/routes/panel.ts`;
+- no modifica Access Core nuevo;
+- no modifica frontend;
+- no modifica SQL/migraciones;
+- no modifica Bancard;
+- no modifica email;
+- no modifica QR helper;
+- no modifica dependencies.
+
+Logs sanitizados:
+
+- `Tenant mismatch in token check-in`;
+- `Local not found while validating token check-in window`;
+- `Error in token check-in`.
+
+Campos seguros mantenidos:
+
+- `tokenPresent`;
+- `tokenLength`.
+
+QA y validacion:
+
+- `pnpm -C functions/api typecheck`: PASS;
+- `git diff --check`: PASS;
+- review: PASS, sin hallazgos High, Medium ni Low;
+- post-deploy API health `https://tairetapi-production.up.railway.app/health`: PASS con `{ "ok": true }`.
+
+Fuera de alcance de 9G-lite:
+
+- no se modifico `/panel/orders`;
+- no se modifico PII visible legacy;
+- no se modificaron endpoints Access Core nuevos;
+- no se modifico `panelAccess.ts`;
+- no se modifico frontend;
+- no se modifico SQL;
+- no se modifico Bancard;
+- no se modifico email;
+- no se modifico QR helper;
+- no se agrego scanner/camara;
+- no se cambio comportamiento legacy.
+
 ## 24. Riesgos y notas
 
 Notas:
@@ -1679,6 +1736,7 @@ Notas:
 - Callback duplicado sobre pago aprobado ya tiene PASS idempotente.
 - Slice 9E.2 fue aplicado en staging y marca uso de `access_entries` por token con auth panel local de forma transaccional.
 - Slice 9E.3 fue deployado y agrega UI panel `Entradas pagas` dentro de `/panel/checkin` sin reemplazar el flujo anterior.
+- Slice 9G-lite fue deployado y sanitiza logs legacy de `PATCH /panel/checkin/:token` sin cambiar comportamiento funcional.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
 
