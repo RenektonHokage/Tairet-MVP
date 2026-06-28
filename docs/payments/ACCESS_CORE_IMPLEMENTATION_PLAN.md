@@ -33,6 +33,7 @@ Reglas de direccion:
 | 9E.1 | Check-in Access Core read-only panel local | PASS funcional post-deploy | No aplica | No | Endpoint `GET /panel/access/checkin/:token`; read-only/local-only |
 | 9E.2 | Check-in Access Core mark used transaccional local | PASS funcional post-deploy | `infra/sql/migrations/041_access_core_slice_9e_checkin.sql` | Si | Endpoint `POST /panel/access/checkin/:token/use`; panel/local-only |
 | 9E.3 | Panel UI para check-in de entradas pagas | PASS funcional post-deploy | No aplica | No | Modo `Entradas pagas` dentro de `/panel/checkin`; legacy sigue default |
+| 9F-lite | Aclaracion visual en Panel Entradas | PASS | No aplica | No | Card informativa en `/panel/orders`; sin integrar `access_entries` |
 | 9G-lite | Legacy token logging hardening | PASS | No aplica | No | Sanitiza logs legacy de `PATCH /panel/checkin/:token`; sin cambio funcional |
 | 10 | Status extendido/B2C route/reenvio post-entries | pending design | Pendiente | No | 9E.4 B2C route y reenvio pendientes |
 | 11 | API publica de estado por `public_ref` + pantalla B2C status | PASS estatico | No aplica | No | Backend/frontend implementado; dominio final pendiente |
@@ -64,6 +65,7 @@ Estado actualizado despues del PASS staging aprobado:
 - Primer POST marca `checkin_status = 'used'`, setea `used_at` y guarda `used_by` como Supabase Auth user id: PASS.
 - Segundo POST del mismo token devuelve `already_used` y no cambia `used_at` ni `used_by`: PASS.
 - Slice 9E.3 panel UI `Entradas pagas` dentro de `/panel/checkin`: PASS funcional local y post-deploy.
+- Slice 9F-lite aclaracion visual en `/panel/orders`: PASS post-deploy.
 - Slice 9G-lite legacy token logging hardening en `PATCH /panel/checkin/:token`: PASS.
 - Status extendido/B2C route/reenvio administrativo: pendiente.
 - Validacion final en `tairet.com.py`: pendiente hasta que el dominio sirva el B2C definitivo.
@@ -1665,7 +1667,69 @@ Fuera de alcance de 9E.3:
 - cambios Bancard;
 - cambios B2C.
 
-### 23.7 Slice 9G-lite - Legacy token logging hardening - PASS
+### 23.7 Slice 9F-lite - Aclaracion visual en Panel Entradas - PASS
+
+Estado:
+
+- PASS;
+- QA post-deploy: PASS;
+- commit funcional `4a40677 chore: clarify legacy orders panel scope`;
+- reduce confusion operativa en `/panel/orders`;
+- cambio solo frontend/copy;
+- sin backend;
+- sin SQL/migraciones;
+- sin cambios en validacion legacy.
+
+Resumen:
+
+- `/panel/orders` sigue siendo el listado del flujo anterior/free pass;
+- las entradas pagas/Bancard se validan desde `/panel/checkin` -> `Entradas pagas`;
+- se agrego una card informativa debajo del header `Entradas`;
+- la card aparece antes de errores de exportacion, resumen, filtros y listado;
+- no se integro `access_orders`;
+- no se integro `access_entries`;
+- no se modifico `PATCH /panel/orders/:id/use`.
+
+Archivo funcional del slice:
+
+- `apps/web-next/app/panel/(authenticated)/orders/OrdersPageClient.tsx`.
+
+Copy agregado:
+
+- `Entradas del flujo anterior`;
+- `Este listado corresponde a entradas y free pass del flujo anterior. Las entradas pagas recibidas por correo con QR se validan desde Check-in > Entradas pagas.`;
+- CTA `Ir a Check-in` hacia `/panel/checkin`.
+
+QA y validacion:
+
+- `pnpm -C apps/web-next typecheck`: PASS;
+- `git diff --check`: PASS;
+- review: PASS, sin hallazgos High, Medium ni Low;
+- QA manual minimo: PASS;
+- QA post-deploy: PASS;
+- `/panel/orders` muestra la aclaracion;
+- CTA `Ir a Check-in` navega a `/panel/checkin`;
+- filtros/listado/exportacion legacy siguen visibles;
+- no se agregaron requests backend nuevos.
+
+Fuera de alcance de 9F-lite:
+
+- no se integro `access_orders`;
+- no se integro `access_entries`;
+- no se agrego listado de entradas pagas;
+- no se cambio `PATCH /panel/orders/:id/use`;
+- no se modifico PII visible legacy;
+- no se modifico token copy legacy;
+- no se modifico backend;
+- no se modifico SQL;
+- no se modifico Bancard;
+- no se modifico email;
+- no se modifico QR helper;
+- no se modifico B2C;
+- no se agrego scanner/camara;
+- no se agrego modo puerta rapido.
+
+### 23.8 Slice 9G-lite - Legacy token logging hardening - PASS
 
 Estado:
 
@@ -1736,6 +1800,7 @@ Notas:
 - Callback duplicado sobre pago aprobado ya tiene PASS idempotente.
 - Slice 9E.2 fue aplicado en staging y marca uso de `access_entries` por token con auth panel local de forma transaccional.
 - Slice 9E.3 fue deployado y agrega UI panel `Entradas pagas` dentro de `/panel/checkin` sin reemplazar el flujo anterior.
+- Slice 9F-lite fue deployado y aclara que `/panel/orders` corresponde al flujo anterior/free pass.
 - Slice 9G-lite fue deployado y sanitiza logs legacy de `PATCH /panel/checkin/:token` sin cambiar comportamiento funcional.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.
