@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo, useRef, type CSSProperties } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, cn, panelSuccessTone, panelUi } from "@/components/panel/ui";
@@ -1570,6 +1571,49 @@ export default function OrdersPageClient() {
           </div>
         ) : undefined}
       />
+
+      <section
+        className={cn(
+          "rounded-xl border px-4 py-3 shadow-sm",
+          panelTheme === "dark"
+            ? "border-[#303030] bg-[#171717]"
+            : "border-sky-100 bg-sky-50"
+        )}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h2
+              className={cn(
+                "text-sm font-semibold",
+                panelTheme === "dark" ? "text-[#F5F5F5]" : "text-slate-900"
+              )}
+            >
+              Entradas del flujo anterior
+            </h2>
+            <p
+              className={cn(
+                "text-sm",
+                panelTheme === "dark" ? "text-[#D4D4D4]" : "text-slate-700"
+              )}
+            >
+              Este listado corresponde a entradas y free pass del flujo anterior. Las entradas pagas
+              recibidas por correo con QR se validan desde Check-in &gt; Entradas pagas.
+            </p>
+          </div>
+          <Link
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition",
+              panelUi.focusRing,
+              panelTheme === "dark"
+                ? "bg-[#F5F5F5] text-[#171717] hover:bg-[#E5E5E5]"
+                : "bg-slate-950 text-white hover:bg-slate-800"
+            )}
+            href="/panel/checkin"
+          >
+            Ir a Check-in
+          </Link>
+        </div>
+      </section>
 
       {exportError ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
