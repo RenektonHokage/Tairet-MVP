@@ -17,8 +17,10 @@ import TouchSlideGallery from "@/components/TouchSlideGallery";
 import {
   buildDetailHoursLines,
   getDetailTodayScheduleLabelApiFirst,
+  getClubAccessCatalog,
   getLocalBySlug,
   getClubCatalog,
+  type AccessCatalogTicket,
   type CatalogTable,
   type CatalogTicket,
   type LocalGalleryItem,
@@ -55,6 +57,7 @@ const ClubProfile = () => {
   const [apiPromotions, setApiPromotions] = useState<
     { id: string; title: string; image: string; validity?: string }[] | undefined
   >(undefined);
+  const [accessCatalogTickets, setAccessCatalogTickets] = useState<AccessCatalogTicket[] | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // Resolver local_id real desde slug
@@ -118,16 +121,18 @@ const ClubProfile = () => {
           );
         }
 
-        // Cargar catálogo de la API
-        getClubCatalog(clubId)
-          .then((catalog) => {
-            if (catalog) {
-              setCatalogTickets(catalog.tickets);
-              setCatalogTables(catalog.tables);
-            }
+        // Cargar catálogos DB-first. Legacy conserva Free Pass/mesas; Access Core alimenta pagos Bancard.
+        Promise.all([getClubCatalog(clubId), getClubAccessCatalog(clubId)])
+          .then(([catalog, accessCatalog]) => {
+            setCatalogTickets(catalog?.tickets ?? []);
+            setCatalogTables(catalog?.tables ?? []);
+            setAccessCatalogTickets(accessCatalog?.tickets ?? []);
           })
           .catch((err) => {
-            console.warn("Error al cargar catálogo, usando mocks:", err);
+            console.warn("Error al cargar catálogos:", err);
+            setCatalogTickets([]);
+            setCatalogTables([]);
+            setAccessCatalogTickets([]);
           })
           .finally(() => {
             setIsLoading(false);
@@ -240,6 +245,42 @@ const ClubProfile = () => {
     }
     return images;
   })();
+  const purchaseTickets = [
+    ...((catalogTickets ?? [])
+      .filter((ticket) => ticket.price <= 0)
+      .sort((a, b) => a.price - b.price)
+      .map((ticket) => ({
+        id: ticket.id,
+        ticket_type_id: ticket.id,
+        name: ticket.name,
+        price: ticket.price,
+        description: "",
+        benefits: parseBenefits(ticket.description),
+      }))),
+    ...((accessCatalogTickets ?? [])
+      .sort((a, b) => a.price_gs - b.price_gs)
+      .map((ticket) => ({
+        id: ticket.access_ticket_type_id,
+        access_ticket_type_id: ticket.access_ticket_type_id,
+        name: ticket.name,
+        price: ticket.price_gs,
+        description: "",
+        benefits: parseBenefits(ticket.description),
+      }))),
+  ];
+  const purchaseTables = catalogTables && catalogTables.length > 0
+    ? [...catalogTables]
+        .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+        .map((table) => ({
+          id: table.id,
+          name: table.name,
+          capacity: table.capacity || 0,
+          price: table.price || 0,
+          drinks: parseBenefits(table.includes),
+        }))
+    : [];
+  const hasLoadedPurchaseCatalogs = catalogTickets !== null && accessCatalogTickets !== null;
+
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
       <Navbar />
@@ -360,37 +401,10 @@ const ClubProfile = () => {
         </section>
 
         {/* Tickets and Table Reservations - DB-first ONLY (sin mocks) */}
-        {localId && catalogTickets !== null && (
+        {localId && hasLoadedPurchaseCatalogs && (purchaseTickets.length > 0 || purchaseTables.length > 0) && (
           <PurchaseSelector 
-            tickets={
-              // DB-first ONLY: transformar tickets de API a formato esperado, ordenados por precio ASC
-              // PROHIBIDO: usar mocks en flujo transaccional
-              catalogTickets.length > 0
-                ? [...catalogTickets]
-                    .sort((a, b) => a.price - b.price)
-                    .map((t) => ({
-                      id: t.id, // UUID real del catálogo
-                      name: t.name,
-                      price: t.price,
-                      description: "", // Ya no se muestra como subtítulo fijo
-                      benefits: parseBenefits(t.description), // Parsear description a benefits[]
-                    }))
-                : [] // Sin tickets disponibles = array vacío, NO mocks
-            } 
-            tables={
-              // DB-first ONLY: transformar tables de API a formato esperado, ordenados por precio ASC (NULLS LAST)
-              catalogTables && catalogTables.length > 0
-                ? [...catalogTables]
-                    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
-                    .map((t) => ({
-                      id: t.id, // UUID real del catálogo
-                      name: t.name,
-                    capacity: t.capacity || 0,
-                    price: t.price || 0,
-                    drinks: parseBenefits(t.includes), // Parsear includes a drinks[]
-                  }))
-                : [] // Sin mesas disponibles = array vacío, NO mocks
-            } 
+            tickets={purchaseTickets}
+            tables={purchaseTables}
             mode="both" 
             title="" 
             subtitle="" 
@@ -402,7 +416,7 @@ const ClubProfile = () => {
         )}
         
         {/* Mensaje cuando el catálogo no está disponible */}
-        {localId && catalogTickets === null && (
+        {localId && !hasLoadedPurchaseCatalogs && (
           <section className="w-full py-8 text-center">
             <div className="bg-muted/50 rounded-lg p-6">
               <p className="text-muted-foreground">

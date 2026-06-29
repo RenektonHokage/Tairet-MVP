@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Users, ChevronDown, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { isUuidLike, type TicketType, type TableType, type PurchaseSelectorProps, type SelectedItem, type CartItem } from "@/lib/types";
 import CheckoutBase from "@/components/shared/CheckoutBase";
-import ComingSoonBadge from "@/components/shared/ComingSoonBadge";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +15,8 @@ import {
   hasWhatsAppNumber,
   resolveWhatsAppNumber,
 } from "@/lib/whatsapp";
+
+const MAX_PAID_TICKET_QUANTITY = 10;
 
 const PurchaseSelector = ({
   tickets = [],
@@ -34,14 +35,12 @@ const PurchaseSelector = ({
   const { addItem } = useCart();
   const { toast } = useToast();
   const updateQuantity = (itemId: string, change: number) => {
-    // Guard: bloquear tickets pagos (price > 0)
-    const ticket = tickets.find(t => t.id === itemId);
-    if (ticket && ticket.price > 0) {
-      return; // No permitir modificar cantidad de tickets pagos
-    }
     setQuantities(prev => ({
       ...prev,
-      [itemId]: Math.max(0, (prev[itemId] || 0) + change)
+      [itemId]: Math.min(
+        MAX_PAID_TICKET_QUANTITY,
+        Math.max(0, (prev[itemId] || 0) + change)
+      )
     }));
   };
   const toggleCollapsible = (itemId: string, open: boolean) => {
@@ -78,7 +77,11 @@ const PurchaseSelector = ({
     // Validar que todos los items tengan UUIDs válidos del catálogo
     const invalidItems = selectedItems.filter(({ item, type }) => {
       if (type === 'ticket') {
-        return !isUuidLike(item.id);
+        const ticket = item as TicketType;
+        if (ticket.price > 0) {
+          return !ticket.access_ticket_type_id || !isUuidLike(ticket.access_ticket_type_id);
+        }
+        return !ticket.ticket_type_id || !isUuidLike(ticket.ticket_type_id);
       }
       if (type === 'table') {
         return !isUuidLike(item.id);
@@ -100,12 +103,14 @@ const PurchaseSelector = ({
       quantity,
       type
     }) => {
+      const isPaidAccessTicket = type === 'ticket' && item.price > 0;
+      const ticket = type === 'ticket' ? (item as TicketType) : null;
       const cartItem: CartItem = {
         id: `${type}-${item.id}-${Date.now()}`, // ID compuesto interno
         kind: type as 'ticket' | 'table', // Tipo explícito para backend
         type: type as 'ticket' | 'table', // Legacy, mantener por compatibilidad
         name: item.name,
-        venue: "Venue Name",
+        venue: venueName || "Local",
         localId, // UUID del local para crear orders
         quantity,
         price: item.price,
@@ -113,7 +118,8 @@ const PurchaseSelector = ({
         date: new Date().toISOString().split('T')[0],
         time: "21:00",
         // Setear UUID puro del catálogo según tipo
-        ticket_type_id: type === 'ticket' ? item.id : undefined,
+        ticket_type_id: type === 'ticket' && !isPaidAccessTicket ? ticket?.ticket_type_id : undefined,
+        access_ticket_type_id: isPaidAccessTicket ? ticket?.access_ticket_type_id : undefined,
         table_type_id: type === 'table' ? item.id : undefined,
       };
       addItem(cartItem);
@@ -170,14 +176,36 @@ const PurchaseSelector = ({
                             </Button>
                           </>
                         ) : (
-                          // Ticket con precio: bloqueado (pagos próximamente)
+                          // Ticket con precio: checkout pago Bancard
                           <>
                             <span className="text-base md:text-lg font-bold text-foreground">
                               {formatPYG(ticket.price)}
                             </span>
-                            <ComingSoonBadge className="text-xs md:text-[13px] px-3.5 py-1.5">
-                              Próximamente (Pagos)
-                            </ComingSoonBadge>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-9 w-9"
+                                disabled={!quantities[ticket.id]}
+                                onClick={() => updateQuantity(ticket.id, -1)}
+                                aria-label={`Quitar ${ticket.name}`}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <span className="flex h-9 min-w-10 items-center justify-center rounded-md border border-border px-3 text-sm font-semibold">
+                                {quantities[ticket.id] || 0}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-9 w-9"
+                                disabled={(quantities[ticket.id] || 0) >= MAX_PAID_TICKET_QUANTITY}
+                                onClick={() => updateQuantity(ticket.id, 1)}
+                                aria-label={`Agregar ${ticket.name}`}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </>
                         )}
                       </div>
@@ -318,7 +346,12 @@ const PurchaseSelector = ({
         </div>}
 
       {/* Unified Checkout Modal */}
-      <CheckoutBase isOpen={showCheckout} onClose={() => setShowCheckout(false)} title="Finalizar Compra" />
+      <CheckoutBase
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        title="Finalizar Compra"
+        venue={venueName}
+      />
     </section>;
 };
 export default PurchaseSelector;

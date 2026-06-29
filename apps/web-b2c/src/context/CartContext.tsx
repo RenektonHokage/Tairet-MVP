@@ -47,6 +47,11 @@ const isFreePassCartItem = (item: CartItem): boolean => {
   return FREE_PASS_NAME_REGEX.test(item.name ?? '');
 };
 
+const isPaidTicketCartItem = (item: CartItem): boolean => {
+  const isTicket = item.kind === 'ticket' || item.type === 'ticket';
+  return isTicket && typeof item.price === 'number' && item.price > 0;
+};
+
 const normalizeCartItemsForBusinessRules = (items: CartItem[]): CartItem[] => {
   let hasFreePass = false;
 
@@ -84,8 +89,10 @@ const normalizeCartItemsForBusinessRules = (items: CartItem[]): CartItem[] => {
 // Check if any items are invalid (legacy without valid UUID)
 const checkHasInvalidItems = (items: CartItem[]): boolean => {
   return items.some((item) => {
-    // For tickets, ticket_type_id must be a valid UUID
     if (item.kind === 'ticket' || item.type === 'ticket') {
+      if (isPaidTicketCartItem(item)) {
+        return !item.access_ticket_type_id || !isUuidLike(item.access_ticket_type_id);
+      }
       return !item.ticket_type_id || !isUuidLike(item.ticket_type_id);
     }
     // For tables, table_type_id must be a valid UUID
@@ -99,9 +106,11 @@ const checkHasInvalidItems = (items: CartItem[]): boolean => {
 // Normalize items from storage: mark invalid items
 const normalizeStoredItems = (items: CartItem[]): CartItem[] => {
   return items.map((item) => {
-    // For tickets, check if ticket_type_id is a valid UUID
     if (item.kind === 'ticket' || item.type === 'ticket') {
-      if (!item.ticket_type_id || !isUuidLike(item.ticket_type_id)) {
+      const hasValidTicketId = isPaidTicketCartItem(item)
+        ? Boolean(item.access_ticket_type_id && isUuidLike(item.access_ticket_type_id))
+        : Boolean(item.ticket_type_id && isUuidLike(item.ticket_type_id));
+      if (!hasValidTicketId) {
         return { ...item, _invalid: true };
       }
     }

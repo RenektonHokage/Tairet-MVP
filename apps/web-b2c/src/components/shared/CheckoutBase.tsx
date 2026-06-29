@@ -23,13 +23,20 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { getCalendarClassNames } from "@/components/shared/calendarClassNames";
+import { AccessPaidCheckout } from "@/components/shared/AccessPaidCheckout";
 import { formatPYG } from "@/lib/format";
 import { useCart } from "@/context/CartContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder, type Order, type OrderItemPayload } from "@/lib/orders";
-import { isUuidLike } from "@/lib/types";
+import { isUuidLike, type CartItem } from "@/lib/types";
 import { isOpenOnWeekdayFromOpeningHours } from "@/lib/locals";
 import { useLocalOpeningHoursBySlug } from "@/hooks/useLocalOpeningHoursBySlug";
+import {
+  AccessBancardSingleBuyError,
+  createAccessBancardSingleBuy,
+  getAccessBancardSingleBuyErrorMessage,
+  type AccessBancardSingleBuySuccess,
+} from "@/lib/accessPayments";
 import { es } from "date-fns/locale";
 
 interface CheckoutBaseProps {
@@ -41,6 +48,11 @@ interface CheckoutBaseProps {
 
 const ASUNCION_TZ = "America/Asuncion";
 const NIGHT_CUTOFF_HOUR = 6;
+
+type PaidCheckoutState = Pick<
+  AccessBancardSingleBuySuccess,
+  "public_ref" | "process_id" | "iframe"
+>;
 
 const pad2 = (value: number): string => value.toString().padStart(2, "0");
 
@@ -116,6 +128,21 @@ function canScrollCheckoutContainer(container: HTMLDivElement, deltaY: number) {
   return true;
 }
 
+const isTicketCartItem = (item: CartItem): boolean =>
+  item.kind === "ticket" || item.type === "ticket";
+
+const isPaidTicketCartItem = (item: CartItem): boolean =>
+  isTicketCartItem(item) && typeof item.price === "number" && item.price > 0;
+
+const isFreeTicketCartItem = (item: CartItem): boolean =>
+  isTicketCartItem(item) && typeof item.price === "number" && item.price <= 0;
+
+const generateAccessBancardIdempotencyKey = (): string =>
+  `b2c-access-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const isValidBuyerEmail = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
 const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: CheckoutBaseProps) => {
   const location = useLocation();
   const { state: cartState, clearCart, removeFromCart } = useCart();
@@ -145,7 +172,10 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   const [isProcessing, setIsProcessing] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [orderCreated, setOrderCreated] = useState<Order | null>(null);
+  const [paidCheckout, setPaidCheckout] = useState<PaidCheckoutState | null>(null);
   const [copied, setCopied] = useState(false);
+  const hasOrderCreatedView = Boolean(orderCreated);
+  const hasPaidCheckoutView = Boolean(paidCheckout);
 
   const operationalDayIso = useMemo(() => getAsuncionOperationalDayIso(), []);
   const maxSelectableIso = useMemo(
@@ -341,7 +371,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       viewport.removeEventListener("touchmove", handleTouchMove, true);
       touchStartYRef.current = null;
     };
-  }, [isOpen, Boolean(orderCreated)]);
+  }, [isOpen, hasOrderCreatedView, hasPaidCheckoutView]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -377,21 +407,35 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       return;
     }
 
-    // Bloquear si hay items inválidos (legacy sin UUID)
-    if (cartState.hasInvalidItems) {
+    if (
+      !formData.firstName.trim() ||
+      !formData.lastName.trim() ||
+      !formData.email.trim() ||
+      !formData.phone.trim() ||
+      !formData.cedula.trim()
+    ) {
       toast({
         title: "Error",
-        description: "Tu carrito tiene items desactualizados. Vacía el carrito y vuelve a seleccionar tus entradas.",
+        description: "Completá todos los datos del comprador para continuar.",
         variant: "destructive",
       });
       return;
     }
 
-    // Solo permitir free_pass (total = 0) por ahora
-    if (cartState.total !== 0) {
+    if (!isValidBuyerEmail(formData.email)) {
       toast({
         title: "Error",
-        description: "Por el momento solo están habilitados los Free Pass (entradas gratuitas)",
+        description: "Ingresá un email válido para recibir tus entradas.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Bloquear si hay items inválidos (legacy sin UUID)
+    if (cartState.hasInvalidItems) {
+      toast({
+        title: "Error",
+        description: "Tu carrito tiene items desactualizados. Vacía el carrito y vuelve a seleccionar tus entradas.",
         variant: "destructive",
       });
       return;
@@ -418,11 +462,32 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       return;
     }
 
-    // Validar que todos los tickets tengan ticket_type_id UUID válido
     const ticketItems = cartState.items.filter(
-      (item) => item.kind === "ticket" || item.type === "ticket"
+      (item) => isTicketCartItem(item)
     );
     const hasTicketItems = ticketItems.length > 0;
+    const paidTicketItems = ticketItems.filter(isPaidTicketCartItem);
+    const freeTicketItems = ticketItems.filter(isFreeTicketCartItem);
+    const nonTicketItems = cartState.items.filter((item) => !isTicketCartItem(item));
+    const isPaidCheckout = paidTicketItems.length > 0;
+
+    if (isPaidCheckout && (freeTicketItems.length > 0 || nonTicketItems.length > 0)) {
+      toast({
+        title: "Error",
+        description: "Elegí entradas gratuitas o pagas por separado para continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isPaidCheckout && cartState.total !== 0) {
+      toast({
+        title: "Error",
+        description: "Este checkout solo procesa Free Pass o entradas pagas por Bancard.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (hasTicketItems) {
       if (!selectedDate) {
@@ -448,11 +513,22 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       }
     }
 
-    // Validación 1: todos los tickets deben tener ticket_type_id UUID
-    const invalidTicketIds = ticketItems.filter(
+    const invalidPaidAccessTickets = paidTicketItems.filter(
+      (item) => !item.access_ticket_type_id || !isUuidLike(item.access_ticket_type_id)
+    );
+    if (invalidPaidAccessTickets.length > 0) {
+      toast({
+        title: "Error",
+        description: "Esta entrada todavía no está disponible para compra online.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const invalidFreeTicketIds = freeTicketItems.filter(
       (item) => !item.ticket_type_id || !isUuidLike(item.ticket_type_id)
     );
-    if (invalidTicketIds.length > 0) {
+    if (invalidFreeTicketIds.length > 0) {
       toast({
         title: "Error",
         description: "Algunos tickets no tienen ID válido. Por favor, vuelve a seleccionar tus entradas.",
@@ -490,24 +566,54 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
     setIsProcessing(true);
     
     try {
-      // Construir items con formato del contrato backend: { ticket_type_id, quantity }
+      if (isPaidCheckout) {
+        const checkout = await createAccessBancardSingleBuy({
+          source_type: "local",
+          local_id: firstItem.localId,
+          event_id: null,
+          access_date: selectedDate,
+          buyer: {
+            name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            document: formData.cedula.trim(),
+          },
+          items: paidTicketItems.map((item) => ({
+            access_ticket_type_id: item.access_ticket_type_id!,
+            quantity: Number(item.quantity),
+          })),
+          idempotency_key: generateAccessBancardIdempotencyKey(),
+        });
+
+        setPaidCheckout({
+          public_ref: checkout.public_ref,
+          process_id: checkout.process_id,
+          iframe: checkout.iframe,
+        });
+        clearCart();
+        toast({
+          title: "Checkout iniciado",
+          description: "Completá el pago en Bancard para confirmar tus entradas.",
+        });
+        return;
+      }
+
+      // Construir items con formato del contrato legacy: { ticket_type_id, quantity }
       const orderItems: OrderItemPayload[] = ticketItems.map((item) => ({
-        ticket_type_id: item.ticket_type_id!, // Ya validado como UUID
-        quantity: Number(item.quantity), // Usar quantity (no qty)
+        ticket_type_id: item.ticket_type_id!,
+        quantity: Number(item.quantity),
       }));
 
-      // Validación 4: debe haber al menos un item para enviar
       if (orderItems.length === 0) {
         toast({
           title: "Error",
           description: "No hay entradas válidas en el carrito.",
           variant: "destructive",
         });
-        setIsProcessing(false);
         return;
       }
 
-      // Calcular cantidad total desde items
       const totalQty = orderItems.reduce((sum, i) => sum + i.quantity, 0) || 1;
 
       const order = await createOrder({
@@ -517,11 +623,11 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
         currency: "PYG",
         payment_method: "free_pass",
         intended_date: hasTicketItems ? selectedDate : undefined,
-        customer_email: formData.email,
-        customer_name: formData.firstName,
-        customer_last_name: formData.lastName,
-        customer_phone: formData.phone,
-        customer_document: formData.cedula,
+        customer_email: formData.email.trim(),
+        customer_name: formData.firstName.trim(),
+        customer_last_name: formData.lastName.trim(),
+        customer_phone: formData.phone.trim(),
+        customer_document: formData.cedula.trim(),
         items: orderItems, // Siempre enviar items (ya validados)
       });
 
@@ -533,9 +639,16 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
         description: "Tu Free Pass fue creado. Revisa tu email.",
       });
     } catch (err) {
+      const description =
+        err instanceof AccessBancardSingleBuyError
+          ? getAccessBancardSingleBuyErrorMessage(err.code)
+          : err instanceof Error
+            ? err.message
+            : "No se pudo completar la compra";
+
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : "No se pudo completar la compra",
+        description,
         variant: "destructive",
       });
     } finally {
@@ -544,6 +657,19 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
   };
 
   if (!isOpen) return null;
+
+  if (paidCheckout) {
+    return (
+      <AccessPaidCheckout
+        publicRef={paidCheckout.public_ref}
+        processId={paidCheckout.iframe.process_id || paidCheckout.process_id}
+        onClose={() => {
+          setPaidCheckout(null);
+          onClose();
+        }}
+      />
+    );
+  }
 
   // Vista de confirmación después de compra exitosa
   if (orderCreated) {

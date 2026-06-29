@@ -140,6 +140,8 @@ export interface TicketType {
   price: number;
   description: string;
   benefits: string[];
+  ticket_type_id?: string;
+  access_ticket_type_id?: string;
 }
 
 export interface TableType {
@@ -235,7 +237,8 @@ export interface CartItem {
   date?: string;
   time?: string;
   // IDs del catálogo (UUIDs puros) para backend
-  ticket_type_id?: string; // UUID de ticket_types.id (solo para kind="ticket")
+  ticket_type_id?: string; // UUID de ticket_types.id legacy (Free Pass)
+  access_ticket_type_id?: string; // UUID de access_ticket_types.id (entradas pagas Access Core)
   table_type_id?: string; // UUID de table_types.id (solo para kind="table")
   // Flag para items legacy/inválidos (detectados en hydrate)
   _invalid?: boolean;

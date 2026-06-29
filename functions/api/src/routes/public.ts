@@ -399,3 +399,99 @@ publicRouter.get("/locals/by-slug/:slug/catalog", async (req, res) => {
     });
   }
 });
+
+/**
+ * GET /public/locals/by-slug/:slug/access-catalog
+ * Catálogo público de entradas pagas Access Core para checkout Bancard.
+ * No reemplaza el catálogo legacy de /catalog.
+ */
+publicRouter.get("/locals/by-slug/:slug/access-catalog", async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    const validationResult = slugSchema.safeParse(slug);
+    if (!validationResult.success) {
+      return res.status(400).json({
+        error: "INVALID_SLUG",
+        message: "Slug inválido. Debe contener solo letras minúsculas, números y guiones.",
+      });
+    }
+
+    const validSlug = validationResult.data;
+
+    const { data: local, error: localError } = await supabase
+      .from("locals")
+      .select("id, type")
+      .eq("slug", validSlug)
+      .single();
+
+    if (localError || !local) {
+      if (localError?.code === "PGRST116") {
+        return res.status(404).json({
+          error: "LOCAL_NOT_FOUND",
+          message: `No se encontró un local con slug "${validSlug}"`,
+        });
+      }
+
+      logger.error("Error fetching local for access catalog", {
+        error: localError?.message,
+        slug: validSlug,
+      });
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Error al buscar el local",
+      });
+    }
+
+    if (local.type !== "club") {
+      return res.status(400).json({
+        error: "NOT_A_CLUB",
+        message: "El catálogo de entradas pagas solo está disponible para discotecas",
+      });
+    }
+
+    const { data: tickets, error: ticketsError } = await supabase
+      .from("access_ticket_types")
+      .select("id, name, description, price_gs, currency, payment_kind, entries_per_unit, sort_order")
+      .eq("source_type", "local")
+      .eq("local_id", local.id)
+      .eq("active", true)
+      .eq("payment_kind", "paid")
+      .eq("currency", "PYG")
+      .gt("price_gs", 0)
+      .order("price_gs", { ascending: true })
+      .order("sort_order", { ascending: true });
+
+    if (ticketsError) {
+      logger.error("Error fetching access ticket types for access catalog", {
+        error: ticketsError.message,
+        localId: local.id,
+      });
+      return res.status(500).json({
+        error: "INTERNAL_ERROR",
+        message: "Error al obtener entradas pagas",
+      });
+    }
+
+    const formattedTickets = (tickets || []).map((ticket) => ({
+      access_ticket_type_id: ticket.id,
+      name: ticket.name,
+      description: ticket.description || null,
+      price_gs: Number(ticket.price_gs),
+      currency: "PYG",
+      payment_kind: "paid",
+      entries_per_unit: Number(ticket.entries_per_unit),
+    }));
+
+    return res.status(200).json({
+      local_id: local.id,
+      tickets: formattedTickets,
+    });
+  } catch (error) {
+    logger.error("Unexpected error in GET /public/locals/by-slug/:slug/access-catalog", { error });
+    return res.status(500).json({
+      error: "INTERNAL_ERROR",
+      message: "Error inesperado",
+    });
+  }
+});

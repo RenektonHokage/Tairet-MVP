@@ -123,7 +123,7 @@ function statusView(
   if (status === "paid") {
     return {
       title: "Pago confirmado.",
-      description: "Tu pago fue confirmado correctamente.",
+      description: "Tus entradas fueron enviadas al correo indicado. Guardá ese email y presentá cada QR en puerta.",
       icon: CheckCircle2,
       tone: "text-emerald-500",
       surface: "bg-emerald-500/10",

@@ -692,6 +692,21 @@ export interface ClubCatalog {
   tables: CatalogTable[];
 }
 
+export interface AccessCatalogTicket {
+  access_ticket_type_id: string;
+  name: string;
+  description: string | null;
+  price_gs: number;
+  currency: "PYG";
+  payment_kind: "paid";
+  entries_per_unit: number;
+}
+
+export interface ClubAccessCatalog {
+  local_id: string;
+  tickets: AccessCatalogTicket[];
+}
+
 /**
  * Obtiene el catálogo de entradas y mesas de un club por su slug.
  * Solo funciona para locales tipo "club".
@@ -733,6 +748,46 @@ export async function getClubCatalog(slug: string): Promise<ClubCatalog | null> 
       return null;
     }
     console.error("Error al obtener catálogo:", error);
+    return null;
+  }
+}
+
+/**
+ * Obtiene el catálogo público Access Core para entradas pagas Bancard.
+ * No usa ticket_types legacy.
+ */
+export async function getClubAccessCatalog(slug: string): Promise<ClubAccessCatalog | null> {
+  if (!slug || !slug.trim()) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${getApiBase()}/public/locals/by-slug/${encodeURIComponent(slug.trim())}/access-catalog`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.status === 404 || response.status === 400) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(errorData?.message || `Error al obtener entradas pagas: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      console.warn("Error de conexión al obtener catálogo de entradas pagas");
+      return null;
+    }
+    console.error("Error al obtener catálogo de entradas pagas:", error);
     return null;
   }
 }
