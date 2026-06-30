@@ -6,7 +6,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, cn, panelSuccessTone, panelUi } from "@/components/panel/ui";
 import { OperationalActivityHistory } from "@/components/panel/OperationalActivityHistory";
 import { usePanelContext } from "@/lib/panelContext";
-import { getApiBase, getAuthHeaders } from "@/lib/api";
+import { ApiError, getApiBase, getAuthHeaders } from "@/lib/api";
+import {
+  getAccessEntries,
+  useAccessEntry,
+  type AccessEntryCheckinStatusFilter,
+  type AccessEntryListItem,
+  type AccessEntryStatusFilter,
+} from "@/lib/accessEntries";
 import { downloadPanelReservationsClientsExcel } from "@/lib/panelExport";
 import {
   getPanelDemoDiscotecaOrdersSummary,
@@ -73,8 +80,11 @@ interface ManualCheckinResponse {
 }
 
 type SearchType = "email" | "document";
+type OrdersTab = "free_pass" | "paid";
 type EntryStateFilter = "all" | "used" | "pending" | "unused";
 type EntryResolvedState = "used" | "pending" | "unused" | "other";
+type PaidEntryStatusFilter = "all" | AccessEntryStatusFilter;
+type PaidCheckinStatusFilter = "all" | AccessEntryCheckinStatusFilter;
 type OrdersTemporalContext = "future" | "today" | "past";
 type SummaryCardKey =
   | EntryStateFilter
@@ -96,6 +106,7 @@ type PanelTheme = "dark" | "light";
 const PANEL_THEME_STORAGE_KEY = "tairet.panel.theme";
 const PANEL_THEME_EVENT_NAME = "tairet:panel-theme-change";
 const ORDERS_PAGE_SIZE = 20;
+const PAID_ENTRIES_PAGE_SIZE = 25;
 const ORDERS_AUTO_REFRESH_MS = 5000;
 
 type RefreshMode = "foreground" | "background";
@@ -163,6 +174,7 @@ export default function OrdersPageClient() {
   const isDemoDiscoteca =
     isDemo && demoScenario === "discoteca" && context?.local.type === "club";
   const canExport = context?.role === "owner";
+  const [activeTab, setActiveTab] = useState<OrdersTab>("free_pass");
   const [searchType, setSearchType] = useState<SearchType>("email");
   const [searchValue, setSearchValue] = useState("");
   const [appliedSearchValue, setAppliedSearchValue] = useState("");
@@ -174,6 +186,24 @@ export default function OrdersPageClient() {
   const [entriesHasMore, setEntriesHasMore] = useState(false);
   const [entriesLoading, setEntriesLoading] = useState(false);
   const [entriesError, setEntriesError] = useState<string | null>(null);
+
+  const [paidDate, setPaidDate] = useState("");
+  const [paidEntryStatus, setPaidEntryStatus] = useState<PaidEntryStatusFilter>("all");
+  const [paidCheckinStatus, setPaidCheckinStatus] =
+    useState<PaidCheckinStatusFilter>("all");
+  const [paidSearchValue, setPaidSearchValue] = useState("");
+  const [paidAppliedSearchValue, setPaidAppliedSearchValue] = useState("");
+  const [paidEntriesOffset, setPaidEntriesOffset] = useState(0);
+  const [paidEntries, setPaidEntries] = useState<AccessEntryListItem[]>([]);
+  const [paidEntriesHasMore, setPaidEntriesHasMore] = useState(false);
+  const [paidEntriesLoading, setPaidEntriesLoading] = useState(false);
+  const [paidEntriesError, setPaidEntriesError] = useState<string | null>(null);
+  const [paidEntriesNotice, setPaidEntriesNotice] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [paidManualConfirmId, setPaidManualConfirmId] = useState<string | null>(null);
+  const [paidManualLoadingId, setPaidManualLoadingId] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<OrdersSummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -198,8 +228,10 @@ export default function OrdersPageClient() {
   const [panelTheme, setPanelTheme] = useState<PanelTheme>("dark");
   const summaryRequestIdRef = useRef(0);
   const entriesRequestIdRef = useRef(0);
+  const paidEntriesRequestIdRef = useRef(0);
   const summaryInFlightRef = useRef(false);
   const entriesInFlightRef = useRef(false);
+  const paidEntriesInFlightRef = useRef(false);
   const refreshInFlightRef = useRef(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -303,6 +335,10 @@ export default function OrdersPageClient() {
     dateValue?: string,
     mode: RefreshMode = "foreground"
   ): Promise<OrdersSummaryResponse | null> => {
+    if (activeTab !== "free_pass") {
+      return null;
+    }
+
     if (!isClub) {
       setSummary(null);
       setSummaryError(null);
@@ -369,11 +405,15 @@ export default function OrdersPageClient() {
         }
       }
     }
-  }, [isClub, isDemoDiscoteca]);
+  }, [activeTab, isClub, isDemoDiscoteca]);
 
   const loadEntries = useCallback(async (
     mode: RefreshMode = "foreground"
   ) => {
+    if (activeTab !== "free_pass") {
+      return;
+    }
+
     if (contextLoading || !context) {
       return;
     }
@@ -469,6 +509,7 @@ export default function OrdersPageClient() {
     }
   }, [
     appliedSearchValue,
+    activeTab,
     context,
     contextLoading,
     intendedDate,
@@ -479,9 +520,68 @@ export default function OrdersPageClient() {
     stateFilter,
   ]);
 
+  const loadPaidEntries = useCallback(async () => {
+    if (activeTab !== "paid" || contextLoading || !context) {
+      return;
+    }
+
+    if (paidEntriesInFlightRef.current) {
+      return;
+    }
+
+    const requestId = ++paidEntriesRequestIdRef.current;
+    paidEntriesInFlightRef.current = true;
+    setPaidEntriesLoading(true);
+    setPaidEntriesError(null);
+
+    try {
+      const data = await getAccessEntries({
+        date: paidDate || undefined,
+        entryStatus: paidEntryStatus === "all" ? undefined : paidEntryStatus,
+        checkinStatus: paidCheckinStatus === "all" ? undefined : paidCheckinStatus,
+        q: paidAppliedSearchValue || undefined,
+        limit: PAID_ENTRIES_PAGE_SIZE,
+        offset: paidEntriesOffset,
+      });
+
+      if (requestId !== paidEntriesRequestIdRef.current) {
+        return;
+      }
+
+      setPaidEntries(data.entries ?? []);
+      setPaidEntriesHasMore(Boolean(data.pagination?.hasMore));
+    } catch {
+      if (requestId !== paidEntriesRequestIdRef.current) {
+        return;
+      }
+
+      setPaidEntries([]);
+      setPaidEntriesHasMore(false);
+      setPaidEntriesError("No pudimos cargar las entradas pagadas.");
+    } finally {
+      paidEntriesInFlightRef.current = false;
+      if (requestId === paidEntriesRequestIdRef.current) {
+        setPaidEntriesLoading(false);
+      }
+    }
+  }, [
+    activeTab,
+    context,
+    contextLoading,
+    paidAppliedSearchValue,
+    paidCheckinStatus,
+    paidDate,
+    paidEntriesOffset,
+    paidEntryStatus,
+  ]);
+
   const refreshOrdersData = useCallback(async (
     mode: RefreshMode = "background"
   ) => {
+    if (activeTab !== "free_pass") {
+      return;
+    }
+
     if (refreshInFlightRef.current || contextLoading || !context) {
       return;
     }
@@ -528,6 +628,7 @@ export default function OrdersPageClient() {
       }
     }
   }, [
+    activeTab,
     context,
     contextLoading,
     intendedDate,
@@ -567,6 +668,10 @@ export default function OrdersPageClient() {
   useEffect(() => {
     void loadEntries();
   }, [loadEntries]);
+
+  useEffect(() => {
+    void loadPaidEntries();
+  }, [loadPaidEntries]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -629,6 +734,87 @@ export default function OrdersPageClient() {
   const handleStateFilterChange = (nextFilter: EntryStateFilter) => {
     setEntriesOffset(0);
     setStateFilter(nextFilter);
+  };
+
+  const handlePaidSearch = () => {
+    setPaidEntriesOffset(0);
+    setPaidAppliedSearchValue(paidSearchValue.trim());
+    setPaidEntriesNotice(null);
+  };
+
+  const handlePaidEntryStatusChange = (nextStatus: PaidEntryStatusFilter) => {
+    setPaidEntriesOffset(0);
+    setPaidEntryStatus(nextStatus);
+    setPaidEntriesNotice(null);
+  };
+
+  const handlePaidCheckinStatusChange = (nextStatus: PaidCheckinStatusFilter) => {
+    setPaidEntriesOffset(0);
+    setPaidCheckinStatus(nextStatus);
+    setPaidEntriesNotice(null);
+  };
+
+  const getPaidUseErrorMessage = (error: unknown): string => {
+    if (error instanceof ApiError) {
+      const details = error.details;
+      const code =
+        details && typeof details === "object" && "code" in details
+          ? (details as { code?: unknown }).code
+          : null;
+
+      if (code === "already_used") {
+        return "La entrada ya fue usada.";
+      }
+
+      if (code === "voided") {
+        return "La entrada está anulada.";
+      }
+
+      if (code === "not_paid") {
+        return "El pago de esta entrada no está confirmado.";
+      }
+
+      if (error.status === 404) {
+        return "No encontramos esta entrada para tu local.";
+      }
+    }
+
+    return "No pudimos validar la entrada pagada.";
+  };
+
+  const handlePaidManualUse = async (entry: AccessEntryListItem) => {
+    if (paidManualLoadingId) {
+      return;
+    }
+
+    if (!canUsePaidEntry(entry)) {
+      return;
+    }
+
+    setPaidManualLoadingId(entry.entry_id);
+    setPaidEntriesNotice(null);
+
+    try {
+      const result = await useAccessEntry(entry.entry_id);
+      setPaidEntries((current) =>
+        current.map((currentEntry) =>
+          currentEntry.entry_id === entry.entry_id ? result.entry : currentEntry
+        )
+      );
+      setPaidManualConfirmId(null);
+      setPaidEntriesNotice({
+        type: "success",
+        message: "Entrada validada correctamente.",
+      });
+    } catch (error) {
+      setPaidEntriesNotice({
+        type: "error",
+        message: getPaidUseErrorMessage(error),
+      });
+      void loadPaidEntries();
+    } finally {
+      setPaidManualLoadingId(null);
+    }
   };
 
   const handleExportExcel = async () => {
@@ -1455,6 +1641,456 @@ export default function OrdersPageClient() {
     );
   };
 
+  const canUsePaidEntry = (entry: AccessEntryListItem): boolean => {
+    return (
+      entry.order_status === "paid" &&
+      entry.entry_status === "issued" &&
+      entry.checkin_status === "unused"
+    );
+  };
+
+  const getPaidOrderStatusLabel = (status: string): string => {
+    return status === "paid" ? "Pago confirmado" : status;
+  };
+
+  const getPaidEntryStatusLabel = (status: string): string => {
+    if (status === "issued") return "Emitida";
+    if (status === "voided") return "Anulada";
+    return status;
+  };
+
+  const getPaidCheckinStatusLabel = (status: string): string => {
+    if (status === "unused") return "Sin usar";
+    if (status === "used") return "Usada";
+    return status;
+  };
+
+  const getPaidEmailStatusLabel = (status: string): string => {
+    if (status === "sent") return "Enviado";
+    if (status === "failed") return "Falló";
+    if (status === "not_sent") return "No enviado";
+    return status;
+  };
+
+  const getPaidBadgeClasses = (tone: "success" | "warning" | "danger" | "neutral") => {
+    if (panelTheme === "dark") {
+      switch (tone) {
+        case "success":
+          return "border-emerald-500/30 bg-emerald-500/15 text-emerald-200";
+        case "warning":
+          return "border-amber-500/30 bg-amber-500/15 text-amber-200";
+        case "danger":
+          return "border-rose-500/30 bg-rose-500/15 text-rose-200";
+        default:
+          return "border-[#3A3A3A] bg-[#262626] text-[#D4D4D4]";
+      }
+    }
+
+    switch (tone) {
+      case "success":
+        return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      case "warning":
+        return "border-amber-200 bg-amber-50 text-amber-800";
+      case "danger":
+        return "border-rose-200 bg-rose-50 text-rose-700";
+      default:
+        return "border-slate-200 bg-slate-50 text-slate-700";
+    }
+  };
+
+  const getPaidCheckinTone = (status: string): "success" | "warning" | "neutral" => {
+    return status === "used" ? "success" : status === "unused" ? "warning" : "neutral";
+  };
+
+  const renderPaidBadge = (
+    label: string,
+    tone: "success" | "warning" | "danger" | "neutral"
+  ) => (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+        getPaidBadgeClasses(tone)
+      )}
+    >
+      {label}
+    </span>
+  );
+
+  const renderPaidField = (
+    label: string,
+    value: string | number | null,
+    extraClassName?: string
+  ) => (
+    <div className={cn("min-w-0 text-sm", extraClassName)}>
+      <p
+        className={cn(
+          "truncate font-medium",
+          panelTheme === "dark" ? "text-[#F5F5F5]" : "text-slate-900"
+        )}
+      >
+        {value ?? "-"}
+      </p>
+      <p className={panelTheme === "dark" ? "text-[#A3A3A3]" : "text-slate-500"}>
+        {label}
+      </p>
+    </div>
+  );
+
+  const renderPaidEntryCard = (entry: AccessEntryListItem) => {
+    const isConfirming = paidManualConfirmId === entry.entry_id;
+    const isLoading = paidManualLoadingId === entry.entry_id;
+    const canValidate = canUsePaidEntry(entry);
+
+    return (
+      <div
+        key={entry.entry_id}
+        className={cn(
+          "rounded-xl border p-4 shadow-sm",
+          panelTheme === "dark"
+            ? "border-[#303030] bg-[#141414]"
+            : "border-slate-200 bg-white"
+        )}
+      >
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-start">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,1fr)_76px_minmax(0,0.9fr)]">
+            {renderPaidField("Referencia", entry.public_ref)}
+            {renderPaidField("Entrada", entry.ticket_name)}
+            {renderPaidField("Asistente", entry.attendee_name || "-")}
+            {renderPaidField("Unidad", entry.unit_index)}
+            {renderPaidField("Fecha", formatEventDate(entry.access_date))}
+            {renderPaidField("Monto", formatCurrency(entry.amount_gs))}
+            <div className="min-w-0 text-sm">
+              {renderPaidBadge(
+                getPaidOrderStatusLabel(entry.order_status),
+                entry.order_status === "paid" ? "success" : "neutral"
+              )}
+              <p className={panelTheme === "dark" ? "mt-1 text-[#A3A3A3]" : "mt-1 text-slate-500"}>
+                Pago
+              </p>
+            </div>
+            <div className="min-w-0 text-sm">
+              {renderPaidBadge(
+                getPaidEntryStatusLabel(entry.entry_status),
+                entry.entry_status === "issued" ? "success" : "danger"
+              )}
+              <p className={panelTheme === "dark" ? "mt-1 text-[#A3A3A3]" : "mt-1 text-slate-500"}>
+                Entrada
+              </p>
+            </div>
+            <div className="min-w-0 text-sm">
+              {renderPaidBadge(
+                getPaidCheckinStatusLabel(entry.checkin_status),
+                getPaidCheckinTone(entry.checkin_status)
+              )}
+              <p className={panelTheme === "dark" ? "mt-1 text-[#A3A3A3]" : "mt-1 text-slate-500"}>
+                Check-in
+              </p>
+            </div>
+            <div className="min-w-0 text-sm">
+              {renderPaidBadge(
+                getPaidEmailStatusLabel(entry.email_status),
+                entry.email_status === "sent"
+                  ? "success"
+                  : entry.email_status === "failed"
+                    ? "danger"
+                    : "neutral"
+              )}
+              <p className={panelTheme === "dark" ? "mt-1 text-[#A3A3A3]" : "mt-1 text-slate-500"}>
+                Email
+              </p>
+            </div>
+            {renderPaidField("Usada en", formatDateTime(entry.used_at), "lg:col-span-2")}
+          </div>
+
+          <div className="space-y-2">
+            {isConfirming ? (
+              <div
+                className={cn(
+                  "rounded-lg border p-3",
+                  panelTheme === "dark"
+                    ? "border-[#3A3320] bg-[#1C1710]"
+                    : "border-amber-200 bg-amber-50"
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-sm font-semibold",
+                    panelTheme === "dark" ? "text-[#FDE68A]" : "text-amber-900"
+                  )}
+                >
+                  ¿Validar esta entrada?
+                </p>
+                <p
+                  className={cn(
+                    "mt-1 text-xs",
+                    panelTheme === "dark" ? "text-[#D6B85D]" : "text-amber-800"
+                  )}
+                >
+                  Esta acción marcará la entrada como usada. Revisá los datos antes de continuar.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaidManualConfirmId(null)}
+                    disabled={isLoading}
+                    className={cn(
+                      "flex-1 rounded-md border px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+                      panelTheme === "dark"
+                        ? "border-[#4A3A18] bg-[#141414] text-[#FDE68A] hover:bg-[#211B11]"
+                        : "border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
+                    )}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handlePaidManualUse(entry)}
+                    disabled={isLoading}
+                    className={cn(
+                      "flex-1 rounded-md px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                      panelTheme === "dark"
+                        ? "bg-[#FACC15] text-[#171717] hover:bg-[#EAB308]"
+                        : "bg-amber-600 text-white hover:bg-amber-700"
+                    )}
+                  >
+                    {isLoading ? "Validando..." : "Validar entrada"}
+                  </button>
+                </div>
+              </div>
+            ) : canValidate ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPaidEntriesNotice(null);
+                  setPaidManualConfirmId(entry.entry_id);
+                }}
+                disabled={paidManualLoadingId !== null}
+                className={cn(
+                  "w-full rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60",
+                  panelTheme === "dark"
+                    ? "bg-[#FACC15] text-[#171717] hover:bg-[#EAB308]"
+                    : "bg-amber-600 text-white hover:bg-amber-700"
+                )}
+              >
+                Validar manualmente
+              </button>
+            ) : (
+              <p
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-center text-sm font-semibold",
+                  panelTheme === "dark"
+                    ? "border-[#303030] bg-[#1F1F1F] text-[#D4D4D4]"
+                    : "border-slate-200 bg-slate-50 text-slate-700"
+                )}
+              >
+                {entry.entry_status === "voided"
+                  ? "Anulada"
+                  : entry.checkin_status === "used"
+                    ? "Ya usada"
+                    : "Sin acción"}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPaidEntriesSection = () => (
+    <>
+      <section
+        className={cn(
+          "rounded-xl border px-4 py-3 shadow-sm",
+          panelTheme === "dark"
+            ? "border-[#303030] bg-[#171717]"
+            : "border-sky-100 bg-sky-50"
+        )}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p
+            className={cn(
+              "text-sm",
+              panelTheme === "dark" ? "text-[#D4D4D4]" : "text-slate-700"
+            )}
+          >
+            Entradas pagadas online emitidas por Access Core. También podés validarlas desde
+            Check-in escaneando el QR.
+          </p>
+          <Link
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition",
+              panelUi.focusRing,
+              panelTheme === "dark"
+                ? "bg-[#F5F5F5] text-[#171717] hover:bg-[#E5E5E5]"
+                : "bg-slate-950 text-white hover:bg-slate-800"
+            )}
+            href="/panel/checkin"
+          >
+            Validar desde Check-in
+          </Link>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900">Buscar entradas pagadas</h2>
+          <p className="text-sm text-slate-600">
+            Filtrá por fecha, estado o referencia sin exponer tokens ni datos sensibles.
+          </p>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_1fr_120px]">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Fecha</label>
+            <input
+              type="date"
+              value={paidDate}
+              onChange={(event) => {
+                setPaidEntriesOffset(0);
+                setPaidDate(event.target.value);
+                setPaidEntriesNotice(null);
+              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Entrada</label>
+            <select
+              value={paidEntryStatus}
+              onChange={(event) =>
+                handlePaidEntryStatusChange(event.target.value as PaidEntryStatusFilter)
+              }
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="all">Todas</option>
+              <option value="issued">Emitidas</option>
+              <option value="voided">Anuladas</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Check-in</label>
+            <select
+              value={paidCheckinStatus}
+              onChange={(event) =>
+                handlePaidCheckinStatusChange(event.target.value as PaidCheckinStatusFilter)
+              }
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="all">Todos</option>
+              <option value="unused">Sin usar</option>
+              <option value="used">Usadas</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Búsqueda</label>
+            <input
+              type="text"
+              value={paidSearchValue}
+              onChange={(event) => setPaidSearchValue(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && handlePaidSearch()}
+              placeholder="Referencia, asistente o entrada"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={handlePaidSearch}
+              disabled={paidEntriesLoading}
+              className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {paidEntriesLoading ? "Buscando..." : "Buscar"}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        {paidEntriesNotice ? (
+          <div
+            className={cn(
+              "rounded-lg border p-3",
+              paidEntriesNotice.type === "success"
+                ? "border-emerald-200 bg-emerald-50"
+                : "border-red-200 bg-red-50"
+            )}
+          >
+            <p
+              className={cn(
+                "text-sm",
+                paidEntriesNotice.type === "success"
+                  ? "text-emerald-700"
+                  : "text-red-700"
+              )}
+            >
+              {paidEntriesNotice.message}
+            </p>
+          </div>
+        ) : null}
+
+        {paidEntriesError ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-700">{paidEntriesError}</p>
+          </div>
+        ) : null}
+
+        {paidEntriesLoading && paidEntries.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">Cargando entradas pagadas...</p>
+          </div>
+        ) : null}
+
+        {!paidEntriesLoading && paidEntries.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm text-slate-500">
+              Todavía no hay entradas pagadas para mostrar.
+            </p>
+          </div>
+        ) : null}
+
+        {paidEntries.map(renderPaidEntryCard)}
+
+        {(paidEntriesOffset > 0 || paidEntriesHasMore) &&
+          (paidEntries.length > 0 || paidEntriesOffset > 0) ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-2">
+              {paidEntriesOffset > 0 ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaidEntriesOffset((current) =>
+                      Math.max(current - PAID_ENTRIES_PAGE_SIZE, 0)
+                    )
+                  }
+                  disabled={paidEntriesLoading}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Ver anteriores
+                </button>
+              ) : null}
+              {paidEntriesHasMore ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaidEntriesOffset((current) => current + PAID_ENTRIES_PAGE_SIZE)
+                  }
+                  disabled={paidEntriesLoading}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Ver siguientes
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </>
+  );
+
   if (contextLoading) {
     return (
       <div className="flex min-h-[300px] items-center justify-center">
@@ -1491,7 +2127,7 @@ export default function OrdersPageClient() {
     <div className="space-y-6">
       <PageHeader
         title="Entradas"
-        actions={canExport ? (
+        actions={activeTab === "free_pass" && canExport ? (
           <div ref={exportMenuRef} className="relative">
             <button
               type="button"
@@ -1572,6 +2208,40 @@ export default function OrdersPageClient() {
         ) : undefined}
       />
 
+      <section className="rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="grid gap-1 sm:grid-cols-2">
+          <button
+            className={cn(
+              "rounded-md px-4 py-2 text-sm font-semibold transition",
+              activeTab === "free_pass"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-700 hover:bg-gray-50"
+            )}
+            onClick={() => setActiveTab("free_pass")}
+            type="button"
+          >
+            Free pass
+          </button>
+          <button
+            className={cn(
+              "rounded-md px-4 py-2 text-sm font-semibold transition",
+              activeTab === "paid"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-700 hover:bg-gray-50"
+            )}
+            onClick={() => {
+              setActiveTab("paid");
+              setPaidEntriesNotice(null);
+            }}
+            type="button"
+          >
+            Pagadas
+          </button>
+        </div>
+      </section>
+
+      {activeTab === "free_pass" ? (
+        <>
       <section
         className={cn(
           "rounded-xl border px-4 py-3 shadow-sm",
@@ -1861,6 +2531,10 @@ export default function OrdersPageClient() {
           </div>
         ) : null}
       </section>
+        </>
+      ) : (
+        renderPaidEntriesSection()
+      )}
     </div>
   );
 }
