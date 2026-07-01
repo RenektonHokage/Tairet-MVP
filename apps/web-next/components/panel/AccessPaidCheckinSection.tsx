@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 
 import {
   getAccessPaidCheckinStatusLabel,
@@ -11,6 +11,7 @@ import {
   type AccessPaidCheckinStatus,
 } from "@/lib/accessCheckin";
 import { ApiError } from "@/lib/api";
+import { AccessPaidQrScanner } from "./AccessPaidQrScanner";
 import {
   Badge,
   Card,
@@ -209,6 +210,27 @@ export function AccessPaidCheckinSection() {
   const [isLookupLoading, setIsLookupLoading] = useState(false);
   const [isUseLoading, setIsUseLoading] = useState(false);
 
+  const lookupToken = useCallback(async (token: string) => {
+    setIsLookupLoading(true);
+    setLocalError(null);
+    setRequestError(null);
+    setResult(null);
+    setActiveToken(null);
+    setInputValue("");
+
+    try {
+      const lookupResult = await lookupAccessEntryByToken(token);
+      setResult(lookupResult);
+      setActiveToken(lookupResult.status === "valid" ? token : null);
+    } catch (error) {
+      setRequestError(
+        getApiErrorMessage(error, "No pudimos consultar la entrada. Reintentá en unos segundos.")
+      );
+    } finally {
+      setIsLookupLoading(false);
+    }
+  }, []);
+
   const handleLookupSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -221,24 +243,7 @@ export function AccessPaidCheckinSection() {
       return;
     }
 
-    setIsLookupLoading(true);
-    setLocalError(null);
-    setRequestError(null);
-    setResult(null);
-    setActiveToken(null);
-    setInputValue("");
-
-    try {
-      const lookupResult = await lookupAccessEntryByToken(parsedToken.token);
-      setResult(lookupResult);
-      setActiveToken(lookupResult.status === "valid" ? parsedToken.token : null);
-    } catch (error) {
-      setRequestError(
-        getApiErrorMessage(error, "No pudimos consultar la entrada. Reintentá en unos segundos.")
-      );
-    } finally {
-      setIsLookupLoading(false);
-    }
+    await lookupToken(parsedToken.token);
   };
 
   const handleUse = async () => {
@@ -264,9 +269,14 @@ export function AccessPaidCheckinSection() {
 
   return (
     <section className="space-y-6">
+      <AccessPaidQrScanner
+        disabled={isLookupLoading || isUseLoading}
+        onTokenDetected={lookupToken}
+      />
+
       <Card>
         <CardHeader>
-          <CardTitle>Entradas pagas</CardTitle>
+          <CardTitle>Buscar manualmente</CardTitle>
           <CardDescription>
             Buscá entradas compradas pegando el QR, enlace o código recibido por correo.
           </CardDescription>
