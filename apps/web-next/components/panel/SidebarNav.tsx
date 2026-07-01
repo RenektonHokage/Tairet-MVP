@@ -55,6 +55,7 @@ export function SidebarNav({ onNavigate, theme, onToggleTheme }: SidebarNavProps
             items: [
               { href: "/panel/checkin", label: "Check-in", icon: "✓" },
               { href: "/panel/orders", label: "Entradas", icon: "📋" },
+              { href: "/panel/access", label: "Entradas pagas", icon: "🎟️" },
             ],
           },
           {
