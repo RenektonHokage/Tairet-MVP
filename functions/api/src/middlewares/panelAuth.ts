@@ -41,11 +41,16 @@ declare global {
   }
 }
 
+const PANEL_AUTH_SLOW_THRESHOLD_MS = 1000;
+
 export async function panelAuth(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
+  const startedAt = Date.now();
+  let getUserMs: number | undefined;
+  let panelUserMs: number | undefined;
   const requestId = getRequestId(req);
   const method = req.method;
   const path = req.originalUrl || req.path;
@@ -58,6 +63,20 @@ export async function panelAuth(
       requestId,
       method,
       path,
+      ...meta,
+    });
+  };
+  const logSlowAuth = (meta?: Record<string, unknown>) => {
+    const totalMs = Date.now() - startedAt;
+    if (totalMs <= PANEL_AUTH_SLOW_THRESHOLD_MS) {
+      return;
+    }
+
+    logAuthEvent("warn", "Slow panel authentication", {
+      authStage: "slow_auth",
+      totalMs,
+      getUserMs,
+      panelUserMs,
       ...meta,
     });
   };
@@ -91,7 +110,9 @@ export async function panelAuth(
     }
 
     // Validar token con Supabase Auth (verifica firma y expiración)
+    const getUserStartedAt = Date.now();
     const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken);
+    getUserMs = Date.now() - getUserStartedAt;
 
     if (authError || !user) {
       logAuthEvent("warn", "Invalid or expired token", {
@@ -100,16 +121,22 @@ export async function panelAuth(
         rejectionReason: "invalid_or_expired_token",
         authError: authError?.message,
       });
+      logSlowAuth({
+        statusCode: 401,
+        rejectionReason: "invalid_or_expired_token",
+      });
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
     // Buscar usuario en panel_users por auth_user_id (autorización para panel)
     // Si no existe, retorna 403 (usuario válido en Auth pero no autorizado para panel)
+    const panelUserStartedAt = Date.now();
     const { data: panelUser, error: dbError } = await supabase
       .from("panel_users")
       .select("id, auth_user_id, email, local_id, role")
       .eq("auth_user_id", user.id)
       .single();
+    panelUserMs = Date.now() - panelUserStartedAt;
 
     if (dbError || !panelUser) {
       logAuthEvent("warn", "Panel user not found", {
@@ -118,6 +145,11 @@ export async function panelAuth(
         rejectionReason: "panel_user_not_found",
         authUserId: user.id,
         dbError: dbError?.message,
+      });
+      logSlowAuth({
+        statusCode: 403,
+        authUserId: user.id,
+        rejectionReason: "panel_user_not_found",
       });
       return res.status(403).json({ error: "User not authorized for panel access" });
     }
@@ -138,6 +170,12 @@ export async function panelAuth(
       localId: panelUser.local_id,
       role: panelUser.role,
     });
+    logSlowAuth({
+      statusCode: 200,
+      authUserId: user.id,
+      localId: panelUser.local_id,
+      role: panelUser.role,
+    });
 
     next();
   } catch (error) {
@@ -146,6 +184,10 @@ export async function panelAuth(
       authStage: "unexpected_error",
       errorName: error instanceof Error ? error.name : "UnknownError",
       errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    logSlowAuth({
+      statusCode: 500,
+      rejectionReason: "unexpected_error",
     });
     return res.status(500).json({ error: "Internal server error" });
   }

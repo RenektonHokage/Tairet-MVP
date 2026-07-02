@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { supabase } from "./supabase";
+import { logger } from "../utils/logger";
 
 export type AccessCheckinBusinessStatus = "valid" | "already_used" | "voided" | "not_paid" | "not_valid_status";
 export type AccessCheckinUseBusinessStatus = "used" | "already_used" | "voided" | "not_paid" | "not_valid_status";
@@ -157,6 +158,7 @@ const ACCESS_CHECKIN_USE_STATUSES: readonly AccessCheckinUseBusinessStatus[] = [
   "not_paid",
   "not_valid_status",
 ];
+const ACCESS_CHECKIN_LOOKUP_SLOW_THRESHOLD_MS = 1000;
 
 function isAccessCheckinUseStatus(value: unknown): value is AccessCheckinUseBusinessStatus {
   return (
@@ -255,13 +257,33 @@ export async function lookupAccessCheckinByToken(input: {
   now?: Date;
 }): Promise<AccessCheckinLookupResult> {
   const { token, panelUser } = input;
+  const startedAt = Date.now();
+  let entryQueryMs: number | undefined;
+  let orderQueryMs: number | undefined;
+  let orderItemQueryMs: number | undefined;
   const baseLogContext: AccessCheckinLogContext = {
     tokenHash: accessCheckinTokenHash(token),
     localId: panelUser.localId,
     panelUserId: panelUser.userId,
     role: panelUser.role,
   };
+  const logSlowLookup = (context?: Partial<AccessCheckinLogContext>) => {
+    const totalMs = Date.now() - startedAt;
+    if (totalMs <= ACCESS_CHECKIN_LOOKUP_SLOW_THRESHOLD_MS) {
+      return;
+    }
 
+    logger.warn("Slow Access check-in lookup", {
+      ...baseLogContext,
+      ...context,
+      totalMs,
+      entryQueryMs,
+      orderQueryMs,
+      orderItemQueryMs,
+    });
+  };
+
+  const entryQueryStartedAt = Date.now();
   const { data: entryData, error: entryError } = await supabase
     .from("access_entries")
     .select(
@@ -269,8 +291,12 @@ export async function lookupAccessCheckinByToken(input: {
     )
     .eq("checkin_token", token)
     .maybeSingle();
+  entryQueryMs = Date.now() - entryQueryStartedAt;
 
   if (entryError) {
+    logSlowLookup({
+      errorCode: "entry_lookup_failed",
+    });
     return {
       ok: false,
       statusCode: 500,
@@ -287,16 +313,43 @@ export async function lookupAccessCheckinByToken(input: {
 
   const entry = entryData as AccessEntryRow | null;
   if (!entry) {
+    logSlowLookup({
+      errorCode: "entry_not_found",
+    });
     return buildNotFoundResult(token, panelUser);
   }
 
-  const { data: orderData, error: orderError } = await supabase
-    .from("access_orders")
-    .select("public_ref, source_type, local_id, status")
-    .eq("id", entry.order_id)
-    .maybeSingle();
+  const [orderResult, orderItemResult] = await Promise.all([
+    (async () => {
+      const queryStartedAt = Date.now();
+      const result = await supabase
+        .from("access_orders")
+        .select("public_ref, source_type, local_id, status")
+        .eq("id", entry.order_id)
+        .maybeSingle();
+      orderQueryMs = Date.now() - queryStartedAt;
+      return result;
+    })(),
+    (async () => {
+      const queryStartedAt = Date.now();
+      const result = await supabase
+        .from("access_order_items")
+        .select("name_snapshot")
+        .eq("id", entry.order_item_id)
+        .maybeSingle();
+      orderItemQueryMs = Date.now() - queryStartedAt;
+      return result;
+    })(),
+  ]);
+  const { data: orderData, error: orderError } = orderResult;
+  const { data: orderItemData, error: orderItemError } = orderItemResult;
 
   if (orderError) {
+    logSlowLookup({
+      status: entry.status,
+      checkinStatus: entry.checkin_status,
+      errorCode: "order_lookup_failed",
+    });
     return {
       ok: false,
       statusCode: 500,
@@ -315,6 +368,11 @@ export async function lookupAccessCheckinByToken(input: {
 
   const order = orderData as AccessOrderRow | null;
   if (!order) {
+    logSlowLookup({
+      status: entry.status,
+      checkinStatus: entry.checkin_status,
+      errorCode: "entry_not_found",
+    });
     return buildNotFoundResult(token, panelUser, {
       status: entry.status,
       checkinStatus: entry.checkin_status,
@@ -330,16 +388,18 @@ export async function lookupAccessCheckinByToken(input: {
   };
 
   if (order.source_type !== "local" || order.local_id !== panelUser.localId) {
+    logSlowLookup({
+      ...orderLogContext,
+      errorCode: "entry_not_found",
+    });
     return buildNotFoundResult(token, panelUser, orderLogContext);
   }
 
-  const { data: orderItemData, error: orderItemError } = await supabase
-    .from("access_order_items")
-    .select("name_snapshot")
-    .eq("id", entry.order_item_id)
-    .maybeSingle();
-
   if (orderItemError || !orderItemData) {
+    logSlowLookup({
+      ...orderLogContext,
+      errorCode: "order_item_lookup_failed",
+    });
     return {
       ok: false,
       statusCode: 500,
@@ -359,6 +419,10 @@ export async function lookupAccessCheckinByToken(input: {
   const status = deriveAccessCheckinStatus(entry, order);
   const warnings: AccessCheckinWarning[] =
     entry.access_date !== formatAsuncionDate(input.now ?? new Date()) ? ["date_warning"] : [];
+  logSlowLookup({
+    ...orderLogContext,
+    errorCode: undefined,
+  });
 
   return {
     ok: true,

@@ -36,12 +36,17 @@ const ZXING_SCAN_ATTEMPT_DELAY_MS = 250;
 const INVALID_QR_COOLDOWN_MS = 1200;
 const SAME_TOKEN_COOLDOWN_MS = 2500;
 
-function getScannerStatusLabel(status: ScannerStatus): string {
+function getScannerStatusLabel(
+  status: ScannerStatus,
+  hasCameraPermissionBeenGranted: boolean
+): string {
   switch (status) {
     case "idle":
       return "Cámara apagada.";
     case "requesting_permission":
-      return "Solicitando permiso de cámara...";
+      return hasCameraPermissionBeenGranted
+        ? "Abriendo cámara..."
+        : "Solicitando permiso de cámara...";
     case "scanning":
       return "Cámara activa. Apuntá al QR de la entrada pagada.";
     case "processing":
@@ -76,6 +81,7 @@ export function AccessPaidQrScanner({
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus>("idle");
   const [scannerMessage, setScannerMessage] = useState<string | null>(null);
   const [scannerMessageTone, setScannerMessageTone] = useState<ScannerMessageTone>("neutral");
+  const [hasCameraPermissionBeenGranted, setHasCameraPermissionBeenGranted] = useState(false);
 
   const clearNoticeTimeout = useCallback(() => {
     if (noticeTimeoutRef.current) {
@@ -92,37 +98,40 @@ export function AccessPaidQrScanner({
     lastProcessedAtRef.current = 0;
   }, []);
 
+  const stopCameraStream = useCallback(() => {
+    if (scannerControlsRef.current) {
+      try {
+        scannerControlsRef.current.stop();
+      } catch {
+        // Camera cleanup must be best-effort.
+      }
+      scannerControlsRef.current = null;
+    }
+
+    if (readerRef.current) {
+      try {
+        const maybeReset = (readerRef.current as unknown as { reset?: () => void }).reset;
+        if (typeof maybeReset === "function") {
+          maybeReset();
+        }
+      } catch {
+        // Camera cleanup must be best-effort.
+      }
+      readerRef.current = null;
+    }
+
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
   const cleanupCamera = useCallback(
     (nextStatus?: ScannerStatus) => {
       scanningEnabledRef.current = false;
       isProcessingRef.current = false;
-
-      if (scannerControlsRef.current) {
-        try {
-          scannerControlsRef.current.stop();
-        } catch {
-          // Camera cleanup must be best-effort.
-        }
-        scannerControlsRef.current = null;
-      }
-
-      if (readerRef.current) {
-        try {
-          const maybeReset = (readerRef.current as unknown as { reset?: () => void }).reset;
-          if (typeof maybeReset === "function") {
-            maybeReset();
-          }
-        } catch {
-          // Camera cleanup must be best-effort.
-        }
-        readerRef.current = null;
-      }
-
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
-        videoRef.current.srcObject = null;
-      }
+      stopCameraStream();
 
       clearNoticeTimeout();
       clearTransientRefs();
@@ -131,7 +140,7 @@ export function AccessPaidQrScanner({
         setScannerStatus(nextStatus);
       }
     },
-    [clearNoticeTimeout, clearTransientRefs]
+    [clearNoticeTimeout, clearTransientRefs, stopCameraStream]
   );
 
   useEffect(() => {
@@ -215,6 +224,7 @@ export function AccessPaidQrScanner({
       lastProcessedAtRef.current = now;
       setScannerStatus("processing");
       setScannerMessage(null);
+      stopCameraStream();
 
       try {
         await onTokenDetected(parsedToken.token);
@@ -229,7 +239,7 @@ export function AccessPaidQrScanner({
         cleanupCamera("paused_after_result");
       }
     },
-    [cleanupCamera, onTokenDetected, showScannerMessage]
+    [cleanupCamera, onTokenDetected, showScannerMessage, stopCameraStream]
   );
 
   const startCamera = useCallback(async () => {
@@ -303,6 +313,7 @@ export function AccessPaidQrScanner({
       );
 
       scannerControlsRef.current = controls;
+      setHasCameraPermissionBeenGranted(true);
       setScannerStatus("scanning");
     } catch (error) {
       cleanupCamera();
@@ -375,12 +386,12 @@ export function AccessPaidQrScanner({
             scannerStatus === "scanner_error" ||
             scannerStatus === "paused_after_result" ? (
               <div className="flex aspect-[4/3] items-center justify-center px-6 text-center text-sm text-neutral-300 sm:aspect-video">
-                {getScannerStatusLabel(scannerStatus)}
+                {getScannerStatusLabel(scannerStatus, hasCameraPermissionBeenGranted)}
               </div>
             ) : null}
             {scannerStatus === "requesting_permission" ? (
               <div className="absolute inset-0 flex items-center justify-center bg-black/65 px-6 text-center text-sm font-medium text-white">
-                Solicitando permiso de cámara...
+                {getScannerStatusLabel(scannerStatus, hasCameraPermissionBeenGranted)}
               </div>
             ) : null}
             {scannerStatus === "scanning" ? (
@@ -392,7 +403,9 @@ export function AccessPaidQrScanner({
         </div>
 
         <div className="space-y-2">
-          <p className={panelUi.mutedText}>{getScannerStatusLabel(scannerStatus)}</p>
+          <p className={panelUi.mutedText}>
+            {getScannerStatusLabel(scannerStatus, hasCameraPermissionBeenGranted)}
+          </p>
           <p className={panelUi.mutedText}>
             El escaneo solo busca la entrada. Para marcarla como usada, tocá
             “Validar entrada”.
