@@ -54,25 +54,21 @@ export function SidebarNav({ onNavigate, theme, onToggleTheme }: SidebarNavProps
             title: "Operación",
             items: [
               { href: "/panel/checkin", label: "Check-in", icon: "✓" },
-              { href: "/panel/orders", label: "Entradas", icon: "📋" },
-              { href: "/panel/access", label: "Entradas pagas", icon: "🎟️" },
+              { href: "/panel/orders", label: "Accesos emitidos", icon: "📋" },
             ],
           },
           {
-            title: "Calendario",
-            items: [{ href: "/panel/calendar", label: "Calendario", icon: "📅" }],
-          },
-          {
-            title: "Marketing",
-            items: [{ href: "/panel/marketing/promos", label: "Promociones", icon: "🎯" }],
+            title: "Gestión",
+            items: [
+              { href: "/panel/access", label: "Entradas", icon: "🎟️" },
+              { href: "/panel/calendar", label: "Calendario", icon: "📅" },
+              { href: "/panel/marketing/promos", label: "Fechas y promociones", icon: "🎯" },
+              { href: "/panel/profile", label: "Perfil del local", icon: "🏢" },
+            ],
           },
           {
             title: "Métricas",
             items: [{ href: "/panel/metrics", label: "Métricas", icon: "📈" }],
-          },
-          {
-            title: "Perfil",
-            items: [{ href: "/panel/profile", label: "Perfil del Local", icon: "🏢" }],
           },
           {
             title: "Soporte",
