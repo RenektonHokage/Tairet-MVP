@@ -24,12 +24,17 @@ const ACCESS_TICKET_NAME_MIN_LENGTH = 2;
 const ACCESS_TICKET_NAME_MAX_LENGTH = 100;
 const ACCESS_TICKET_DESCRIPTION_MAX_LENGTH = 500;
 const ACCESS_STOCK_MAX_RANGE_DAYS = 31;
+const ACCESS_AVAILABILITY_MAX_RANGE_DAYS = 93;
+const ACCESS_AVAILABILITY_REASON_MAX_LENGTH = 200;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ACCESS_AVAILABILITY_EXCEPTION_MODES = ["closed", "unlimited", "limited"] as const;
 
 type AccessEntryStatus = (typeof ACCESS_ENTRY_STATUSES)[number];
 type AccessEntryCheckinStatus = (typeof ACCESS_CHECKIN_STATUSES)[number];
 type AccessStockMode = (typeof ACCESS_STOCK_MODES)[number];
+type AccessAvailabilityExceptionMode =
+  (typeof ACCESS_AVAILABILITY_EXCEPTION_MODES)[number];
 
 interface AccessEntriesListQuery {
   date?: string;
@@ -127,6 +132,69 @@ interface AccessStockLimitResponse {
   status: "unconfigured" | "configured" | "sold_out";
 }
 
+interface AccessAvailabilityRuleRow {
+  id: string;
+  access_ticket_type_id: string;
+  valid_from: string;
+  valid_to: string;
+  active: boolean;
+}
+
+interface AccessAvailabilityWeekdayRow {
+  rule_id: string;
+  iso_weekday: number;
+  stock_mode: AccessStockMode;
+  capacity: number | null;
+}
+
+interface AccessAvailabilityExceptionRow {
+  id: string;
+  access_ticket_type_id: string;
+  access_date: string;
+  exception_mode: AccessAvailabilityExceptionMode;
+  capacity: number | null;
+  reason: string | null;
+}
+
+interface AccessAvailabilityRuleResponse {
+  id: string;
+  valid_from: string;
+  valid_to: string;
+  active: boolean;
+}
+
+interface AccessAvailabilityWeekdayResponse {
+  iso_weekday: number;
+  stock_mode: AccessStockMode;
+  capacity: number | null;
+}
+
+interface AccessAvailabilityExceptionResponse {
+  id: string;
+  access_date: string;
+  exception_mode: AccessAvailabilityExceptionMode;
+  capacity: number | null;
+  reason: string | null;
+}
+
+interface AccessAvailabilitySummaryResponse {
+  has_rule: boolean;
+  sellable_weekdays: number[];
+  exceptions_count: number;
+}
+
+interface AccessTicketAvailabilityResponse {
+  rule: AccessAvailabilityRuleResponse | null;
+  weekdays: AccessAvailabilityWeekdayResponse[];
+  exceptions: AccessAvailabilityExceptionResponse[];
+  summary: AccessAvailabilitySummaryResponse;
+}
+
+interface AccessTicketConfigResponse extends AccessTicketTypeResponse {
+  availability: AccessTicketAvailabilityResponse;
+  stock_effective?: AccessStockLimitResponse[];
+}
+
 interface AccessStockReservationRow {
   access_ticket_type_id: string;
   access_date: string;
@@ -162,6 +230,11 @@ interface AccessStockRangeQuery {
   to: string;
 }
 
+interface AccessConfigQuery {
+  includeStock: boolean;
+  stockRange?: AccessStockRangeQuery;
+}
+
 type ParsedBody<T> =
   | { ok: true; value: T }
   | { ok: false; statusCode: number; code: string; error: string };
@@ -187,6 +260,42 @@ interface AccessStockLimitUpsertInput {
   accessDate: string;
   stockMode: AccessStockMode;
   capacity: number | null;
+}
+
+interface AccessAvailabilityWeekdayInput {
+  iso_weekday: number;
+  stock_mode: AccessStockMode;
+  capacity: number | null;
+}
+
+interface AccessAvailabilityExceptionInput {
+  access_date: string;
+  exception_mode: AccessAvailabilityExceptionMode;
+  capacity: number | null;
+  reason: string | null;
+}
+
+interface AccessTicketAvailabilityInput {
+  validFrom: string;
+  validTo: string;
+  weekdays: AccessAvailabilityWeekdayInput[];
+  exceptions: AccessAvailabilityExceptionInput[];
+}
+
+interface AccessAvailabilityRpcError {
+  code?: string;
+  message?: string;
+  conflicts?: unknown;
+}
+
+interface AccessAvailabilityRpcResult {
+  ok?: boolean;
+  error?: AccessAvailabilityRpcError;
+  rule_id?: string;
+  materialized_count?: number;
+  closed_count?: number;
+  valid_from?: string;
+  valid_to?: string;
 }
 
 function readSingleQueryValue(value: unknown): string | undefined {
@@ -595,12 +704,33 @@ function parseAccessStockLimitUpsertBody(body: unknown): ParsedBody<AccessStockL
   };
 }
 
+function isValidDateKey(dateKey: string): boolean {
+  if (!DATE_ONLY_PATTERN.test(dateKey)) return false;
+
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return false;
+
+  return date.toISOString().slice(0, 10) === dateKey;
+}
+
 function getTodayDateKey(): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function getAsuncionTodayDateKey(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Asuncion",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
 }
 
 function dateDiffInDays(from: string, to: string): number {
@@ -618,6 +748,310 @@ function addDaysToDateKey(dateKey: string, days: number): string {
 function buildDateKeys(from: string, to: string): string[] {
   const days = dateDiffInDays(from, to);
   return Array.from({ length: days + 1 }, (_value, index) => addDaysToDateKey(from, index));
+}
+
+function parseAccessConfigQuery(query: Request["query"]):
+  | { ok: true; query: AccessConfigQuery }
+  | { ok: false; error: string } {
+  const includeStock = readSingleQueryValue(query.include_stock) === "1";
+
+  if (!includeStock) {
+    return { ok: true, query: { includeStock: false } };
+  }
+
+  const from = readSingleQueryValue(query.from);
+  const to = readSingleQueryValue(query.to);
+
+  if ((from && !to) || (!from && to)) {
+    return { ok: false, error: "from and to must be used together" };
+  }
+
+  const today = getAsuncionTodayDateKey();
+  const range = from && to ? { from, to } : { from: today, to: today };
+
+  if (!isValidDateKey(range.from) || !isValidDateKey(range.to)) {
+    return { ok: false, error: "Invalid range. Expected real YYYY-MM-DD dates" };
+  }
+
+  if (range.from > range.to) {
+    return { ok: false, error: "from must be before or equal to to" };
+  }
+
+  if (dateDiffInDays(range.from, range.to) + 1 > ACCESS_AVAILABILITY_MAX_RANGE_DAYS) {
+    return { ok: false, error: "Date range cannot exceed 93 days" };
+  }
+
+  return {
+    ok: true,
+    query: {
+      includeStock: true,
+      stockRange: range,
+    },
+  };
+}
+
+function parseCapacity(value: unknown): number | null {
+  const parsed = parseIntegerValue(value);
+  if (parsed === null || parsed <= 0 || parsed > 2_147_483_647) return null;
+  return parsed;
+}
+
+function parseAccessTicketAvailabilityBody(
+  body: unknown
+): ParsedBody<AccessTicketAvailabilityInput> {
+  if (!isRecord(body)) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_request",
+      error: "Invalid request",
+    };
+  }
+
+  const validFrom = typeof body.valid_from === "string" ? body.valid_from.trim() : "";
+  const validTo = typeof body.valid_to === "string" ? body.valid_to.trim() : "";
+  if (!isValidDateKey(validFrom) || !isValidDateKey(validTo)) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_date",
+      error: "valid_from and valid_to must be real YYYY-MM-DD dates",
+    };
+  }
+
+  if (validFrom > validTo) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_range",
+      error: "valid_from must be before or equal to valid_to",
+    };
+  }
+
+  if (validFrom < getAsuncionTodayDateKey()) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_range",
+      error: "valid_from cannot be before today",
+    };
+  }
+
+  if (dateDiffInDays(validFrom, validTo) + 1 > ACCESS_AVAILABILITY_MAX_RANGE_DAYS) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_range",
+      error: "Availability range cannot exceed 93 days",
+    };
+  }
+
+  if (!Array.isArray(body.weekdays) || body.weekdays.length === 0) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_weekdays",
+      error: "weekdays must be a non-empty array",
+    };
+  }
+
+  const weekdays: AccessAvailabilityWeekdayInput[] = [];
+  const seenWeekdays = new Set<number>();
+  for (const item of body.weekdays) {
+    if (!isRecord(item)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_weekdays",
+        error: "Invalid weekday item",
+      };
+    }
+
+    const isoWeekday = parseIntegerValue(item.iso_weekday);
+    if (isoWeekday === null || isoWeekday < 1 || isoWeekday > 7) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_weekdays",
+        error: "iso_weekday must be between 1 and 7",
+      };
+    }
+
+    if (seenWeekdays.has(isoWeekday)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_weekdays",
+        error: "Duplicate iso_weekday",
+      };
+    }
+    seenWeekdays.add(isoWeekday);
+
+    const stockMode =
+      typeof item.stock_mode === "string" ? item.stock_mode.trim() : "";
+    if (!ACCESS_STOCK_MODES.includes(stockMode as AccessStockMode)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_weekdays",
+        error: "Invalid stock_mode",
+      };
+    }
+
+    let capacity: number | null = null;
+    if (stockMode === "limited") {
+      capacity = parseCapacity(item.capacity);
+      if (capacity === null) {
+        return {
+          ok: false,
+          statusCode: 400,
+          code: "invalid_capacity",
+          error: "Limited stock requires capacity greater than 0",
+        };
+      }
+    } else if (item.capacity !== undefined && item.capacity !== null) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_capacity",
+        error: "Unlimited stock requires null capacity",
+      };
+    }
+
+    weekdays.push({
+      iso_weekday: isoWeekday,
+      stock_mode: stockMode as AccessStockMode,
+      capacity,
+    });
+  }
+
+  const rawExceptions = body.exceptions === undefined ? [] : body.exceptions;
+  if (!Array.isArray(rawExceptions)) {
+    return {
+      ok: false,
+      statusCode: 400,
+      code: "invalid_request",
+      error: "exceptions must be an array",
+    };
+  }
+
+  const exceptions: AccessAvailabilityExceptionInput[] = [];
+  const seenExceptionDates = new Set<string>();
+  for (const item of rawExceptions) {
+    if (!isRecord(item)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_date",
+        error: "Invalid exception item",
+      };
+    }
+
+    const accessDate =
+      typeof item.access_date === "string" ? item.access_date.trim() : "";
+    if (!isValidDateKey(accessDate)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_date",
+        error: "Invalid exception access_date",
+      };
+    }
+
+    if (accessDate < validFrom || accessDate > validTo) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_range",
+        error: "Exception access_date must be within availability range",
+      };
+    }
+
+    if (seenExceptionDates.has(accessDate)) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "duplicate_exception_date",
+        error: "Duplicate exception access_date",
+      };
+    }
+    seenExceptionDates.add(accessDate);
+
+    const exceptionMode =
+      typeof item.exception_mode === "string" ? item.exception_mode.trim() : "";
+    if (
+      !ACCESS_AVAILABILITY_EXCEPTION_MODES.includes(
+        exceptionMode as AccessAvailabilityExceptionMode
+      )
+    ) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_capacity",
+        error: "Invalid exception_mode",
+      };
+    }
+
+    let capacity: number | null = null;
+    if (exceptionMode === "limited") {
+      capacity = parseCapacity(item.capacity);
+      if (capacity === null) {
+        return {
+          ok: false,
+          statusCode: 400,
+          code: "invalid_capacity",
+          error: "Limited exception requires capacity greater than 0",
+        };
+      }
+    } else if (item.capacity !== undefined && item.capacity !== null) {
+      return {
+        ok: false,
+        statusCode: 400,
+        code: "invalid_capacity",
+        error: "Closed and unlimited exceptions require null capacity",
+      };
+    }
+
+    let reason: string | null = null;
+    if (item.reason !== undefined && item.reason !== null) {
+      if (typeof item.reason !== "string") {
+        return {
+          ok: false,
+          statusCode: 400,
+          code: "invalid_reason",
+          error: "reason must be a string",
+        };
+      }
+
+      const trimmedReason = item.reason.trim();
+      if (trimmedReason.length > ACCESS_AVAILABILITY_REASON_MAX_LENGTH) {
+        return {
+          ok: false,
+          statusCode: 400,
+          code: "invalid_reason",
+          error: "reason cannot exceed 200 characters",
+        };
+      }
+      reason = trimmedReason.length > 0 ? trimmedReason : null;
+    }
+
+    exceptions.push({
+      access_date: accessDate,
+      exception_mode: exceptionMode as AccessAvailabilityExceptionMode,
+      capacity,
+      reason,
+    });
+  }
+
+  return {
+    ok: true,
+    value: {
+      validFrom,
+      validTo,
+      weekdays,
+      exceptions,
+    },
+  };
 }
 
 function parseAccessStockRangeQuery(query: Request["query"]):
@@ -1016,6 +1450,246 @@ function buildAccessStockLimitResponse(input: {
   };
 }
 
+function buildAccessTicketAvailabilityResponse(input: {
+  rule: AccessAvailabilityRuleRow | null;
+  weekdays: AccessAvailabilityWeekdayRow[];
+  exceptions: AccessAvailabilityExceptionRow[];
+}): AccessTicketAvailabilityResponse {
+  const weekdays: AccessAvailabilityWeekdayResponse[] = input.weekdays.map(
+    (weekday) => ({
+      iso_weekday: Number(weekday.iso_weekday),
+      stock_mode: weekday.stock_mode,
+      capacity: weekday.capacity === null ? null : Number(weekday.capacity),
+    })
+  );
+
+  const exceptions: AccessAvailabilityExceptionResponse[] = input.exceptions.map(
+    (exception) => ({
+      id: exception.id,
+      access_date: exception.access_date,
+      exception_mode: exception.exception_mode,
+      capacity: exception.capacity === null ? null : Number(exception.capacity),
+      reason: exception.reason,
+    })
+  );
+
+  return {
+    rule: input.rule
+      ? {
+          id: input.rule.id,
+          valid_from: input.rule.valid_from,
+          valid_to: input.rule.valid_to,
+          active: input.rule.active,
+        }
+      : null,
+    weekdays,
+    exceptions,
+    summary: {
+      has_rule: Boolean(input.rule),
+      sellable_weekdays: weekdays
+        .filter(
+          (weekday) =>
+            weekday.stock_mode === "unlimited" ||
+            (weekday.stock_mode === "limited" &&
+              weekday.capacity !== null &&
+              weekday.capacity > 0)
+        )
+        .map((weekday) => weekday.iso_weekday),
+      exceptions_count: exceptions.length,
+    },
+  };
+}
+
+async function fetchAccessAvailabilityContext(input: {
+  localId: string;
+  ticketTypeIds: string[];
+}): Promise<{
+  rulesByTicketTypeId: Map<string, AccessAvailabilityRuleRow>;
+  weekdaysByRuleId: Map<string, AccessAvailabilityWeekdayRow[]>;
+  exceptionsByTicketTypeId: Map<string, AccessAvailabilityExceptionRow[]>;
+  error: string | null;
+}> {
+  const rulesByTicketTypeId = new Map<string, AccessAvailabilityRuleRow>();
+  const weekdaysByRuleId = new Map<string, AccessAvailabilityWeekdayRow[]>();
+  const exceptionsByTicketTypeId = new Map<string, AccessAvailabilityExceptionRow[]>();
+
+  if (input.ticketTypeIds.length === 0) {
+    return {
+      rulesByTicketTypeId,
+      weekdaysByRuleId,
+      exceptionsByTicketTypeId,
+      error: null,
+    };
+  }
+
+  const rulesResult = await fetchAllRows<AccessAvailabilityRuleRow>((from, to) =>
+    supabase
+      .from("access_ticket_availability_rules")
+      .select("id, access_ticket_type_id, valid_from, valid_to, active")
+      .eq("source_type", "local")
+      .eq("local_id", input.localId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .in("access_ticket_type_id", input.ticketTypeIds)
+      .order("valid_from", { ascending: true })
+      .range(from, to)
+  );
+
+  if (rulesResult.error) {
+    return {
+      rulesByTicketTypeId,
+      weekdaysByRuleId,
+      exceptionsByTicketTypeId,
+      error: rulesResult.error,
+    };
+  }
+
+  for (const rule of rulesResult.rows) {
+    if (!rulesByTicketTypeId.has(rule.access_ticket_type_id)) {
+      rulesByTicketTypeId.set(rule.access_ticket_type_id, rule);
+    }
+  }
+
+  const ruleIds = Array.from(rulesByTicketTypeId.values()).map((rule) => rule.id);
+  if (ruleIds.length > 0) {
+    const weekdaysResult = await fetchAllRows<AccessAvailabilityWeekdayRow>(
+      (from, to) =>
+        supabase
+          .from("access_ticket_availability_rule_weekdays")
+          .select("rule_id, iso_weekday, stock_mode, capacity")
+          .in("rule_id", ruleIds)
+          .order("iso_weekday", { ascending: true })
+          .range(from, to)
+    );
+
+    if (weekdaysResult.error) {
+      return {
+        rulesByTicketTypeId,
+        weekdaysByRuleId,
+        exceptionsByTicketTypeId,
+        error: weekdaysResult.error,
+      };
+    }
+
+    for (const weekday of weekdaysResult.rows) {
+      const existing = weekdaysByRuleId.get(weekday.rule_id) ?? [];
+      existing.push(weekday);
+      weekdaysByRuleId.set(weekday.rule_id, existing);
+    }
+  }
+
+  const exceptionsResult = await fetchAllRows<AccessAvailabilityExceptionRow>(
+    (from, to) =>
+      supabase
+        .from("access_ticket_availability_exceptions")
+        .select("id, access_ticket_type_id, access_date, exception_mode, capacity, reason")
+        .eq("source_type", "local")
+        .eq("local_id", input.localId)
+        .eq("active", true)
+        .is("deleted_at", null)
+        .in("access_ticket_type_id", input.ticketTypeIds)
+        .order("access_date", { ascending: true })
+        .range(from, to)
+  );
+
+  if (exceptionsResult.error) {
+    return {
+      rulesByTicketTypeId,
+      weekdaysByRuleId,
+      exceptionsByTicketTypeId,
+      error: exceptionsResult.error,
+    };
+  }
+
+  for (const exception of exceptionsResult.rows) {
+    const existing = exceptionsByTicketTypeId.get(exception.access_ticket_type_id) ?? [];
+    existing.push(exception);
+    exceptionsByTicketTypeId.set(exception.access_ticket_type_id, existing);
+  }
+
+  return {
+    rulesByTicketTypeId,
+    weekdaysByRuleId,
+    exceptionsByTicketTypeId,
+    error: null,
+  };
+}
+
+async function fetchAccessStockEffectiveByTicket(input: {
+  localId: string;
+  ticketTypes: AccessTicketTypeRow[];
+  from: string;
+  to: string;
+}): Promise<{ stockByTicketTypeId: Map<string, AccessStockLimitResponse[]>; error: string | null }> {
+  const stockByTicketTypeId = new Map<string, AccessStockLimitResponse[]>();
+  for (const ticketType of input.ticketTypes) {
+    stockByTicketTypeId.set(ticketType.id, []);
+  }
+
+  if (input.ticketTypes.length === 0) {
+    return { stockByTicketTypeId, error: null };
+  }
+
+  const ticketTypeIds = input.ticketTypes.map((ticketType) => ticketType.id);
+  const [{ counts, error: countsError }, stockLimitsResult] = await Promise.all([
+    fetchAccessStockBlockedCounts({
+      localId: input.localId,
+      ticketTypeIds,
+      from: input.from,
+      to: input.to,
+    }),
+    fetchAllRows<AccessStockLimitRow>((from, to) =>
+      supabase
+        .from("access_stock_limits")
+        .select(
+          "id, access_ticket_type_id, source_type, local_id, event_id, access_date, stock_mode, capacity, created_at, updated_at"
+        )
+        .eq("source_type", "local")
+        .eq("local_id", input.localId)
+        .gte("access_date", input.from)
+        .lte("access_date", input.to)
+        .in("access_ticket_type_id", ticketTypeIds)
+        .order("access_date", { ascending: true })
+        .range(from, to)
+    ),
+  ]);
+
+  if (countsError || stockLimitsResult.error) {
+    return {
+      stockByTicketTypeId,
+      error: countsError ?? stockLimitsResult.error ?? "stock_effective_fetch_failed",
+    };
+  }
+
+  const stockLimitsByTicketDate = new Map<string, AccessStockLimitRow>();
+  for (const stockLimit of stockLimitsResult.rows) {
+    stockLimitsByTicketDate.set(
+      buildStockCountKey(stockLimit.access_ticket_type_id, stockLimit.access_date),
+      stockLimit
+    );
+  }
+
+  for (const accessDate of buildDateKeys(input.from, input.to)) {
+    for (const ticketType of input.ticketTypes) {
+      const key = buildStockCountKey(ticketType.id, accessDate);
+      const stockLimit = stockLimitsByTicketDate.get(key) ?? null;
+      const soldOrReservedCount = counts.get(key) ?? 0;
+      const existing = stockByTicketTypeId.get(ticketType.id) ?? [];
+      existing.push(
+        buildAccessStockLimitResponse({
+          stockLimit,
+          ticketType,
+          accessDate,
+          soldOrReservedCount,
+        })
+      );
+      stockByTicketTypeId.set(ticketType.id, existing);
+    }
+  }
+
+  return { stockByTicketTypeId, error: null };
+}
+
 async function fetchEligibleAccessOrderIds(input: {
   localId: string;
   date?: string;
@@ -1249,6 +1923,132 @@ function sanitizeAccessCheckinRequestUrl(req: Request, _res: unknown, next: Next
 
   next();
 }
+
+function mapAvailabilityRpcStatusCode(code: string | undefined): number {
+  if (code === "forbidden") return 403;
+  if (code === "ticket_not_found" || code === "local_not_found") return 404;
+  if (code === "capacity_below_reserved") return 409;
+  if (code === "availability_materialization_failed") return 409;
+  if (code === "duplicate_exception_date") return 400;
+  if (code?.startsWith("invalid_")) return 400;
+
+  return 500;
+}
+
+panelAccessRouter.get(
+  "/config",
+  panelAuth,
+  requireRole(["owner", "staff"]),
+  async (req, res, next) => {
+    try {
+      if (!req.panelUser) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const clubCheck = await verifyAccessLocalIsClub(req.panelUser.localId);
+      if (!clubCheck.ok) {
+        return res.status(clubCheck.error === "not_a_club" ? 403 : 404).json({
+          error: "Solo discotecas pueden gestionar entradas pagas",
+          code: clubCheck.error === "not_a_club" ? "not_a_club" : "local_not_found",
+        });
+      }
+
+      const parsedQuery = parseAccessConfigQuery(req.query);
+      if (!parsedQuery.ok) {
+        return res.status(400).json({
+          error: parsedQuery.error,
+          code: "invalid_query",
+        });
+      }
+
+      const { ticketTypes, error: ticketTypesError } = await fetchAccessTicketTypesForLocal(
+        req.panelUser.localId
+      );
+      if (ticketTypesError) {
+        logger.error("Failed to fetch Access Core config ticket types", {
+          localId: req.panelUser.localId,
+          role: req.panelUser.role,
+          error: ticketTypesError,
+        });
+        return res.status(500).json({
+          error: "Failed to fetch access config",
+          code: "access_config_fetch_failed",
+        });
+      }
+
+      const ticketTypeIds = ticketTypes.map((ticketType) => ticketType.id);
+      const [salesMap, availabilityContext, stockEffective] = await Promise.all([
+        fetchAccessTicketSalesMap(ticketTypeIds),
+        fetchAccessAvailabilityContext({
+          localId: req.panelUser.localId,
+          ticketTypeIds,
+        }),
+        parsedQuery.query.includeStock && parsedQuery.query.stockRange
+          ? fetchAccessStockEffectiveByTicket({
+              localId: req.panelUser.localId,
+              ticketTypes,
+              from: parsedQuery.query.stockRange.from,
+              to: parsedQuery.query.stockRange.to,
+            })
+          : Promise.resolve({
+              stockByTicketTypeId: new Map<string, AccessStockLimitResponse[]>(),
+              error: null,
+            }),
+      ]);
+
+      if (salesMap.error || availabilityContext.error || stockEffective.error) {
+        logger.error("Failed to fetch Access Core config context", {
+          localId: req.panelUser.localId,
+          role: req.panelUser.role,
+          salesError: salesMap.error,
+          availabilityError: availabilityContext.error,
+          stockEffectiveError: stockEffective.error,
+        });
+        return res.status(500).json({
+          error: "Failed to fetch access config",
+          code: "access_config_fetch_failed",
+        });
+      }
+
+      const tickets: AccessTicketConfigResponse[] = ticketTypes.map((ticketType) => {
+        const rule =
+          availabilityContext.rulesByTicketTypeId.get(ticketType.id) ?? null;
+        const weekdays = rule
+          ? availabilityContext.weekdaysByRuleId.get(rule.id) ?? []
+          : [];
+        const exceptions =
+          availabilityContext.exceptionsByTicketTypeId.get(ticketType.id) ?? [];
+        const ticket = {
+          ...buildAccessTicketTypeResponse(
+            ticketType,
+            Boolean(salesMap.salesByTicketTypeId.get(ticketType.id))
+          ),
+          availability: buildAccessTicketAvailabilityResponse({
+            rule,
+            weekdays,
+            exceptions,
+          }),
+        };
+
+        if (parsedQuery.query.includeStock) {
+          return {
+            ...ticket,
+            stock_effective: stockEffective.stockByTicketTypeId.get(ticketType.id) ?? [],
+          };
+        }
+
+        return ticket;
+      });
+
+      return res.status(200).json({
+        ok: true,
+        tickets,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 panelAccessRouter.get(
   "/ticket-types",
@@ -1540,6 +2340,128 @@ panelAccessRouter.patch(
           data as AccessTicketTypeRow,
           hasSales
         ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+panelAccessRouter.put(
+  "/ticket-types/:id/availability",
+  panelAuth,
+  requireRole(["owner"]),
+  async (req, res, next) => {
+    try {
+      if (!req.panelUser) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const ticketTypeId =
+        typeof req.params.id === "string" ? req.params.id.trim().toLowerCase() : "";
+      if (!ticketTypeId || !isUuid(ticketTypeId)) {
+        return res.status(400).json({
+          error: "Invalid access ticket type id",
+          code: "invalid_access_ticket_type_id",
+        });
+      }
+
+      const clubCheck = await verifyAccessLocalIsClub(req.panelUser.localId);
+      if (!clubCheck.ok) {
+        return res.status(clubCheck.error === "not_a_club" ? 403 : 404).json({
+          error: "Solo discotecas pueden gestionar entradas pagas",
+          code: clubCheck.error === "not_a_club" ? "not_a_club" : "local_not_found",
+        });
+      }
+
+      const { ticketType, error: ticketTypeError } = await fetchAccessTicketTypeForLocal({
+        localId: req.panelUser.localId,
+        ticketTypeId,
+      });
+
+      if (ticketTypeError) {
+        logger.error("Failed to fetch Access Core ticket type for availability", {
+          ticketTypeId,
+          localId: req.panelUser.localId,
+          role: req.panelUser.role,
+          error: ticketTypeError,
+        });
+        return res.status(500).json({
+          error: "Failed to save access availability",
+          code: "availability_save_failed",
+        });
+      }
+
+      if (!ticketType) {
+        return res.status(404).json({
+          error: "Ticket type not found",
+          code: "ticket_not_found",
+        });
+      }
+
+      const parsedBody = parseAccessTicketAvailabilityBody(req.body);
+      if (!parsedBody.ok) {
+        return res.status(parsedBody.statusCode).json({
+          error: parsedBody.error,
+          code: parsedBody.code,
+        });
+      }
+
+      const input = parsedBody.value;
+      const { data, error } = await supabase.rpc("save_access_ticket_availability", {
+        p_actor_auth_user_id: req.panelUser.userId,
+        p_local_id: req.panelUser.localId,
+        p_access_ticket_type_id: ticketType.id,
+        p_valid_from: input.validFrom,
+        p_valid_to: input.validTo,
+        p_weekdays: input.weekdays,
+        p_exceptions: input.exceptions,
+      });
+
+      if (error) {
+        logger.error("Access Core availability RPC failed", {
+          ticketTypeId: ticketType.id,
+          localId: req.panelUser.localId,
+          role: req.panelUser.role,
+          error: error.message,
+          code: error.code,
+        });
+        return res.status(500).json({
+          error: "Failed to save access availability",
+          code: "availability_save_failed",
+        });
+      }
+
+      const result = data as AccessAvailabilityRpcResult | null;
+      if (!result || result.ok !== true) {
+        const rpcError = result?.error;
+        const statusCode = mapAvailabilityRpcStatusCode(rpcError?.code);
+        const code = rpcError?.code ?? "availability_save_failed";
+        const message = rpcError?.message ?? "Failed to save access availability";
+        const response: Record<string, unknown> = {
+          error: message,
+          code,
+        };
+
+        if (rpcError?.conflicts !== undefined) {
+          response.conflicts = rpcError.conflicts;
+        }
+
+        if (statusCode >= 500) {
+          logger.error("Access Core availability RPC returned failure", {
+            ticketTypeId: ticketType.id,
+            localId: req.panelUser.localId,
+            role: req.panelUser.role,
+            code,
+          });
+        }
+
+        return res.status(statusCode).json(response);
+      }
+
+      return res.status(200).json({
+        ok: true,
+        result,
       });
     } catch (error) {
       next(error);
