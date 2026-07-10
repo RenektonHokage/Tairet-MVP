@@ -825,10 +825,14 @@ Responsabilidades de la RPC:
 - cerrar approved si `response_code = '00'`;
 - cerrar rejected si `response_code <> '00'`;
 - mover inconsistencias a `manual_review`;
-- consumir stock solo si esta en `manual_hold` o `reserved` vigente;
-- enviar `reserved` vencido a `manual_review`;
+- recalcular capacidad bajo locks de `access_stock_limits` antes de consumir reservas propias;
+- reconciliar automaticamente un `manual_hold` solo para el tuple legacy de callback tardio por `stock_reservation_expired`;
+- tratar cualquier otro `manual_review` como terminal para callbacks posteriores, sin cambiar razones, timestamps ni reservas;
+- cerrar como `approved_but_unfulfilled` terminal cuando Bancard aprobo pero la orden ya no cabe;
 - no consumir ni liberar stock ya `consumed`;
 - responder idempotente en callbacks terminales solo si order y stock estan consistentes.
+
+El cierre y el QA runtime de esta semantica estan registrados en `ACCESS_CORE_LATE_CALLBACK_IDEMPOTENCY_CHECKPOINT.md`.
 
 La RPC no conoce `BANCARD_PRIVATE_KEY`, no calcula token, no valida firma Bancard y no emite `access_entries`, QR ni email.
 

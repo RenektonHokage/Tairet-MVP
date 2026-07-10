@@ -73,6 +73,14 @@ Diferencias operativas visibles:
 - `producción pública B2C` tiene evidencia fuerte de branding, canonical, robots y sitemap para `https://www.tairet.com.py`.
 - `preview/staging` no tienen contrato de entorno verificable en repo.
 
+### Autorizacion actual para QA controlado
+
+`Tairet-DB` (`omteyctmrgahavgfaodw`) es el entorno actualmente autorizado para
+QA controlado con fixtures sinteticos. Estas pruebas deben evitar datos
+preexistentes, registrar todos los UUIDs creados y limpiar exclusivamente sus
+propios fixtures al finalizar. Esta autorizacion operativa no define por si sola
+un contrato formal de produccion o staging.
+
 **Evidencia principal**
 
 - `docs/RUNBOOK.md`

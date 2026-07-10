@@ -1149,11 +1149,15 @@ Validaciones de la RPC:
 - `currency` coincide con `payment_attempts.currency`;
 - approved solo con `response_code = '00'`;
 - rejected con `response_code <> '00'`;
-- stock consumible solo si esta en `manual_hold` o `reserved` vigente;
-- `reserved` vencido pasa a `manual_review`;
+- migration 044 recalcula capacidad bajo locks de `access_stock_limits` antes de consumir reservas propias;
+- solo el tuple legacy de callback tardio por `stock_reservation_expired` puede reconciliar un `manual_hold` automaticamente una vez;
+- cualquier otro `manual_review` es terminal para callbacks posteriores y conserva razones, timestamps y reservas;
+- una aprobacion que ya no cabe termina como `approved_but_unfulfilled` sin entries;
 - no consume stock ya `consumed`;
 - no libera stock ya `consumed`;
 - callbacks duplicados `approved`/`rejected` son idempotentes solo si order y stock estan consistentes.
+
+El cierre y el QA runtime de esta semantica estan registrados en `ACCESS_CORE_LATE_CALLBACK_IDEMPOTENCY_CHECKPOINT.md`.
 
 Post-checks aplicados en Supabase:
 
