@@ -2,8 +2,21 @@ import { createHash } from "node:crypto";
 import { supabase } from "./supabase";
 import { logger } from "../utils/logger";
 
-export type AccessCheckinBusinessStatus = "valid" | "already_used" | "voided" | "not_paid" | "not_valid_status";
-export type AccessCheckinUseBusinessStatus = "used" | "already_used" | "voided" | "not_paid" | "not_valid_status";
+export type AccessCheckinWindowStatus = "valid" | "too_early" | "expired_window";
+export type AccessCheckinBusinessStatus =
+  | AccessCheckinWindowStatus
+  | "already_used"
+  | "voided"
+  | "not_paid"
+  | "not_valid_status";
+export type AccessCheckinUseBusinessStatus =
+  | "used"
+  | "too_early"
+  | "expired_window"
+  | "already_used"
+  | "voided"
+  | "not_paid"
+  | "not_valid_status";
 export type AccessCheckinWarning = "date_warning";
 
 interface AccessEntryRow {
@@ -110,31 +123,89 @@ export interface AccessCheckinUseFailure {
 
 export type AccessCheckinUseResult = AccessCheckinUseSuccess | AccessCheckinUseFailure;
 
-function formatAsuncionDate(date: Date): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Asuncion",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
+const ACCESS_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ASUNCION_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Asuncion",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
 
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
+function readAsuncionDateTime(date: Date): { date: string; time: string } | null {
+  if (!Number.isFinite(date.getTime())) return null;
 
-  if (!year || !month || !day) {
-    return date.toISOString().slice(0, 10);
+  const values = new Map(
+    ASUNCION_DATE_TIME_FORMATTER.formatToParts(date).map((part) => [part.type, part.value])
+  );
+  const year = values.get("year");
+  const month = values.get("month");
+  const day = values.get("day");
+  const hour = values.get("hour");
+  const minute = values.get("minute");
+  const second = values.get("second");
+
+  if (!year || !month || !day || !hour || !minute || !second) return null;
+
+  return {
+    date: [year, month, day].join("-"),
+    time: [hour, minute, second].join(":"),
+  };
+}
+
+function readAccessDateKeys(accessDate: string): { current: string; next: string } | null {
+  const match = ACCESS_DATE_PATTERN.exec(accessDate);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const currentInstant = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    currentInstant.getUTCFullYear() !== year ||
+    currentInstant.getUTCMonth() !== month - 1 ||
+    currentInstant.getUTCDate() !== day
+  ) {
+    return null;
   }
 
-  return `${year}-${month}-${day}`;
+  const nextInstant = new Date(Date.UTC(year, month - 1, day + 1));
+  const next = [
+    nextInstant.getUTCFullYear().toString().padStart(4, "0"),
+    (nextInstant.getUTCMonth() + 1).toString().padStart(2, "0"),
+    nextInstant.getUTCDate().toString().padStart(2, "0"),
+  ].join("-");
+
+  return { current: accessDate, next };
+}
+
+// Read-only UX projection. The database RPC remains authoritative for mutation.
+export function getAccessCheckinWindowStatus(
+  accessDate: string,
+  decisionAt: Date
+): AccessCheckinWindowStatus | null {
+  const accessDateKeys = readAccessDateKeys(accessDate);
+  const asuncionNow = readAsuncionDateTime(decisionAt);
+  if (!accessDateKeys || !asuncionNow) return null;
+
+  if (asuncionNow.date < accessDateKeys.current) return "too_early";
+  if (asuncionNow.date === accessDateKeys.current) {
+    return asuncionNow.time < "18:00:00" ? "too_early" : "valid";
+  }
+
+  if (asuncionNow.date === accessDateKeys.next) {
+    return asuncionNow.time < "06:00:00" ? "valid" : "expired_window";
+  }
+
+  return "expired_window";
 }
 
 export function accessCheckinTokenHash(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 16);
-}
-
-function buildAccessCheckinWarnings(accessDate: string, now?: Date): AccessCheckinWarning[] {
-  return accessDate !== formatAsuncionDate(now ?? new Date()) ? ["date_warning"] : [];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -153,6 +224,8 @@ function readNestedErrorMessage(data: unknown): string | null {
 
 const ACCESS_CHECKIN_USE_STATUSES: readonly AccessCheckinUseBusinessStatus[] = [
   "used",
+  "too_early",
+  "expired_window",
   "already_used",
   "voided",
   "not_paid",
@@ -416,9 +489,14 @@ export async function lookupAccessCheckinByToken(input: {
   }
 
   const orderItem = orderItemData as AccessOrderItemRow;
-  const status = deriveAccessCheckinStatus(entry, order);
-  const warnings: AccessCheckinWarning[] =
-    entry.access_date !== formatAsuncionDate(input.now ?? new Date()) ? ["date_warning"] : [];
+  const persistentStatus = deriveAccessCheckinStatus(entry, order);
+  const windowStatus =
+    persistentStatus === "valid"
+      ? getAccessCheckinWindowStatus(entry.access_date, input.now ?? new Date())
+      : null;
+  const status =
+    persistentStatus === "valid" ? windowStatus ?? "not_valid_status" : persistentStatus;
+  const warnings: AccessCheckinWarning[] = [];
   logSlowLookup({
     ...orderLogContext,
     errorCode: undefined,
@@ -453,7 +531,6 @@ export async function lookupAccessCheckinByToken(input: {
 export async function checkInAccessEntryByToken(input: {
   token: string;
   panelUser: AccessCheckinPanelUser;
-  now?: Date;
 }): Promise<AccessCheckinUseResult> {
   const { token, panelUser } = input;
   const baseLogContext: AccessCheckinLogContext = {
@@ -568,7 +645,7 @@ export async function checkInAccessEntryByToken(input: {
     entry,
     attendee,
     order,
-    warnings: buildAccessCheckinWarnings(entry.access_date, input.now),
+    warnings: [],
     logContext: {
       ...baseLogContext,
       publicRef: order.public_ref,

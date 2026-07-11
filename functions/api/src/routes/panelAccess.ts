@@ -75,6 +75,12 @@ interface AccessOrderItemListRow {
   name_snapshot: string;
 }
 
+interface AccessEntryUseLookupRow extends AccessEntryListRow {
+  checkin_token: string;
+  access_orders: AccessOrderListRow;
+  access_order_items: AccessOrderItemListRow;
+}
+
 interface AccessTicketTypeRow {
   id: string;
   source_type: string;
@@ -1855,41 +1861,6 @@ async function fetchAccessEntriesForList(input: {
   };
 }
 
-async function fetchAccessEntryResponseContext(entry: AccessEntryListRow): Promise<
-  | { ok: true; order: AccessOrderListRow; item: AccessOrderItemListRow }
-  | { ok: false; error: string }
-> {
-  const [
-    { data: orderData, error: orderError },
-    { data: itemData, error: itemError },
-  ] = await Promise.all([
-    supabase
-      .from("access_orders")
-      .select("id, public_ref, source_type, local_id, amount_gs, currency, status")
-      .eq("id", entry.order_id)
-      .maybeSingle(),
-    supabase
-      .from("access_order_items")
-      .select("id, name_snapshot")
-      .eq("id", entry.order_item_id)
-      .maybeSingle(),
-  ]);
-
-  if (orderError || !orderData) {
-    return { ok: false, error: orderError?.message ?? "order_not_found" };
-  }
-
-  if (itemError || !itemData) {
-    return { ok: false, error: itemError?.message ?? "order_item_not_found" };
-  }
-
-  return {
-    ok: true,
-    order: orderData as AccessOrderListRow,
-    item: itemData as AccessOrderItemListRow,
-  };
-}
-
 function sendAccessEntryUseConflict(
   res: Response,
   statusCode: number,
@@ -2939,11 +2910,16 @@ panelAccessRouter.post(
       }
 
       const entrySelect =
-        "id, order_id, order_item_id, status, checkin_status, used_at, used_by, email_status, access_date, unit_index, attendee_name, attendee_last_name, created_at";
+        "id, order_id, order_item_id, status, checkin_status, used_at, email_status, access_date, unit_index, attendee_name, attendee_last_name, created_at";
       const { data: entryData, error: entryError } = await supabase
         .from("access_entries")
-        .select(entrySelect)
+        .select(
+          entrySelect +
+            ", checkin_token, access_orders!access_entries_order_id_fkey!inner(id, public_ref, source_type, local_id, amount_gs, currency, status), access_order_items!access_entries_order_item_alignment_fk!inner(id, name_snapshot)"
+        )
         .eq("id", entryId)
+        .eq("access_orders.source_type", "local")
+        .eq("access_orders.local_id", req.panelUser.localId)
         .maybeSingle();
 
       if (entryError) {
@@ -2959,7 +2935,7 @@ panelAccessRouter.post(
         });
       }
 
-      const entry = entryData as (AccessEntryListRow & { used_by?: string | null }) | null;
+      const entry = entryData as AccessEntryUseLookupRow | null;
       if (!entry) {
         return res.status(404).json({
           error: "Access entry not found",
@@ -2967,21 +2943,8 @@ panelAccessRouter.post(
         });
       }
 
-      const context = await fetchAccessEntryResponseContext(entry);
-      if (!context.ok) {
-        logger.error("Failed to fetch Access Core entry context for manual use", {
-          entryId,
-          localId: req.panelUser.localId,
-          role: req.panelUser.role,
-          error: context.error,
-        });
-        return res.status(500).json({
-          error: "Failed to use access entry",
-          code: "access_entry_use_failed",
-        });
-      }
-
-      const { order, item } = context;
+      const order = entry.access_orders;
+      const item = entry.access_order_items;
       const logManualUseRejected = (result: string) => {
         logger.warn("Access Core manual use rejected", {
           entryId,
@@ -2992,129 +2955,73 @@ panelAccessRouter.post(
         });
       };
 
-      if (order.source_type !== "local" || order.local_id !== req.panelUser.localId) {
-        logger.warn("Access Core manual use rejected by tenant isolation", {
+      const result = await checkInAccessEntryByToken({
+        token: entry.checkin_token,
+        panelUser: {
+          userId: req.panelUser.userId,
+          localId: req.panelUser.localId,
+          role: req.panelUser.role,
+        },
+      });
+
+      if (!result.ok) {
+        if (result.error.code === "entry_not_found") {
+          logManualUseRejected("entry_not_found");
+          return res.status(404).json({
+            error: "Access entry not found",
+            code: "entry_not_found",
+          });
+        }
+
+        logger.error("Access Core manual use RPC failed", {
           entryId,
           publicRef: order.public_ref,
           localId: req.panelUser.localId,
           role: req.panelUser.role,
-          result: "entry_not_found",
+          errorCode: result.error.code,
         });
-        return res.status(404).json({
-          error: "Access entry not found",
-          code: "entry_not_found",
+        return res.status(result.statusCode).json({
+          error: result.error.message,
+          code: result.error.code,
         });
       }
 
-      if (entry.status === "voided") {
-        logManualUseRejected("voided");
-        return sendAccessEntryUseConflict(res, 409, "voided", "Access entry is voided");
+      if (result.status !== "used") {
+        const message =
+          result.status === "already_used"
+            ? "Access entry already used"
+            : result.status === "voided"
+              ? "Access entry is voided"
+              : result.status === "not_paid"
+                ? "Access order is not paid"
+                : result.status === "too_early"
+                  ? "Access entry is not valid yet"
+                  : result.status === "expired_window"
+                    ? "Access entry check-in window has expired"
+                    : "Access entry is not valid for use";
+
+        logManualUseRejected(result.status);
+        return sendAccessEntryUseConflict(res, 409, result.status, message);
       }
 
-      if (order.status !== "paid") {
-        logManualUseRejected("not_paid");
-        return sendAccessEntryUseConflict(res, 409, "not_paid", "Access order is not paid");
-      }
-
-      if (entry.status !== "issued") {
-        logManualUseRejected("not_valid_status");
-        return sendAccessEntryUseConflict(
-          res,
-          409,
-          "not_valid_status",
-          "Access entry is not valid for use"
-        );
-      }
-
-      if (entry.checkin_status === "used") {
-        logManualUseRejected("already_used");
-        return sendAccessEntryUseConflict(res, 409, "already_used", "Access entry already used");
-      }
-
-      if (entry.checkin_status !== "unused" || entry.used_at || entry.used_by) {
-        logManualUseRejected("not_valid_status");
-        return sendAccessEntryUseConflict(
-          res,
-          409,
-          "not_valid_status",
-          "Access entry is not valid for use"
-        );
-      }
-
-      const usedAt = new Date().toISOString();
-      const { data: updatedData, error: updateError } = await supabase
+      const { data: updatedData, error: updatedError } = await supabase
         .from("access_entries")
-        .update({
-          checkin_status: "used",
-          used_at: usedAt,
-          used_by: req.panelUser.userId,
-        })
-        .eq("id", entry.id)
-        .eq("status", "issued")
-        .eq("checkin_status", "unused")
-        .is("used_at", null)
-        .is("used_by", null)
         .select(entrySelect)
+        .eq("id", entry.id)
         .maybeSingle();
 
-      if (updateError) {
-        logger.error("Failed to mark Access Core entry as used manually", {
+      if (updatedError || !updatedData) {
+        logger.error("Failed to refetch Access Core entry after manual use", {
           entryId,
           publicRef: order.public_ref,
           localId: req.panelUser.localId,
           role: req.panelUser.role,
-          error: updateError.message,
+          error: updatedError?.message,
         });
         return res.status(500).json({
           error: "Failed to use access entry",
           code: "access_entry_use_failed",
         });
-      }
-
-      if (!updatedData) {
-        const { data: latestData, error: latestError } = await supabase
-          .from("access_entries")
-          .select(entrySelect)
-          .eq("id", entry.id)
-          .maybeSingle();
-
-        if (latestError || !latestData) {
-          logger.error("Failed to refetch Access Core entry after manual use miss", {
-            entryId,
-            publicRef: order.public_ref,
-            localId: req.panelUser.localId,
-            role: req.panelUser.role,
-            error: latestError?.message,
-          });
-          return res.status(500).json({
-            error: "Failed to use access entry",
-            code: "access_entry_use_failed",
-          });
-        }
-
-        const latestEntry = latestData as AccessEntryListRow & { used_by?: string | null };
-        if (latestEntry.status === "issued" && latestEntry.checkin_status === "used") {
-          logManualUseRejected("already_used");
-          return sendAccessEntryUseConflict(
-            res,
-            409,
-            "already_used",
-            "Access entry already used"
-          );
-        }
-
-        if (latestEntry.status === "voided") {
-          logManualUseRejected("voided");
-          return sendAccessEntryUseConflict(res, 409, "voided", "Access entry is voided");
-        }
-
-        logManualUseRejected("not_valid_status");
-        return sendAccessEntryUseConflict(
-          res,
-          409,
-          "not_valid_status",
-          "Access entry is not valid for use"
-        );
       }
 
       const updatedEntry = updatedData as AccessEntryListRow;
