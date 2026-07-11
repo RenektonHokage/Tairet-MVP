@@ -989,8 +989,8 @@ Contrato runtime:
 - exige `access_orders.source_type = 'local'`;
 - exige `access_orders.local_id = req.panelUser.localId`;
 - token inexistente, tenant mismatch y `source_type <> 'local'` devuelven respuesta segura sin revelar existencia;
-- devuelve estados de negocio read-only: `valid`, `already_used`, `voided`, `not_paid`, `not_valid_status`;
-- `date_warning` solo advierte si `access_date` no coincide con la fecha actual en `America/Asuncion`.
+- devuelve estados de negocio read-only: `valid`, `too_early`, `expired_window`, `already_used`, `voided`, `not_paid`, `not_valid_status`;
+- migration 045 reemplaza `date_warning` por una decision bloqueante de ventana: `D 18:00` inclusive hasta `D+1 06:00` exclusive, calculada con UTC-03 explicito.
 
 Response segura:
 
@@ -1047,14 +1047,15 @@ Contrato runtime:
 - valida actor panel en DB contra `panel_users.auth_user_id`, `panel_users.local_id` y role `owner` o `staff`;
 - token inexistente, tenant mismatch y `source_type <> 'local'` devuelven `entry_not_found` seguro;
 - `used_by` guarda el Supabase Auth user id del usuario panel;
-- `date_warning` solo advierte si `access_date` no coincide con la fecha actual en `America/Asuncion`;
-- no implementa ventana operativa.
+- migration 045 impone la ventana operativa `D 18:00` inclusive hasta `D+1 06:00` exclusive con UTC-03 explicito;
+- fuera de ventana devuelve `too_early` o `expired_window` antes de mutar.
 
 Operacion transaccional:
 
 - la RPC bloquea la entry con `FOR UPDATE`;
 - solo actualiza si `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
-- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- captura `decision_at = clock_timestamp()` una sola vez despues del lock;
+- setea `checkin_status = 'used'`, `used_at = decision_at` y `used_by = p_actor_auth_user_id`;
 - estados inconsistentes `unused` con `used_at` o `used_by` ya seteados devuelven `not_valid_status`;
 - doble uso devuelve `already_used`;
 - el segundo POST no pisa `used_at` ni `used_by`.
@@ -1067,7 +1068,7 @@ Response segura:
 - no incluye buyer email, buyer phone ni buyer document;
 - no incluye payload Bancard, datos de tarjeta, CVV, private key ni secretos.
 
-Validacion post-deploy:
+Validacion post-deploy historica anterior a migration 045:
 
 - health API respondio HTTP 200 `{ "ok": true }`;
 - SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
@@ -1123,12 +1124,14 @@ Estados visuales:
 
 - `valid`;
 - `used`;
+- `too_early`;
+- `expired_window`;
 - `already_used`;
 - `voided`;
 - `not_paid`;
 - `not_valid_status`;
 - 404 generico como entrada no encontrada/no perteneciente al local;
-- `date_warning` como advertencia no bloqueante.
+- migration 045 elimina la representacion `date_warning`; `too_early` y `expired_window` muestran mensajes especificos y no ofrecen accion de validacion.
 
 Seguridad:
 

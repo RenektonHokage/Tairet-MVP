@@ -1457,13 +1457,13 @@ Validacion previa:
 - `git diff --check`: PASS;
 - review pre-commit: PASS sin hallazgos High, Medium ni Low bloqueantes.
 
-Validacion post-deploy:
+Validacion post-deploy historica anterior a migration 045:
 
 - `GET /panel/access/checkin/not-a-uuid` con auth valido devolvio HTTP 400 `{ "error": "Invalid check-in token", "code": "invalid_checkin_token" }`;
 - `GET /panel/access/checkin/<checkin_token>` para entry `issued/unused` devolvio HTTP 200 con `status = 'valid'`;
 - respuesta valida incluyo `entry.status = 'issued'`, `entry.checkin_status = 'unused'`, `entry.access_date = '2026-08-01'`, `entry.unit_index = 1`, `entry.ticket_name = 'Entrada Staging Bancard'`, `order.public_ref = 'acc_b95579d85d962fca3bdc5f7f3ec92f0c'` y `warnings = ['date_warning']`;
-- `date_warning` es esperado porque `access_date` no coincide con la fecha actual;
-- 9E.1 no bloquea por fecha, solo advierte.
+- En 9E.1, `date_warning` era esperado porque `access_date` no coincidia con la fecha actual.
+- Ese comportamiento historico fue reemplazado por migration 045: el lookup devuelve `too_early` o `expired_window` fuera de `D 18:00` inclusive a `D+1 06:00` exclusive.
 
 Confirmacion read-only por SQL posterior al GET:
 
@@ -1523,7 +1523,8 @@ Operacion transaccional:
 
 - usa `FOR UPDATE` sobre `access_entries`;
 - solo marca uso si la entry esta `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
-- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- migration 045 captura `decision_at = clock_timestamp()` despues del `FOR UPDATE`;
+- setea `checkin_status = 'used'`, `used_at = decision_at` y `used_by = p_actor_auth_user_id` solo dentro de la ventana;
 - si una entry `unused` ya tiene `used_at` o `used_by`, devuelve `not_valid_status` y no muta;
 - si otro request ya gano el uso, devuelve `already_used`;
 - no pisa `used_at` ni `used_by` en reintentos.
@@ -1539,7 +1540,7 @@ Estados de negocio:
 - `forbidden`: actor panel invalido o sin permiso;
 - `invalid_request`: parametros invalidos.
 
-Validacion post-deploy:
+Validacion post-deploy historica anterior a migration 045:
 
 - `GET /health` devolvio HTTP 200 `{ "ok": true }`;
 - SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
@@ -1612,12 +1613,14 @@ Estados cubiertos:
 
 - `valid`;
 - `used`;
+- `too_early`;
+- `expired_window`;
 - `already_used`;
 - `voided`;
 - `not_paid`;
 - `not_valid_status`;
 - 404 generico como entrada no encontrada/no perteneciente al local;
-- `date_warning` como advertencia no bloqueante.
+- migration 045 elimina `date_warning`; los rechazos temporales son bloqueantes y no ofrecen `Validar entrada`.
 
 Seguridad y privacidad:
 
@@ -1684,7 +1687,7 @@ Estado:
 - sin SQL/migraciones;
 - sin cambios en validacion legacy.
 
-Resumen:
+Resumen historico de 9F-lite, anterior a Slice 2:
 
 - `/panel/orders` sigue siendo el listado del flujo anterior/free pass;
 - las entradas pagas/Bancard se validan desde `/panel/checkin` -> `Entradas pagas`;
@@ -1693,6 +1696,12 @@ Resumen:
 - no se integro `access_orders`;
 - no se integro `access_entries`;
 - no se modifico `PATCH /panel/orders/:id/use`.
+
+Estado vigente tras commits `eb8d031` y `5c6c4e8`:
+
+- `/panel/orders` integra el listado y la accion manual de entradas pagas;
+- `POST /panel/access/entries/:entryId/use` hace lookup tenant-scoped y converge en `public.check_in_access_entry_by_token`;
+- `too_early` y `expired_window` muestran mensajes especificos sin mutar la entry.
 
 Archivo funcional del slice:
 
@@ -1804,7 +1813,7 @@ Notas:
 - Callback duplicado sobre pago aprobado ya tiene PASS idempotente.
 - Slice 9E.2 fue aplicado en staging y marca uso de `access_entries` por token con auth panel local de forma transaccional.
 - Slice 9E.3 fue deployado y agrega UI panel `Entradas pagas` dentro de `/panel/checkin` sin reemplazar el flujo anterior.
-- Slice 9F-lite fue deployado y aclara que `/panel/orders` corresponde al flujo anterior/free pass.
+- Slice 9F-lite dejo esa aclaracion como estado historico; Slice 2 integro despues entradas pagas y su accion manual en `/panel/orders`.
 - Slice 9G-lite fue deployado y sanitiza logs legacy de `PATCH /panel/checkin/:token` sin cambiar comportamiento funcional.
 - Las pruebas de comportamiento quedan para slices con API/RPC o QA DB posterior.
 - `docs/events/IBIZA_EVENT_PANEL_OPERATIONAL_READINESS_PLAN.md`, si aparece en git status, es ajeno a este slice y no debe mezclarse en el commit del Access Core Slice 1.

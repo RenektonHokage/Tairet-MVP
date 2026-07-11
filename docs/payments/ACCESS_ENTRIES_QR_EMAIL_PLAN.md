@@ -434,7 +434,7 @@ Contrato:
 - `source_type = 'local'` es requerido en este slice;
 - `access_orders.local_id` debe coincidir con `req.panelUser.localId`;
 - token inexistente, tenant mismatch y source no local devuelven respuesta segura;
-- no bloquea por `access_date`, solo agrega `date_warning`.
+- migration 045 bloquea por ventana operativa y devuelve `too_early` o `expired_window` fuera de `D 18:00` inclusive a `D+1 06:00` exclusive; `date_warning` queda eliminado del contrato vigente.
 
 Estados de negocio:
 
@@ -452,7 +452,7 @@ Respuesta segura:
 - no devuelve buyer email, buyer phone ni buyer document;
 - no devuelve payload Bancard, datos de tarjeta, CVV, private key ni secretos.
 
-Validacion post-deploy:
+Validacion post-deploy historica anterior a migration 045:
 
 - `GET /panel/access/checkin/not-a-uuid` con auth valido devolvio HTTP 400 `{ "error": "Invalid check-in token", "code": "invalid_checkin_token" }`;
 - token valido `issued/unused` devolvio HTTP 200 con `status = 'valid'`, `entry.status = 'issued'`, `entry.checkin_status = 'unused'`, `entry.access_date = '2026-08-01'`, `entry.unit_index = 1`, `entry.ticket_name = 'Entrada Staging Bancard'`, `order.public_ref = 'acc_b95579d85d962fca3bdc5f7f3ec92f0c'` y `warnings = ['date_warning']`;
@@ -504,7 +504,8 @@ Operacion transaccional:
 
 - usa `FOR UPDATE` sobre `access_entries`;
 - actualiza solo si `status = 'issued'`, `checkin_status = 'unused'`, `used_at is null` y `used_by is null`;
-- setea `checkin_status = 'used'`, `used_at = now()` y `used_by = p_actor_auth_user_id`;
+- migration 045 captura `decision_at = clock_timestamp()` despues del `FOR UPDATE`;
+- setea `checkin_status = 'used'`, `used_at = decision_at` y `used_by = p_actor_auth_user_id` solo dentro de la ventana;
 - entry `unused` con `used_at` o `used_by` ya seteados devuelve `not_valid_status` y no muta;
 - segundo uso devuelve `already_used`;
 - no pisa `used_at` ni `used_by` en reintentos.
@@ -528,7 +529,7 @@ Respuesta segura:
 - no devuelve buyer email, buyer phone ni buyer document;
 - no devuelve payload Bancard, datos de tarjeta, CVV, private key ni secretos.
 
-Validacion post-deploy:
+Validacion post-deploy historica anterior a migration 045:
 
 - health API devolvio HTTP 200 `{ "ok": true }`;
 - SQL pre-check confirmo order `paid`, source `local`, entry `issued/unused`, `used_at = null`, `used_by = null`, `access_date = '2026-08-01'` y ticket `Entrada Staging Bancard`;
@@ -594,12 +595,14 @@ Estados cubiertos:
 
 - `valid`;
 - `used`;
+- `too_early`;
+- `expired_window`;
 - `already_used`;
 - `voided`;
 - `not_paid`;
 - `not_valid_status`;
 - 404 generico como entrada no encontrada/no perteneciente al local;
-- `date_warning` como advertencia no bloqueante.
+- migration 045 elimina `date_warning`; `too_early` y `expired_window` son rechazos bloqueantes con mensajes especificos.
 
 Seguridad y privacidad:
 
