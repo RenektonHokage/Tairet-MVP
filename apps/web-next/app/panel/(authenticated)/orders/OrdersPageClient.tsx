@@ -774,6 +774,14 @@ export default function OrdersPageClient() {
         return "El pago de esta entrada no está confirmado.";
       }
 
+      if (code === "too_early") {
+        return "Esta entrada podrá validarse desde las 18:00 de la fecha indicada.";
+      }
+
+      if (code === "expired_window") {
+        return "La ventana de validación de esta entrada finalizó a las 06:00.";
+      }
+
       if (error.status === 404) {
         return "No encontramos esta entrada para tu local.";
       }

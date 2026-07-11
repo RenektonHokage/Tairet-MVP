@@ -67,12 +67,27 @@ function getStatusTone(status: AccessPaidCheckinStatus): ResultTone {
     case "valid":
     case "used":
       return "success";
+    case "too_early":
+      return "neutral";
+    case "expired_window":
+      return "danger";
     case "already_used":
       return "warn";
     case "voided":
     case "not_paid":
     case "not_valid_status":
       return "danger";
+  }
+}
+
+function getStatusDescription(status: AccessPaidCheckinStatus): string {
+  switch (status) {
+    case "too_early":
+      return "Podrá validarse desde las 18:00 de la fecha indicada en la entrada.";
+    case "expired_window":
+      return "Esta entrada era válida hasta las 06:00 del día siguiente a la fecha indicada.";
+    default:
+      return "Revisá los datos seguros antes de validar la entrada.";
   }
 }
 
@@ -148,7 +163,6 @@ function AccessPaidCheckinResultCard({
     .map((part) => part?.trim() ?? "")
     .filter(Boolean)
     .join(" ");
-  const hasDateWarning = result.warnings.includes("date_warning");
 
   return (
     <Card className={cn("border", getToneClasses(tone))}>
@@ -158,20 +172,12 @@ function AccessPaidCheckinResultCard({
             <CardTitle className={getToneTitleClass(tone)}>
               {getAccessPaidCheckinStatusLabel(result.status)}
             </CardTitle>
-            <CardDescription>
-              Revisá los datos seguros antes de validar la entrada.
-            </CardDescription>
+            <CardDescription>{getStatusDescription(result.status)}</CardDescription>
           </div>
           <Badge variant={getBadgeVariant(tone)}>{result.status}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {hasDateWarning ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            La fecha de esta entrada no coincide con la fecha actual.
-          </div>
-        ) : null}
-
         <dl className="grid gap-3 md:grid-cols-2">
           <FieldRow label="Entrada" value={result.entry.ticket_name} />
           <FieldRow label="Asistente" value={attendeeName || "-"} />

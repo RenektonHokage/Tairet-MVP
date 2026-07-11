@@ -3,6 +3,8 @@ import { apiGetWithAuth, apiPostWithAuth } from "./api";
 export const ACCESS_PAID_CHECKIN_STATUSES = [
   "valid",
   "used",
+  "too_early",
+  "expired_window",
   "already_used",
   "voided",
   "not_paid",
@@ -115,6 +117,10 @@ export function getAccessPaidCheckinStatusLabel(status: AccessPaidCheckinStatus)
       return "Lista para validar";
     case "used":
       return "Entrada validada correctamente";
+    case "too_early":
+      return "Esta entrada todavía no está habilitada";
+    case "expired_window":
+      return "La ventana de validación ya finalizó";
     case "already_used":
       return "Esta entrada ya fue utilizada";
     case "voided":
