@@ -6,6 +6,7 @@
     "dev": "dotenv -e .env -- tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "test": "tsx src/config/accessFulfillment.test.ts && tsx src/services/accessFulfillment.test.ts && tsx src/services/accessEmailProvider.test.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
