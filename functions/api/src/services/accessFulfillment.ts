@@ -14,6 +14,7 @@ export type AccessFulfillmentRpcName =
 
 const uuidSchema = z.string().uuid();
 const nonEmptyStringSchema = z.string().min(1);
+const sha256HexSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const nonNegativeIntegerSchema = z.number().int().safe().nonnegative();
 const positiveIntegerSchema = z.number().int().safe().positive();
 
@@ -55,11 +56,11 @@ const claimBatchSuccessSchema = z
       });
     }
 
-    if (value.idempotent !== (value.claimed_count === 0)) {
+    if (value.idempotent && value.claimed_count === 0) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["idempotent"],
-        message: "is inconsistent with claimed_count",
+        message: "cannot be true when claimed_count is zero",
       });
     }
   });
@@ -111,10 +112,10 @@ const emailClaimProcessingSchema = z
     order_id: uuidSchema,
     delivery_attempt_id: uuidSchema,
     generation: positiveIntegerSchema,
-    provider: nonEmptyStringSchema,
+    provider: z.literal("resend"),
     idempotency_key: nonEmptyStringSchema,
     entry_ids: z.array(uuidSchema).min(1),
-    entry_snapshot_hash: nonEmptyStringSchema,
+    entry_snapshot_hash: sha256HexSchema,
     template_version: nonEmptyStringSchema,
     epoch: positiveIntegerSchema,
     idempotent: z.boolean(),

@@ -22,6 +22,7 @@ const LEASE_TOKEN = "33333333-3333-4333-8333-333333333333";
 const DELIVERY_ATTEMPT_ID = "44444444-4444-4444-8444-444444444444";
 const ENTRY_ID_A = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 const ENTRY_ID_B = "00000000-0000-4000-8000-000000000000";
+const ENTRY_SNAPSHOT_HASH = "a".repeat(64);
 
 const BUSINESS_ERROR = {
   ok: false,
@@ -74,10 +75,10 @@ const EMAIL_CLAIM_PROCESSING = {
   order_id: ORDER_ID,
   delivery_attempt_id: DELIVERY_ATTEMPT_ID,
   generation: 1,
-  provider: "provider-neutral",
+  provider: "resend",
   idempotency_key: "access/order/generation/1",
   entry_ids: [ENTRY_ID_A, ENTRY_ID_B],
-  entry_snapshot_hash: "sha256:snapshot",
+  entry_snapshot_hash: ENTRY_SNAPSHOT_HASH,
   template_version: "access-v1",
   epoch: 7,
   idempotent: false,
@@ -107,13 +108,41 @@ class QueueTransport implements AccessFulfillmentRpcTransport {
 }
 
 describe("access fulfillment response parsers", () => {
-  it("accepts a complete batch and rejects partial success", () => {
-    const success = parseFulfillmentBatchResponse(BATCH_SUCCESS);
-    assert.equal(success.kind, "success");
-    if (success.kind !== "success") {
+  it("matches fresh, replayed, and empty batch idempotency semantics", () => {
+    const freshNonEmpty = parseFulfillmentBatchResponse(BATCH_SUCCESS);
+    assert.equal(freshNonEmpty.kind, "success");
+    if (freshNonEmpty.kind !== "success") {
       assert.fail("expected a successful batch");
     }
-    assert.equal(success.response.items[0]?.work_type, "issuance");
+    assert.equal(freshNonEmpty.response.items[0]?.work_type, "issuance");
+
+    const lostResponseReplay = parseFulfillmentBatchResponse({
+      ...BATCH_SUCCESS,
+      idempotent: true,
+    });
+    assert.equal(lostResponseReplay.kind, "success");
+
+    const freshEmpty = parseFulfillmentBatchResponse({
+      ok: true,
+      claimed_count: 0,
+      idempotent: false,
+      items: [],
+    });
+    assert.equal(freshEmpty.kind, "success");
+
+    const invalidEmptyReplay = parseFulfillmentBatchResponse({
+      ok: true,
+      claimed_count: 0,
+      idempotent: true,
+      items: [],
+    });
+    assert.equal(invalidEmptyReplay.kind, "malformed_response");
+
+    const countMismatch = parseFulfillmentBatchResponse({
+      ...BATCH_SUCCESS,
+      claimed_count: 2,
+    });
+    assert.equal(countMismatch.kind, "malformed_response");
 
     const partial = parseFulfillmentBatchResponse({
       ok: true,
@@ -127,14 +156,6 @@ describe("access fulfillment response parsers", () => {
     assert.equal(partial.rpc, ACCESS_FULFILLMENT_RPC.claimBatch);
     assert.equal(partial.field.length > 0, true);
     assert.equal(partial.reason.length > 0, true);
-    assert.equal(
-      parseFulfillmentBatchResponse({ ...BATCH_SUCCESS, claimed_count: 2 }).kind,
-      "malformed_response",
-    );
-    assert.equal(
-      parseFulfillmentBatchResponse({ ...BATCH_SUCCESS, idempotent: true }).kind,
-      "malformed_response",
-    );
   });
 
   it("preserves unknown business codes and stale lease context", () => {
@@ -184,7 +205,7 @@ describe("access fulfillment response parsers", () => {
     });
   });
 
-  it("preserves semantic entry order and rejects duplicate or invented claim fields", () => {
+  it("validates processing claim provider, snapshot, entry order, and exact fields", () => {
     const processing = parseEmailDeliveryClaimResponse(EMAIL_CLAIM_PROCESSING);
     assert.equal(processing.kind, "success");
     if (processing.kind !== "success" || processing.response.status !== "processing") {
@@ -203,6 +224,18 @@ describe("access fulfillment response parsers", () => {
       provider_call_count: 1,
     });
     assert.equal(invented.kind, "malformed_response");
+
+    const unsupportedProvider = parseEmailDeliveryClaimResponse({
+      ...EMAIL_CLAIM_PROCESSING,
+      provider: "provider-neutral",
+    });
+    assert.equal(unsupportedProvider.kind, "malformed_response");
+
+    const invalidSnapshotHash = parseEmailDeliveryClaimResponse({
+      ...EMAIL_CLAIM_PROCESSING,
+      entry_snapshot_hash: "sha256:snapshot",
+    });
+    assert.equal(invalidSnapshotHash.kind, "malformed_response");
   });
 
   it("parses skipped claims and reports unknown claim status separately", () => {
