@@ -6,6 +6,7 @@ import {
   ACCESS_FULFILLMENT_RPC,
   type AccessFulfillmentRpcName,
   type AccessFulfillmentRpcTransport,
+  type AccessFulfillmentRpcTransportRequest,
   type AccessFulfillmentRpcTransportResult,
   createAccessFulfillmentClient,
   parseEmailDeliveryClaimResponse,
@@ -89,21 +90,44 @@ interface RecordedRpcCall {
   parameters: Readonly<Record<string, unknown>>;
 }
 
+function createRpcRequest(
+  result: PromiseLike<AccessFulfillmentRpcTransportResult>,
+  onSignal: (signal: AbortSignal) => void,
+): AccessFulfillmentRpcTransportRequest {
+  const promise = Promise.resolve(result);
+
+  return {
+    abortSignal(signal) {
+      onSignal(signal);
+      return this;
+    },
+    then(onfulfilled, onrejected) {
+      return promise.then(onfulfilled, onrejected);
+    },
+  };
+}
+
 class QueueTransport implements AccessFulfillmentRpcTransport {
   readonly calls: RecordedRpcCall[] = [];
+  readonly signals: Array<AbortSignal | undefined> = [];
 
   constructor(private readonly results: AccessFulfillmentRpcTransportResult[]) {}
 
-  async rpc(
+  rpc(
     name: AccessFulfillmentRpcName,
     parameters: Readonly<Record<string, unknown>>,
-  ): Promise<AccessFulfillmentRpcTransportResult> {
+  ): AccessFulfillmentRpcTransportRequest {
+    const callIndex = this.calls.length;
     this.calls.push({ name, parameters });
+    this.signals.push(undefined);
     const result = this.results.shift();
     if (!result) {
       throw new Error("Mock response queue exhausted");
     }
-    return result;
+
+    return createRpcRequest(Promise.resolve(result), (signal) => {
+      this.signals[callIndex] = signal;
+    });
   }
 }
 
@@ -427,45 +451,59 @@ describe("createAccessFulfillmentClient", () => {
       Array.from({ length: 5 }, () => ({ data: BUSINESS_ERROR, error: null })),
     );
     const client = createAccessFulfillmentClient(transport);
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
 
     const results = [
       await client.claimFulfillmentBatch({
         reconcileLeaseToken: LEASE_TOKEN,
         limit: 5,
         leaseSeconds: 300,
-      }),
-      await client.reconcileOrderFulfillment({
-        orderId: ORDER_ID,
-        paymentAttemptId: PAYMENT_ATTEMPT_ID,
-        reconcileLeaseToken: LEASE_TOKEN,
-        reconcileLeaseEpoch: 7,
-      }),
-      await client.claimEmailDelivery({
-        orderId: ORDER_ID,
-        reconcileLeaseToken: LEASE_TOKEN,
-        reconcileLeaseEpoch: 7,
-        entryIds: [ENTRY_ID_A, ENTRY_ID_B],
-        requestPayloadHash: "sha256:payload",
-        templateVersion: "access-v1",
-        provider: "provider-neutral",
-      }),
-      await client.recordEmailDeliveryOutcome({
-        orderId: ORDER_ID,
-        deliveryAttemptId: DELIVERY_ATTEMPT_ID,
-        reconcileLeaseToken: LEASE_TOKEN,
-        reconcileLeaseEpoch: 7,
-        outcome: "accepted",
-        providerMessageId: "provider-message-1",
-        errorCode: null,
-        retryAfterSeconds: null,
-      }),
-      await client.releaseFulfillmentLease({
-        orderId: ORDER_ID,
-        reconcileLeaseToken: LEASE_TOKEN,
-        reconcileLeaseEpoch: 7,
-        retryAfterSeconds: 60,
-        errorCode: "retryable_failure",
-      }),
+      }, options),
+      await client.reconcileOrderFulfillment(
+        {
+          orderId: ORDER_ID,
+          paymentAttemptId: PAYMENT_ATTEMPT_ID,
+          reconcileLeaseToken: LEASE_TOKEN,
+          reconcileLeaseEpoch: 7,
+        },
+        options,
+      ),
+      await client.claimEmailDelivery(
+        {
+          orderId: ORDER_ID,
+          reconcileLeaseToken: LEASE_TOKEN,
+          reconcileLeaseEpoch: 7,
+          entryIds: [ENTRY_ID_A, ENTRY_ID_B],
+          requestPayloadHash: "sha256:payload",
+          templateVersion: "access-v1",
+          provider: "provider-neutral",
+        },
+        options,
+      ),
+      await client.recordEmailDeliveryOutcome(
+        {
+          orderId: ORDER_ID,
+          deliveryAttemptId: DELIVERY_ATTEMPT_ID,
+          reconcileLeaseToken: LEASE_TOKEN,
+          reconcileLeaseEpoch: 7,
+          outcome: "accepted",
+          providerMessageId: "provider-message-1",
+          errorCode: null,
+          retryAfterSeconds: null,
+        },
+        options,
+      ),
+      await client.releaseFulfillmentLease(
+        {
+          orderId: ORDER_ID,
+          reconcileLeaseToken: LEASE_TOKEN,
+          reconcileLeaseEpoch: 7,
+          retryAfterSeconds: 60,
+          errorCode: "retryable_failure",
+        },
+        options,
+      ),
     ];
     assert.deepEqual(
       results.map((result) => result.kind),
@@ -526,6 +564,10 @@ describe("createAccessFulfillmentClient", () => {
         },
       },
     ]);
+    assert.deepEqual(
+      transport.signals,
+      Array.from({ length: 5 }, () => controller.signal),
+    );
   });
 
   it("returns parsed success and malformed responses as distinct results", async () => {
@@ -546,6 +588,59 @@ describe("createAccessFulfillmentClient", () => {
     assert.equal(success.kind, "success");
     assert.equal(malformed.kind, "malformed_response");
     assert.equal(transport.calls.length, 2);
+    assert.deepEqual(transport.signals, [undefined, undefined]);
+  });
+
+  it("passes the exact signal to an abortable request and sanitizes its failure", async () => {
+    let observedSignal: AbortSignal | undefined;
+    let resolveRequest: (result: AccessFulfillmentRpcTransportResult) => void =
+      () => assert.fail("request resolved before the abort listener was installed");
+    const pendingRequest = new Promise<AccessFulfillmentRpcTransportResult>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const transport: AccessFulfillmentRpcTransport = {
+      rpc() {
+        return createRpcRequest(pendingRequest, (signal) => {
+          observedSignal = signal;
+          signal.addEventListener(
+            "abort",
+            () =>
+              resolveRequest({
+                data: { secret: "must-not-escape" },
+                error: {
+                  code: "ABORT_ERR",
+                  message: "sensitive abort transport detail",
+                },
+              }),
+            { once: true },
+          );
+        });
+      },
+    };
+    const client = createAccessFulfillmentClient(transport);
+    const controller = new AbortController();
+
+    const resultPromise = client.claimFulfillmentBatch(
+      {
+        reconcileLeaseToken: LEASE_TOKEN,
+        limit: 5,
+        leaseSeconds: 300,
+      },
+      { signal: controller.signal },
+    );
+
+    assert.equal(observedSignal, controller.signal);
+    controller.abort();
+    const result = await resultPromise;
+
+    assert.deepEqual(result, {
+      kind: "transport_error",
+      rpc: ACCESS_FULFILLMENT_RPC.claimBatch,
+      code: "ABORT_ERR",
+      message: "Supabase RPC transport failed",
+    });
+    assert.equal(JSON.stringify(result).includes("must-not-escape"), false);
+    assert.equal(JSON.stringify(result).includes("sensitive abort transport detail"), false);
   });
 
   it("separates transport failures from business responses without retrying or leaking data", async () => {
@@ -576,7 +671,7 @@ describe("createAccessFulfillmentClient", () => {
   it("normalizes thrown transport failures without retrying", async () => {
     let calls = 0;
     const transport: AccessFulfillmentRpcTransport = {
-      async rpc() {
+      rpc() {
         calls += 1;
         throw new Error("sensitive thrown transport detail");
       },

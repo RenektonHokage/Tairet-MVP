@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   ACCESS_FULFILLMENT_RPC,
+  type AccessFulfillmentRpcCallOptions,
   type ClaimFulfillmentBatchInput,
   type ClaimFulfillmentBatchResult,
   type ReconcileOrderFulfillmentInput,
@@ -11,9 +12,14 @@ import {
   type ReleaseFulfillmentLeaseResult,
 } from "../services/accessFulfillment";
 import {
+  createAbortDeadline,
+  type AbortDeadlineScheduler,
+} from "../services/abortDeadline";
+import {
   ACCESS_FULFILLMENT_CORRELATION_HASH_LENGTH,
   type AccessFulfillmentWorkerClient,
   type AccessFulfillmentWorkerConfig,
+  type AccessFulfillmentWorkerDeadlineFactory,
   type AccessFulfillmentWorkerLogger,
   accessFulfillmentClaimRetryDelayMs,
   accessFulfillmentCorrelationHash,
@@ -39,6 +45,7 @@ const WORKER_CONFIG: AccessFulfillmentWorkerConfig = {
   pollIntervalMs: 5_000,
   leaseSeconds: 300,
   concurrency: 2,
+  rpcTimeoutMs: 10_000,
 };
 
 const ACTIVE_ENV = {
@@ -193,20 +200,94 @@ class MemoryLogger implements AccessFulfillmentWorkerLogger {
   }
 }
 
+interface ControlledDeadlineEntry {
+  callback: () => void;
+  timeoutMs: number;
+  cancelled: boolean;
+  cancelCalls: number;
+}
+
+class ControlledDeadlineScheduler {
+  readonly entries: ControlledDeadlineEntry[] = [];
+
+  readonly schedule: AbortDeadlineScheduler = (callback, timeoutMs) => {
+    const entry: ControlledDeadlineEntry = {
+      callback,
+      timeoutMs,
+      cancelled: false,
+      cancelCalls: 0,
+    };
+    this.entries.push(entry);
+    return () => {
+      entry.cancelled = true;
+      entry.cancelCalls += 1;
+    };
+  };
+
+  fire(index: number): void {
+    const entry = this.entries[index];
+    assert.ok(entry, "missing controlled deadline " + index);
+    assert.equal(entry.cancelled, false, "controlled deadline was cancelled");
+    entry.callback();
+  }
+}
+
+function controlledDeadlineFactory(
+  scheduler: ControlledDeadlineScheduler,
+): AccessFulfillmentWorkerDeadlineFactory {
+  return (timeoutMs, externalSignal) =>
+    createAbortDeadline(timeoutMs, externalSignal, scheduler.schedule);
+}
+
+class ManualMonotonicClock {
+  constructor(private currentMs = 0) {}
+
+  readonly now = (): number => this.currentMs;
+
+  set(value: number): void {
+    assert.ok(value >= this.currentMs, "test clock must remain monotonic");
+    this.currentMs = value;
+  }
+}
+
+class ScriptedMonotonicClock {
+  calls = 0;
+
+  constructor(
+    private readonly readings: Array<number | Error>,
+    private readonly fallback = 100,
+  ) {}
+
+  readonly now = (): number => {
+    const reading = this.readings[this.calls] ?? this.fallback;
+    this.calls += 1;
+    if (reading instanceof Error) {
+      throw reading;
+    }
+    return reading;
+  };
+}
+
 type ClaimHandler = (
   input: ClaimFulfillmentBatchInput,
+  options?: AccessFulfillmentRpcCallOptions,
 ) => Promise<ClaimFulfillmentBatchResult> | ClaimFulfillmentBatchResult;
 type ReconcileHandler = (
   input: ReconcileOrderFulfillmentInput,
+  options?: AccessFulfillmentRpcCallOptions,
 ) => Promise<ReconcileOrderFulfillmentResult> | ReconcileOrderFulfillmentResult;
 type ReleaseHandler = (
   input: ReleaseFulfillmentLeaseInput,
+  options?: AccessFulfillmentRpcCallOptions,
 ) => Promise<ReleaseFulfillmentLeaseResult> | ReleaseFulfillmentLeaseResult;
 
 class RecordingWorkerClient implements AccessFulfillmentWorkerClient {
   readonly claimCalls: ClaimFulfillmentBatchInput[] = [];
   readonly reconcileCalls: ReconcileOrderFulfillmentInput[] = [];
   readonly releaseCalls: ReleaseFulfillmentLeaseInput[] = [];
+  readonly claimSignals: Array<AbortSignal | undefined> = [];
+  readonly reconcileSignals: Array<AbortSignal | undefined> = [];
+  readonly releaseSignals: Array<AbortSignal | undefined> = [];
 
   claimHandler: ClaimHandler = () => batchSuccess([]);
   reconcileHandler: ReconcileHandler = reconcileSuccess;
@@ -214,23 +295,29 @@ class RecordingWorkerClient implements AccessFulfillmentWorkerClient {
 
   async claimFulfillmentBatch(
     input: ClaimFulfillmentBatchInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<ClaimFulfillmentBatchResult> {
     this.claimCalls.push(input);
-    return this.claimHandler(input);
+    this.claimSignals.push(options?.signal);
+    return this.claimHandler(input, options);
   }
 
   async reconcileOrderFulfillment(
     input: ReconcileOrderFulfillmentInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<ReconcileOrderFulfillmentResult> {
     this.reconcileCalls.push(input);
-    return this.reconcileHandler(input);
+    this.reconcileSignals.push(options?.signal);
+    return this.reconcileHandler(input, options);
   }
 
   async releaseFulfillmentLease(
     input: ReleaseFulfillmentLeaseInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<ReleaseFulfillmentLeaseResult> {
     this.releaseCalls.push(input);
-    return this.releaseHandler(input);
+    this.releaseSignals.push(options?.signal);
+    return this.releaseHandler(input, options);
   }
 }
 
@@ -242,6 +329,7 @@ function createWorkerHarness(
     now?: () => number;
     sleep?: (milliseconds: number, signal: AbortSignal) => Promise<void>;
     logger?: MemoryLogger;
+    createDeadline?: AccessFulfillmentWorkerDeadlineFactory;
   } = {},
 ) {
   const logger = options.logger ?? new MemoryLogger();
@@ -272,6 +360,7 @@ function createWorkerHarness(
         sleepCalls.push(milliseconds);
       }),
     logger,
+    createDeadline: options.createDeadline,
   });
   return {
     worker,
@@ -283,10 +372,16 @@ function createWorkerHarness(
 
 function deferred<Value>() {
   let resolvePromise: (value: Value) => void = () => undefined;
-  const promise = new Promise<Value>((resolve) => {
+  let rejectPromise: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<Value>((resolve, reject) => {
     resolvePromise = resolve;
+    rejectPromise = reject;
   });
-  return { promise, resolve: resolvePromise };
+  return {
+    promise,
+    resolve: resolvePromise,
+    reject: rejectPromise,
+  };
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {
@@ -375,6 +470,7 @@ describe("access fulfillment worker startup", () => {
       assert.deepEqual(result, {
         kind: "fatal",
         exitCode: 1,
+        stopReason: "fatal_stop",
         errorCode: "durable_email_capability_not_implemented",
       });
       assert.equal(loadCalls, 0);
@@ -408,7 +504,7 @@ describe("access fulfillment worker startup", () => {
             requestShutdown();
             requestShutdown();
             assert.equal(signal.aborted, true);
-            return { kind: "stopped" };
+            return { kind: "stopped", stopReason: "external_shutdown" };
           },
         };
       },
@@ -420,11 +516,26 @@ describe("access fulfillment worker startup", () => {
       },
     });
 
-    assert.deepEqual(result, { kind: "stopped", exitCode: 0 });
+    assert.deepEqual(result, {
+      kind: "stopped",
+      exitCode: 0,
+      stopReason: "external_shutdown",
+    });
     assert.equal(loadCalls, 1);
     assert.equal(factoryCalls, 1);
     assert.equal(cleanupCalls, 1);
     assert.equal(client.claimCalls.length, 0);
+    const startLog = logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_worker_started",
+    );
+    assert.equal(startLog?.metadata?.rpcTimeoutMs, WORKER_CONFIG.rpcTimeoutMs);
+    const stoppedLog = logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_worker_stopped",
+    );
+    assert.deepEqual(stoppedLog?.metadata, {
+      stopReason: "external_shutdown",
+    });
+    assert.equal("shutdown" in (stoppedLog?.metadata ?? {}), false);
     assert.equal(
       logger.entries.filter(
         (entry) => entry.event === "access_fulfillment_worker_shutdown_requested",
@@ -456,6 +567,48 @@ describe("access fulfillment worker startup", () => {
     assert.equal(process.rawListeners("SIGTERM").length, initialSigtermListeners);
     assert.equal(process.rawListeners("SIGINT").length, initialSigintListeners);
   });
+
+  it("propagates a runtime fatal stop through the main result and final log", async () => {
+    const logger = new MemoryLogger();
+    const client = new RecordingWorkerClient();
+    client.claimHandler = () => ({
+      kind: "malformed_response",
+      rpc: ACCESS_FULFILLMENT_RPC.claimBatch,
+      field: "items",
+      reason: "Required",
+    });
+    const result = await runAccessFulfillmentWorkerMain({
+      env: ACTIVE_ENV,
+      logger,
+      loadClient: async () => client,
+      generateToken: () => TOKEN_A,
+      registerSignalHandlers: () => () => undefined,
+    });
+
+    assert.deepEqual(result, {
+      kind: "fatal",
+      exitCode: 1,
+      stopReason: "fatal_stop",
+      errorCode: "worker_claim_malformed_response",
+    });
+    const fatalLatchLogs = logger.entries.filter(
+      (entry) => entry.event === "access_fulfillment_worker_fatal_latched",
+    );
+    assert.equal(fatalLatchLogs.length, 1);
+    assert.deepEqual(fatalLatchLogs[0]?.metadata, {
+      errorCode: "worker_claim_malformed_response",
+      stopReason: "fatal_stop",
+    });
+    const stoppedLogs = logger.entries.filter(
+      (entry) => entry.event === "access_fulfillment_worker_stopped",
+    );
+    assert.equal(stoppedLogs.length, 1);
+    assert.deepEqual(stoppedLogs[0]?.metadata, {
+      errorCode: "worker_claim_malformed_response",
+      stopReason: "fatal_stop",
+    });
+    assert.equal("shutdown" in (stoppedLogs[0]?.metadata ?? {}), false);
+  });
 });
 
 describe("access fulfillment worker claim lifecycle", () => {
@@ -484,10 +637,39 @@ describe("access fulfillment worker claim lifecycle", () => {
     });
     const result = await harness.worker.runLoop(controller.signal);
 
-    assert.deepEqual(result, { kind: "stopped" });
+    assert.deepEqual(result, {
+      kind: "stopped",
+      stopReason: "external_shutdown",
+    });
     assert.deepEqual(sleepCalls, [WORKER_CONFIG.pollIntervalMs]);
     assert.equal(client.claimCalls.length, 1);
     assert.equal(harness.generatedTokenCount(), 1);
+  });
+
+  it("classifies a poll sleep failure as a fatal stop", async () => {
+    const client = new RecordingWorkerClient();
+    const harness = createWorkerHarness(client, {
+      sleep: async () => {
+        throw new Error("Synthetic poll sleep failure");
+      },
+    });
+
+    const result = await harness.worker.runLoop(
+      new AbortController().signal,
+    );
+
+    assert.deepEqual(result, {
+      kind: "fatal",
+      stopReason: "fatal_stop",
+      errorCode: "worker_poll_sleep_failed",
+    });
+    const stoppedLog = harness.logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_worker_fatal_latched",
+    );
+    assert.deepEqual(stoppedLog?.metadata, {
+      errorCode: "worker_poll_sleep_failed",
+      stopReason: "fatal_stop",
+    });
   });
 
   it("processes fresh and replayed non-empty claims", async () => {
@@ -577,20 +759,157 @@ describe("access fulfillment worker claim lifecycle", () => {
       call += 1;
       return call === 1
         ? {
-            kind: "business_error",
-            rpc: ACCESS_FULFILLMENT_RPC.claimBatch,
-            response: {
-              ok: false,
-              retryable: true,
-              error: { code: "concurrency_conflict", message: "Retryable" },
-            },
-          }
+          kind: "business_error",
+          rpc: ACCESS_FULFILLMENT_RPC.claimBatch,
+          response: {
+            ok: false,
+            retryable: true,
+            error: { code: "concurrency_conflict", message: "Retryable" },
+          },
+        }
         : batchSuccess([]);
     };
     const harness = createWorkerHarness(client);
     const result = await harness.worker.runOnce(new AbortController().signal);
 
     assert.equal(result.kind, "empty");
+    assert.equal(client.claimCalls.length, 2);
+    assert.equal(new Set(client.claimCalls.map((input) => input.reconcileLeaseToken)).size, 1);
+  });
+
+  it("aborts a never-settling claim, retries with the same token, and ignores the late response", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const firstClaim = deferred<ClaimFulfillmentBatchResult>();
+    let call = 0;
+    client.claimHandler = () => {
+      call += 1;
+      return call === 1 ? firstClaim.promise : batchSuccess([]);
+    };
+    const harness = createWorkerHarness(client, {
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.claimCalls.length === 1);
+    const firstSignal = client.claimSignals[0];
+    assert.ok(firstSignal);
+    scheduler.fire(0);
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "empty");
+    assert.equal(result.stopReason, "normal_completion");
+    assert.deepEqual(
+      client.claimCalls.map((input) => input.reconcileLeaseToken),
+      [TOKEN_A, TOKEN_A],
+    );
+    assert.equal(client.claimSignals.length, 2);
+    assert.notEqual(client.claimSignals[0], client.claimSignals[1]);
+    assert.equal(firstSignal.aborted, true);
+    assert.equal(client.claimSignals[1]?.aborted, false);
+    assert.equal(
+      harness.logger.entries.some(
+        (entry) => entry.metadata?.errorCode === "worker_claim_timeout",
+      ),
+      true,
+    );
+    assert.equal(scheduler.entries.every((entry) => entry.cancelCalls === 1), true);
+
+    const logCount = harness.logger.entries.length;
+    firstClaim.resolve(batchSuccess([claimedItem(ORDER_A)]));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(harness.logger.entries.length, logCount);
+  });
+
+  it("classifies external abort during claim without retrying or logging a timeout", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const pendingClaim = deferred<ClaimFulfillmentBatchResult>();
+    client.claimHandler = () => pendingClaim.promise;
+    const harness = createWorkerHarness(client, {
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+    const controller = new AbortController();
+
+    const pendingRun = harness.worker.runOnce(controller.signal);
+    await waitFor(() => client.claimCalls.length === 1);
+    controller.abort();
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "shutdown");
+    assert.equal(result.stopReason, "external_shutdown");
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.claimSignals[0]?.aborted, true);
+    assert.equal(
+      harness.logger.entries.some(
+        (entry) => entry.metadata?.errorCode === "worker_claim_timeout",
+      ),
+      false,
+    );
+    assert.equal(scheduler.entries[0]?.cancelCalls, 1);
+
+    const logCount = harness.logger.entries.length;
+    pendingClaim.resolve(batchSuccess([claimedItem(ORDER_A)]));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(harness.logger.entries.length, logCount);
+  });
+
+  it("anchors a fresh lease budget at the conclusive claim attempt start", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const clock = new ManualMonotonicClock(100);
+    client.claimHandler = () => {
+      clock.set(2_000);
+      return batchSuccess([claimedItem(ORDER_A)], false);
+    };
+    const result = await createWorkerHarness(client, {
+      config: { leaseSeconds: 30, rpcTimeoutMs: 25_000 },
+      now: clock.now,
+      createDeadline: controlledDeadlineFactory(scheduler),
+    }).worker.runOnce(new AbortController().signal);
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.stopReason, "normal_completion");
+    assert.deepEqual(
+      scheduler.entries.map((entry) => entry.timeoutMs),
+      [25_000, 23_100],
+    );
+  });
+
+  it("anchors a replay budget at the first attempt made with that token", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const clock = new ManualMonotonicClock(100);
+    let call = 0;
+    client.claimHandler = () => {
+      call += 1;
+      if (call === 1) {
+        clock.set(500);
+        return {
+          kind: "transport_error",
+          rpc: ACCESS_FULFILLMENT_RPC.claimBatch,
+          message: "Supabase RPC transport failed",
+        };
+      }
+      clock.set(6_000);
+      return batchSuccess([claimedItem(ORDER_A)], true);
+    };
+    const result = await createWorkerHarness(client, {
+      config: { leaseSeconds: 30, rpcTimeoutMs: 25_000 },
+      now: clock.now,
+      sleep: async () => {
+        clock.set(5_000);
+      },
+      createDeadline: controlledDeadlineFactory(scheduler),
+    }).worker.runOnce(new AbortController().signal);
+
+    assert.equal(result.kind, "completed");
+    assert.deepEqual(
+      scheduler.entries.map((entry) => entry.timeoutMs),
+      [25_000, 25_000, 19_100],
+    );
     assert.equal(client.claimCalls.length, 2);
     assert.equal(new Set(client.claimCalls.map((input) => input.reconcileLeaseToken)).size, 1);
   });
@@ -926,7 +1245,7 @@ describe("access fulfillment worker item handling", () => {
     }
   });
 
-  it("drains active work and releases pending claims after every fatal item boundary", async () => {
+  it("latches the first fatal boundary, aborts peers, and never cleans pending claims", async () => {
     for (const failureKind of ["provider", "unexpected"] as const) {
       const items = [
         claimedItem(ORDER_A),
@@ -961,36 +1280,24 @@ describe("access fulfillment worker item handling", () => {
           ? releaseBusinessError("provider_outcome_required")
           : releaseSuccess(input);
       const harness = createWorkerHarness(client, {
+        tokens: [TOKEN_A, TOKEN_B],
         config: { concurrency: 2 },
         ...(failureKind === "unexpected"
           ? {
-              logger: new MemoryLogger(true),
-              now: () => {
-                throw new Error("Synthetic clock failure");
-              },
-            }
+            logger: new MemoryLogger(true),
+          }
           : {}),
       });
-      let settled = false;
-      const loop = harness.worker.runLoop(new AbortController().signal).then((result) => {
-        settled = true;
-        return result;
-      });
+      const loop = harness.worker.runLoop(new AbortController().signal);
 
-      await waitFor(
-        () =>
-          client.reconcileCalls.length === 2 &&
-          client.releaseCalls.some((input) => input.orderId === ORDER_A),
-      );
-      await Promise.resolve();
-      assert.equal(settled, false, failureKind);
+      await waitFor(() => client.reconcileCalls.length === 2);
       const activeInput = client.reconcileCalls.find((input) => input.orderId === ORDER_B);
       assert.ok(activeInput);
-      activeReconcile.resolve(reconcileSuccess(activeInput));
       const result = await loop;
 
       assert.deepEqual(result, {
         kind: "fatal",
+        stopReason: "fatal_stop",
         errorCode:
           failureKind === "provider"
             ? "provider_outcome_required"
@@ -1009,20 +1316,71 @@ describe("access fulfillment worker item handling", () => {
           retryAfterSeconds: input.retryAfterSeconds,
           errorCode: input.errorCode,
         })),
-        [
-          {
-            orderId: ORDER_A,
-            retryAfterSeconds: WORKER_CONFIG.leaseSeconds,
-            errorCode:
-              failureKind === "provider"
-                ? "entries_count_mismatch"
-                : "worker_item_unexpected_error",
-          },
-          { orderId: ORDER_C, retryAfterSeconds: 0, errorCode: null },
-          { orderId: ORDER_D, retryAfterSeconds: 0, errorCode: null },
-        ],
+        failureKind === "provider"
+          ? [
+            {
+              orderId: ORDER_A,
+              retryAfterSeconds: WORKER_CONFIG.leaseSeconds,
+              errorCode: "entries_count_mismatch",
+            },
+          ]
+          : [],
         failureKind,
       );
+      const activeSignal =
+        client.reconcileSignals[
+          client.reconcileCalls.findIndex((input) => input.orderId === ORDER_B)
+        ];
+      assert.equal(activeSignal?.aborted, true, failureKind);
+
+      const logCount = harness.logger.entries.length;
+      activeReconcile.reject(new Error("Synthetic late peer rejection"));
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(harness.logger.entries.length, logCount, failureKind);
+      assert.equal(client.reconcileCalls.length, 2, failureKind);
+      assert.equal(client.releaseCalls.length, failureKind === "provider" ? 1 : 0);
+
+      const expectedErrorCode =
+        failureKind === "provider"
+          ? "provider_outcome_required"
+          : "worker_item_unexpected_error";
+      const repeatedLatch = (
+        harness.worker as unknown as {
+          latchFatalStop(errorCode: string): { readonly errorCode: string };
+        }
+      ).latchFatalStop("secondary_fatal_must_not_win");
+      assert.equal(repeatedLatch.errorCode, expectedErrorCode, failureKind);
+      assert.equal(harness.logger.entries.length, logCount, failureKind);
+      assert.deepEqual(
+        await harness.worker.runOnce(new AbortController().signal),
+        {
+          kind: "fatal",
+          stopReason: "fatal_stop",
+          errorCode: expectedErrorCode,
+          summary: {
+            claimedCount: 0,
+            reconciledCount: 0,
+            deferredCount: 0,
+            failedCount: 0,
+            staleCount: 0,
+            shutdownReleasedCount: 0,
+            localLeaseBudgetExhaustedCount: 0,
+            releaseFailedCount: 0,
+          },
+        },
+        failureKind,
+      );
+      assert.deepEqual(
+        await harness.worker.runLoop(new AbortController().signal),
+        {
+          kind: "fatal",
+          stopReason: "fatal_stop",
+          errorCode: expectedErrorCode,
+        },
+        failureKind,
+      );
+      assert.equal(harness.generatedTokenCount(), 1, failureKind);
+      assert.equal(client.claimCalls.length, 1, failureKind);
     }
   });
 
@@ -1097,6 +1455,649 @@ describe("access fulfillment worker item handling", () => {
   });
 });
 
+describe("access fulfillment worker deadlines and local lease budget", () => {
+  it("caps reconcile below 1000 ms, performs one SQL-fenced release, and ignores late success", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const clock = new ManualMonotonicClock(0);
+    const pendingReconcile = deferred<ReconcileOrderFulfillmentResult>();
+    client.claimHandler = () => {
+      clock.set(24_500);
+      return batchSuccess([claimedItem(ORDER_A)]);
+    };
+    client.reconcileHandler = () => pendingReconcile.promise;
+    const harness = createWorkerHarness(client, {
+      config: { leaseSeconds: 30, rpcTimeoutMs: 25_000 },
+      now: clock.now,
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.reconcileCalls.length === 1);
+    assert.equal(scheduler.entries[1]?.timeoutMs, 500);
+    scheduler.fire(1);
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.summary.failedCount, 1);
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(client.reconcileSignals[0]?.aborted, true);
+    assert.notEqual(client.reconcileSignals[0], client.releaseSignals[0]);
+    assert.equal(client.releaseCalls[0]?.errorCode, "worker_reconcile_timeout");
+    assert.deepEqual(
+      scheduler.entries.map((entry) => entry.timeoutMs),
+      [25_000, 500, 500],
+    );
+
+    const logCount = harness.logger.entries.length;
+    pendingReconcile.resolve(reconcileSuccess(client.reconcileCalls[0]!));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(harness.logger.entries.length, logCount);
+  });
+
+  it("does not start another item RPC after the conservative batch budget is exhausted", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const clock = new ManualMonotonicClock(0);
+    client.claimHandler = () =>
+      batchSuccess([
+        claimedItem(ORDER_A),
+        claimedItem(ORDER_B, "issuance", 2),
+        claimedItem(ORDER_C, "issuance", 3),
+      ]);
+    client.reconcileHandler = (input) => {
+      assert.equal(input.orderId, ORDER_A);
+      clock.set(25_000);
+      return reconcileSuccess(input);
+    };
+    const harness = createWorkerHarness(client, {
+      tokens: [TOKEN_A, TOKEN_B],
+      config: {
+        leaseSeconds: 30,
+        rpcTimeoutMs: 25_000,
+        concurrency: 1,
+      },
+      now: clock.now,
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+
+    const result = await harness.worker.runOnce(new AbortController().signal);
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "local_lease_budget_exhausted",
+    );
+    assert.equal(result.summary.reconciledCount, 1);
+    assert.equal(result.summary.localLeaseBudgetExhaustedCount, 1);
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(harness.generatedTokenCount(), 1);
+    assert.deepEqual(
+      await harness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "local_lease_budget_exhausted",
+      },
+    );
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.equal(harness.generatedTokenCount(), 1);
+    const budgetLog = harness.logger.entries.find(
+      (entry) =>
+        entry.event === "access_fulfillment_local_lease_budget_exhausted",
+    );
+    assert.ok(budgetLog?.metadata);
+    assert.deepEqual(Object.keys(budgetLog.metadata).sort(), [
+      "durationMs",
+      "errorCode",
+      "remainingBudgetBucket",
+    ]);
+    assert.equal(
+      budgetLog.metadata.errorCode,
+      "local_lease_budget_exhausted",
+    );
+
+    const loopClient = new RecordingWorkerClient();
+    const loopScheduler = new ControlledDeadlineScheduler();
+    const loopClock = new ManualMonotonicClock(0);
+    loopClient.claimHandler = () =>
+      batchSuccess([
+        claimedItem(ORDER_A),
+        claimedItem(ORDER_B, "issuance", 2),
+        claimedItem(ORDER_C, "issuance", 3),
+      ]);
+    loopClient.reconcileHandler = (input) => {
+      assert.equal(input.orderId, ORDER_A);
+      loopClock.set(25_000);
+      return reconcileSuccess(input);
+    };
+    const loopHarness = createWorkerHarness(loopClient, {
+      tokens: [TOKEN_A, TOKEN_B],
+      config: {
+        leaseSeconds: 30,
+        rpcTimeoutMs: 25_000,
+        concurrency: 1,
+      },
+      now: loopClock.now,
+      createDeadline: controlledDeadlineFactory(loopScheduler),
+    });
+
+    assert.deepEqual(
+      await loopHarness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "local_lease_budget_exhausted",
+      },
+    );
+    assert.equal(loopClient.claimCalls.length, 1);
+    assert.equal(loopClient.reconcileCalls.length, 1);
+    assert.equal(loopClient.releaseCalls.length, 0);
+    assert.equal(loopHarness.generatedTokenCount(), 1);
+  });
+
+  it("does not start release when reconcile consumes the local lease budget", async () => {
+    const client = new RecordingWorkerClient();
+    const clock = new ManualMonotonicClock(0);
+    client.claimHandler = () => batchSuccess([claimedItem(ORDER_A)]);
+    client.reconcileHandler = () => {
+      clock.set(25_000);
+      return reconcileBusinessError("entries_count_mismatch");
+    };
+    const harness = createWorkerHarness(client, {
+      config: { leaseSeconds: 30, rpcTimeoutMs: 25_000 },
+      now: clock.now,
+    });
+    const result = await harness.worker.runOnce(
+      new AbortController().signal,
+    );
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "local_lease_budget_exhausted",
+    );
+    assert.equal(result.summary.localLeaseBudgetExhaustedCount, 1);
+    assert.equal(result.summary.failedCount, 0);
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 0);
+    const budgetLog = harness.logger.entries.find(
+      (entry) =>
+        entry.event === "access_fulfillment_local_lease_budget_exhausted",
+    );
+    assert.deepEqual(budgetLog?.metadata, {
+      errorCode: "local_lease_budget_exhausted",
+      remainingBudgetBucket: "exhausted",
+      durationMs: 25_000,
+    });
+  });
+
+  for (const scenario of [
+    { name: "NaN", readings: [Number.NaN] },
+    {
+      name: "positive and negative Infinity",
+      readings: [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY],
+    },
+    {
+      name: "an exception",
+      readings: [new Error("Synthetic monotonic clock failure")],
+    },
+  ] as const) {
+    it(`permanently latches ${scenario.name} from the monotonic clock`, async () => {
+      for (const reading of scenario.readings) {
+        const client = new RecordingWorkerClient();
+        const clock = new ScriptedMonotonicClock([reading], 100);
+        const harness = createWorkerHarness(client, {
+          tokens: [TOKEN_A, TOKEN_B],
+          now: clock.now,
+        });
+
+        const first = await harness.worker.runOnce(
+          new AbortController().signal,
+        );
+        assert.equal(first.kind, "fatal");
+        assert.equal(first.stopReason, "fatal_stop");
+        assert.equal(
+          first.kind === "fatal" && first.errorCode,
+          "worker_monotonic_clock_invalid",
+        );
+        assert.deepEqual(
+          await harness.worker.runOnce(new AbortController().signal),
+          {
+            kind: "fatal",
+            stopReason: "fatal_stop",
+            errorCode: "worker_monotonic_clock_invalid",
+            summary: {
+              claimedCount: 0,
+              reconciledCount: 0,
+              deferredCount: 0,
+              failedCount: 0,
+              staleCount: 0,
+              shutdownReleasedCount: 0,
+              localLeaseBudgetExhaustedCount: 0,
+              releaseFailedCount: 0,
+            },
+          },
+        );
+        assert.deepEqual(
+          await harness.worker.runLoop(new AbortController().signal),
+          {
+            kind: "fatal",
+            stopReason: "fatal_stop",
+            errorCode: "worker_monotonic_clock_invalid",
+          },
+        );
+        assert.equal(clock.calls, 1);
+        assert.equal(harness.generatedTokenCount(), 1);
+        assert.equal(client.claimCalls.length, 0);
+        assert.equal(client.reconcileCalls.length, 0);
+        assert.equal(client.releaseCalls.length, 0);
+        const stoppedLog = harness.logger.entries.find(
+          (entry) =>
+            entry.event === "access_fulfillment_worker_fatal_latched",
+        );
+        assert.deepEqual(stoppedLog?.metadata, {
+          errorCode: "worker_monotonic_clock_invalid",
+          stopReason: "fatal_stop",
+        });
+      }
+    });
+  }
+
+  it("stops fatally without an item RPC when the monotonic clock moves backward", async () => {
+    const client = new RecordingWorkerClient();
+    client.claimHandler = () => batchSuccess([claimedItem(ORDER_A)]);
+    const clock = new ScriptedMonotonicClock([100, 110, 120, 119], 130);
+    const harness = createWorkerHarness(client, {
+      tokens: [TOKEN_A, TOKEN_B],
+      now: clock.now,
+    });
+
+    const result = await harness.worker.runOnce(
+      new AbortController().signal,
+    );
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "worker_monotonic_clock_invalid",
+    );
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.equal(harness.generatedTokenCount(), 1);
+    assert.equal(clock.calls, 4);
+    assert.deepEqual(
+      await harness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "worker_monotonic_clock_invalid",
+      },
+    );
+    assert.equal(harness.generatedTokenCount(), 1);
+    assert.equal(clock.calls, 4);
+    const stoppedLog = harness.logger.entries.find(
+      (entry) =>
+        entry.event === "access_fulfillment_worker_fatal_latched" &&
+        entry.metadata?.errorCode === "worker_monotonic_clock_invalid",
+    );
+    assert.deepEqual(stoppedLog?.metadata, {
+      errorCode: "worker_monotonic_clock_invalid",
+      stopReason: "fatal_stop",
+    });
+  });
+
+  it("treats a stale release after reconcile timeout as safe loss of authority", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const pendingReconcile = deferred<ReconcileOrderFulfillmentResult>();
+    client.claimHandler = () => batchSuccess([claimedItem(ORDER_A)]);
+    client.reconcileHandler = () => pendingReconcile.promise;
+    client.releaseHandler = () => releaseBusinessError("stale_lease");
+    const harness = createWorkerHarness(client, {
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.reconcileCalls.length === 1);
+    scheduler.fire(1);
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.summary.staleCount, 1);
+    assert.equal(result.summary.failedCount, 0);
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 1);
+    const staleLog = harness.logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_stale_lease",
+    );
+    assert.equal(staleLog?.metadata?.errorCode, "stale_lease");
+    assert.equal(
+      staleLog?.metadata?.originStage,
+      "issuance_failure_release",
+    );
+
+    const terminalLogCount = harness.logger.entries.length;
+    pendingReconcile.resolve(reconcileSuccess(client.reconcileCalls[0]!));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(client.reconcileCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(harness.logger.entries.length, terminalLogCount);
+  });
+
+  it("aborts a never-settling release once and ignores its late response", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const pendingRelease = deferred<ReleaseFulfillmentLeaseResult>();
+    client.claimHandler = () =>
+      batchSuccess([claimedItem(ORDER_A, "email", 9)]);
+    client.releaseHandler = () => pendingRelease.promise;
+    const harness = createWorkerHarness(client, {
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.releaseCalls.length === 1);
+    scheduler.fire(1);
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.summary.failedCount, 1);
+    assert.equal(result.summary.releaseFailedCount, 1);
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(client.releaseSignals[0]?.aborted, true);
+    const failureLog = harness.logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_item_failed",
+    );
+    assert.equal(failureLog?.metadata?.releaseErrorCode, "worker_release_timeout");
+
+    const logCount = harness.logger.entries.length;
+    pendingRelease.resolve(releaseSuccess(client.releaseCalls[0]!));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(harness.logger.entries.length, logCount);
+  });
+
+  it("distinguishes external shutdown during release from a deadline", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const pendingRelease = deferred<ReleaseFulfillmentLeaseResult>();
+    client.claimHandler = () =>
+      batchSuccess([claimedItem(ORDER_A, "email", 9)]);
+    client.releaseHandler = () => pendingRelease.promise;
+    const harness = createWorkerHarness(client, {
+      createDeadline: controlledDeadlineFactory(scheduler),
+    });
+    const controller = new AbortController();
+
+    const pendingRun = harness.worker.runOnce(controller.signal);
+    await waitFor(() => client.releaseCalls.length === 1);
+    controller.abort();
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "shutdown");
+    assert.equal(result.stopReason, "external_shutdown");
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(client.releaseSignals[0]?.aborted, true);
+    const failureLog = harness.logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_item_failed",
+    );
+    assert.equal(
+      failureLog?.metadata?.releaseErrorCode,
+      "worker_release_external_abort",
+    );
+    assert.equal(
+      harness.logger.entries.some(
+        (entry) => entry.metadata?.releaseErrorCode === "worker_release_timeout",
+      ),
+      false,
+    );
+  });
+
+  it("makes a late claim response inert after a monotonic clock fatal", async () => {
+    const client = new RecordingWorkerClient();
+    const scheduler = new ControlledDeadlineScheduler();
+    const pendingClaim = deferred<ClaimFulfillmentBatchResult>();
+    let nowMs = 0;
+    client.claimHandler = () => pendingClaim.promise;
+    const harness = createWorkerHarness(client, {
+      tokens: [TOKEN_A, TOKEN_B],
+      now: () => nowMs,
+      createDeadline: controlledDeadlineFactory(scheduler),
+      sleep: async () => {
+        assert.fail("fatal clock failure must prevent claim retry sleep");
+      },
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.claimCalls.length === 1);
+    nowMs = Number.NaN;
+    scheduler.fire(0);
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "worker_monotonic_clock_invalid",
+    );
+    assert.equal(client.claimSignals[0]?.aborted, true);
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.equal(harness.generatedTokenCount(), 1);
+    assert.equal(harness.sleepCalls.length, 0);
+
+    const logCount = harness.logger.entries.length;
+    const resultSnapshot = JSON.stringify(result);
+    pendingClaim.resolve(batchSuccess([claimedItem(ORDER_A)]));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(JSON.stringify(result), resultSnapshot);
+    assert.equal(harness.logger.entries.length, logCount);
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.deepEqual(
+      await harness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "worker_monotonic_clock_invalid",
+      },
+    );
+    assert.equal(harness.generatedTokenCount(), 1);
+  });
+
+  it("aborts a concurrent reconcile and ignores its late success after budget fatal", async () => {
+    const client = new RecordingWorkerClient();
+    const clock = new ManualMonotonicClock(0);
+    const reconcileA = deferred<ReconcileOrderFulfillmentResult>();
+    const reconcileB = deferred<ReconcileOrderFulfillmentResult>();
+    client.claimHandler = () =>
+      batchSuccess([
+        claimedItem(ORDER_A),
+        claimedItem(ORDER_B, "issuance", 2),
+        claimedItem(ORDER_C, "issuance", 3),
+      ]);
+    client.reconcileHandler = (input) => {
+      if (input.orderId === ORDER_A) {
+        return reconcileA.promise;
+      }
+      if (input.orderId === ORDER_B) {
+        return reconcileB.promise;
+      }
+      assert.fail("pending item must not start after budget fatal");
+    };
+    const harness = createWorkerHarness(client, {
+      tokens: [TOKEN_A, TOKEN_B],
+      config: {
+        leaseSeconds: 30,
+        rpcTimeoutMs: 25_000,
+        concurrency: 2,
+      },
+      now: clock.now,
+    });
+
+    const pendingRun = harness.worker.runOnce(new AbortController().signal);
+    await waitFor(() => client.reconcileCalls.length === 2);
+    clock.set(25_000);
+    const inputA = client.reconcileCalls.find(
+      (input) => input.orderId === ORDER_A,
+    );
+    assert.ok(inputA);
+    reconcileA.resolve(reconcileSuccess(inputA));
+    const result = await pendingRun;
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "local_lease_budget_exhausted",
+    );
+    assert.equal(result.summary.reconciledCount, 1);
+    assert.equal(result.summary.localLeaseBudgetExhaustedCount, 1);
+    assert.deepEqual(
+      client.reconcileCalls.map((input) => input.orderId),
+      [ORDER_A, ORDER_B],
+    );
+    const indexB = client.reconcileCalls.findIndex(
+      (input) => input.orderId === ORDER_B,
+    );
+    assert.equal(client.reconcileSignals[indexB]?.aborted, true);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(harness.generatedTokenCount(), 1);
+
+    const logCount = harness.logger.entries.length;
+    const resultSnapshot = JSON.stringify(result);
+    const inputB = client.reconcileCalls[indexB];
+    assert.ok(inputB);
+    reconcileB.resolve(reconcileSuccess(inputB));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(JSON.stringify(result), resultSnapshot);
+    assert.equal(harness.logger.entries.length, logCount);
+    assert.equal(client.reconcileCalls.length, 2);
+    assert.equal(client.releaseCalls.length, 0);
+    assert.deepEqual(
+      await harness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "local_lease_budget_exhausted",
+      },
+    );
+    assert.equal(harness.generatedTokenCount(), 1);
+  });
+
+  it("aborts a release and ignores its late provider response after a peer clock fatal", async () => {
+    const client = new RecordingWorkerClient();
+    const pendingRelease = deferred<ReleaseFulfillmentLeaseResult>();
+    let releaseStarted = false;
+    client.claimHandler = () =>
+      batchSuccess([
+        claimedItem(ORDER_A, "email"),
+        claimedItem(ORDER_B, "issuance", 2),
+      ]);
+    client.releaseHandler = () => {
+      releaseStarted = true;
+      return pendingRelease.promise;
+    };
+    const harness = createWorkerHarness(client, {
+      tokens: [TOKEN_A, TOKEN_B],
+      config: { concurrency: 2 },
+      now: () => (releaseStarted ? Number.NaN : 0),
+    });
+
+    const result = await harness.worker.runOnce(
+      new AbortController().signal,
+    );
+
+    assert.equal(result.kind, "fatal");
+    assert.equal(result.stopReason, "fatal_stop");
+    assert.equal(
+      result.kind === "fatal" && result.errorCode,
+      "worker_monotonic_clock_invalid",
+    );
+    assert.equal(client.claimCalls.length, 1);
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(client.releaseCalls[0]?.orderId, ORDER_A);
+    assert.equal(client.releaseSignals[0]?.aborted, true);
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.equal(harness.generatedTokenCount(), 1);
+
+    const logCount = harness.logger.entries.length;
+    const resultSnapshot = JSON.stringify(result);
+    pendingRelease.resolve(releaseBusinessError("provider_outcome_required"));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(JSON.stringify(result), resultSnapshot);
+    assert.equal(harness.logger.entries.length, logCount);
+    assert.equal(client.releaseCalls.length, 1);
+    assert.equal(client.reconcileCalls.length, 0);
+    assert.deepEqual(
+      await harness.worker.runLoop(new AbortController().signal),
+      {
+        kind: "fatal",
+        stopReason: "fatal_stop",
+        errorCode: "worker_monotonic_clock_invalid",
+      },
+    );
+    assert.equal(
+      harness.logger.entries.filter(
+        (entry) =>
+          entry.event === "access_fulfillment_worker_fatal_latched",
+      ).length,
+      1,
+    );
+    assert.equal(harness.generatedTokenCount(), 1);
+  });
+
+  it("replaces causal metadata with the exact stale allowlist", async () => {
+    const client = new RecordingWorkerClient();
+    client.claimHandler = () => batchSuccess([claimedItem(ORDER_A)]);
+    client.reconcileHandler = () =>
+      reconcileBusinessError("entries_count_mismatch");
+    client.releaseHandler = () => releaseBusinessError("stale_lease");
+    const harness = createWorkerHarness(client);
+
+    const result = await harness.worker.runOnce(new AbortController().signal);
+
+    assert.equal(result.kind, "completed");
+    assert.equal(result.summary.staleCount, 1);
+    const staleLog = harness.logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_stale_lease",
+    );
+    assert.ok(staleLog?.metadata);
+    assert.deepEqual(Object.keys(staleLog.metadata).sort(), [
+      "durationMs",
+      "epoch",
+      "errorCode",
+      "orderHash",
+      "originStage",
+      "tokenHash",
+      "workType",
+    ]);
+    assert.equal(staleLog.metadata.errorCode, "stale_lease");
+    assert.equal(
+      staleLog.metadata.originStage,
+      "issuance_failure_release",
+    );
+    assert.equal(
+      JSON.stringify(staleLog.metadata).includes("entries_count_mismatch"),
+      false,
+    );
+  });
+});
+
 describe("access fulfillment worker shutdown and logging", () => {
   it("treats abort during a rejecting claim retry wait as graceful shutdown", async () => {
     const client = new RecordingWorkerClient();
@@ -1114,7 +2115,10 @@ describe("access fulfillment worker shutdown and logging", () => {
     });
     const result = await harness.worker.runLoop(controller.signal);
 
-    assert.deepEqual(result, { kind: "stopped" });
+    assert.deepEqual(result, {
+      kind: "stopped",
+      stopReason: "external_shutdown",
+    });
     assert.equal(client.claimCalls.length, 1);
     assert.equal(harness.generatedTokenCount(), 1);
   });
@@ -1144,7 +2148,10 @@ describe("access fulfillment worker shutdown and logging", () => {
     activeReconcile.resolve(reconcileSuccess(client.reconcileCalls[0]!));
     const result = await loop;
 
-    assert.deepEqual(result, { kind: "stopped" });
+    assert.deepEqual(result, {
+      kind: "stopped",
+      stopReason: "external_shutdown",
+    });
     assert.equal(client.claimCalls.length, 1);
     assert.equal(client.reconcileCalls.length, 1);
     assert.deepEqual(
@@ -1154,10 +2161,27 @@ describe("access fulfillment worker shutdown and logging", () => {
         errorCode: input.errorCode,
       })),
       [
+        {
+          orderId: ORDER_A,
+          retryAfterSeconds: WORKER_CONFIG.leaseSeconds,
+          errorCode: "reconcile_outcome_ambiguous",
+        },
         { orderId: ORDER_B, retryAfterSeconds: 0, errorCode: null },
         { orderId: ORDER_C, retryAfterSeconds: 0, errorCode: null },
       ],
     );
+    assert.equal(client.reconcileSignals[0]?.aborted, true);
+    assert.equal(client.releaseSignals.length, 3);
+    assert.equal(
+      client.releaseSignals.every(
+        (releaseSignal) =>
+          releaseSignal !== undefined &&
+          releaseSignal !== controller.signal &&
+          releaseSignal.aborted === false,
+      ),
+      true,
+    );
+    assert.equal(new Set(client.releaseSignals).size, 3);
   });
 
   it("does not generate a token or claim when shutdown was already requested", async () => {
@@ -1167,7 +2191,10 @@ describe("access fulfillment worker shutdown and logging", () => {
     controller.abort();
     const result = await harness.worker.runLoop(controller.signal);
 
-    assert.deepEqual(result, { kind: "stopped" });
+    assert.deepEqual(result, {
+      kind: "stopped",
+      stopReason: "external_shutdown",
+    });
     assert.equal(harness.generatedTokenCount(), 0);
     assert.equal(client.claimCalls.length, 0);
   });
@@ -1242,7 +2269,7 @@ describe("access fulfillment worker shutdown and logging", () => {
       ACCESS_FULFILLMENT_CORRELATION_HASH_LENGTH,
     );
     assert.equal(claimedLog?.metadata?.durationMs, 1);
-    assert.equal(deferredLog?.metadata?.durationMs, 1);
+    assert.equal(deferredLog?.metadata?.durationMs, 2);
     assert.equal(deferredLog?.metadata?.orderHash, accessFulfillmentCorrelationHash(ORDER_A));
   });
 });

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS,
   ACCESS_FULFILLMENT_LIMITS,
   AccessFulfillmentConfigError,
   loadAccessFulfillmentConfig,
@@ -33,6 +34,7 @@ describe("loadAccessFulfillmentConfig", () => {
       pollIntervalMs: 5_000,
       leaseSeconds: 300,
       concurrency: 2,
+      rpcTimeoutMs: 10_000,
       emailEnabled: false,
     });
   });
@@ -161,6 +163,7 @@ describe("loadAccessFulfillmentConfig", () => {
       ["ACCESS_FULFILLMENT_POLL_INTERVAL_MS", "999", "60001"],
       ["ACCESS_FULFILLMENT_LEASE_SECONDS", "29", "901"],
       ["ACCESS_FULFILLMENT_CONCURRENCY", "0", "17"],
+      ["ACCESS_FULFILLMENT_RPC_TIMEOUT_MS", "999", "25001"],
     ] as const;
 
     for (const [field, below, above] of cases) {
@@ -186,6 +189,9 @@ describe("loadAccessFulfillmentConfig", () => {
       ),
       ACCESS_FULFILLMENT_LEASE_SECONDS: String(ACCESS_FULFILLMENT_LIMITS.leaseSeconds.min),
       ACCESS_FULFILLMENT_CONCURRENCY: String(ACCESS_FULFILLMENT_LIMITS.concurrency.min),
+      ACCESS_FULFILLMENT_RPC_TIMEOUT_MS: String(
+        ACCESS_FULFILLMENT_LIMITS.rpcTimeoutMs.min,
+      ),
     });
     const maximums = loadAccessFulfillmentConfig({
       ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: "false",
@@ -195,15 +201,33 @@ describe("loadAccessFulfillmentConfig", () => {
       ),
       ACCESS_FULFILLMENT_LEASE_SECONDS: String(ACCESS_FULFILLMENT_LIMITS.leaseSeconds.max),
       ACCESS_FULFILLMENT_CONCURRENCY: String(ACCESS_FULFILLMENT_LIMITS.concurrency.max),
+      ACCESS_FULFILLMENT_RPC_TIMEOUT_MS: String(
+        ACCESS_FULFILLMENT_LIMITS.rpcTimeoutMs.max,
+      ),
     });
 
     assert.equal(minimums.batchSize, 1);
     assert.equal(minimums.pollIntervalMs, 1_000);
     assert.equal(minimums.leaseSeconds, 30);
     assert.equal(minimums.concurrency, 1);
+    assert.equal(minimums.rpcTimeoutMs, 1_000);
     assert.equal(maximums.batchSize, 100);
     assert.equal(maximums.pollIntervalMs, 60_000);
     assert.equal(maximums.leaseSeconds, 900);
     assert.equal(maximums.concurrency, 16);
+    assert.equal(maximums.rpcTimeoutMs, 25_000);
+  });
+
+  it("accepts the tightest timeout and lease boundary without extending the lease", () => {
+    const config = loadAccessFulfillmentConfig({
+      ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: "false",
+      ACCESS_FULFILLMENT_LEASE_SECONDS: "30",
+      ACCESS_FULFILLMENT_RPC_TIMEOUT_MS: "25000",
+    });
+
+    assert.equal(
+      config.rpcTimeoutMs + ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS,
+      config.leaseSeconds * 1_000,
+    );
   });
 });

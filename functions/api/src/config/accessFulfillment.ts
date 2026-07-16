@@ -3,7 +3,10 @@ export const ACCESS_FULFILLMENT_LIMITS = {
   pollIntervalMs: { min: 1_000, max: 60_000 },
   leaseSeconds: { min: 30, max: 900 },
   concurrency: { min: 1, max: 16 },
+  rpcTimeoutMs: { min: 1_000, max: 25_000 },
 } as const;
+
+export const ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS = 5_000;
 
 export interface AccessFulfillmentConfig {
   workerEnabled: boolean;
@@ -14,6 +17,7 @@ export interface AccessFulfillmentConfig {
   pollIntervalMs: number;
   leaseSeconds: number;
   concurrency: number;
+  rpcTimeoutMs: number;
   emailEnabled: boolean;
 }
 
@@ -135,35 +139,57 @@ export function loadAccessFulfillmentConfig(
     requireNonEmpty(env, "EMAIL_FROM_ADDRESS");
   }
 
+  const batchSize = readInteger(
+    env,
+    "ACCESS_FULFILLMENT_BATCH_SIZE",
+    5,
+    ACCESS_FULFILLMENT_LIMITS.batchSize,
+  );
+  const pollIntervalMs = readInteger(
+    env,
+    "ACCESS_FULFILLMENT_POLL_INTERVAL_MS",
+    5_000,
+    ACCESS_FULFILLMENT_LIMITS.pollIntervalMs,
+  );
+  const leaseSeconds = readInteger(
+    env,
+    "ACCESS_FULFILLMENT_LEASE_SECONDS",
+    300,
+    ACCESS_FULFILLMENT_LIMITS.leaseSeconds,
+  );
+  const concurrency = readInteger(
+    env,
+    "ACCESS_FULFILLMENT_CONCURRENCY",
+    2,
+    ACCESS_FULFILLMENT_LIMITS.concurrency,
+  );
+  const rpcTimeoutMs = readInteger(
+    env,
+    "ACCESS_FULFILLMENT_RPC_TIMEOUT_MS",
+    10_000,
+    ACCESS_FULFILLMENT_LIMITS.rpcTimeoutMs,
+  );
+
+  if (
+    rpcTimeoutMs + ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS >
+    leaseSeconds * 1_000
+  ) {
+    throw new AccessFulfillmentConfigError(
+      "ACCESS_FULFILLMENT_RPC_TIMEOUT_MS",
+      "must leave the fixed safety margin within the fulfillment lease",
+    );
+  }
+
   return {
     workerEnabled,
     durableEmailDeliveryEnabled,
     legacyDirectEmailEnabled,
     workerDryRun,
-    batchSize: readInteger(
-      env,
-      "ACCESS_FULFILLMENT_BATCH_SIZE",
-      5,
-      ACCESS_FULFILLMENT_LIMITS.batchSize,
-    ),
-    pollIntervalMs: readInteger(
-      env,
-      "ACCESS_FULFILLMENT_POLL_INTERVAL_MS",
-      5_000,
-      ACCESS_FULFILLMENT_LIMITS.pollIntervalMs,
-    ),
-    leaseSeconds: readInteger(
-      env,
-      "ACCESS_FULFILLMENT_LEASE_SECONDS",
-      300,
-      ACCESS_FULFILLMENT_LIMITS.leaseSeconds,
-    ),
-    concurrency: readInteger(
-      env,
-      "ACCESS_FULFILLMENT_CONCURRENCY",
-      2,
-      ACCESS_FULFILLMENT_LIMITS.concurrency,
-    ),
+    batchSize,
+    pollIntervalMs,
+    leaseSeconds,
+    concurrency,
+    rpcTimeoutMs,
     emailEnabled,
   };
 }

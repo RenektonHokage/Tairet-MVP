@@ -491,11 +491,20 @@ export interface AccessFulfillmentRpcTransportResult {
   error: AccessFulfillmentRpcTransportError | null;
 }
 
+export interface AccessFulfillmentRpcTransportRequest
+  extends PromiseLike<AccessFulfillmentRpcTransportResult> {
+  abortSignal(signal: AbortSignal): this;
+}
+
 export interface AccessFulfillmentRpcTransport {
   rpc(
     name: AccessFulfillmentRpcName,
     parameters: Readonly<Record<string, unknown>>,
-  ): PromiseLike<AccessFulfillmentRpcTransportResult>;
+  ): AccessFulfillmentRpcTransportRequest;
+}
+
+export interface AccessFulfillmentRpcCallOptions {
+  readonly signal?: AbortSignal;
 }
 
 export interface ClaimFulfillmentBatchInput {
@@ -566,9 +575,13 @@ async function invokeRpc<Response>(
   rpc: AccessFulfillmentRpcName,
   parameters: Readonly<Record<string, unknown>>,
   parse: (input: unknown) => Response,
+  options?: AccessFulfillmentRpcCallOptions,
 ): Promise<Response | TransportRpcError> {
   try {
-    const result = await transport.rpc(rpc, parameters);
+    const request = transport.rpc(rpc, parameters);
+    const result = await (options?.signal
+      ? request.abortSignal(options.signal)
+      : request);
     return result.error ? toTransportError(rpc, result.error) : parse(result.data);
   } catch {
     return toTransportError(rpc, { message: "RPC invocation threw" });
@@ -576,16 +589,25 @@ async function invokeRpc<Response>(
 }
 
 export interface AccessFulfillmentClient {
-  claimFulfillmentBatch(input: ClaimFulfillmentBatchInput): Promise<ClaimFulfillmentBatchResult>;
+  claimFulfillmentBatch(
+    input: ClaimFulfillmentBatchInput,
+    options?: AccessFulfillmentRpcCallOptions,
+  ): Promise<ClaimFulfillmentBatchResult>;
   reconcileOrderFulfillment(
     input: ReconcileOrderFulfillmentInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<ReconcileOrderFulfillmentResult>;
-  claimEmailDelivery(input: ClaimEmailDeliveryInput): Promise<ClaimEmailDeliveryResult>;
+  claimEmailDelivery(
+    input: ClaimEmailDeliveryInput,
+    options?: AccessFulfillmentRpcCallOptions,
+  ): Promise<ClaimEmailDeliveryResult>;
   recordEmailDeliveryOutcome(
     input: RecordEmailDeliveryOutcomeInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<RecordEmailDeliveryOutcomeResult>;
   releaseFulfillmentLease(
     input: ReleaseFulfillmentLeaseInput,
+    options?: AccessFulfillmentRpcCallOptions,
   ): Promise<ReleaseFulfillmentLeaseResult>;
 }
 
@@ -593,7 +615,7 @@ export function createAccessFulfillmentClient(
   transport: AccessFulfillmentRpcTransport,
 ): AccessFulfillmentClient {
   return {
-    claimFulfillmentBatch(input) {
+    claimFulfillmentBatch(input, options) {
       return invokeRpc(
         transport,
         ACCESS_FULFILLMENT_RPC.claimBatch,
@@ -603,10 +625,11 @@ export function createAccessFulfillmentClient(
           p_lease_seconds: input.leaseSeconds,
         },
         parseFulfillmentBatchResponse,
+        options,
       );
     },
 
-    reconcileOrderFulfillment(input) {
+    reconcileOrderFulfillment(input, options) {
       return invokeRpc(
         transport,
         ACCESS_FULFILLMENT_RPC.reconcile,
@@ -617,10 +640,11 @@ export function createAccessFulfillmentClient(
           p_reconcile_lease_epoch: input.reconcileLeaseEpoch,
         },
         parseReconcileFulfillmentResponse,
+        options,
       );
     },
 
-    claimEmailDelivery(input) {
+    claimEmailDelivery(input, options) {
       return invokeRpc(
         transport,
         ACCESS_FULFILLMENT_RPC.claimEmail,
@@ -634,10 +658,11 @@ export function createAccessFulfillmentClient(
           p_provider: input.provider,
         },
         parseEmailDeliveryClaimResponse,
+        options,
       );
     },
 
-    recordEmailDeliveryOutcome(input) {
+    recordEmailDeliveryOutcome(input, options) {
       return invokeRpc(
         transport,
         ACCESS_FULFILLMENT_RPC.recordEmailOutcome,
@@ -652,10 +677,11 @@ export function createAccessFulfillmentClient(
           p_retry_after_seconds: input.retryAfterSeconds,
         },
         parseEmailDeliveryOutcomeResponse,
+        options,
       );
     },
 
-    releaseFulfillmentLease(input) {
+    releaseFulfillmentLease(input, options) {
       return invokeRpc(
         transport,
         ACCESS_FULFILLMENT_RPC.releaseLease,
@@ -667,6 +693,7 @@ export function createAccessFulfillmentClient(
           p_error_code: input.errorCode,
         },
         parseFulfillmentLeaseReleaseResponse,
+        options,
       );
     },
   };

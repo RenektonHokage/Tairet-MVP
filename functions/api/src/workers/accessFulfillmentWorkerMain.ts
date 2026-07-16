@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { performance } from "node:perf_hooks";
 
 import {
   AccessFulfillmentConfigError,
@@ -9,6 +10,7 @@ import { createAccessFulfillmentClient } from "../services/accessFulfillment";
 import { logger as defaultLogger } from "../utils/logger";
 import {
   type AccessFulfillmentRunLoopResult,
+  type AccessFulfillmentStopReason,
   type AccessFulfillmentWorkerClient,
   type AccessFulfillmentWorkerDependencies,
   type AccessFulfillmentWorkerLogger,
@@ -35,8 +37,17 @@ export interface AccessFulfillmentWorkerMainDependencies {
 export type AccessFulfillmentWorkerMainResult =
   | { kind: "disabled"; exitCode: 0 }
   | { kind: "dry_run"; exitCode: 0 }
-  | { kind: "stopped"; exitCode: 0 }
-  | { kind: "fatal"; exitCode: 1; errorCode: string };
+  | {
+      kind: "stopped";
+      exitCode: 0;
+      stopReason: Extract<AccessFulfillmentStopReason, "external_shutdown">;
+    }
+  | {
+      kind: "fatal";
+      exitCode: 1;
+      stopReason: Extract<AccessFulfillmentStopReason, "fatal_stop">;
+      errorCode: string;
+    };
 
 export function abortableWorkerSleep(
   milliseconds: number,
@@ -99,10 +110,12 @@ export async function runAccessFulfillmentWorkerMain(
     safeWorkerLog(workerLogger, "error", "access_fulfillment_worker_stopped", {
       errorCode: "invalid_access_fulfillment_configuration",
       field,
+      stopReason: "fatal_stop",
     });
     return {
       kind: "fatal",
       exitCode: 1,
+      stopReason: "fatal_stop",
       errorCode: "invalid_access_fulfillment_configuration",
     };
   }
@@ -110,10 +123,12 @@ export async function runAccessFulfillmentWorkerMain(
   if (config.durableEmailDeliveryEnabled) {
     safeWorkerLog(workerLogger, "error", "access_fulfillment_worker_stopped", {
       errorCode: "durable_email_capability_not_implemented",
+      stopReason: "fatal_stop",
     });
     return {
       kind: "fatal",
       exitCode: 1,
+      stopReason: "fatal_stop",
       errorCode: "durable_email_capability_not_implemented",
     };
   }
@@ -150,7 +165,7 @@ export async function runAccessFulfillmentWorkerMain(
       client,
       config,
       generateToken: dependencies.generateToken ?? randomUUID,
-      now: Date.now,
+      now: () => performance.now(),
       sleep: dependencies.sleep ?? abortableWorkerSleep,
       logger: workerLogger,
     });
@@ -160,24 +175,41 @@ export async function runAccessFulfillmentWorkerMain(
       pollIntervalMs: config.pollIntervalMs,
       leaseSeconds: config.leaseSeconds,
       concurrency: config.concurrency,
+      rpcTimeoutMs: config.rpcTimeoutMs,
     });
     const result = await worker.runLoop(controller.signal);
     if (result.kind === "fatal") {
       safeWorkerLog(workerLogger, "error", "access_fulfillment_worker_stopped", {
         errorCode: result.errorCode,
+        stopReason: result.stopReason,
       });
-      return { kind: "fatal", exitCode: 1, errorCode: result.errorCode };
+      return {
+        kind: "fatal",
+        exitCode: 1,
+        stopReason: result.stopReason,
+        errorCode: result.errorCode,
+      };
     }
 
     safeWorkerLog(workerLogger, "info", "access_fulfillment_worker_stopped", {
-      shutdown: controller.signal.aborted,
+      stopReason: result.stopReason,
     });
-    return { kind: "stopped", exitCode: 0 };
+    return {
+      kind: "stopped",
+      exitCode: 0,
+      stopReason: result.stopReason,
+    };
   } catch {
     safeWorkerLog(workerLogger, "error", "access_fulfillment_worker_stopped", {
       errorCode: "worker_startup_failed",
+      stopReason: "fatal_stop",
     });
-    return { kind: "fatal", exitCode: 1, errorCode: "worker_startup_failed" };
+    return {
+      kind: "fatal",
+      exitCode: 1,
+      stopReason: "fatal_stop",
+      errorCode: "worker_startup_failed",
+    };
   } finally {
     unregisterSignalHandlers();
   }
@@ -191,6 +223,7 @@ if (require.main === module) {
     .catch(() => {
       safeWorkerLog(defaultLogger, "error", "access_fulfillment_worker_stopped", {
         errorCode: "worker_unhandled_error",
+        stopReason: "fatal_stop",
       });
       process.exitCode = 1;
     });
