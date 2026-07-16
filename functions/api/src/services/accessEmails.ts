@@ -1,7 +1,15 @@
+import {
+  AccessEmailMessageError,
+  normalizeAccessEmailAddress,
+  renderAccessEntriesEmailContent,
+  type RenderedAccessEntriesEmailContent,
+} from "./accessEmailMessage";
 import { generateAccessEntryQrPng } from "./accessQr";
-import { sendEmail, type EmailAttachment } from "./emails";
+import { sendEmail } from "./emails";
 import { supabase } from "./supabase";
 import { logger } from "../utils/logger";
+
+export { buildAccessEntriesEmailHtml } from "./accessEmailMessage";
 
 type EmailDeliveryStatus =
   | "sent"
@@ -55,25 +63,6 @@ interface AccessEntryEmailRow {
   email_status: "not_sent" | "sent" | "failed";
 }
 
-interface AccessEntryEmailBundleEntry {
-  ticketName: string;
-  attendeeName: string;
-  attendeeLastName: string;
-  unitIndex: number;
-  qrPngBuffer: Buffer;
-  contentId: string;
-}
-
-interface AccessEntriesEmailHtmlInput {
-  buyerName: string;
-  publicRef: string;
-  sourceName: string;
-  accessDate: string;
-  entries: AccessEntryEmailBundleEntry[];
-}
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function result(
   status: EmailDeliveryStatus,
   entriesClaimed: number,
@@ -89,41 +78,11 @@ function result(
   };
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 function getEmailConfigErrorCode(): string | null {
   if (process.env.EMAIL_ENABLED !== "true") return "email_disabled";
   if (!process.env.RESEND_API_KEY?.trim()) return "resend_api_key_missing";
   if (!process.env.EMAIL_FROM_ADDRESS?.trim()) return "email_from_missing";
   return null;
-}
-
-function normalizeEmail(email: string): string | null {
-  const normalized = email.trim().toLowerCase();
-  return EMAIL_PATTERN.test(normalized) ? normalized : null;
-}
-
-function formatAccessDate(accessDate: string): string {
-  const [year, month, day] = accessDate.split("-").map((part) => Number.parseInt(part, 10));
-  if (!year || !month || !day) return accessDate;
-
-  const parsedDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-  if (Number.isNaN(parsedDate.getTime())) return accessDate;
-
-  return parsedDate.toLocaleDateString("es-PY", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 }
 
 function readString(value: unknown): string | null {
@@ -315,72 +274,6 @@ async function markAccessEntriesEmailFailed(
   }
 }
 
-export function buildAccessEntriesEmailHtml(input: AccessEntriesEmailHtmlInput): string {
-  const safeBuyerName = escapeHtml(input.buyerName || "Cliente");
-  const safePublicRef = escapeHtml(input.publicRef);
-  const safeSourceName = escapeHtml(input.sourceName);
-  const safeAccessDate = escapeHtml(formatAccessDate(input.accessDate));
-  const totalEntries = input.entries.length;
-  const ticketNames = Array.from(
-    new Set(input.entries.map((entry) => entry.ticketName.trim()).filter(Boolean))
-  );
-  const safeTicketSummary = ticketNames.length > 0
-    ? escapeHtml(ticketNames.join(", "))
-    : "Entradas emitidas";
-
-  const entrySections = input.entries
-    .map((entry, index) => {
-      const attendeeFullName = `${entry.attendeeName} ${entry.attendeeLastName}`.trim();
-      const safeAttendeeName = escapeHtml(attendeeFullName || "Asistente");
-      const safeTicketName = escapeHtml(entry.ticketName || "Entrada");
-      const safeContentId = escapeHtml(entry.contentId);
-
-      return `
-        <div style="margin:0 0 22px 0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#ffffff;">
-          <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.08em;">Entrada ${index + 1} de ${totalEntries}</p>
-          <p style="margin:0 0 6px 0;font-size:15px;color:#0f172a;"><strong>Tipo:</strong> ${safeTicketName}</p>
-          <p style="margin:0 0 14px 0;font-size:15px;color:#0f172a;"><strong>Asistente:</strong> ${safeAttendeeName}</p>
-          <div style="text-align:center;margin:12px 0 4px 0;">
-            <img src="cid:${safeContentId}" alt="Código QR de entrada ${index + 1}" style="width:260px;max-width:100%;height:auto;display:block;margin:0 auto;" />
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-
-  return `
-    <div style="font-family:Arial,Helvetica,sans-serif;background:#f5f7fb;padding:24px;">
-      <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;overflow:hidden;">
-        <div style="padding:24px 28px;border-bottom:1px solid #eef2f7;background:#0f172a;">
-          <div style="font-size:12px;letter-spacing:0.16em;color:#94a3b8;font-weight:700;text-transform:uppercase;">Tairet</div>
-          <div style="margin-top:8px;font-size:24px;font-weight:800;color:#ffffff;">Tus entradas están listas</div>
-          <div style="margin-top:6px;font-size:14px;color:#cbd5e1;">Guardá este email y presentá cada QR en puerta.</div>
-        </div>
-        <div style="padding:28px;background:#ffffff;">
-          <p style="margin:0 0 16px 0;font-size:16px;color:#0f172a;">Hola ${safeBuyerName},</p>
-          <p style="margin:0 0 18px 0;font-size:16px;color:#334155;">Tu pago fue confirmado y tus entradas ya fueron emitidas.</p>
-
-          <div style="margin:0 0 24px 0;padding:16px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;">
-            <p style="margin:0 0 8px 0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Referencia:</strong> ${safePublicRef}</p>
-            <p style="margin:0 0 8px 0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Lugar o evento:</strong> ${safeSourceName}</p>
-            <p style="margin:0 0 8px 0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Fecha:</strong> ${safeAccessDate}</p>
-            <p style="margin:0 0 8px 0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Cantidad de entradas:</strong> ${totalEntries}</p>
-            <p style="margin:0;font-size:14px;color:#475569;"><strong style="color:#0f172a;">Tipos:</strong> ${safeTicketSummary}</p>
-          </div>
-
-          ${entrySections}
-
-          <p style="margin:0 0 8px 0;font-size:14px;color:#475569;">No compartas estos QR; cada código es único para un acceso.</p>
-          <p style="margin:0;font-size:13px;color:#64748b;">Si algún código no se lee bien, abrí la imagen PNG correspondiente en pantalla completa.</p>
-        </div>
-        <div style="padding:16px 28px;border-top:1px solid #eef2f7;background:#ffffff;">
-          <p style="margin:0;font-size:12px;color:#94a3b8;">Este es un mensaje automático de Tairet.</p>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 export async function sendAccessOrderEntriesEmail(
   input: SendAccessOrderEntriesEmailInput
 ): Promise<AccessOrderEntriesEmailResult> {
@@ -444,8 +337,10 @@ export async function sendAccessOrderEntriesEmail(
     return result("failed", claimedEntries.length, 0, configErrorCode);
   }
 
-  const buyerEmail = normalizeEmail(order.buyer_email);
-  if (!buyerEmail) {
+  let buyerEmail: string;
+  try {
+    buyerEmail = normalizeAccessEmailAddress(order.buyer_email);
+  } catch {
     return result("failed", claimedEntries.length, 0, "buyer_email_invalid");
   }
 
@@ -460,51 +355,73 @@ export async function sendAccessOrderEntriesEmail(
 
   const itemById = new Map(orderItems.map((item) => [item.id, item]));
   const sourceName = (await fetchSourceName(order)) ?? "Tairet";
-  const emailEntries: AccessEntryEmailBundleEntry[] = [];
+  const claimedEntryById = new Map(
+    claimedEntries.map((entry) => [entry.id, entry]),
+  );
+  const legacyOrderedClaimedEntries = notSentEntries
+    .map((entry) => claimedEntryById.get(entry.id))
+    .filter((entry): entry is AccessEntryEmailRow => entry !== undefined);
+  let renderedEmail: RenderedAccessEntriesEmailContent;
 
   try {
-    for (const [index, entry] of claimedEntries.entries()) {
-      const item = itemById.get(entry.order_item_id);
-      emailEntries.push({
-        ticketName: item?.name_snapshot ?? "Entrada",
-        attendeeName: entry.attendee_name,
-        attendeeLastName: entry.attendee_last_name,
-        unitIndex: entry.unit_index,
-        qrPngBuffer: await generateAccessEntryQrPng(entry.checkin_token),
-        contentId: `access-entry-qr-${index + 1}`,
-      });
-    }
+    renderedEmail = await renderAccessEntriesEmailContent(
+      {
+        buyerName:
+          `${order.buyer_name} ${order.buyer_last_name}`.trim() || "Cliente",
+        publicRef,
+        sourceName,
+        accessDate: order.access_date,
+        entries: legacyOrderedClaimedEntries.map((entry) => {
+          const item = itemById.get(entry.order_item_id);
+          return {
+            id: entry.id,
+            orderItemId: entry.order_item_id,
+            unitIndex: entry.unit_index,
+            ticketName: item?.name_snapshot ?? "Entrada",
+            attendeeName: entry.attendee_name,
+            attendeeLastName: entry.attendee_last_name,
+            checkinToken: entry.checkin_token,
+          };
+        }),
+      },
+      generateAccessEntryQrPng,
+    );
   } catch (error) {
-    logger.error("Failed to generate Access Core QR for email", {
-      publicRef,
-      entriesClaimed: claimedEntries.length,
-      emailStatus: "failed",
-      errorCode: "qr_generation_failed",
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const errorCode =
+      error instanceof AccessEmailMessageError &&
+      error.code === "qr_generation_failed"
+        ? "qr_generation_failed"
+        : "email_send_failed";
+    logger.error(
+      errorCode === "qr_generation_failed"
+        ? "Failed to generate Access Core QR for email"
+        : "Failed to build Access Core entries email",
+      {
+        publicRef,
+        entriesClaimed: claimedEntries.length,
+        emailStatus: "failed",
+        errorCode,
+        error:
+          error instanceof AccessEmailMessageError
+            ? error.code
+            : "email_render_failed",
+      },
+    );
     await markAccessEntriesEmailFailed(order.id, publicRef, claimedIds);
-    return result("failed", claimedEntries.length, 0, "qr_generation_failed");
+    return result("failed", claimedEntries.length, 0, errorCode);
   }
-
-  const attachments: EmailAttachment[] = emailEntries.map((entry, index) => ({
-    filename: `entrada-${index + 1}.png`,
-    content: entry.qrPngBuffer.toString("base64"),
-    contentType: "image/png",
-    contentId: entry.contentId,
-  }));
 
   try {
     await sendEmail({
       to: buyerEmail,
-      subject: "Tus entradas Tairet están listas",
-      html: buildAccessEntriesEmailHtml({
-        buyerName: `${order.buyer_name} ${order.buyer_last_name}`.trim() || "Cliente",
-        publicRef,
-        sourceName,
-        accessDate: order.access_date,
-        entries: emailEntries,
-      }),
-      attachments,
+      subject: renderedEmail.subject,
+      html: renderedEmail.html,
+      attachments: renderedEmail.attachments.map((attachment) => ({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+        ...(attachment.contentId ? { contentId: attachment.contentId } : {}),
+      })),
     });
   } catch (error) {
     logger.error("Failed to send Access Core entries email", {
