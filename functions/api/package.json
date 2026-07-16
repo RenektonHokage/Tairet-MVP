@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e .env -- tsx watch src/index.ts",
+    "dev:worker:access": "dotenv -e .env -- tsx src/workers/accessFulfillmentWorkerMain.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "tsx src/config/accessFulfillment.test.ts && tsx src/services/accessFulfillment.test.ts && tsx src/services/accessEmailProvider.test.ts",
+    "start:worker:access": "node dist/workers/accessFulfillmentWorkerMain.js",
+    "test": "tsx src/config/accessFulfillment.test.ts && tsx src/services/accessFulfillment.test.ts && tsx src/services/accessEmailProvider.test.ts && tsx src/workers/accessFulfillmentWorker.test.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
