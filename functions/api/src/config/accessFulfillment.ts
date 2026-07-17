@@ -4,6 +4,7 @@ export const ACCESS_FULFILLMENT_LIMITS = {
   leaseSeconds: { min: 30, max: 900 },
   concurrency: { min: 1, max: 16 },
   rpcTimeoutMs: { min: 1_000, max: 25_000 },
+  emailProviderTimeoutMs: { min: 1_000, max: 25_000 },
 } as const;
 
 export const ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS = 5_000;
@@ -18,6 +19,7 @@ export interface AccessFulfillmentConfig {
   leaseSeconds: number;
   concurrency: number;
   rpcTimeoutMs: number;
+  emailProviderTimeoutMs: number;
   emailEnabled: boolean;
 }
 
@@ -169,6 +171,12 @@ export function loadAccessFulfillmentConfig(
     10_000,
     ACCESS_FULFILLMENT_LIMITS.rpcTimeoutMs,
   );
+  const emailProviderTimeoutMs = readInteger(
+    env,
+    "ACCESS_EMAIL_PROVIDER_TIMEOUT_MS",
+    15_000,
+    ACCESS_FULFILLMENT_LIMITS.emailProviderTimeoutMs,
+  );
 
   if (
     rpcTimeoutMs + ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS >
@@ -176,6 +184,16 @@ export function loadAccessFulfillmentConfig(
   ) {
     throw new AccessFulfillmentConfigError(
       "ACCESS_FULFILLMENT_RPC_TIMEOUT_MS",
+      "must leave the fixed safety margin within the fulfillment lease",
+    );
+  }
+
+  if (
+    emailProviderTimeoutMs + ACCESS_FULFILLMENT_LEASE_SAFETY_MARGIN_MS >
+    leaseSeconds * 1_000
+  ) {
+    throw new AccessFulfillmentConfigError(
+      "ACCESS_EMAIL_PROVIDER_TIMEOUT_MS",
       "must leave the fixed safety margin within the fulfillment lease",
     );
   }
@@ -190,6 +208,7 @@ export function loadAccessFulfillmentConfig(
     leaseSeconds,
     concurrency,
     rpcTimeoutMs,
+    emailProviderTimeoutMs,
     emailEnabled,
   };
 }

@@ -1,27 +1,34 @@
+import type { AccessEmailMessage } from "./accessEmailMessage";
+
 export interface AccessEmailProviderSendInput {
-  idempotencyKey: string;
-  requestPayloadHash: string;
-  templateVersion: string;
+  readonly idempotencyKey: string;
+  readonly requestPayloadHash: string;
+  readonly templateVersion: string;
+  readonly message: AccessEmailMessage;
+}
+
+export interface AccessEmailProviderSendOptions {
+  readonly signal?: AbortSignal;
 }
 
 export type AccessEmailProviderOutcome =
   | {
-      kind: "accepted";
-      providerMessageId: string;
+      readonly kind: "accepted";
+      readonly providerMessageId: string;
     }
   | {
-      kind: "failed_retryable";
-      errorCode: string;
-      retryAfterSeconds?: number;
+      readonly kind: "failed_retryable";
+      readonly errorCode: string;
+      readonly retryAfterSeconds?: number;
     }
   | {
-      kind: "failed_terminal";
-      errorCode: string;
+      readonly kind: "failed_terminal";
+      readonly errorCode: string;
     }
   | {
-      kind: "ambiguous";
-      errorCode: string;
-      retryAfterSeconds?: number;
+      readonly kind: "ambiguous";
+      readonly errorCode: string;
+      readonly retryAfterSeconds?: number;
     };
 
 /**
@@ -30,5 +37,8 @@ export type AccessEmailProviderOutcome =
  * absent from this provider-neutral contract.
  */
 export interface AccessEmailProvider {
-  send(input: AccessEmailProviderSendInput): Promise<AccessEmailProviderOutcome>;
+  send(
+    input: AccessEmailProviderSendInput,
+    options?: AccessEmailProviderSendOptions,
+  ): Promise<AccessEmailProviderOutcome>;
 }
