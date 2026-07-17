@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 
 import {
   ACCESS_FULFILLMENT_RPC,
+  type AccessEmailPreclaimTerminalFailureErrorCode,
   type AccessFulfillmentRpcName,
   type AccessFulfillmentRpcTransport,
   type AccessFulfillmentRpcTransportRequest,
@@ -11,6 +12,7 @@ import {
   createAccessFulfillmentClient,
   parseEmailDeliveryClaimResponse,
   parseEmailDeliveryOutcomeResponse,
+  parseEmailPreclaimTerminalFailureResponse,
   parseFulfillmentBatchResponse,
   parseFulfillmentLeaseReleaseResponse,
   parseIssueAccessEntriesResponse,
@@ -24,6 +26,36 @@ const DELIVERY_ATTEMPT_ID = "44444444-4444-4444-8444-444444444444";
 const ENTRY_ID_A = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 const ENTRY_ID_B = "00000000-0000-4000-8000-000000000000";
 const ENTRY_SNAPSHOT_HASH = "a".repeat(64);
+
+const PRECLAIM_TERMINAL_FAILURE_ERROR_CODES = [
+  "order_invalid",
+  "order_items_invalid",
+  "entries_not_found",
+  "entries_invalid",
+  "entry_count_mismatch",
+  "entry_not_deliverable",
+  "source_invalid",
+  "invalid_recipient",
+] as const satisfies readonly AccessEmailPreclaimTerminalFailureErrorCode[];
+
+const EMAIL_PRECLAIM_TERMINAL_FRESH = {
+  ok: true,
+  status: "manual_review",
+  terminal: true,
+  order_id: ORDER_ID,
+  generation: 1,
+  epoch: 7,
+  error_code: "invalid_recipient",
+  idempotent: false,
+};
+
+const PRECLAIM_BUSINESS_ERROR = {
+  ok: false,
+  error: {
+    code: "invalid_request",
+    message: "Invalid request",
+  },
+};
 
 const BUSINESS_ERROR = {
   ok: false,
@@ -339,6 +371,168 @@ describe("access fulfillment response parsers", () => {
     assert.equal(unknown.kind, "unknown_status");
   });
 
+  it("parses fresh and replayed pre-claim terminal failures for the closed allowlist", () => {
+    for (const errorCode of PRECLAIM_TERMINAL_FAILURE_ERROR_CODES) {
+      const fresh = parseEmailPreclaimTerminalFailureResponse({
+        ...EMAIL_PRECLAIM_TERMINAL_FRESH,
+        error_code: errorCode,
+      });
+      assert.equal(fresh.kind, "success");
+      if (fresh.kind !== "success") {
+        assert.fail("expected a fresh pre-claim terminal failure");
+      }
+      assert.equal(fresh.rpc, ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure);
+      assert.equal(fresh.response.error_code, errorCode);
+      assert.equal(fresh.response.idempotent, false);
+    }
+
+    const replay = parseEmailPreclaimTerminalFailureResponse({
+      ...EMAIL_PRECLAIM_TERMINAL_FRESH,
+      idempotent: true,
+    });
+    assert.equal(replay.kind, "success");
+    if (replay.kind !== "success") {
+      assert.fail("expected a replayed pre-claim terminal failure");
+    }
+    assert.equal(replay.response.idempotent, true);
+  });
+
+  it("rejects malformed pre-claim terminal success responses and separates unknown status", () => {
+    const malformedResponses = [
+      {
+        ok: true,
+        status: "manual_review",
+        order_id: ORDER_ID,
+        generation: 1,
+        epoch: 7,
+        error_code: "invalid_recipient",
+        idempotent: false,
+      },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, unexpected: "field" },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, order_id: "not-a-uuid" },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, generation: 0 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, generation: -1 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, generation: 1.5 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, epoch: 0 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, epoch: -1 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, epoch: 1.5 },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, terminal: false },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, error_code: "future_error_code" },
+      { ...EMAIL_PRECLAIM_TERMINAL_FRESH, idempotent: "false" },
+    ];
+
+    for (const response of malformedResponses) {
+      assert.equal(
+        parseEmailPreclaimTerminalFailureResponse(response).kind,
+        "malformed_response",
+      );
+    }
+
+    const unknown = parseEmailPreclaimTerminalFailureResponse({
+      ...EMAIL_PRECLAIM_TERMINAL_FRESH,
+      status: "future_terminal_status",
+    });
+    assert.deepEqual(unknown, {
+      kind: "unknown_status",
+      rpc: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      field: "status",
+      status: "future_terminal_status",
+    });
+  });
+
+  it("accepts only the exact pre-claim terminal business-error variants", () => {
+    const noOrderCodes = [
+      "invalid_request",
+      "invalid_error_code",
+      "order_not_found",
+      "internal_error",
+    ] as const;
+    const orderCodes = [
+      "fulfillment_not_found",
+      "stale_lease",
+      "generation_mismatch",
+      "provider_outcome_required",
+      "delivery_state_conflict",
+      "email_already_sent",
+    ] as const;
+
+    for (const code of noOrderCodes) {
+      const parsed = parseEmailPreclaimTerminalFailureResponse({
+        ok: false,
+        error: { code, message: "Safe business error" },
+      });
+      assert.equal(parsed.kind, "business_error");
+    }
+
+    for (const code of orderCodes) {
+      const parsed = parseEmailPreclaimTerminalFailureResponse({
+        ok: false,
+        order_id: ORDER_ID,
+        error: { code, message: "Safe order business error" },
+      });
+      assert.equal(parsed.kind, "business_error");
+    }
+
+    const concurrency = parseEmailPreclaimTerminalFailureResponse({
+      ok: false,
+      retryable: true,
+      error: {
+        code: "concurrency_conflict",
+        message: "Concurrency conflict",
+      },
+    });
+    assert.equal(concurrency.kind, "business_error");
+    if (concurrency.kind !== "business_error") {
+      assert.fail("expected a retryable concurrency conflict");
+    }
+    assert.deepEqual(concurrency.response, {
+      ok: false,
+      retryable: true,
+      error: {
+        code: "concurrency_conflict",
+        message: "Concurrency conflict",
+      },
+    });
+
+    const malformedBusinessResponses = [
+      {
+        ok: false,
+        error: { code: "fulfillment_not_found", message: "Missing order context" },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: { code: "invalid_request", message: "Unexpected order context" },
+      },
+      {
+        ok: false,
+        retryable: false,
+        error: { code: "concurrency_conflict", message: "Not retryable" },
+      },
+      {
+        ok: false,
+        retryable: true,
+        order_id: ORDER_ID,
+        error: { code: "concurrency_conflict", message: "Unexpected order context" },
+      },
+      {
+        ok: false,
+        error: { code: "future_business_code", message: "Unknown code" },
+      },
+      {
+        ok: false,
+        error: { code: "invalid_request", message: "", detail: "invented" },
+      },
+    ];
+
+    for (const response of malformedBusinessResponses) {
+      assert.equal(
+        parseEmailPreclaimTerminalFailureResponse(response).kind,
+        "malformed_response",
+      );
+    }
+  });
+
   it("accepts terminal and retryable lease releases", () => {
     const terminal = parseFulfillmentLeaseReleaseResponse({
       ok: true,
@@ -447,9 +641,15 @@ describe("access fulfillment response parsers", () => {
 describe("createAccessFulfillmentClient", () => {
   it("calls every RPC once with its exact SQL parameter names", async () => {
     assert.equal(SERVICE_ROLE_CLIENT_IS_COMPATIBLE, true);
-    const transport = new QueueTransport(
-      Array.from({ length: 5 }, () => ({ data: BUSINESS_ERROR, error: null })),
+    assert.equal(
+      ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      "record_access_email_preclaim_terminal_failure",
     );
+    const transport = new QueueTransport([
+      ...Array.from({ length: 4 }, () => ({ data: BUSINESS_ERROR, error: null })),
+      { data: PRECLAIM_BUSINESS_ERROR, error: null },
+      { data: BUSINESS_ERROR, error: null },
+    ]);
     const client = createAccessFulfillmentClient(transport);
     const controller = new AbortController();
     const options = { signal: controller.signal };
@@ -494,6 +694,16 @@ describe("createAccessFulfillmentClient", () => {
         },
         options,
       ),
+      await client.recordEmailPreclaimTerminalFailure(
+        {
+          orderId: ORDER_ID,
+          reconcileLeaseToken: LEASE_TOKEN,
+          reconcileLeaseEpoch: 7,
+          emailGeneration: 1,
+          errorCode: "invalid_recipient",
+        },
+        options,
+      ),
       await client.releaseFulfillmentLease(
         {
           orderId: ORDER_ID,
@@ -507,7 +717,7 @@ describe("createAccessFulfillmentClient", () => {
     ];
     assert.deepEqual(
       results.map((result) => result.kind),
-      Array.from({ length: 5 }, () => "business_error"),
+      Array.from({ length: 6 }, () => "business_error"),
     );
 
     assert.deepEqual(transport.calls, [
@@ -554,6 +764,16 @@ describe("createAccessFulfillmentClient", () => {
         },
       },
       {
+        name: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+        parameters: {
+          p_order_id: ORDER_ID,
+          p_reconcile_lease_token: LEASE_TOKEN,
+          p_reconcile_lease_epoch: 7,
+          p_email_generation: 1,
+          p_error_code: "invalid_recipient",
+        },
+      },
+      {
         name: ACCESS_FULFILLMENT_RPC.releaseLease,
         parameters: {
           p_order_id: ORDER_ID,
@@ -566,7 +786,7 @@ describe("createAccessFulfillmentClient", () => {
     ]);
     assert.deepEqual(
       transport.signals,
-      Array.from({ length: 5 }, () => controller.signal),
+      Array.from({ length: 6 }, () => controller.signal),
     );
   });
 
@@ -691,5 +911,53 @@ describe("createAccessFulfillmentClient", () => {
     });
     assert.equal(calls, 1);
     assert.equal(JSON.stringify(result).includes("sensitive thrown transport detail"), false);
+  });
+
+  it("sanitizes pre-claim terminal transport failures and never retries", async () => {
+    const input = {
+      orderId: ORDER_ID,
+      reconcileLeaseToken: LEASE_TOKEN,
+      reconcileLeaseEpoch: 7,
+      emailGeneration: 1,
+      errorCode: "invalid_recipient",
+    } as const;
+    const failedTransport = new QueueTransport([
+      {
+        data: { secret: "must-not-escape" },
+        error: { code: "PGRST500", message: "sensitive pre-claim transport detail" },
+      },
+    ]);
+    const failedClient = createAccessFulfillmentClient(failedTransport);
+
+    const failed = await failedClient.recordEmailPreclaimTerminalFailure(input);
+
+    assert.deepEqual(failed, {
+      kind: "transport_error",
+      rpc: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      code: "PGRST500",
+      message: "Supabase RPC transport failed",
+    });
+    assert.equal(failedTransport.calls.length, 1);
+    assert.equal(JSON.stringify(failed).includes("must-not-escape"), false);
+    assert.equal(JSON.stringify(failed).includes("sensitive pre-claim transport detail"), false);
+
+    let thrownCalls = 0;
+    const thrownTransport: AccessFulfillmentRpcTransport = {
+      rpc() {
+        thrownCalls += 1;
+        throw new Error("sensitive thrown pre-claim detail");
+      },
+    };
+    const thrownClient = createAccessFulfillmentClient(thrownTransport);
+
+    const thrown = await thrownClient.recordEmailPreclaimTerminalFailure(input);
+
+    assert.deepEqual(thrown, {
+      kind: "transport_error",
+      rpc: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      message: "Supabase RPC transport failed",
+    });
+    assert.equal(thrownCalls, 1);
+    assert.equal(JSON.stringify(thrown).includes("sensitive thrown pre-claim detail"), false);
   });
 });

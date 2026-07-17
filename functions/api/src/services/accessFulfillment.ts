@@ -6,6 +6,7 @@ export const ACCESS_FULFILLMENT_RPC = {
   issueEntries: "issue_access_entries_for_paid_order",
   claimEmail: "claim_access_email_delivery",
   recordEmailOutcome: "record_access_email_delivery_outcome",
+  recordEmailPreclaimTerminalFailure: "record_access_email_preclaim_terminal_failure",
   releaseLease: "release_access_fulfillment_lease",
 } as const;
 
@@ -17,6 +18,24 @@ const nonEmptyStringSchema = z.string().min(1);
 const sha256HexSchema = z.string().regex(/^[0-9a-f]{64}$/);
 const nonNegativeIntegerSchema = z.number().int().safe().nonnegative();
 const positiveIntegerSchema = z.number().int().safe().positive();
+
+export const ACCESS_EMAIL_PRECLAIM_TERMINAL_FAILURE_ERROR_CODES = [
+  "order_invalid",
+  "order_items_invalid",
+  "entries_not_found",
+  "entries_invalid",
+  "entry_count_mismatch",
+  "entry_not_deliverable",
+  "source_invalid",
+  "invalid_recipient",
+] as const;
+
+export type AccessEmailPreclaimTerminalFailureErrorCode =
+  (typeof ACCESS_EMAIL_PRECLAIM_TERMINAL_FAILURE_ERROR_CODES)[number];
+
+const accessEmailPreclaimTerminalFailureErrorCodeSchema = z.enum(
+  ACCESS_EMAIL_PRECLAIM_TERMINAL_FAILURE_ERROR_CODES,
+);
 
 const rpcErrorSchema = z
   .object({
@@ -216,6 +235,82 @@ const emailOutcomeErrorSchema = z
   })
   .strict();
 
+const freshEmailPreclaimTerminalFailureSchema = z
+  .object({
+    ok: z.literal(true),
+    status: z.literal("manual_review"),
+    terminal: z.literal(true),
+    order_id: uuidSchema,
+    generation: positiveIntegerSchema,
+    epoch: positiveIntegerSchema,
+    error_code: accessEmailPreclaimTerminalFailureErrorCodeSchema,
+    idempotent: z.literal(false),
+  })
+  .strict();
+
+const replayedEmailPreclaimTerminalFailureSchema = z
+  .object({
+    ok: z.literal(true),
+    status: z.literal("manual_review"),
+    terminal: z.literal(true),
+    order_id: uuidSchema,
+    generation: positiveIntegerSchema,
+    epoch: positiveIntegerSchema,
+    error_code: accessEmailPreclaimTerminalFailureErrorCodeSchema,
+    idempotent: z.literal(true),
+  })
+  .strict();
+
+const emailPreclaimTerminalFailureNoOrderErrorSchema = z
+  .object({
+    ok: z.literal(false),
+    error: z
+      .object({
+        code: z.enum([
+          "invalid_request",
+          "invalid_error_code",
+          "order_not_found",
+          "internal_error",
+        ]),
+        message: nonEmptyStringSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+const emailPreclaimTerminalFailureOrderErrorSchema = z
+  .object({
+    ok: z.literal(false),
+    order_id: uuidSchema,
+    error: z
+      .object({
+        code: z.enum([
+          "fulfillment_not_found",
+          "stale_lease",
+          "generation_mismatch",
+          "provider_outcome_required",
+          "delivery_state_conflict",
+          "email_already_sent",
+        ]),
+        message: nonEmptyStringSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
+const emailPreclaimTerminalFailureConcurrencyErrorSchema = z
+  .object({
+    ok: z.literal(false),
+    retryable: z.literal(true),
+    error: z
+      .object({
+        code: z.literal("concurrency_conflict"),
+        message: nonEmptyStringSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
 const terminalLeaseReleaseSchema = z
   .object({
     ok: z.literal(true),
@@ -313,6 +408,19 @@ export type EmailDeliveryOutcomeResponse =
       | z.infer<typeof recordedEmailOutcomeSchema>
     >
   | BusinessRpcError<z.infer<typeof emailOutcomeErrorSchema>>
+  | MalformedRpcResponse
+  | UnknownRpcStatus;
+
+export type EmailPreclaimTerminalFailureResponse =
+  | SuccessfulRpcResponse<
+      | z.infer<typeof freshEmailPreclaimTerminalFailureSchema>
+      | z.infer<typeof replayedEmailPreclaimTerminalFailureSchema>
+    >
+  | BusinessRpcError<
+      | z.infer<typeof emailPreclaimTerminalFailureNoOrderErrorSchema>
+      | z.infer<typeof emailPreclaimTerminalFailureOrderErrorSchema>
+      | z.infer<typeof emailPreclaimTerminalFailureConcurrencyErrorSchema>
+    >
   | MalformedRpcResponse
   | UnknownRpcStatus;
 
@@ -456,6 +564,49 @@ export function parseEmailDeliveryOutcomeResponse(input: unknown): EmailDelivery
   return statusError ?? malformedResponse(ACCESS_FULFILLMENT_RPC.recordEmailOutcome, success.error);
 }
 
+export function parseEmailPreclaimTerminalFailureResponse(
+  input: unknown,
+): EmailPreclaimTerminalFailureResponse {
+  const success = z
+    .union([
+      freshEmailPreclaimTerminalFailureSchema,
+      replayedEmailPreclaimTerminalFailureSchema,
+    ])
+    .safeParse(input);
+  if (success.success) {
+    return {
+      kind: "success",
+      rpc: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      response: success.data,
+    };
+  }
+
+  const businessError = z
+    .union([
+      emailPreclaimTerminalFailureNoOrderErrorSchema,
+      emailPreclaimTerminalFailureOrderErrorSchema,
+      emailPreclaimTerminalFailureConcurrencyErrorSchema,
+    ])
+    .safeParse(input);
+  if (businessError.success) {
+    return {
+      kind: "business_error",
+      rpc: ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+      response: businessError.data,
+    };
+  }
+
+  const statusError = unknownStatus(
+    ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+    input,
+    new Set(["manual_review"]),
+  );
+  return (
+    statusError ??
+    malformedResponse(ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure, success.error)
+  );
+}
+
 export function parseFulfillmentLeaseReleaseResponse(
   input: unknown,
 ): FulfillmentLeaseReleaseResponse {
@@ -543,6 +694,14 @@ export interface RecordEmailDeliveryOutcomeInput {
   retryAfterSeconds: number | null;
 }
 
+export interface RecordEmailPreclaimTerminalFailureInput {
+  readonly orderId: string;
+  readonly reconcileLeaseToken: string;
+  readonly reconcileLeaseEpoch: number;
+  readonly emailGeneration: number;
+  readonly errorCode: AccessEmailPreclaimTerminalFailureErrorCode;
+}
+
 export interface ReleaseFulfillmentLeaseInput {
   orderId: string;
   reconcileLeaseToken: string;
@@ -555,6 +714,9 @@ export type ClaimFulfillmentBatchResult = ClaimFulfillmentBatchResponse | Transp
 export type ReconcileOrderFulfillmentResult = ReconcileFulfillmentResponse | TransportRpcError;
 export type ClaimEmailDeliveryResult = EmailDeliveryClaimResponse | TransportRpcError;
 export type RecordEmailDeliveryOutcomeResult = EmailDeliveryOutcomeResponse | TransportRpcError;
+export type RecordEmailPreclaimTerminalFailureResult =
+  | EmailPreclaimTerminalFailureResponse
+  | TransportRpcError;
 export type ReleaseFulfillmentLeaseResult = FulfillmentLeaseReleaseResponse | TransportRpcError;
 
 function toTransportError(
@@ -605,6 +767,10 @@ export interface AccessFulfillmentClient {
     input: RecordEmailDeliveryOutcomeInput,
     options?: AccessFulfillmentRpcCallOptions,
   ): Promise<RecordEmailDeliveryOutcomeResult>;
+  recordEmailPreclaimTerminalFailure(
+    input: RecordEmailPreclaimTerminalFailureInput,
+    options?: AccessFulfillmentRpcCallOptions,
+  ): Promise<RecordEmailPreclaimTerminalFailureResult>;
   releaseFulfillmentLease(
     input: ReleaseFulfillmentLeaseInput,
     options?: AccessFulfillmentRpcCallOptions,
@@ -677,6 +843,22 @@ export function createAccessFulfillmentClient(
           p_retry_after_seconds: input.retryAfterSeconds,
         },
         parseEmailDeliveryOutcomeResponse,
+        options,
+      );
+    },
+
+    recordEmailPreclaimTerminalFailure(input, options) {
+      return invokeRpc(
+        transport,
+        ACCESS_FULFILLMENT_RPC.recordEmailPreclaimTerminalFailure,
+        {
+          p_order_id: input.orderId,
+          p_reconcile_lease_token: input.reconcileLeaseToken,
+          p_reconcile_lease_epoch: input.reconcileLeaseEpoch,
+          p_email_generation: input.emailGeneration,
+          p_error_code: input.errorCode,
+        },
+        parseEmailPreclaimTerminalFailureResponse,
         options,
       );
     },
