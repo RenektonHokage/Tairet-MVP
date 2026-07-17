@@ -1,5 +1,8 @@
 # SOURCE OF TRUTH — Tairet MVP (tairet-mono-2)
 
+> [!IMPORTANT]
+> **Clasificación:** baseline histórico del MVP, parcialmente superado. No es la fuente de estado operativo actual de Access Core. Para elegir la fuente mínima vigente, usar [`docs/access-core/INDEX.md`](docs/access-core/INDEX.md); para estado operativo, usar [`docs/access-core/CURRENT_STATE.md`](docs/access-core/CURRENT_STATE.md).
+
 **Última actualización:** 2025-12-22  
 **Monorepo:** PNPM workspace con backend Express+TS, panel Next.js 15, B2C Vite+React
 

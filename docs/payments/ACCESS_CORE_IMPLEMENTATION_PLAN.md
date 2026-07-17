@@ -1,5 +1,8 @@
 # Access Core Implementation Plan
 
+> [!IMPORTANT]
+> **Clasificación:** ledger histórico de implementación hasta su corte documentado; no es el estado ni roadmap actual de Access Core. Para estado usar [`../access-core/CURRENT_STATE.md`](../access-core/CURRENT_STATE.md); para secuencia y gates usar [`../access-core/ROADMAP.md`](../access-core/ROADMAP.md).
+
 ## 1. Estado general
 
 Estado: tracking de implementacion por slices.

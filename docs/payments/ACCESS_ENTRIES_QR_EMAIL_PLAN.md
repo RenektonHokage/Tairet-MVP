@@ -1,5 +1,8 @@
 # Access Entries + QR + Email Plan
 
+> [!IMPORTANT]
+> **Clasificación:** plan y evidencia histórica del bloque original de entries, QR y email directo. No define la authority actual ni el diseño operativo durable posterior. Empezar por [`../access-core/INDEX.md`](../access-core/INDEX.md) y usar [`../access-core/CURRENT_STATE.md`](../access-core/CURRENT_STATE.md) para activation/authority.
+
 ## 1. Contexto cerrado
 
 Bancard Access Core ya tiene estos hitos cerrados:

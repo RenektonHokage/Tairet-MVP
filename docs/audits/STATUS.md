@@ -1,5 +1,8 @@
 # TAIRET — STATUS
 
+> [!IMPORTANT]
+> **Alcance:** snapshot operativo del programa de hardening legacy descrito en `docs/audits/`; no representa el estado actual de Access Core. Para Access Core usar [`../access-core/INDEX.md`](../access-core/INDEX.md) y [`../access-core/CURRENT_STATE.md`](../access-core/CURRENT_STATE.md).
+
 ## 1) Título
 
 **TAIRET — STATUS**

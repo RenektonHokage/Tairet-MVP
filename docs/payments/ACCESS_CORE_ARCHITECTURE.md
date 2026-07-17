@@ -1,5 +1,8 @@
 # Arquitectura del Core Access para Tairet
 
+> [!IMPORTANT]
+> **Clasificación:** referencia de arquitectura y motivación, parcialmente superada por la implementación posterior. No usar este documento como `CURRENT_STATE`, autoridad operativa o autorización. Empezar por [`../access-core/INDEX.md`](../access-core/INDEX.md) y consultar [`../access-core/INVARIANTS.md`](../access-core/INVARIANTS.md) para decisiones estables vigentes.
+
 ## 1. Estado del documento
 
 Estado: pre-implementacion / diseno.

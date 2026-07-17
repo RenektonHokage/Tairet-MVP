@@ -31,8 +31,10 @@ Puerto: típicamente `5173` si está libre (mirá el output del terminal).
 
 ## Docs
 
+- **[AGENTS.md](AGENTS.md)** - Mapa y guardrails persistentes para agentes
+- **[docs/access-core/INDEX.md](docs/access-core/INDEX.md)** - Lectura mínima y fuentes canónicas de Access Core
 - **[docs/RUNBOOK.md](docs/RUNBOOK.md)** - Guía rápida para levantar servicios y verificar que todo funciona
-- **[SOURCE_OF_TRUTH.md](SOURCE_OF_TRUTH.md)** - Documentación completa de arquitectura, endpoints, y estado del sistema
+- **[SOURCE_OF_TRUTH.md](SOURCE_OF_TRUTH.md)** - Baseline histórico del MVP; parcialmente superado
 
 ## Smoke tests
 

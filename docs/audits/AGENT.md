@@ -1,5 +1,8 @@
 # AGENTS.md — TAIRET
 
+> [!IMPORTANT]
+> **Referencia no autoload:** el nombre singular `AGENT.md` no se carga automáticamente como instrucción de repositorio. Los guardrails vigentes están en [`../../AGENTS.md`](../../AGENTS.md); el mapa mínimo de Access Core está en [`../access-core/INDEX.md`](../access-core/INDEX.md). El cuerpo siguiente se conserva como referencia del programa de auditoría/hardening legacy.
+
 ## 1) Propósito
 
 Este archivo define las reglas persistentes de trabajo para cualquier agente que lea, analice, documente o modifique el repositorio de Tairet.

@@ -1,5 +1,8 @@
 # AGENT.md — docs/panel
 
+> [!IMPORTANT]
+> **Referencia no autoload:** Codex no carga automáticamente este archivo singular. Usar [`../../AGENTS.md`](../../AGENTS.md) como guardrail vigente y [`../access-core/INDEX.md`](../access-core/INDEX.md) cuando el trabajo del panel afecte Access Core. El cuerpo siguiente conserva contexto histórico específico del panel.
+
 ## Propósito
 
 Este directorio contiene la fuente de verdad documental para iniciativas relacionadas con el panel B2B de Tairet.

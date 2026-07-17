@@ -1,5 +1,8 @@
 # TAIRET — HARDENING_ROADMAP (V1)
 
+> [!IMPORTANT]
+> **Alcance:** roadmap del programa de hardening legacy; no autoriza ni describe el siguiente trabajo de Access Core. Para secuencia, gates y autorización de Access Core usar [`../access-core/ROADMAP.md`](../access-core/ROADMAP.md), comenzando por [`../access-core/INDEX.md`](../access-core/INDEX.md).
+
 ## 1) Título
 
 **TAIRET — HARDENING_ROADMAP (V1)**
