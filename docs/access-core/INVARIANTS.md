@@ -35,13 +35,18 @@ These are stable decisions and safety properties. They do not describe current d
 3. The durable request hash covers the provider-visible payload and template version, not a secret or plaintext lease token.
 4. A provider call may begin only after a conclusive SQL claim grants current mutation authority.
 5. Delivery-attempt identity and state, email generation, idempotency key, request hash, and recorded outcome remain under fenced SQL authority; provider responses are evidence, never state authority.
-6. The provider contract exposes only allowlisted outcomes: accepted, retryable failure, terminal failure, or ambiguous.
-7. Provider message content is never classification authority.
-8. A provider timeout or transport uncertainty after send start is ambiguous, not a safe retry conclusion.
-9. “Pre-claim” means before starting a new delivery claim or provider call; it does not assert that the current generation has no historical provider activity.
-10. Terminal pre-claim recording is fenced by order, generation, lease token, and epoch and has a closed error-code allowlist.
-11. A terminal pre-claim failure may coexist with exactly one earlier current-generation `ambiguous` attempt only when no `processing` or `accepted` attempt exists; the ambiguous attempt remains intact as the authoritative historical provider evidence, no new claim, provider call, or provider outcome is created or implied, and the marker identifies only the exact terminal request.
-12. Legacy direct delivery and durable delivery cannot both hold email authority. Cutover must be explicit, gated, and reversible.
+6. PostgreSQL is the authority for the remaining idempotency-window duration. The correlated public `processing` contract exposes the nonnegative duration `idempotency_remaining_ms`; it exposes neither `idempotency_expires_at` nor `database_now`.
+7. Node must not compare an absolute PostgreSQL timestamp with `Date.now()` or another local wall clock. The future `B3B4A` worker must discount the SQL duration only by monotonic local elapsed time measured from the start of the RPC attempt that produced the conclusive `processing` response: `elapsedSinceConclusiveClaimAttemptStartedMs = monotonicNow - conclusiveClaimAttemptStartedAt`; `conservativeIdempotencyRemainingMs = max(0, sqlIdempotencyRemainingMs - elapsedSinceConclusiveClaimAttemptStartedMs)`.
+8. A provider may start only when `conservativeIdempotencyRemainingMs >= effectiveProviderTimeoutMs + 1000`. `MIN_STAGE_WINDOW_MS = 1000` is not clock-skew allowance; it covers only local jitter, quantization, and the synchronous interval between the final guard and `provider.send`, with no intervening `await`.
+9. After a conclusive `processing` response, insufficient margin requires `providerCalls = 0`, `releaseCalls = 0`, and `newClaimCalls = 0`; `record_access_email_delivery_outcome` records a retryable `failed` outcome with `errorCode = worker_email_idempotency_window_insufficient`, `retryAfterSeconds = 60`, and `providerMessageId = null`, without manual review.
+10. The temporal rule is decided, but its worker implementation belongs to `B3B4A`; the correlation prerequisite does not implement that behavior. Legacy and correlated `processing` responses may coexist during compatibility, but only the correlated form is sufficient evidence for a future provider start.
+11. The provider contract exposes only allowlisted outcomes: accepted, retryable failure, terminal failure, or ambiguous.
+12. Provider message content is never classification authority.
+13. A provider timeout or transport uncertainty after send start is ambiguous, not a safe retry conclusion.
+14. “Pre-claim” means before starting a new delivery claim or provider call; it does not assert that the current generation has no historical provider activity.
+15. Terminal pre-claim recording is fenced by order, generation, lease token, and epoch and has a closed error-code allowlist.
+16. A terminal pre-claim failure may coexist with exactly one earlier current-generation `ambiguous` attempt only when no `processing` or `accepted` attempt exists; the ambiguous attempt remains intact as the authoritative historical provider evidence, no new claim, provider call, or provider outcome is created or implied, and the marker identifies only the exact terminal request.
+17. Legacy direct delivery and durable delivery cannot both hold email authority. Cutover must be explicit, gated, and reversible.
 
 ## Migrations and database boundaries
 

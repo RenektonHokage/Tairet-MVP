@@ -10,6 +10,7 @@ import {
   type AccessFulfillmentRpcTransportRequest,
   type AccessFulfillmentRpcTransportResult,
   createAccessFulfillmentClient,
+  isCorrelatedEmailDeliveryProcessingResponse,
   parseEmailDeliveryClaimResponse,
   parseEmailDeliveryOutcomeResponse,
   parseEmailPreclaimTerminalFailureResponse,
@@ -26,6 +27,7 @@ const DELIVERY_ATTEMPT_ID = "44444444-4444-4444-8444-444444444444";
 const ENTRY_ID_A = "ffffffff-ffff-4fff-8fff-ffffffffffff";
 const ENTRY_ID_B = "00000000-0000-4000-8000-000000000000";
 const ENTRY_SNAPSHOT_HASH = "a".repeat(64);
+const REQUEST_PAYLOAD_HASH = "b".repeat(64);
 
 const PRECLAIM_TERMINAL_FAILURE_ERROR_CODES = [
   "order_invalid",
@@ -109,13 +111,27 @@ const EMAIL_CLAIM_PROCESSING = {
   delivery_attempt_id: DELIVERY_ATTEMPT_ID,
   generation: 1,
   provider: "resend",
-  idempotency_key: "access/order/generation/1",
+  idempotency_key: `access-email-delivery/${DELIVERY_ATTEMPT_ID}`,
   entry_ids: [ENTRY_ID_A, ENTRY_ID_B],
   entry_snapshot_hash: ENTRY_SNAPSHOT_HASH,
   template_version: "access-v1",
   epoch: 7,
   idempotent: false,
 };
+
+const EMAIL_CLAIM_CORRELATED_PROCESSING = {
+  ...EMAIL_CLAIM_PROCESSING,
+  entry_count: 2,
+  request_payload_hash: REQUEST_PAYLOAD_HASH,
+  idempotency_remaining_ms: 60_000,
+};
+
+function assertMalformedEmailClaim(input: unknown): void {
+  assert.equal(
+    parseEmailDeliveryClaimResponse(input).kind,
+    "malformed_response",
+  );
+}
 
 interface RecordedRpcCall {
   name: AccessFulfillmentRpcName;
@@ -292,6 +308,214 @@ describe("access fulfillment response parsers", () => {
       entry_snapshot_hash: "sha256:snapshot",
     });
     assert.equal(invalidSnapshotHash.kind, "malformed_response");
+  });
+
+  it("parses fresh, replayed, and reclaimed correlated processing responses", () => {
+    const cases = [
+      {
+        name: "fresh",
+        response: EMAIL_CLAIM_CORRELATED_PROCESSING,
+        expectedIdempotent: false,
+      },
+      {
+        name: "replay",
+        response: {
+          ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+          idempotency_remaining_ms: 59_000,
+          idempotent: true,
+        },
+        expectedIdempotent: true,
+      },
+      {
+        name: "ambiguous reclaim",
+        response: {
+          ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+          idempotency_remaining_ms: 58_000,
+          idempotent: false,
+        },
+        expectedIdempotent: false,
+      },
+    ];
+
+    const expectedFields = [
+      "delivery_attempt_id",
+      "entry_count",
+      "entry_ids",
+      "entry_snapshot_hash",
+      "epoch",
+      "generation",
+      "idempotency_key",
+      "idempotency_remaining_ms",
+      "idempotent",
+      "ok",
+      "order_id",
+      "provider",
+      "request_payload_hash",
+      "status",
+      "template_version",
+    ];
+
+    for (const testCase of cases) {
+      const parsed = parseEmailDeliveryClaimResponse(testCase.response);
+      assert.equal(parsed.kind, "success", testCase.name);
+      if (parsed.kind !== "success" || parsed.response.status !== "processing") {
+        assert.fail(`expected correlated processing for ${testCase.name}`);
+      }
+      assert.equal(isCorrelatedEmailDeliveryProcessingResponse(parsed.response), true);
+      if (!isCorrelatedEmailDeliveryProcessingResponse(parsed.response)) {
+        assert.fail(`expected correlated type guard for ${testCase.name}`);
+      }
+      assert.deepEqual(Object.keys(parsed.response).sort(), expectedFields);
+      assert.deepEqual(parsed.response.entry_ids, [ENTRY_ID_A, ENTRY_ID_B]);
+      assert.equal(parsed.response.entry_count, 2);
+      assert.equal(parsed.response.request_payload_hash, REQUEST_PAYLOAD_HASH);
+      assert.equal(parsed.response.idempotent, testCase.expectedIdempotent);
+    }
+  });
+
+  it("keeps complete legacy processing compatible without granting correlated evidence", () => {
+    const parsed = parseEmailDeliveryClaimResponse(EMAIL_CLAIM_PROCESSING);
+    assert.equal(parsed.kind, "success");
+    if (parsed.kind !== "success" || parsed.response.status !== "processing") {
+      assert.fail("expected legacy processing");
+    }
+    assert.equal(isCorrelatedEmailDeliveryProcessingResponse(parsed.response), false);
+    assert.equal("entry_count" in parsed.response, false);
+    assert.equal("request_payload_hash" in parsed.response, false);
+    assert.equal("idempotency_remaining_ms" in parsed.response, false);
+  });
+
+  it("rejects every partial correlated processing field combination", () => {
+    const partialFields = [
+      { entry_count: 2 },
+      { request_payload_hash: REQUEST_PAYLOAD_HASH },
+      { idempotency_remaining_ms: 60_000 },
+      { entry_count: 2, request_payload_hash: REQUEST_PAYLOAD_HASH },
+      { entry_count: 2, idempotency_remaining_ms: 60_000 },
+      {
+        request_payload_hash: REQUEST_PAYLOAD_HASH,
+        idempotency_remaining_ms: 60_000,
+      },
+    ];
+
+    for (const fields of partialFields) {
+      assertMalformedEmailClaim({ ...EMAIL_CLAIM_PROCESSING, ...fields });
+    }
+
+    assertMalformedEmailClaim({
+      ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+      unexpected: true,
+    });
+  });
+
+  it("validates correlated entry count and entry IDs strictly", () => {
+    const invalidCounts = [
+      0,
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+      1,
+    ];
+    for (const entryCount of invalidCounts) {
+      assertMalformedEmailClaim({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        entry_count: entryCount,
+      });
+    }
+
+    const invalidEntrySets = [
+      [],
+      [ENTRY_ID_A, "not-a-uuid"],
+      [ENTRY_ID_A, ENTRY_ID_A],
+    ];
+    for (const entryIds of invalidEntrySets) {
+      assertMalformedEmailClaim({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        entry_ids: entryIds,
+      });
+    }
+  });
+
+  it("requires lowercase 64-character hexadecimal correlation hashes", () => {
+    const invalidHashes: unknown[] = [
+      "A".repeat(64),
+      "g".repeat(64),
+      "a".repeat(63),
+      "a".repeat(65),
+      "",
+      null,
+    ];
+
+    for (const field of ["entry_snapshot_hash", "request_payload_hash"] as const) {
+      for (const value of invalidHashes) {
+        assertMalformedEmailClaim({
+          ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+          [field]: value,
+        });
+      }
+    }
+  });
+
+  it("requires the correlated idempotency key to name the delivery attempt", () => {
+    const exact = parseEmailDeliveryClaimResponse(EMAIL_CLAIM_CORRELATED_PROCESSING);
+    assert.equal(exact.kind, "success");
+
+    const invalidKeys = [
+      "access-email-delivery/55555555-5555-4555-8555-555555555555",
+      "access/order/generation/1",
+      "",
+      `email-delivery/${DELIVERY_ATTEMPT_ID}`,
+    ];
+    for (const idempotencyKey of invalidKeys) {
+      assertMalformedEmailClaim({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        idempotency_key: idempotencyKey,
+      });
+    }
+  });
+
+  it("accepts only non-negative safe integer idempotency remaining durations", () => {
+    for (const remaining of [0, 1, 42_000, Number.MAX_SAFE_INTEGER]) {
+      const parsed = parseEmailDeliveryClaimResponse({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        idempotency_remaining_ms: remaining,
+      });
+      assert.equal(parsed.kind, "success");
+    }
+
+    for (const remaining of [
+      -1,
+      1.5,
+      Number.MAX_SAFE_INTEGER + 1,
+      "1000",
+      null,
+    ]) {
+      assertMalformedEmailClaim({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        idempotency_remaining_ms: remaining,
+      });
+    }
+  });
+
+  it("rejects forbidden correlated processing fields and providers", () => {
+    const forbiddenExtras = [
+      { provider_call_count: 1 },
+      { idempotency_expires_at: "2026-07-18T12:00:00Z" },
+      { database_now: "2026-07-18T12:00:00Z" },
+    ];
+    for (const fields of forbiddenExtras) {
+      assertMalformedEmailClaim({
+        ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+        ...fields,
+      });
+    }
+
+    assertMalformedEmailClaim({
+      ...EMAIL_CLAIM_CORRELATED_PROCESSING,
+      provider: "provider-neutral",
+    });
   });
 
   it("parses skipped claims and reports unknown claim status separately", () => {
@@ -635,6 +859,174 @@ describe("access fulfillment response parsers", () => {
     assert.equal(claimError.response.delivery_attempt_id, DELIVERY_ATTEMPT_ID);
     assert.equal(outcomeError.response.error.code, "future_business_code");
     assert.equal(releaseError.response.retryable, true);
+  });
+
+  it("classifies every real email claim business error without rewriting its code", () => {
+    const businessErrors = [
+      {
+        ok: false,
+        error: { code: "invalid_request", message: "Invalid request" },
+      },
+      {
+        ok: false,
+        error: { code: "invalid_provider", message: "Invalid provider" },
+      },
+      {
+        ok: false,
+        error: { code: "order_not_found", message: "Order not found" },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: { code: "fulfillment_not_found", message: "Fulfillment not found" },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: { code: "stale_lease", message: "Stale lease" },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "issuance_manual_review",
+          message: "Completed issuance requires manual review",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "issuance_not_complete",
+          message: "Entry issuance is not complete",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        delivery_attempt_id: DELIVERY_ATTEMPT_ID,
+        error: {
+          code: "ambiguous_idempotency_window_expired",
+          message: "Idempotency window expired",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "multiple_approved_payment_attempts",
+          message: "Order does not have exactly one approved payment attempt",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "fulfillment_attempt_mismatch",
+          message: "Fulfillment payment attempt mismatch",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "unsupported_approved_provider",
+          message: "Approved payment provider is unsupported",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: { code: "order_not_paid", message: "Order is not paid" },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        delivery_attempt_id: null,
+        error: {
+          code: "delivery_payload_drift",
+          message: "Delivery payload no longer matches the entry snapshot",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "email_manual_review",
+          message: "Email delivery requires manual review",
+        },
+      },
+      {
+        ok: false,
+        order_id: ORDER_ID,
+        error: {
+          code: "delivery_state_conflict",
+          message: "Delivery state conflict",
+        },
+      },
+      {
+        ok: false,
+        retryable: true,
+        error: { code: "concurrency_conflict", message: "Concurrency conflict" },
+      },
+      {
+        ok: false,
+        error: { code: "internal_error", message: "Internal error" },
+      },
+    ];
+
+    for (const response of businessErrors) {
+      const parsed = parseEmailDeliveryClaimResponse(response);
+      assert.equal(parsed.kind, "business_error", response.error.code);
+      if (parsed.kind !== "business_error") {
+        assert.fail(`expected business error ${response.error.code}`);
+      }
+      assert.equal(parsed.response.error.code, response.error.code);
+    }
+  });
+
+  it("normalizes null and omitted claim attempt IDs while preserving valid UUIDs", () => {
+    const driftError = {
+      ok: false,
+      order_id: ORDER_ID,
+      error: {
+        code: "delivery_payload_drift",
+        message: "Delivery payload no longer matches the entry snapshot",
+      },
+    };
+
+    for (const response of [
+      { ...driftError, delivery_attempt_id: null },
+      driftError,
+      { ...driftError, delivery_attempt_id: undefined },
+    ]) {
+      const parsed = parseEmailDeliveryClaimResponse(response);
+      assert.equal(parsed.kind, "business_error");
+      if (parsed.kind !== "business_error") {
+        assert.fail("expected a normalized delivery payload drift error");
+      }
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(parsed.response, "delivery_attempt_id"),
+        false,
+      );
+    }
+
+    const correlated = parseEmailDeliveryClaimResponse({
+      ...driftError,
+      delivery_attempt_id: DELIVERY_ATTEMPT_ID,
+    });
+    assert.equal(correlated.kind, "business_error");
+    if (correlated.kind !== "business_error") {
+      assert.fail("expected a correlated delivery payload drift error");
+    }
+    assert.equal(correlated.response.delivery_attempt_id, DELIVERY_ATTEMPT_ID);
+
+    for (const deliveryAttemptId of ["not-a-uuid", 42]) {
+      assertMalformedEmailClaim({
+        ...driftError,
+        delivery_attempt_id: deliveryAttemptId,
+      });
+    }
   });
 });
 

@@ -123,32 +123,85 @@ const reconcileErrorSchema = z
   })
   .strict();
 
+const emailClaimProcessingShape = {
+  ok: z.literal(true),
+  status: z.literal("processing"),
+  order_id: uuidSchema,
+  delivery_attempt_id: uuidSchema,
+  generation: positiveIntegerSchema,
+  provider: z.literal("resend"),
+  idempotency_key: nonEmptyStringSchema,
+  entry_ids: z.array(uuidSchema).min(1),
+  entry_snapshot_hash: sha256HexSchema,
+  template_version: nonEmptyStringSchema,
+  epoch: positiveIntegerSchema,
+  idempotent: z.boolean(),
+} as const;
+
+function validateUniqueEmailClaimEntryIds(
+  value: { entry_ids: string[] },
+  context: z.RefinementCtx,
+): void {
+  if (new Set(value.entry_ids).size !== value.entry_ids.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["entry_ids"],
+      message: "must not contain duplicate entry IDs",
+    });
+  }
+}
+
 // Migration 046 never returns provider_call_count; strict parsing rejects that invented field.
-const emailClaimProcessingSchema = z
+const legacyEmailClaimProcessingSchema = z
+  .object(emailClaimProcessingShape)
+  .strict()
+  .superRefine(validateUniqueEmailClaimEntryIds);
+
+const correlatedEmailClaimProcessingSchema = z
   .object({
-    ok: z.literal(true),
-    status: z.literal("processing"),
-    order_id: uuidSchema,
-    delivery_attempt_id: uuidSchema,
-    generation: positiveIntegerSchema,
-    provider: z.literal("resend"),
-    idempotency_key: nonEmptyStringSchema,
-    entry_ids: z.array(uuidSchema).min(1),
-    entry_snapshot_hash: sha256HexSchema,
-    template_version: nonEmptyStringSchema,
-    epoch: positiveIntegerSchema,
-    idempotent: z.boolean(),
+    ...emailClaimProcessingShape,
+    entry_count: positiveIntegerSchema,
+    request_payload_hash: sha256HexSchema,
+    idempotency_remaining_ms: nonNegativeIntegerSchema,
   })
   .strict()
   .superRefine((value, context) => {
-    if (new Set(value.entry_ids).size !== value.entry_ids.length) {
+    validateUniqueEmailClaimEntryIds(value, context);
+
+    if (value.entry_count !== value.entry_ids.length) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["entry_ids"],
-        message: "must not contain duplicate entry IDs",
+        path: ["entry_count"],
+        message: "must equal the number of returned entry IDs",
+      });
+    }
+
+    if (value.idempotency_key !== `access-email-delivery/${value.delivery_attempt_id}`) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["idempotency_key"],
+        message: "must correlate to delivery_attempt_id",
       });
     }
   });
+
+export type LegacyEmailDeliveryProcessingResponse = z.infer<
+  typeof legacyEmailClaimProcessingSchema
+>;
+
+export type CorrelatedEmailDeliveryProcessingResponse = z.infer<
+  typeof correlatedEmailClaimProcessingSchema
+>;
+
+export type EmailDeliveryProcessingResponse =
+  | LegacyEmailDeliveryProcessingResponse
+  | CorrelatedEmailDeliveryProcessingResponse;
+
+export function isCorrelatedEmailDeliveryProcessingResponse(
+  response: unknown,
+): response is CorrelatedEmailDeliveryProcessingResponse {
+  return correlatedEmailClaimProcessingSchema.safeParse(response).success;
+}
 
 const emailClaimSkippedSchema = z
   .object({
@@ -166,12 +219,18 @@ const emailClaimErrorSchema = z
     ok: z.literal(false),
     retryable: z.boolean().optional(),
     order_id: uuidSchema.optional(),
-    delivery_attempt_id: uuidSchema.optional(),
+    delivery_attempt_id: uuidSchema.nullable().optional(),
     generation: positiveIntegerSchema.optional(),
     epoch: positiveIntegerSchema.optional(),
     error: rpcErrorSchema,
   })
-  .strict();
+  .strict()
+  .transform(({ delivery_attempt_id: deliveryAttemptId, ...response }) => ({
+    ...response,
+    ...(deliveryAttemptId === null || deliveryAttemptId === undefined
+      ? {}
+      : { delivery_attempt_id: deliveryAttemptId }),
+  }));
 
 const acceptedEmailOutcomeSchema = z
   .object({
@@ -395,7 +454,7 @@ export type ReconcileFulfillmentResponse =
 
 export type EmailDeliveryClaimResponse =
   | SuccessfulRpcResponse<
-      z.infer<typeof emailClaimProcessingSchema> | z.infer<typeof emailClaimSkippedSchema>
+      EmailDeliveryProcessingResponse | z.infer<typeof emailClaimSkippedSchema>
     >
   | BusinessRpcError<z.infer<typeof emailClaimErrorSchema>>
   | MalformedRpcResponse
@@ -513,7 +572,13 @@ export function parseIssueAccessEntriesResponse(input: unknown): ReconcileFulfil
 }
 
 export function parseEmailDeliveryClaimResponse(input: unknown): EmailDeliveryClaimResponse {
-  const success = z.union([emailClaimProcessingSchema, emailClaimSkippedSchema]).safeParse(input);
+  const success = z
+    .union([
+      correlatedEmailClaimProcessingSchema,
+      legacyEmailClaimProcessingSchema,
+      emailClaimSkippedSchema,
+    ])
+    .safeParse(input);
   if (success.success) {
     return { kind: "success", rpc: ACCESS_FULFILLMENT_RPC.claimEmail, response: success.data };
   }

@@ -17,15 +17,21 @@ This file records sequence and gates. It does not authorize work by itself and d
 
 The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replace the public `B6` cutover and `B7` rollout stages below.
 
-The latest corresponding checkpoint is [`9E.5B3B4Q`](exec-plans/completed/9E.5B3B4Q.md). Migration 048 is function-only: it preserves the existing RPC signature and TypeScript client, and allows terminal recording when exactly one historical current-generation `ambiguous` attempt exists and remains intact. It starts no new claim, provider call, or outcome.
+The latest closed checkpoint is [`9E.5B3B4Q`](exec-plans/completed/9E.5B3B4Q.md). Migration 048 is function-only: it preserves the existing RPC signature and TypeScript client, and allows terminal recording when exactly one historical current-generation `ambiguous` attempt exists and remains intact. It starts no new claim, provider call, or outcome.
+
+## Authorized local correlation prerequisite
+
+`9E.5B3B4R` is `AUTHORIZED LOCAL CODE`, `NOT CLOSED`, and carries `NO REMOTE AUTHORITY` under the current human instruction (`REPORTED`). Its bounded scope is a function-only migration 049 with a correlated `processing` response, a compatibility parser that accepts complete legacy and strict correlated forms, and the temporal-authority contract that avoids absolute-clock comparison.
+
+R's bounded scope excludes worker or `WorkerMain` changes, starting `9E.5B3B4A`, remote migration application, deployment or activation of durable email, and operational-authority transfer. Neither reported non-application nor lack of independent remote verification for migrations 047–049 blocks authorized local, reversible CODE; verified target runtime and migration-ledger state remains a gate for any dependent deployment, activation, or rollout. No remote application is asserted or authorized here.
 
 ## Next worker state-machine slice
 
-`9E.5B3B4A` is the next eligible worker state-machine slice. It has not started and is not authorized by the closure of `9E.5B3B4Q` (`REPORTED`).
+`9E.5B3B4A` is `NEXT AFTER R`, `NOT STARTED`, and `NOT AUTHORIZED` (`REPORTED`). R does not authorize it.
 
-Its exact Goal, Read, Constraints, and Done when require a new human instruction plus a focused ASK/delta discovery.
+After R closes, a brief delta ASK must reconfirm the two-file scope—`functions/api/src/workers/accessFulfillmentWorker.ts` and `functions/api/src/workers/accessFulfillmentWorker.test.ts`—before any separate human authorization for B3B4A CODE. Its exact Goal, Read, Constraints, and Done when remain subject to that discovery and instruction.
 
-Remote application of migrations 047 and 048 is not a prerequisite for separately authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for activation, deployment, or rollout that depends on their remote schema/RPC state.
+Remote application of migrations 047–049 is not a prerequisite for separately authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for deployment, activation, or rollout that depends on their remote schema/RPC state.
 
 ## Gates after local composition
 
@@ -72,14 +78,14 @@ Required categories:
 | Work | State | Evidence |
 | --- | --- | --- |
 | `9E.5B3B4Q` | `CLOSED` | `VERIFIED_REPOSITORY` |
-| `9E.5B3B4Q` remote apply or authority transfer | None performed by the slice closure | `REPORTED` |
-| `9E.5B3B4A` | Eligible, not authorized, not started | `REPORTED` |
-| Remote migration apply | Not authorized | `REPORTED` |
+| `9E.5B3B4R` | `AUTHORIZED LOCAL CODE`; `NOT CLOSED`; `NO REMOTE AUTHORITY` | `REPORTED` |
+| `9E.5B3B4A` | `NEXT AFTER R`; `NOT STARTED`; `NOT AUTHORIZED` | `REPORTED` |
+| Remote application of migrations 047–049 | Not authorized | `REPORTED` |
 | Worker/durable-email activation | Not authorized | `REPORTED` |
 | `B6` cutover | Blocked and not authorized | `REPORTED` |
 | `B7` rollout | Blocked and not authorized | `REPORTED` |
 
-This documentation closure authorizes no product work, remote action, activation, cutover, or rollout. It does not establish that migration 048 is applied remotely.
+Only the bounded local R CODE is currently authorized. This file grants no additional product work, remote action, deployment, activation, authority transfer, cutover, or rollout, and R leaves the `B6` and `B7` states and gates unchanged.
 
 ## Contextual stops
 
