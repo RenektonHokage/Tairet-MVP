@@ -38,9 +38,10 @@ These are stable decisions and safety properties. They do not describe current d
 6. The provider contract exposes only allowlisted outcomes: accepted, retryable failure, terminal failure, or ambiguous.
 7. Provider message content is never classification authority.
 8. A provider timeout or transport uncertainty after send start is ambiguous, not a safe retry conclusion.
-9. A terminal pre-claim data failure occurs before a provider attempt and must not claim that a provider call happened.
+9. “Pre-claim” means before starting a new delivery claim or provider call; it does not assert that the current generation has no historical provider activity.
 10. Terminal pre-claim recording is fenced by order, generation, lease token, and epoch and has a closed error-code allowlist.
-11. Legacy direct delivery and durable delivery cannot both hold email authority. Cutover must be explicit, gated, and reversible.
+11. A terminal pre-claim failure may coexist with exactly one earlier current-generation `ambiguous` attempt only when no `processing` or `accepted` attempt exists; the ambiguous attempt remains intact as the authoritative historical provider evidence, no new claim, provider call, or provider outcome is created or implied, and the marker identifies only the exact terminal request.
+12. Legacy direct delivery and durable delivery cannot both hold email authority. Cutover must be explicit, gated, and reversible.
 
 ## Migrations and database boundaries
 

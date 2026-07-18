@@ -18,13 +18,19 @@ The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replac
 
 The corresponding commits and evidence are under [`exec-plans/completed/`](exec-plans/completed/9E.5B3B4P.md).
 
-## Next eligible product slice
+## Authorized function-only prerequisite
 
-`9E.5B3B4A` is the next eligible product slice and is **not authorized** by this roadmap or by the CONTEXT HARNESS V1A changeset.
+`9E.5B3B4Q` is the current explicitly authorized local prerequisite slice. Its scope is limited to additive function-only migration 048 and the two canonical documentation updates that materialize the terminal-preclaim-after-ambiguous decision.
 
-Its exact Goal, Read, Constraints, and Done when must come from a new human instruction and active execution plan. This roadmap does not invent its technical details.
+This roadmap does not mark `9E.5B3B4Q` closed and does not assert or authorize remote migration application, deployment, activation, authority transfer, cutover, or rollout.
 
-Remote application of migration 047 is not a prerequisite for authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for activation, deployment, or rollout that needs the remote schema/RPC.
+## Next worker state-machine slice
+
+`9E.5B3B4A` remains the next worker state-machine slice after `9E.5B3B4Q` closes. It has not started and is not authorized by the `9E.5B3B4Q` instruction.
+
+Its exact Goal, Read, Constraints, and Done when require a separate human instruction and execution scope.
+
+Remote application of migrations 047 and 048 is not a prerequisite for separately authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for activation, deployment, or rollout that depends on their remote schema/RPC state.
 
 ## Gates after local composition
 
@@ -71,13 +77,14 @@ Required categories:
 | Work | State |
 | --- | --- |
 | CONTEXT HARNESS V1A documentation-only changeset | Authorized by its explicit prompt; no product authority |
-| `9E.5B3B4A` | Eligible, not authorized, not started |
+| `9E.5B3B4Q` | Explicitly authorized only for its bounded local three-path changeset; not closed and no remote authority |
+| `9E.5B3B4A` | Next after `9E.5B3B4Q`; not started and not authorized by that slice |
 | Remote migration apply | Not authorized |
 | Worker/durable-email activation | Not authorized |
 | `B6` cutover | Blocked and not authorized |
 | `B7` rollout | Blocked and not authorized |
 
-After the documentation changeset is closed, no new product work is authorized until a new instruction says otherwise.
+The current human instruction authorizes only the bounded local `9E.5B3B4Q` changeset. No other product work, remote action, activation, cutover, or rollout is authorized.
 
 ## Contextual stops
 
