@@ -13,22 +13,17 @@ This file records sequence and gates. It does not authorize work by itself and d
 | `9E.5B3B2` | `CLOSED` | Canonical read-only message data loader |
 | `9E.5B3B3` | `CLOSED` | Provider-neutral contract and durable Resend adapter |
 | `9E.5B3B4P` | `CLOSED` | Terminal pre-claim persistence fence and RPC contract |
+| `9E.5B3B4Q` | `CLOSED` | Terminal preclaim after preserved ambiguous attempt |
 
 The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replace the public `B6` cutover and `B7` rollout stages below.
 
-The corresponding commits and evidence are under [`exec-plans/completed/`](exec-plans/completed/9E.5B3B4P.md).
-
-## Authorized function-only prerequisite
-
-`9E.5B3B4Q` is the current explicitly authorized local prerequisite slice. Its scope is limited to additive function-only migration 048 and the two canonical documentation updates that materialize the terminal-preclaim-after-ambiguous decision.
-
-This roadmap does not mark `9E.5B3B4Q` closed and does not assert or authorize remote migration application, deployment, activation, authority transfer, cutover, or rollout.
+The latest corresponding checkpoint is [`9E.5B3B4Q`](exec-plans/completed/9E.5B3B4Q.md). Migration 048 is function-only: it preserves the existing RPC signature and TypeScript client, and allows terminal recording when exactly one historical current-generation `ambiguous` attempt exists and remains intact. It starts no new claim, provider call, or outcome.
 
 ## Next worker state-machine slice
 
-`9E.5B3B4A` remains the next worker state-machine slice after `9E.5B3B4Q` closes. It has not started and is not authorized by the `9E.5B3B4Q` instruction.
+`9E.5B3B4A` is the next eligible worker state-machine slice. It has not started and is not authorized by the closure of `9E.5B3B4Q` (`REPORTED`).
 
-Its exact Goal, Read, Constraints, and Done when require a separate human instruction and execution scope.
+Its exact Goal, Read, Constraints, and Done when require a new human instruction plus a focused ASK/delta discovery.
 
 Remote application of migrations 047 and 048 is not a prerequisite for separately authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for activation, deployment, or rollout that depends on their remote schema/RPC state.
 
@@ -74,17 +69,17 @@ Required categories:
 
 ## Authorization ledger
 
-| Work | State |
-| --- | --- |
-| CONTEXT HARNESS V1A documentation-only changeset | Authorized by its explicit prompt; no product authority |
-| `9E.5B3B4Q` | Explicitly authorized only for its bounded local three-path changeset; not closed and no remote authority |
-| `9E.5B3B4A` | Next after `9E.5B3B4Q`; not started and not authorized by that slice |
-| Remote migration apply | Not authorized |
-| Worker/durable-email activation | Not authorized |
-| `B6` cutover | Blocked and not authorized |
-| `B7` rollout | Blocked and not authorized |
+| Work | State | Evidence |
+| --- | --- | --- |
+| `9E.5B3B4Q` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| `9E.5B3B4Q` remote apply or authority transfer | None performed by the slice closure | `REPORTED` |
+| `9E.5B3B4A` | Eligible, not authorized, not started | `REPORTED` |
+| Remote migration apply | Not authorized | `REPORTED` |
+| Worker/durable-email activation | Not authorized | `REPORTED` |
+| `B6` cutover | Blocked and not authorized | `REPORTED` |
+| `B7` rollout | Blocked and not authorized | `REPORTED` |
 
-The current human instruction authorizes only the bounded local `9E.5B3B4Q` changeset. No other product work, remote action, activation, cutover, or rollout is authorized.
+This documentation closure authorizes no product work, remote action, activation, cutover, or rollout. It does not establish that migration 048 is applied remotely.
 
 ## Contextual stops
 
