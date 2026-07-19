@@ -14,22 +14,23 @@ This file records sequence and gates. It does not authorize work by itself and d
 | `9E.5B3B3` | `CLOSED` | Provider-neutral contract and durable Resend adapter |
 | `9E.5B3B4P` | `CLOSED` | Terminal pre-claim persistence fence and RPC contract |
 | `9E.5B3B4Q` | `CLOSED` | Terminal preclaim after preserved ambiguous attempt |
+| `9E.5B3B4R` | `CLOSED` | Delivery-claim correlation response and compatible parser |
 
 The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replace the public `B6` cutover and `B7` rollout stages below.
 
-The latest closed checkpoint is [`9E.5B3B4Q`](exec-plans/completed/9E.5B3B4Q.md). Migration 048 is function-only: it preserves the existing RPC signature and TypeScript client, and allows terminal recording when exactly one historical current-generation `ambiguous` attempt exists and remains intact. It starts no new claim, provider call, or outcome.
+The latest closed checkpoint is [`9E.5B3B4R`](exec-plans/completed/9E.5B3B4R.md). Migration 049 is a function-only replacement of the delivery-claim RPC with the same signature, provider default, security boundary, and ACL. Its fresh, replay, and reclaim `processing` responses add `entry_count`, `request_payload_hash`, and PostgreSQL-authoritative `idempotency_remaining_ms`; the compatible parser accepts complete legacy and strict correlated forms and normalizes a null or omitted drift attempt ID to absence.
 
-## Authorized local correlation prerequisite
+## Closed correlation prerequisite
 
-`9E.5B3B4R` is `AUTHORIZED LOCAL CODE`, `NOT CLOSED`, and carries `NO REMOTE AUTHORITY` under the current human instruction (`REPORTED`). Its bounded scope is a function-only migration 049 with a correlated `processing` response, a compatibility parser that accepts complete legacy and strict correlated forms, and the temporal-authority contract that avoids absolute-clock comparison.
+`9E.5B3B4R` is `CLOSED` (`VERIFIED_REPOSITORY`). It closes the correlation prerequisite for the future worker state machine without modifying worker code or `WorkerMain`, applying a migration remotely, deploying or activating durable email, or transferring operational authority.
 
-R's bounded scope excludes worker or `WorkerMain` changes, starting `9E.5B3B4A`, remote migration application, deployment or activation of durable email, and operational-authority transfer. Neither reported non-application nor lack of independent remote verification for migrations 047–049 blocks authorized local, reversible CODE; verified target runtime and migration-ledger state remains a gate for any dependent deployment, activation, or rollout. No remote application is asserted or authorized here.
+PostgreSQL remains the authority for the returned remaining duration. A future Node worker must discount that duration only with monotonic elapsed time; the fixed 1000 ms stage margin is not clock-skew allowance. These rules are closed invariants, while their worker implementation remains outside R.
 
 ## Next worker state-machine slice
 
-`9E.5B3B4A` is `NEXT AFTER R`, `NOT STARTED`, and `NOT AUTHORIZED` (`REPORTED`). R does not authorize it.
+`9E.5B3B4A` is `NEXT ELIGIBLE`, `NOT STARTED`, and `NOT AUTHORIZED` (`REPORTED`). R does not authorize it.
 
-After R closes, a brief delta ASK must reconfirm the two-file scope—`functions/api/src/workers/accessFulfillmentWorker.ts` and `functions/api/src/workers/accessFulfillmentWorker.test.ts`—before any separate human authorization for B3B4A CODE. Its exact Goal, Read, Constraints, and Done when remain subject to that discovery and instruction.
+After R's documentation closure, a brief delta ASK must reconfirm the two-file scope—`functions/api/src/workers/accessFulfillmentWorker.ts` and `functions/api/src/workers/accessFulfillmentWorker.test.ts`—before any separate human authorization for B3B4A CODE. Its exact Goal, Read, Constraints, and Done when remain subject to that discovery and instruction.
 
 Remote application of migrations 047–049 is not a prerequisite for separately authorized local, reversible ASK/CODE in `9E.5B3B4A`. It becomes a gate only for deployment, activation, or rollout that depends on their remote schema/RPC state.
 
@@ -78,14 +79,14 @@ Required categories:
 | Work | State | Evidence |
 | --- | --- | --- |
 | `9E.5B3B4Q` | `CLOSED` | `VERIFIED_REPOSITORY` |
-| `9E.5B3B4R` | `AUTHORIZED LOCAL CODE`; `NOT CLOSED`; `NO REMOTE AUTHORITY` | `REPORTED` |
-| `9E.5B3B4A` | `NEXT AFTER R`; `NOT STARTED`; `NOT AUTHORIZED` | `REPORTED` |
+| `9E.5B3B4R` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| `9E.5B3B4A` | `NEXT ELIGIBLE`; `NOT STARTED`; `NOT AUTHORIZED` | `REPORTED` |
 | Remote application of migrations 047–049 | Not authorized | `REPORTED` |
 | Worker/durable-email activation | Not authorized | `REPORTED` |
 | `B6` cutover | Blocked and not authorized | `REPORTED` |
 | `B7` rollout | Blocked and not authorized | `REPORTED` |
 
-Only the bounded local R CODE is currently authorized. This file grants no additional product work, remote action, deployment, activation, authority transfer, cutover, or rollout, and R leaves the `B6` and `B7` states and gates unchanged.
+No product CODE is authorized by this closure. This file grants no remote action, deployment, activation, authority transfer, cutover, or rollout, and R leaves the `B6` and `B7` states and gates unchanged.
 
 ## Contextual stops
 
