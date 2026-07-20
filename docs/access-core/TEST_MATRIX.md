@@ -34,7 +34,7 @@ These are manual/review commands today; no tracked harness script is implied.
 | Read-only Supabase adapter | `functions/api/src/services/accessEmailMessageDataSupabase.test.ts` |
 | Provider-neutral outcomes | `functions/api/src/services/accessEmailProvider.test.ts` |
 | Resend adapter classification/deadlines | `functions/api/src/services/accessEmailProviderResend.test.ts` |
-| Reconcile-only worker, lease fencing, shutdown | `functions/api/src/workers/accessFulfillmentWorker.test.ts` |
+| Issuance/reconcile regression; durable-OFF defer; capability validation; loader/builder orchestration; terminal preclaim; correlated delivery claim; provider outcomes; bounded settlement; deadline, shutdown, and fatal races; accounting; safe logging | `functions/api/src/workers/accessFulfillmentWorker.test.ts` |
 
 Run only the focused files relevant to the implementation while iterating.
 
@@ -44,6 +44,9 @@ Available package-level gates include:
 
 - `pnpm -C functions/api test`
 - `pnpm -C functions/api typecheck`
+- `pnpm -C functions/api build`
+
+The global `functions/api` lint gate is currently blocked before analysis by pre-existing infrastructure. Recent slices used a temporary, reproducible directed lint invocation for their changed TypeScript files; that invocation is changeset-specific review evidence, not permanent available tooling.
 
 Use the complete applicable suite once per changeset version. Documentation-only work does not require API tests, build, typecheck, or SQL execution unless its explicit prompt says otherwise.
 
