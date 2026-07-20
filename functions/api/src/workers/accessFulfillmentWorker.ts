@@ -6,9 +6,37 @@ import {
 } from "../config/accessFulfillment";
 import type {
   AccessFulfillmentClient,
+  AccessEmailPreclaimTerminalFailureErrorCode,
+  ClaimEmailDeliveryInput,
+  ClaimEmailDeliveryResult,
   ClaimFulfillmentBatchResult,
+  CorrelatedEmailDeliveryProcessingResponse,
+  RecordEmailDeliveryOutcomeInput,
+  RecordEmailDeliveryOutcomeResult,
+  RecordEmailPreclaimTerminalFailureInput,
+  RecordEmailPreclaimTerminalFailureResult,
   ReleaseFulfillmentLeaseResult,
 } from "../services/accessFulfillment";
+import { isCorrelatedEmailDeliveryProcessingResponse } from "../services/accessFulfillment";
+import {
+  ACCESS_ENTRIES_EMAIL_SUBJECT,
+  ACCESS_ENTRIES_EMAIL_TEMPLATE_VERSION,
+  AccessEmailMessageError,
+  calculateAccessEmailRequestPayloadHash,
+  canonicalizeAccessEntriesEmailEntries,
+  normalizeAccessEmailAddress,
+  type AccessEmailMessage,
+  type BuiltAccessEntriesEmailMessage,
+} from "../services/accessEmailMessage";
+import type {
+  AccessEmailMessageData,
+  AccessEmailMessageDataLoadResult,
+  AccessEmailMessageDataReadOptions,
+} from "../services/accessEmailMessageData";
+import type {
+  AccessEmailProvider,
+  AccessEmailProviderOutcome,
+} from "../services/accessEmailProvider";
 import {
   createAbortDeadline,
   type AbortDeadline,
@@ -17,15 +45,34 @@ import {
 export const ACCESS_FULFILLMENT_CORRELATION_HASH_LENGTH = 16;
 
 const SAFE_ERROR_CODE = /^[a-z][a-z0-9_]{0,63}$/;
+const CANONICAL_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LOWERCASE_SHA256 = /^[0-9a-f]{64}$/;
+const SIMPLE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const NAMED_EMAIL_FROM = /^([^<>]+)<([^<>]+)>$/;
+const MAX_EMAIL_OBLIGATION_ATTEMPTS = 2;
+const MIN_STAGE_WINDOW_MS = 1_000;
+const MAX_EMAIL_RETRY_AFTER_SECONDS = 604_800;
 
 export type AccessFulfillmentWorkerClient = Pick<
   AccessFulfillmentClient,
-  "claimFulfillmentBatch" | "reconcileOrderFulfillment" | "releaseFulfillmentLease"
+  | "claimFulfillmentBatch"
+  | "reconcileOrderFulfillment"
+  | "releaseFulfillmentLease"
+  | "claimEmailDelivery"
+  | "recordEmailDeliveryOutcome"
+  | "recordEmailPreclaimTerminalFailure"
 >;
 
 export type AccessFulfillmentWorkerConfig = Pick<
   AccessFulfillmentConfig,
-  "batchSize" | "pollIntervalMs" | "leaseSeconds" | "concurrency" | "rpcTimeoutMs"
+  | "batchSize"
+  | "pollIntervalMs"
+  | "leaseSeconds"
+  | "concurrency"
+  | "rpcTimeoutMs"
+  | "durableEmailDeliveryEnabled"
+  | "emailProviderTimeoutMs"
 >;
 
 type ClaimedBatch = Extract<ClaimFulfillmentBatchResult, { kind: "success" }>;
@@ -47,6 +94,21 @@ export type AccessFulfillmentWorkerDeadlineFactory = (
   externalSignal?: AbortSignal,
 ) => AbortDeadline;
 
+export interface AccessFulfillmentEmailCapability {
+  load(
+    orderId: string,
+    options?: AccessEmailMessageDataReadOptions,
+  ): Promise<AccessEmailMessageDataLoadResult>;
+  build(data: AccessEmailMessageData): Promise<BuiltAccessEntriesEmailMessage>;
+  provider: AccessEmailProvider;
+}
+
+interface ResolvedAccessFulfillmentEmailCapability {
+  readonly load: AccessFulfillmentEmailCapability["load"];
+  readonly build: AccessFulfillmentEmailCapability["build"];
+  readonly send: AccessEmailProvider["send"];
+}
+
 export interface AccessFulfillmentWorkerDependencies {
   client: AccessFulfillmentWorkerClient;
   config: AccessFulfillmentWorkerConfig;
@@ -55,6 +117,7 @@ export interface AccessFulfillmentWorkerDependencies {
   sleep: AccessFulfillmentWorkerSleep;
   logger: AccessFulfillmentWorkerLogger;
   createDeadline?: AccessFulfillmentWorkerDeadlineFactory;
+  emailCapability?: AccessFulfillmentEmailCapability;
 }
 
 export type AccessFulfillmentStopReason =
@@ -71,6 +134,13 @@ export interface AccessFulfillmentCycleSummary {
   shutdownReleasedCount: number;
   localLeaseBudgetExhaustedCount: number;
   releaseFailedCount: number;
+  emailAcceptedCount: number;
+  emailRetryScheduledCount: number;
+  emailAmbiguousCount: number;
+  emailSkippedSentCount: number;
+  emailUnsettledCount: number;
+  emailManualReviewCount: number;
+  emailManualReviewUnknownCount: number;
 }
 
 export type AccessFulfillmentRunOnceResult =
@@ -124,6 +194,7 @@ type EffectiveRpcTimeout =
 type ItemOutcomeKind =
   | "reconciled"
   | "deferred"
+  | "email_settled"
   | "failed"
   | "stale"
   | "external_shutdown_released"
@@ -133,13 +204,94 @@ export type AccessFulfillmentStaleOriginStage =
   | "issuance_reconcile"
   | "issuance_failure_release"
   | "email_defer_release"
-  | "shutdown_cleanup_release";
+  | "shutdown_cleanup_release"
+  | "email_preclaim_retry_release"
+  | "email_terminal_release"
+  | "email_terminal_preclaim_recording"
+  | "email_delivery_claim";
 
 interface ItemProcessingResult {
   kind: ItemOutcomeKind;
   releaseFailed?: boolean;
   fatalErrorCode?: string;
+  emailAccounting?: EmailAccounting;
 }
+
+interface EmailAccounting {
+  readonly accepted?: true;
+  readonly retryScheduled?: true;
+  readonly ambiguous?: true;
+  readonly skippedSent?: true;
+  readonly unsettled?: true;
+  readonly manualReview?: true;
+  readonly manualReviewUnknown?: true;
+}
+
+type EmailExecutionPhase =
+  | "preclaim"
+  | "terminal_preclaim_recording"
+  | "claim_recovery"
+  | "processing_conclusive"
+  | "provider_started"
+  | "outcome_settlement"
+  | "settled";
+
+type EmailClaimConclusion =
+  | {
+      kind: "processing";
+      response: Exclude<
+        Extract<ClaimEmailDeliveryResult, { kind: "success" }>["response"],
+        { status: "skipped_sent" }
+      >;
+      conclusiveAttemptStartedAtMs: number;
+    }
+  | { kind: "skipped" }
+  | { kind: "manual_review" }
+  | { kind: "stale" }
+  | { kind: "not_started" }
+  | { kind: "failed"; result: ItemProcessingResult };
+
+type ObligationInvocationConclusion<Response> =
+  | {
+      kind: "result";
+      result: Response;
+      startedAtMs: number;
+      requestStarted: true;
+    }
+  | { kind: "deadline_exceeded"; requestStarted: boolean }
+  | { kind: "thrown"; requestStarted: boolean }
+  | { kind: "budget_exhausted"; requestStarted: false };
+
+type ProviderOutcomeTuple = Readonly<{
+  outcome: "accepted" | "failed" | "ambiguous";
+  providerMessageId: string | null;
+  errorCode: string | null;
+  retryAfterSeconds: number | null;
+}>;
+
+type OutcomeSettlementConclusion =
+  | { kind: "settled"; accounting: EmailAccounting }
+  | { kind: "unsettled"; accounting: EmailAccounting; errorCode: string };
+type EmailLoadConclusion =
+  | { kind: "success"; data: AccessEmailMessageData }
+  | {
+      kind: "retry";
+      errorCode:
+        | "order_read_failed"
+        | "order_items_read_failed"
+        | "entries_read_failed"
+        | "source_read_failed";
+    }
+  | { kind: "terminal"; errorCode: AccessEmailPreclaimTerminalFailureErrorCode }
+  | { kind: "failed"; result: ItemProcessingResult };
+
+type EmailBuildConclusion =
+  | { kind: "success"; built: BuiltAccessEntriesEmailMessage }
+  | { kind: "retry"; errorCode: "qr_generation_failed" }
+  | { kind: "terminal"; errorCode: "invalid_recipient" }
+  | { kind: "failed"; result: ItemProcessingResult };
+
+
 
 interface ProcessItemsResult {
   summary: AccessFulfillmentCycleSummary;
@@ -221,6 +373,13 @@ function emptySummary(claimedCount = 0): AccessFulfillmentCycleSummary {
     shutdownReleasedCount: 0,
     localLeaseBudgetExhaustedCount: 0,
     releaseFailedCount: 0,
+    emailAcceptedCount: 0,
+    emailRetryScheduledCount: 0,
+    emailAmbiguousCount: 0,
+    emailSkippedSentCount: 0,
+    emailUnsettledCount: 0,
+    emailManualReviewCount: 0,
+    emailManualReviewUnknownCount: 0,
   };
 }
 
@@ -243,12 +402,455 @@ function releaseFailureCode(result: ReleaseFulfillmentLeaseResult): string {
   }
 }
 
+function readExactRecord(
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[] = [],
+): Record<string, unknown> | null {
+  try {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return null;
+    }
+    if (Object.getOwnPropertySymbols(value).length !== 0) {
+      return null;
+    }
+    const expected = new Set([...requiredKeys, ...optionalKeys]);
+    const names = Object.getOwnPropertyNames(value);
+    if (
+      names.some((name) => !expected.has(name)) ||
+      requiredKeys.some((name) => !names.includes(name))
+    ) {
+      return null;
+    }
+    const copy: Record<string, unknown> = {};
+    for (const name of names) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, name);
+      if (
+        !descriptor ||
+        !descriptor.enumerable ||
+        !Object.prototype.hasOwnProperty.call(descriptor, "value")
+      ) {
+        return null;
+      }
+      copy[name] = descriptor.value;
+    }
+    return copy;
+  } catch {
+    return null;
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isCanonicalUuid(value: unknown): value is string {
+  return typeof value === "string" && CANONICAL_UUID.test(value);
+}
+
+function equalStringArrays(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function isValidEmailFrom(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.trim() !== value ||
+    value.includes("\r") ||
+    value.includes("\n")
+  ) {
+    return false;
+  }
+  if (!value.includes("<") && !value.includes(">")) {
+    return SIMPLE_EMAIL.test(value);
+  }
+  const match = NAMED_EMAIL_FROM.exec(value);
+  if (!match?.[1].trim()) {
+    return false;
+  }
+  return SIMPLE_EMAIL.test(match[2].trim());
+}
+
+function isCanonicalBase64(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      value,
+    )
+  );
+}
+
+function validateLoadedEmailData(
+  value: unknown,
+  expectedOrderId: string,
+): AccessEmailMessageData | null {
+  const success = readExactRecord(value, ["kind", "orderId", "data"]);
+  if (
+    !success ||
+    success.kind !== "success" ||
+    success.orderId !== expectedOrderId
+  ) {
+    return null;
+  }
+  const data = readExactRecord(success.data, [
+    "buyerEmail",
+    "buyerName",
+    "publicRef",
+    "sourceName",
+    "accessDate",
+    "entries",
+  ]);
+  if (
+    !data ||
+    !isNonEmptyString(data.buyerEmail) ||
+    !isNonEmptyString(data.buyerName) ||
+    !isNonEmptyString(data.publicRef) ||
+    !isNonEmptyString(data.sourceName) ||
+    !isNonEmptyString(data.accessDate) ||
+    !Array.isArray(data.entries) ||
+    data.entries.length === 0
+  ) {
+    return null;
+  }
+
+  const entryIds = new Set<string>();
+  const checkinTokens = new Set<string>();
+  const entries: AccessEmailMessageData["entries"][number][] = [];
+  for (const valueEntry of data.entries) {
+    const entry = readExactRecord(valueEntry, [
+      "id",
+      "orderItemId",
+      "unitIndex",
+      "ticketName",
+      "attendeeName",
+      "attendeeLastName",
+      "checkinToken",
+    ]);
+    if (
+      !entry ||
+      !isCanonicalUuid(entry.id) ||
+      !isCanonicalUuid(entry.orderItemId) ||
+      !Number.isSafeInteger(entry.unitIndex) ||
+      (entry.unitIndex as number) <= 0 ||
+      !isNonEmptyString(entry.ticketName) ||
+      !isNonEmptyString(entry.attendeeName) ||
+      !isNonEmptyString(entry.attendeeLastName) ||
+      !isCanonicalUuid(entry.checkinToken) ||
+      entryIds.has(entry.id) ||
+      checkinTokens.has(entry.checkinToken)
+    ) {
+      return null;
+    }
+    entryIds.add(entry.id);
+    checkinTokens.add(entry.checkinToken);
+    entries.push(
+      Object.freeze({
+        id: entry.id,
+        orderItemId: entry.orderItemId,
+        unitIndex: entry.unitIndex as number,
+        ticketName: entry.ticketName,
+        attendeeName: entry.attendeeName,
+        attendeeLastName: entry.attendeeLastName,
+        checkinToken: entry.checkinToken,
+      }),
+    );
+  }
+
+  try {
+    const canonical = canonicalizeAccessEntriesEmailEntries(entries);
+    if (
+      canonical.length !== entries.length ||
+      canonical.some((entry, index) => {
+        const original = entries[index];
+        return (
+          !original ||
+          entry.id !== original.id ||
+          entry.orderItemId !== original.orderItemId ||
+          entry.unitIndex !== original.unitIndex ||
+          entry.ticketName !== original.ticketName ||
+          entry.attendeeName !== original.attendeeName ||
+          entry.attendeeLastName !== original.attendeeLastName ||
+          entry.checkinToken !== original.checkinToken
+        );
+      })
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return Object.freeze({
+    buyerEmail: data.buyerEmail,
+    buyerName: data.buyerName,
+    publicRef: data.publicRef,
+    sourceName: data.sourceName,
+    accessDate: data.accessDate,
+    entries: Object.freeze(entries),
+  });
+}
+
+function validateBuiltEmailMessage(
+  value: unknown,
+  data: AccessEmailMessageData,
+): BuiltAccessEntriesEmailMessage | null {
+  const built = readExactRecord(value, [
+    "templateVersion",
+    "entryIds",
+    "message",
+    "requestPayloadHash",
+  ]);
+  if (
+    !built ||
+    built.templateVersion !== ACCESS_ENTRIES_EMAIL_TEMPLATE_VERSION ||
+    !Array.isArray(built.entryIds) ||
+    built.entryIds.length === 0 ||
+    built.entryIds.some((entryId) => !isCanonicalUuid(entryId)) ||
+    new Set(built.entryIds).size !== built.entryIds.length ||
+    !equalStringArrays(
+      built.entryIds as string[],
+      data.entries.map((entry) => entry.id),
+    ) ||
+    typeof built.requestPayloadHash !== "string" ||
+    !LOWERCASE_SHA256.test(built.requestPayloadHash)
+  ) {
+    return null;
+  }
+
+  const messageRecord = readExactRecord(built.message, [
+    "from",
+    "to",
+    "subject",
+    "html",
+    "attachments",
+  ]);
+  if (
+    !messageRecord ||
+    !isValidEmailFrom(messageRecord.from) ||
+    !Array.isArray(messageRecord.to) ||
+    messageRecord.to.length !== 1 ||
+    !isNonEmptyString(messageRecord.subject) ||
+    messageRecord.subject !== ACCESS_ENTRIES_EMAIL_SUBJECT ||
+    !isNonEmptyString(messageRecord.html) ||
+    !Array.isArray(messageRecord.attachments) ||
+    messageRecord.attachments.length !== built.entryIds.length
+  ) {
+    return null;
+  }
+
+  let expectedRecipient: string;
+  try {
+    expectedRecipient = normalizeAccessEmailAddress(data.buyerEmail);
+  } catch {
+    return null;
+  }
+  if (messageRecord.to[0] !== expectedRecipient) {
+    return null;
+  }
+
+  const attachments: AccessEmailMessage["attachments"][number][] = [];
+  for (const [index, valueAttachment] of messageRecord.attachments.entries()) {
+    const attachment = readExactRecord(valueAttachment, [
+      "filename",
+      "content",
+      "contentType",
+      "contentId",
+    ]);
+    if (
+      !attachment ||
+      attachment.filename !== "entrada-" + (index + 1) + ".png" ||
+      !isCanonicalBase64(attachment.content) ||
+      attachment.contentType !== "image/png" ||
+      attachment.contentId !== "access-entry-qr-" + (index + 1)
+    ) {
+      return null;
+    }
+    attachments.push(
+      Object.freeze({
+        filename: attachment.filename,
+        content: attachment.content,
+        contentType: attachment.contentType,
+        contentId: attachment.contentId,
+      }) as AccessEmailMessage["attachments"][number],
+    );
+  }
+
+  const message: AccessEmailMessage = Object.freeze({
+    from: messageRecord.from,
+    to: Object.freeze([expectedRecipient]),
+    subject: messageRecord.subject,
+    html: messageRecord.html,
+    attachments: Object.freeze(attachments),
+  });
+  try {
+    if (
+      calculateAccessEmailRequestPayloadHash({
+        templateVersion: ACCESS_ENTRIES_EMAIL_TEMPLATE_VERSION,
+        message,
+      }) !== built.requestPayloadHash
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  return Object.freeze({
+    templateVersion: ACCESS_ENTRIES_EMAIL_TEMPLATE_VERSION,
+    entryIds: Object.freeze([...(built.entryIds as string[])]),
+    message,
+    requestPayloadHash: built.requestPayloadHash,
+  });
+}
+
+function providerContractAmbiguous(): ProviderOutcomeTuple {
+  return Object.freeze({
+    outcome: "ambiguous",
+    providerMessageId: null,
+    errorCode: "worker_email_provider_contract_ambiguous",
+    retryAfterSeconds: null,
+  });
+}
+
+function validRetryAfterSeconds(value: unknown): value is number {
+  return (
+    Number.isSafeInteger(value) &&
+    (value as number) >= 0 &&
+    (value as number) <= MAX_EMAIL_RETRY_AFTER_SECONDS
+  );
+}
+
+function validateProviderOutcome(value: unknown): ProviderOutcomeTuple | null {
+  const kindDescriptor =
+    typeof value === "object" && value !== null
+      ? Object.getOwnPropertyDescriptor(value, "kind")
+      : undefined;
+  if (
+    !kindDescriptor ||
+    !kindDescriptor.enumerable ||
+    !Object.prototype.hasOwnProperty.call(kindDescriptor, "value")
+  ) {
+    return null;
+  }
+  const kind = kindDescriptor.value;
+  if (kind === "accepted") {
+    const accepted = readExactRecord(value, ["kind", "providerMessageId"]);
+    if (
+      !accepted ||
+      !isNonEmptyString(accepted.providerMessageId) ||
+      accepted.providerMessageId.trim() !== accepted.providerMessageId
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      outcome: "accepted",
+      providerMessageId: accepted.providerMessageId,
+      errorCode: null,
+      retryAfterSeconds: null,
+    });
+  }
+  if (kind === "failed_terminal") {
+    const failed = readExactRecord(value, ["kind", "errorCode"]);
+    if (
+      !failed ||
+      typeof failed.errorCode !== "string" ||
+      !SAFE_ERROR_CODE.test(failed.errorCode)
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      outcome: "failed",
+      providerMessageId: null,
+      errorCode: failed.errorCode,
+      retryAfterSeconds: null,
+    });
+  }
+  if (kind === "failed_retryable" || kind === "ambiguous") {
+    const providerResult = readExactRecord(
+      value,
+      ["kind", "errorCode"],
+      ["retryAfterSeconds"],
+    );
+    if (
+      !providerResult ||
+      typeof providerResult.errorCode !== "string" ||
+      !SAFE_ERROR_CODE.test(providerResult.errorCode) ||
+      ("retryAfterSeconds" in providerResult &&
+        !validRetryAfterSeconds(providerResult.retryAfterSeconds))
+    ) {
+      return null;
+    }
+    const retryAfterSeconds =
+      "retryAfterSeconds" in providerResult
+        ? (providerResult.retryAfterSeconds as number)
+        : kind === "failed_retryable"
+          ? 60
+          : null;
+    return Object.freeze({
+      outcome: kind === "ambiguous" ? "ambiguous" : "failed",
+      providerMessageId: null,
+      errorCode: providerResult.errorCode,
+      retryAfterSeconds,
+    });
+  }
+  return null;
+}
+
 export class AccessFulfillmentWorker {
   private lastMonotonicNowMs: number | undefined;
   private fatalState: AccessFulfillmentFatalState | null = null;
   private readonly fatalAbortController = new AbortController();
+  private readonly dependencies: AccessFulfillmentWorkerDependencies;
+  private readonly emailCapability: ResolvedAccessFulfillmentEmailCapability | null;
 
-  constructor(private readonly dependencies: AccessFulfillmentWorkerDependencies) {}
+  constructor(dependencies: AccessFulfillmentWorkerDependencies) {
+    this.dependencies = dependencies;
+    this.emailCapability = this.captureEmailCapability();
+    if (dependencies.config.durableEmailDeliveryEnabled && !this.emailCapability) {
+      this.latchFatalStop("worker_email_capability_invalid");
+    }
+  }
+
+  private captureEmailCapability(): ResolvedAccessFulfillmentEmailCapability | null {
+    if (!this.dependencies.config.durableEmailDeliveryEnabled) {
+      return null;
+    }
+    try {
+      const capability = this.dependencies.emailCapability;
+      if (typeof capability !== "object" || capability === null) {
+        return null;
+      }
+      const load = capability.load;
+      const build = capability.build;
+      const provider = capability.provider;
+      if (
+        typeof load !== "function" ||
+        typeof build !== "function" ||
+        typeof provider !== "object" ||
+        provider === null
+      ) {
+        return null;
+      }
+      const send = provider.send;
+      if (typeof send !== "function") {
+        return null;
+      }
+      return Object.freeze({
+        load: Function.prototype.bind.call(load, capability),
+        build: Function.prototype.bind.call(build, capability),
+        send: Function.prototype.bind.call(send, provider),
+      }) as ResolvedAccessFulfillmentEmailCapability;
+    } catch {
+      return null;
+    }
+  }
 
   async runOnce(signal: AbortSignal): Promise<AccessFulfillmentRunOnceResult> {
     const fatalAtStart = this.fatalState;
@@ -598,7 +1200,9 @@ export class AccessFulfillmentWorker {
     signal: AbortSignal,
   ): Promise<ProcessItemsResult> {
     const started = Array.from({ length: items.length }, () => false);
-    const outcomes: ItemProcessingResult[] = [];
+    const outcomes: Array<ItemProcessingResult | undefined> = Array.from({
+      length: items.length,
+    });
     let nextIndex = 0;
 
     const runner = async (): Promise<void> => {
@@ -623,6 +1227,9 @@ export class AccessFulfillmentWorker {
         let outcome: ItemProcessingResult;
         const startedAt = this.readMonotonicNow();
         if (startedAt === undefined) {
+          outcomes[index] = this.latchedFatalItemResult(
+            "worker_monotonic_clock_invalid",
+          );
           return;
         }
         try {
@@ -635,13 +1242,14 @@ export class AccessFulfillmentWorker {
             signal,
           );
         } catch {
-          this.latchFatalStop("worker_item_unexpected_error");
+          const fatal = this.latchFatalStop("worker_item_unexpected_error");
+          outcomes[index] = this.latchedFatalItemResult(fatal.errorCode);
           return;
         }
+        outcomes[index] = outcome;
         if (this.fatalState) {
           return;
         }
-        outcomes.push(outcome);
       }
     };
 
@@ -651,16 +1259,15 @@ export class AccessFulfillmentWorker {
     const fatalAfterRunners = this.fatalState;
     if (fatalAfterRunners) {
       const summary = this.summarize(items.length, outcomes);
-      if (fatalAfterRunners.errorCode === "local_lease_budget_exhausted") {
-        summary.localLeaseBudgetExhaustedCount += 1;
-      }
       return {
         summary,
         fatalErrorCode: fatalAfterRunners.errorCode,
       };
     }
 
-    const pendingItems = items.filter((_item, index) => !started[index]);
+    const pendingItems = items.flatMap((item, index) =>
+      started[index] ? [] : [{ index, item }],
+    );
     if (pendingItems.length > 0) {
       const pendingOutcomes = await this.releasePendingItems(
         pendingItems,
@@ -668,31 +1275,22 @@ export class AccessFulfillmentWorker {
         tokenHash,
         conservativeLocalLeaseDeadlineMs,
       );
+      for (const pending of pendingOutcomes) {
+        outcomes[pending.index] = pending.outcome;
+      }
       const fatalAfterPendingCleanup = this.fatalState;
       if (fatalAfterPendingCleanup) {
-        const summary = this.summarize(items.length, outcomes);
-        if (
-          fatalAfterPendingCleanup.errorCode ===
-          "local_lease_budget_exhausted"
-        ) {
-          summary.localLeaseBudgetExhaustedCount += 1;
-        }
         return {
-          summary,
+          summary: this.summarize(items.length, outcomes),
           fatalErrorCode: fatalAfterPendingCleanup.errorCode,
         };
       }
-      outcomes.push(...pendingOutcomes);
     }
 
     const fatalAfterCleanup = this.fatalState;
     if (fatalAfterCleanup) {
-      const summary = this.summarize(items.length, outcomes);
-      if (fatalAfterCleanup.errorCode === "local_lease_budget_exhausted") {
-        summary.localLeaseBudgetExhaustedCount += 1;
-      }
       return {
-        summary,
+        summary: this.summarize(items.length, outcomes),
         fatalErrorCode: fatalAfterCleanup.errorCode,
       };
     }
@@ -703,12 +1301,16 @@ export class AccessFulfillmentWorker {
   }
 
   private async releasePendingItems(
-    items: readonly ClaimedItem[],
+    items: readonly { readonly index: number; readonly item: ClaimedItem }[],
     reconcileLeaseToken: string,
     tokenHash: string,
     conservativeLocalLeaseDeadlineMs: number,
-  ): Promise<ItemProcessingResult[]> {
-    const outcomes: ItemProcessingResult[] = [];
+  ): Promise<
+    Array<{ readonly index: number; readonly outcome: ItemProcessingResult }>
+  > {
+    const outcomes: Array<
+      { readonly index: number; readonly outcome: ItemProcessingResult } | undefined
+    > = Array.from({ length: items.length });
     let nextIndex = 0;
 
     const runner = async (): Promise<void> => {
@@ -718,26 +1320,31 @@ export class AccessFulfillmentWorker {
         }
         const index = nextIndex;
         nextIndex += 1;
-        const item = items[index];
-        if (!item) {
+        const pending = items[index];
+        if (!pending) {
           continue;
         }
         const outcome = await this.releaseForExternalShutdown(
-          item,
+          pending.item,
           reconcileLeaseToken,
           tokenHash,
           conservativeLocalLeaseDeadlineMs,
         );
+        outcomes[index] = { index: pending.index, outcome };
         if (this.fatalState) {
           return;
         }
-        outcomes.push(outcome);
       }
     };
 
     const runnerCount = Math.min(this.dependencies.config.concurrency, items.length);
     await Promise.all(Array.from({ length: runnerCount }, () => runner()));
-    return this.fatalState ? [] : outcomes;
+    return outcomes.filter(
+      (
+        value,
+      ): value is { readonly index: number; readonly outcome: ItemProcessingResult } =>
+        value !== undefined,
+    );
   }
 
   private async processItem(
@@ -763,6 +1370,23 @@ export class AccessFulfillmentWorker {
     }
 
     if (item.work_type === "email") {
+      if (this.dependencies.config.durableEmailDeliveryEnabled) {
+        const capability = this.emailCapability;
+        if (!capability) {
+          return this.latchedFatalItemResult(
+            "worker_email_capability_invalid",
+          );
+        }
+        return this.processDurableEmail(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          startedAt,
+          conservativeLocalLeaseDeadlineMs,
+          signal,
+          capability,
+        );
+      }
       return this.deferEmail(
         item,
         reconcileLeaseToken,
@@ -781,6 +1405,1660 @@ export class AccessFulfillmentWorker {
       signal,
     );
   }
+
+  private async processDurableEmail(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    signal: AbortSignal,
+    capability: ResolvedAccessFulfillmentEmailCapability,
+  ): Promise<ItemProcessingResult> {
+    let phase: EmailExecutionPhase = "preclaim";
+    const claimDeadlineMs =
+      conservativeLocalLeaseDeadlineMs - this.dependencies.config.rpcTimeoutMs;
+
+    const loaded = await this.loadEmailPreclaim(
+      item,
+      reconcileLeaseToken,
+      tokenHash,
+      startedAt,
+      conservativeLocalLeaseDeadlineMs,
+      claimDeadlineMs,
+      signal,
+      capability,
+    );
+    if (loaded.kind === "failed") {
+      return loaded.result;
+    }
+    if (loaded.kind === "retry") {
+      return this.releaseEmailPreclaimRetry(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        loaded.errorCode,
+      );
+    }
+    if (loaded.kind === "terminal") {
+      phase = "terminal_preclaim_recording";
+      return this.recordEmailPreclaimTerminalWithRecovery(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        loaded.errorCode,
+        phase,
+      );
+    }
+
+    const built = await this.buildEmailPreclaim(
+      item,
+      reconcileLeaseToken,
+      tokenHash,
+      startedAt,
+      conservativeLocalLeaseDeadlineMs,
+      claimDeadlineMs,
+      signal,
+      capability,
+      loaded.data,
+    );
+    if (built.kind === "failed") {
+      return built.result;
+    }
+    if (built.kind === "retry") {
+      return this.releaseEmailPreclaimRetry(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        built.errorCode,
+      );
+    }
+    if (built.kind === "terminal") {
+      phase = "terminal_preclaim_recording";
+      return this.recordEmailPreclaimTerminalWithRecovery(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        built.errorCode,
+        phase,
+      );
+    }
+
+    const fatalBeforeClaim = this.fatalState;
+    if (fatalBeforeClaim) {
+      return this.latchedFatalItemResult(fatalBeforeClaim.errorCode);
+    }
+    if (signal.aborted) {
+      return this.releaseForExternalShutdown(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        conservativeLocalLeaseDeadlineMs,
+        startedAt,
+      );
+    }
+
+    phase = "claim_recovery";
+    const claim = await this.claimEmailDeliveryWithRecovery(
+      item,
+      reconcileLeaseToken,
+      tokenHash,
+      startedAt,
+      conservativeLocalLeaseDeadlineMs,
+      claimDeadlineMs,
+      signal,
+      built.built,
+      phase,
+    );
+    if (claim.kind === "failed") {
+      return claim.result;
+    }
+    if (claim.kind === "stale") {
+      return this.emailObligationStale(
+        item,
+        tokenHash,
+        "email_delivery_claim",
+      );
+    }
+    if (claim.kind === "not_started") {
+      return this.releaseEmailPreclaimRetry(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        null,
+      );
+    }
+    if (claim.kind === "skipped") {
+      return this.emailSettled({ skippedSent: true });
+    }
+    if (claim.kind === "manual_review") {
+      return this.emailSettled({ manualReview: true });
+    }
+
+    const processing = claim.response;
+    if (!isCorrelatedEmailDeliveryProcessingResponse(processing)) {
+      return this.settleLegacyEmailProcessing(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        conservativeLocalLeaseDeadlineMs,
+        processing,
+      );
+    }
+
+    phase = "processing_conclusive";
+    this.safeLog(
+      "info",
+      "access_fulfillment_email_claimed",
+      this.emailMetadata(item, tokenHash, phase, {
+        attemptHash: accessFulfillmentCorrelationHash(
+          processing.delivery_attempt_id,
+        ),
+        idempotent: processing.idempotent,
+        entryCount: processing.entry_count,
+      }),
+    );
+
+    const providerTuple = await this.invokeEmailProviderOnce(
+      item,
+      tokenHash,
+      conservativeLocalLeaseDeadlineMs,
+      claim.conclusiveAttemptStartedAtMs,
+      processing,
+      built.built,
+      signal,
+      capability,
+    );
+    phase = "outcome_settlement";
+    const frozenOutcomeRequest: Readonly<RecordEmailDeliveryOutcomeInput> =
+      Object.freeze({
+        orderId: item.order_id,
+        deliveryAttemptId: processing.delivery_attempt_id,
+        reconcileLeaseToken,
+        reconcileLeaseEpoch: item.reconcile_lease_epoch,
+        outcome: providerTuple.outcome,
+        providerMessageId: providerTuple.providerMessageId,
+        errorCode: providerTuple.errorCode,
+        retryAfterSeconds: providerTuple.retryAfterSeconds,
+      });
+    const settlement = await this.settleEmailOutcomeWithRecovery(
+      item,
+      tokenHash,
+      conservativeLocalLeaseDeadlineMs,
+      frozenOutcomeRequest,
+      phase,
+    );
+    if (settlement.kind === "unsettled") {
+      return {
+        kind: "failed",
+        fatalErrorCode: settlement.errorCode,
+        emailAccounting: settlement.accounting,
+      };
+    }
+
+    phase = "settled";
+    this.safeLog(
+      "info",
+      "access_fulfillment_email_outcome_settled",
+      this.emailMetadata(item, tokenHash, phase, {
+        attemptHash: accessFulfillmentCorrelationHash(
+          processing.delivery_attempt_id,
+        ),
+        outcome: providerTuple.outcome,
+      }),
+    );
+    return this.emailSettled(settlement.accounting);
+  }
+
+  private async loadEmailPreclaim(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    claimDeadlineMs: number,
+    signal: AbortSignal,
+    capability: ResolvedAccessFulfillmentEmailCapability,
+  ): Promise<EmailLoadConclusion> {
+    const timeoutMs = this.emailPreclaimTimeoutMs(claimDeadlineMs);
+    if (timeoutMs === undefined) {
+      return {
+        kind: "failed",
+        result: this.latchedFatalItemResult(
+          this.fatalState?.errorCode ?? "worker_monotonic_clock_invalid",
+        ),
+      };
+    }
+    if (timeoutMs <= 0) {
+      return {
+        kind: "failed",
+        result: await this.releaseEmailPreclaimRetry(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          startedAt,
+          conservativeLocalLeaseDeadlineMs,
+          signal,
+          null,
+        ),
+      };
+    }
+
+    const invocation = await this.invokeWithDeadline(
+      timeoutMs,
+      signal,
+      (requestSignal) =>
+        capability.load(item.order_id, Object.freeze({ signal: requestSignal })),
+    );
+    if (invocation.kind === "fatal_abort") {
+      return {
+        kind: "failed",
+        result: this.latchedFatalItemResult(invocation.errorCode),
+      };
+    }
+    if (invocation.kind === "external_abort") {
+      return {
+        kind: "failed",
+        result: await this.releaseForExternalShutdown(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          conservativeLocalLeaseDeadlineMs,
+          startedAt,
+        ),
+      };
+    }
+    if (
+      invocation.kind === "deadline_exceeded" ||
+      invocation.kind === "thrown"
+    ) {
+      return {
+        kind: "failed",
+        result: this.emailFatal("worker_email_loader_contract_invalid"),
+      };
+    }
+
+    let data: AccessEmailMessageData | null = null;
+    try {
+      data = validateLoadedEmailData(
+        invocation.result as unknown,
+        item.order_id,
+      );
+    } catch {
+      data = null;
+    }
+    if (data) {
+      return { kind: "success", data };
+    }
+
+    const result = readExactRecord(invocation.result as unknown, [
+      "kind",
+      "errorCode",
+    ]);
+    if (!result || typeof result.errorCode !== "string") {
+      return {
+        kind: "failed",
+        result: this.emailFatal("worker_email_loader_contract_invalid"),
+      };
+    }
+
+    if (result.kind === "retryable_error") {
+      switch (result.errorCode) {
+        case "order_read_failed":
+        case "order_items_read_failed":
+        case "entries_read_failed":
+        case "source_read_failed":
+          return { kind: "retry", errorCode: result.errorCode };
+        default:
+          return {
+            kind: "failed",
+            result: this.emailFatal("worker_email_loader_contract_invalid"),
+          };
+      }
+    }
+    if (result.kind === "terminal_error") {
+      switch (result.errorCode) {
+        case "order_invalid":
+        case "order_items_invalid":
+        case "entries_not_found":
+        case "entries_invalid":
+        case "entry_count_mismatch":
+        case "entry_not_deliverable":
+        case "source_invalid":
+          return { kind: "terminal", errorCode: result.errorCode };
+        case "order_not_found":
+        case "order_not_paid":
+          return {
+            kind: "failed",
+            result: this.emailFatal(result.errorCode),
+          };
+        default:
+          return {
+            kind: "failed",
+            result: this.emailFatal("worker_email_loader_contract_invalid"),
+          };
+      }
+    }
+    if (
+      result.kind === "aborted" &&
+      result.errorCode === "email_message_data_load_aborted"
+    ) {
+      if (this.fatalState) {
+        return {
+          kind: "failed",
+          result: this.latchedFatalItemResult(this.fatalState.errorCode),
+        };
+      }
+      if (signal.aborted) {
+        return {
+          kind: "failed",
+          result: await this.releaseForExternalShutdown(
+            item,
+            reconcileLeaseToken,
+            tokenHash,
+            conservativeLocalLeaseDeadlineMs,
+            startedAt,
+          ),
+        };
+      }
+    }
+    return {
+      kind: "failed",
+      result: this.emailFatal("worker_email_loader_contract_invalid"),
+    };
+  }
+
+  private async buildEmailPreclaim(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    claimDeadlineMs: number,
+    signal: AbortSignal,
+    capability: ResolvedAccessFulfillmentEmailCapability,
+    data: AccessEmailMessageData,
+  ): Promise<EmailBuildConclusion> {
+    const timeoutMs = this.emailPreclaimTimeoutMs(claimDeadlineMs);
+    if (timeoutMs === undefined) {
+      return {
+        kind: "failed",
+        result: this.latchedFatalItemResult(
+          this.fatalState?.errorCode ?? "worker_monotonic_clock_invalid",
+        ),
+      };
+    }
+    if (timeoutMs <= 0) {
+      return {
+        kind: "failed",
+        result: await this.releaseEmailPreclaimRetry(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          startedAt,
+          conservativeLocalLeaseDeadlineMs,
+          signal,
+          null,
+        ),
+      };
+    }
+
+    const invocation = await this.invokeWithDeadline(
+      timeoutMs,
+      signal,
+      async () => {
+        try {
+          return {
+            kind: "success" as const,
+            value: await capability.build(data),
+          };
+        } catch (error) {
+          return error instanceof AccessEmailMessageError
+            ? { kind: "error" as const, errorCode: error.code }
+            : { kind: "thrown" as const };
+        }
+      },
+    );
+    if (invocation.kind === "fatal_abort") {
+      return {
+        kind: "failed",
+        result: this.latchedFatalItemResult(invocation.errorCode),
+      };
+    }
+    if (invocation.kind === "external_abort") {
+      return {
+        kind: "failed",
+        result: await this.releaseForExternalShutdown(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          conservativeLocalLeaseDeadlineMs,
+          startedAt,
+        ),
+      };
+    }
+    if (
+      invocation.kind === "deadline_exceeded" ||
+      invocation.kind === "thrown"
+    ) {
+      return {
+        kind: "failed",
+        result: this.emailFatal("worker_email_builder_contract_invalid"),
+      };
+    }
+
+    if (invocation.result.kind === "success") {
+      let built: BuiltAccessEntriesEmailMessage | null = null;
+      try {
+        built = validateBuiltEmailMessage(invocation.result.value, data);
+      } catch {
+        built = null;
+      }
+      return built
+        ? { kind: "success", built }
+        : {
+            kind: "failed",
+            result: this.emailFatal("worker_email_builder_contract_invalid"),
+          };
+    }
+    if (invocation.result.kind === "error") {
+      switch (invocation.result.errorCode) {
+        case "qr_generation_failed":
+          return { kind: "retry", errorCode: "qr_generation_failed" };
+        case "invalid_recipient":
+          return { kind: "terminal", errorCode: "invalid_recipient" };
+        case "invalid_from":
+        case "duplicate_entry_id":
+        case "invalid_entry":
+        case "invalid_access_date":
+        case "invalid_template_version":
+          return {
+            kind: "failed",
+            result: this.emailFatal(invocation.result.errorCode),
+          };
+      }
+    }
+    return {
+      kind: "failed",
+      result: this.emailFatal("worker_email_builder_contract_invalid"),
+    };
+  }
+
+  private emailPreclaimTimeoutMs(parentDeadlineMs: number): number | undefined {
+    const nowMs = this.readMonotonicNow();
+    if (nowMs === undefined) {
+      return undefined;
+    }
+    const remainingMs = parentDeadlineMs - nowMs;
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+      return 0;
+    }
+    return Math.min(this.dependencies.config.rpcTimeoutMs, remainingMs);
+  }
+
+  private async releaseEmailPreclaimRetry(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    signal: AbortSignal,
+    errorCode: string | null,
+  ): Promise<ItemProcessingResult> {
+    const fatalBeforeRelease = this.fatalState;
+    if (fatalBeforeRelease) {
+      return this.latchedFatalItemResult(fatalBeforeRelease.errorCode);
+    }
+    if (signal.aborted) {
+      return this.releaseForExternalShutdown(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        conservativeLocalLeaseDeadlineMs,
+        startedAt,
+      );
+    }
+    const release = await this.safeRelease(
+      item,
+      reconcileLeaseToken,
+      this.dependencies.config.leaseSeconds,
+      errorCode,
+      conservativeLocalLeaseDeadlineMs,
+    );
+    if (release.kind === "local_lease_budget_exhausted") {
+      return this.localLeaseBudgetExhausted(startedAt, release.observedAtMs);
+    }
+    if (release.kind === "fatal") {
+      return this.latchedFatalItemResult(release.errorCode);
+    }
+    if (release.kind === "stale") {
+      return this.logStaleLease(
+        item,
+        tokenHash,
+        "email_preclaim_retry_release",
+        startedAt,
+      );
+    }
+    if (release.kind === "failed") {
+      return this.logReleaseFailure(
+        item,
+        tokenHash,
+        release,
+        errorCode ?? "worker_email_claim_recovery_exhausted",
+        startedAt,
+      );
+    }
+
+    const durationMs = this.durationMs(startedAt);
+    if (durationMs === undefined) {
+      return this.latchedFatalItemResult(
+        this.fatalState?.errorCode ?? "worker_monotonic_clock_invalid",
+      );
+    }
+    this.safeLog(
+      "warn",
+      "access_fulfillment_email_preclaim_retry_scheduled",
+      this.emailMetadata(item, tokenHash, "preclaim", {
+        ...(errorCode === null ? {} : { errorCode }),
+        durationMs,
+      }),
+    );
+    return this.emailSettled({ retryScheduled: true });
+  }
+
+  private async releaseEmailTerminalConclusion(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    accounting: EmailAccounting,
+  ): Promise<ItemProcessingResult> {
+    const release = await this.safeRelease(
+      item,
+      reconcileLeaseToken,
+      0,
+      null,
+      conservativeLocalLeaseDeadlineMs,
+    );
+    if (release.kind === "local_lease_budget_exhausted") {
+      return this.localLeaseBudgetExhausted(startedAt, release.observedAtMs);
+    }
+    if (release.kind === "fatal") {
+      return this.latchedFatalItemResult(release.errorCode);
+    }
+    if (release.kind === "stale") {
+      return this.logStaleLease(
+        item,
+        tokenHash,
+        "email_terminal_release",
+        startedAt,
+      );
+    }
+    if (release.kind === "failed") {
+      return this.logReleaseFailure(
+        item,
+        tokenHash,
+        release,
+        "worker_release_failed",
+        startedAt,
+      );
+    }
+    if (accounting.skippedSent) {
+      this.safeLog(
+        "info",
+        "access_fulfillment_email_skipped_sent",
+        this.emailMetadata(item, tokenHash, "settled"),
+      );
+    }
+    return this.emailSettled(accounting);
+  }
+
+  private emailSettled(accounting: EmailAccounting): ItemProcessingResult {
+    return {
+      kind: "email_settled",
+      emailAccounting: Object.freeze({ ...accounting }),
+    };
+  }
+
+  private emailFatal(
+    errorCode: string,
+    accounting?: EmailAccounting,
+  ): ItemProcessingResult {
+    const fatal = this.latchFatalStop(errorCode);
+    return {
+      kind: "failed",
+      fatalErrorCode: fatal.errorCode,
+      ...(accounting
+        ? { emailAccounting: Object.freeze({ ...accounting }) }
+        : {}),
+    };
+  }
+
+  private emailUnsettled(
+    item: ClaimedItem,
+    tokenHash: string,
+    phase: EmailExecutionPhase,
+    errorCode: string,
+  ): ItemProcessingResult {
+    this.safeLog(
+      "error",
+      "access_fulfillment_email_unsettled",
+      this.emailMetadata(item, tokenHash, phase, { errorCode }),
+    );
+    return this.emailFatal(errorCode, { unsettled: true });
+  }
+
+
+  private async recordEmailPreclaimTerminalWithRecovery(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    signal: AbortSignal,
+    errorCode: AccessEmailPreclaimTerminalFailureErrorCode,
+    phase: EmailExecutionPhase,
+  ): Promise<ItemProcessingResult> {
+    const fatalBeforeMutation = this.fatalState;
+    if (fatalBeforeMutation) {
+      return this.latchedFatalItemResult(fatalBeforeMutation.errorCode);
+    }
+    if (signal.aborted) {
+      return this.releaseForExternalShutdown(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        conservativeLocalLeaseDeadlineMs,
+        startedAt,
+      );
+    }
+
+    const request: Readonly<RecordEmailPreclaimTerminalFailureInput> =
+      Object.freeze({
+        orderId: item.order_id,
+        reconcileLeaseToken,
+        reconcileLeaseEpoch: item.reconcile_lease_epoch,
+        emailGeneration: item.email_generation,
+        errorCode,
+      });
+    let requestStarted = false;
+
+    for (
+      let attempt = 0;
+      attempt < MAX_EMAIL_OBLIGATION_ATTEMPTS;
+      attempt += 1
+    ) {
+      if (!requestStarted) {
+        const fatalBeforeAttempt = this.fatalState;
+        if (fatalBeforeAttempt) {
+          return this.latchedFatalItemResult(fatalBeforeAttempt.errorCode);
+        }
+        if (signal.aborted) {
+          return this.releaseForExternalShutdown(
+            item,
+            reconcileLeaseToken,
+            tokenHash,
+            conservativeLocalLeaseDeadlineMs,
+            startedAt,
+          );
+        }
+      }
+
+      const invocation =
+        await this.invokeEmailObligationAttempt<RecordEmailPreclaimTerminalFailureResult>(
+          conservativeLocalLeaseDeadlineMs,
+          attempt,
+          (requestSignal) =>
+            this.dependencies.client.recordEmailPreclaimTerminalFailure(
+              request,
+              { signal: requestSignal },
+            ),
+        );
+      requestStarted ||= invocation.kind !== "budget_exhausted" &&
+        invocation.requestStarted !== false;
+
+      if (invocation.kind === "budget_exhausted") {
+        if (!requestStarted) {
+          return this.releaseEmailPreclaimRetry(
+            item,
+            reconcileLeaseToken,
+            tokenHash,
+            startedAt,
+            conservativeLocalLeaseDeadlineMs,
+            signal,
+            errorCode,
+          );
+        }
+        break;
+      }
+      if (
+        invocation.kind === "deadline_exceeded" ||
+        invocation.kind === "thrown"
+      ) {
+        continue;
+      }
+
+      const result = invocation.result;
+      if (result.kind === "transport_error") {
+        continue;
+      }
+      if (result.kind === "success") {
+        if (
+          result.response.order_id === item.order_id &&
+          result.response.generation === item.email_generation &&
+          result.response.epoch === item.reconcile_lease_epoch &&
+          result.response.error_code === errorCode &&
+          result.response.status === "manual_review" &&
+          result.response.terminal === true &&
+          typeof result.response.idempotent === "boolean"
+        ) {
+          this.safeLog(
+            "info",
+            "access_fulfillment_email_terminal_recorded",
+            this.emailMetadata(item, tokenHash, phase, {
+              errorCode,
+              idempotent: result.response.idempotent,
+              manualReview: true,
+            }),
+          );
+          return this.emailSettled({ manualReview: true });
+        }
+        continue;
+      }
+      if (result.kind === "business_error") {
+        const code = result.response.error.code;
+        if (code === "concurrency_conflict") {
+          continue;
+        }
+        if (
+          "order_id" in result.response &&
+          result.response.order_id !== undefined &&
+          result.response.order_id !== item.order_id
+        ) {
+          continue;
+        }
+        switch (code) {
+          case "stale_lease":
+          case "generation_mismatch":
+            return this.emailObligationStale(
+              item,
+              tokenHash,
+              "email_terminal_preclaim_recording",
+            );
+          case "email_already_sent":
+            return this.releaseEmailTerminalConclusion(
+              item,
+              reconcileLeaseToken,
+              tokenHash,
+              startedAt,
+              conservativeLocalLeaseDeadlineMs,
+              { skippedSent: true },
+            );
+          case "provider_outcome_required":
+          case "delivery_state_conflict":
+            return this.emailUnsettled(item, tokenHash, phase, code);
+          case "invalid_request":
+          case "invalid_error_code":
+          case "order_not_found":
+          case "fulfillment_not_found":
+          case "internal_error":
+            return this.emailFatal(code);
+        }
+      }
+    }
+
+    if (!requestStarted) {
+      return this.releaseEmailPreclaimRetry(
+        item,
+        reconcileLeaseToken,
+        tokenHash,
+        startedAt,
+        conservativeLocalLeaseDeadlineMs,
+        signal,
+        errorCode,
+      );
+    }
+
+    return this.emailUnsettled(
+      item,
+      tokenHash,
+      phase,
+      "worker_email_terminal_preclaim_recovery_exhausted",
+    );
+  }
+
+  private async claimEmailDeliveryWithRecovery(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    startedAt: number,
+    conservativeLocalLeaseDeadlineMs: number,
+    claimDeadlineMs: number,
+    signal: AbortSignal,
+    built: BuiltAccessEntriesEmailMessage,
+    phase: EmailExecutionPhase,
+  ): Promise<EmailClaimConclusion> {
+    const fatalBeforeMutation = this.fatalState;
+    if (fatalBeforeMutation) {
+      return {
+        kind: "failed",
+        result: this.latchedFatalItemResult(fatalBeforeMutation.errorCode),
+      };
+    }
+    if (signal.aborted) {
+      return {
+        kind: "failed",
+        result: await this.releaseForExternalShutdown(
+          item,
+          reconcileLeaseToken,
+          tokenHash,
+          conservativeLocalLeaseDeadlineMs,
+          startedAt,
+        ),
+      };
+    }
+
+    const request: Readonly<ClaimEmailDeliveryInput> = Object.freeze({
+      orderId: item.order_id,
+      reconcileLeaseToken,
+      reconcileLeaseEpoch: item.reconcile_lease_epoch,
+      entryIds: Object.freeze([...built.entryIds]),
+      requestPayloadHash: built.requestPayloadHash,
+      templateVersion: built.templateVersion,
+      provider: "resend",
+    });
+    let requestStarted = false;
+
+    for (
+      let attempt = 0;
+      attempt < MAX_EMAIL_OBLIGATION_ATTEMPTS;
+      attempt += 1
+    ) {
+      if (!requestStarted) {
+        const fatalBeforeAttempt = this.fatalState;
+        if (fatalBeforeAttempt) {
+          return {
+            kind: "failed",
+            result: this.latchedFatalItemResult(fatalBeforeAttempt.errorCode),
+          };
+        }
+        if (signal.aborted) {
+          return {
+            kind: "failed",
+            result: await this.releaseForExternalShutdown(
+              item,
+              reconcileLeaseToken,
+              tokenHash,
+              conservativeLocalLeaseDeadlineMs,
+              startedAt,
+            ),
+          };
+        }
+      }
+
+      const invocation =
+        await this.invokeEmailObligationAttempt<ClaimEmailDeliveryResult>(
+          claimDeadlineMs,
+          attempt,
+          (requestSignal) =>
+            this.dependencies.client.claimEmailDelivery(request, {
+              signal: requestSignal,
+            }),
+        );
+      requestStarted ||= invocation.kind !== "budget_exhausted" &&
+        invocation.requestStarted !== false;
+
+      if (invocation.kind === "budget_exhausted") {
+        if (!requestStarted) {
+          return { kind: "not_started" };
+        }
+        break;
+      }
+      if (
+        invocation.kind === "deadline_exceeded" ||
+        invocation.kind === "thrown"
+      ) {
+        continue;
+      }
+
+      const result = invocation.result;
+      if (result.kind === "transport_error") {
+        continue;
+      }
+      if (result.kind === "malformed_response" || result.kind === "unknown_status") {
+        return {
+          kind: "failed",
+          result: this.emailUnsettled(
+            item,
+            tokenHash,
+            phase,
+            "worker_email_claim_correlation_mismatch",
+          ),
+        };
+      }
+      if (result.kind === "success") {
+        if (result.response.status === "skipped_sent") {
+          if (
+            result.response.order_id !== item.order_id ||
+            result.response.generation !== item.email_generation ||
+            result.response.epoch !== item.reconcile_lease_epoch
+          ) {
+            return {
+              kind: "failed",
+              result: this.emailUnsettled(
+                item,
+                tokenHash,
+                phase,
+                "worker_email_claim_correlation_mismatch",
+              ),
+            };
+          }
+          const released = await this.releaseEmailTerminalConclusion(
+            item,
+            reconcileLeaseToken,
+            tokenHash,
+            startedAt,
+            conservativeLocalLeaseDeadlineMs,
+            { skippedSent: true },
+          );
+          return released.emailAccounting?.skippedSent
+            ? { kind: "skipped" }
+            : { kind: "failed", result: released };
+        }
+
+        const correlated = isCorrelatedEmailDeliveryProcessingResponse(
+          result.response,
+        )
+          ? this.validateCorrelatedEmailProcessing(
+              result.response,
+              item,
+              built,
+            )
+          : null;
+        if (correlated) {
+          return {
+            kind: "processing",
+            response: correlated,
+            conclusiveAttemptStartedAtMs: invocation.startedAtMs,
+          };
+        }
+        if (!isCorrelatedEmailDeliveryProcessingResponse(result.response)) {
+          const legacy = this.validateLegacyEmailProcessing(
+            result.response,
+            item,
+            built,
+          );
+          if (legacy) {
+            return {
+              kind: "processing",
+              response: legacy,
+              conclusiveAttemptStartedAtMs: invocation.startedAtMs,
+            };
+          }
+        }
+        return {
+          kind: "failed",
+          result: this.emailUnsettled(
+            item,
+            tokenHash,
+            phase,
+            "worker_email_claim_correlation_mismatch",
+          ),
+        };
+      }
+
+      const code = result.response.error.code;
+      if (code === "concurrency_conflict") {
+        continue;
+      }
+      if (
+        result.response.order_id !== undefined &&
+        result.response.order_id !== item.order_id
+      ) {
+        return {
+          kind: "failed",
+          result: this.emailUnsettled(
+            item,
+            tokenHash,
+            phase,
+            "worker_email_claim_correlation_mismatch",
+          ),
+        };
+      }
+      switch (code) {
+        case "stale_lease":
+          return { kind: "stale" };
+        case "ambiguous_idempotency_window_expired":
+        case "delivery_payload_drift":
+        case "delivery_state_conflict":
+          return { kind: "manual_review" };
+        case "email_manual_review": {
+          const released = await this.releaseEmailTerminalConclusion(
+            item,
+            reconcileLeaseToken,
+            tokenHash,
+            startedAt,
+            conservativeLocalLeaseDeadlineMs,
+            { manualReview: true },
+          );
+          return released.emailAccounting?.manualReview
+            ? { kind: "manual_review" }
+            : { kind: "failed", result: released };
+        }
+        case "invalid_request":
+        case "invalid_provider":
+        case "order_not_found":
+        case "fulfillment_not_found":
+          return {
+            kind: "failed",
+            result: this.emailFatal(code),
+          };
+        case "issuance_manual_review":
+        case "issuance_not_complete":
+        case "multiple_approved_payment_attempts":
+        case "fulfillment_attempt_mismatch":
+        case "unsupported_approved_provider":
+        case "order_not_paid":
+        case "internal_error":
+          return {
+            kind: "failed",
+            result: this.emailUnsettled(item, tokenHash, phase, code),
+          };
+        default:
+          return {
+            kind: "failed",
+            result: this.emailUnsettled(
+              item,
+              tokenHash,
+              phase,
+              "worker_email_claim_recovery_exhausted",
+            ),
+          };
+      }
+    }
+    if (!requestStarted) {
+      return { kind: "not_started" };
+    }
+
+    return {
+      kind: "failed",
+      result: this.emailUnsettled(
+        item,
+        tokenHash,
+        phase,
+        "worker_email_claim_recovery_exhausted",
+      ),
+    };
+  }
+
+  private validateCorrelatedEmailProcessing(
+    response: CorrelatedEmailDeliveryProcessingResponse,
+    item: ClaimedItem,
+    built: BuiltAccessEntriesEmailMessage,
+  ): CorrelatedEmailDeliveryProcessingResponse | null {
+    if (
+      !isCorrelatedEmailDeliveryProcessingResponse(response) ||
+      response.order_id !== item.order_id ||
+      response.generation !== item.email_generation ||
+      response.epoch !== item.reconcile_lease_epoch ||
+      response.provider !== "resend" ||
+      !isCanonicalUuid(response.delivery_attempt_id) ||
+      response.idempotency_key !==
+        "access-email-delivery/" + response.delivery_attempt_id ||
+      !equalStringArrays(response.entry_ids, built.entryIds) ||
+      new Set(response.entry_ids).size !== response.entry_ids.length ||
+      response.entry_count !== built.entryIds.length ||
+      response.request_payload_hash !== built.requestPayloadHash ||
+      response.template_version !== built.templateVersion ||
+      !LOWERCASE_SHA256.test(response.entry_snapshot_hash) ||
+      !Number.isSafeInteger(response.idempotency_remaining_ms) ||
+      response.idempotency_remaining_ms < 0
+    ) {
+      return null;
+    }
+    const entryIds = [...response.entry_ids];
+    Object.freeze(entryIds);
+    return Object.freeze({
+      ...response,
+      entry_ids: entryIds,
+    });
+  }
+
+  private validateLegacyEmailProcessing(
+    value: unknown,
+    item: ClaimedItem,
+    built: BuiltAccessEntriesEmailMessage,
+  ): Exclude<
+    Extract<ClaimEmailDeliveryResult, { kind: "success" }>["response"],
+    CorrelatedEmailDeliveryProcessingResponse | { status: "skipped_sent" }
+  > | null {
+    const response = readExactRecord(value, [
+      "ok",
+      "status",
+      "order_id",
+      "delivery_attempt_id",
+      "generation",
+      "provider",
+      "idempotency_key",
+      "entry_ids",
+      "entry_snapshot_hash",
+      "template_version",
+      "epoch",
+      "idempotent",
+    ]);
+    if (
+      !response ||
+      response.ok !== true ||
+      response.status !== "processing" ||
+      response.order_id !== item.order_id ||
+      response.generation !== item.email_generation ||
+      response.epoch !== item.reconcile_lease_epoch ||
+      response.provider !== "resend" ||
+      !isCanonicalUuid(response.delivery_attempt_id) ||
+      response.idempotency_key !==
+        "access-email-delivery/" + response.delivery_attempt_id ||
+      !Array.isArray(response.entry_ids) ||
+      response.entry_ids.some((entryId) => !isCanonicalUuid(entryId)) ||
+      !equalStringArrays(response.entry_ids as string[], built.entryIds) ||
+      new Set(response.entry_ids).size !== response.entry_ids.length ||
+      typeof response.entry_snapshot_hash !== "string" ||
+      !LOWERCASE_SHA256.test(response.entry_snapshot_hash) ||
+      response.template_version !== built.templateVersion ||
+      typeof response.idempotent !== "boolean"
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      ok: true,
+      status: "processing",
+      order_id: response.order_id,
+      delivery_attempt_id: response.delivery_attempt_id,
+      generation: response.generation,
+      provider: "resend",
+      idempotency_key: response.idempotency_key,
+      entry_ids: Object.freeze([...(response.entry_ids as string[])]),
+      entry_snapshot_hash: response.entry_snapshot_hash,
+      template_version: response.template_version,
+      epoch: response.epoch,
+      idempotent: response.idempotent,
+    }) as Exclude<
+      Extract<ClaimEmailDeliveryResult, { kind: "success" }>["response"],
+      CorrelatedEmailDeliveryProcessingResponse | { status: "skipped_sent" }
+    >;
+  }
+
+
+  private async settleLegacyEmailProcessing(
+    item: ClaimedItem,
+    reconcileLeaseToken: string,
+    tokenHash: string,
+    conservativeLocalLeaseDeadlineMs: number,
+    processing: Exclude<
+      Extract<ClaimEmailDeliveryResult, { kind: "success" }>["response"],
+      CorrelatedEmailDeliveryProcessingResponse | { status: "skipped_sent" }
+    >,
+  ): Promise<ItemProcessingResult> {
+    const request: Readonly<RecordEmailDeliveryOutcomeInput> = Object.freeze({
+      orderId: item.order_id,
+      deliveryAttemptId: processing.delivery_attempt_id,
+      reconcileLeaseToken,
+      reconcileLeaseEpoch: item.reconcile_lease_epoch,
+      outcome: "ambiguous",
+      providerMessageId: null,
+      errorCode: "worker_email_claim_correlation_required",
+      retryAfterSeconds: 60,
+    });
+    const settlement = await this.settleEmailOutcomeWithRecovery(
+      item,
+      tokenHash,
+      conservativeLocalLeaseDeadlineMs,
+      request,
+      "outcome_settlement",
+    );
+    if (settlement.kind === "unsettled") {
+      return {
+        kind: "failed",
+        fatalErrorCode: settlement.errorCode,
+        emailAccounting: settlement.accounting,
+      };
+    }
+
+    const fatal = this.latchFatalStop(
+      "worker_email_claim_correlation_required",
+    );
+    return {
+      kind: "email_settled",
+      fatalErrorCode: fatal.errorCode,
+      emailAccounting: settlement.accounting,
+    };
+  }
+
+  private async invokeEmailProviderOnce(
+    item: ClaimedItem,
+    tokenHash: string,
+    conservativeLocalLeaseDeadlineMs: number,
+    conclusiveClaimAttemptStartedAtMs: number,
+    processing: CorrelatedEmailDeliveryProcessingResponse,
+    built: BuiltAccessEntriesEmailMessage,
+    signal: AbortSignal,
+    capability: ResolvedAccessFulfillmentEmailCapability,
+  ): Promise<ProviderOutcomeTuple> {
+    if (this.fatalState || signal.aborted) {
+      return Object.freeze({
+        outcome: "failed",
+        providerMessageId: null,
+        errorCode: "provider_call_not_started_aborted",
+        retryAfterSeconds: 60,
+      });
+    }
+
+    const nowMs = this.readObligationMonotonicNow();
+    if (nowMs === undefined || this.fatalState || signal.aborted) {
+      return Object.freeze({
+        outcome: "failed",
+        providerMessageId: null,
+        errorCode: "provider_call_not_started_aborted",
+        retryAfterSeconds: 60,
+      });
+    }
+    const initialBudget = this.providerBudgetAt(
+      conservativeLocalLeaseDeadlineMs,
+      conclusiveClaimAttemptStartedAtMs,
+      processing.idempotency_remaining_ms,
+      nowMs,
+    );
+    if (
+      initialBudget.effectiveProviderTimeoutMs < MIN_STAGE_WINDOW_MS ||
+      initialBudget.conservativeIdempotencyRemainingMs <
+        initialBudget.effectiveProviderTimeoutMs + MIN_STAGE_WINDOW_MS
+    ) {
+      return Object.freeze({
+        outcome: "failed",
+        providerMessageId: null,
+        errorCode: "worker_email_idempotency_window_insufficient",
+        retryAfterSeconds: 60,
+      });
+    }
+
+    let providerDeadline: AbortDeadline | undefined;
+    let combinedSignal: CombinedAbortSignal | undefined;
+    let removeAbortListener = (): void => undefined;
+    let providerStarted = false;
+    try {
+      providerDeadline = (
+        this.dependencies.createDeadline ?? createAbortDeadline
+      )(initialBudget.effectiveProviderTimeoutMs);
+      combinedSignal = combineAbortSignals([
+        providerDeadline.signal,
+        signal,
+        this.fatalAbortController.signal,
+      ]);
+
+      const abortPromise = new Promise<{ kind: "aborted" }>((resolve) => {
+        const handleAbort = (): void => resolve({ kind: "aborted" });
+        combinedSignal?.signal.addEventListener("abort", handleAbort, {
+          once: true,
+        });
+        removeAbortListener = () =>
+          combinedSignal?.signal.removeEventListener("abort", handleAbort);
+      });
+
+      const finalNowMs = this.readObligationMonotonicNow();
+      if (
+        finalNowMs === undefined ||
+        this.fatalState ||
+        signal.aborted ||
+        providerDeadline.signal.aborted ||
+        combinedSignal.signal.aborted
+      ) {
+        return Object.freeze({
+          outcome: "failed",
+          providerMessageId: null,
+          errorCode: "provider_call_not_started_aborted",
+          retryAfterSeconds: 60,
+        });
+      }
+      const finalBudget = this.providerBudgetAt(
+        conservativeLocalLeaseDeadlineMs,
+        conclusiveClaimAttemptStartedAtMs,
+        processing.idempotency_remaining_ms,
+        finalNowMs,
+      );
+      if (
+        finalBudget.localProviderCapacityMs <
+          initialBudget.effectiveProviderTimeoutMs ||
+        finalBudget.conservativeIdempotencyRemainingMs <
+          initialBudget.effectiveProviderTimeoutMs + MIN_STAGE_WINDOW_MS
+      ) {
+        return Object.freeze({
+          outcome: "failed",
+          providerMessageId: null,
+          errorCode: "worker_email_idempotency_window_insufficient",
+          retryAfterSeconds: 60,
+        });
+      }
+
+      const providerInput = Object.freeze({
+        idempotencyKey: processing.idempotency_key,
+        requestPayloadHash: built.requestPayloadHash,
+        templateVersion: built.templateVersion,
+        message: built.message,
+      });
+      let providerPromise: Promise<
+        | { kind: "result"; result: AccessEmailProviderOutcome }
+        | { kind: "thrown" }
+      >;
+      try {
+        providerStarted = true;
+        providerPromise = Promise.resolve(
+          capability.send(providerInput, {
+            signal: combinedSignal.signal,
+          }),
+        ).then(
+          (result) => ({ kind: "result" as const, result }),
+          () => ({ kind: "thrown" as const }),
+        );
+      } catch {
+        return providerContractAmbiguous();
+      }
+
+      const conclusion = await Promise.race([
+        providerPromise,
+        abortPromise,
+      ]);
+      let tuple: ProviderOutcomeTuple;
+      if (
+        conclusion.kind === "aborted" ||
+        conclusion.kind === "thrown" ||
+        combinedSignal.signal.aborted
+      ) {
+        tuple = providerContractAmbiguous();
+      } else {
+        try {
+          tuple =
+            validateProviderOutcome(conclusion.result) ??
+            providerContractAmbiguous();
+        } catch {
+          tuple = providerContractAmbiguous();
+        }
+      }
+      this.safeLog(
+        "info",
+        "access_fulfillment_email_provider_completed",
+        this.emailMetadata(item, tokenHash, "provider_started", {
+          attemptHash: accessFulfillmentCorrelationHash(
+            processing.delivery_attempt_id,
+          ),
+          outcome: tuple.outcome,
+          ...(tuple.errorCode === null
+            ? {}
+            : { errorCode: tuple.errorCode }),
+        }),
+      );
+      return tuple;
+    } catch {
+      return providerStarted
+        ? providerContractAmbiguous()
+        : Object.freeze({
+            outcome: "failed",
+            providerMessageId: null,
+            errorCode: "provider_call_not_started_aborted",
+            retryAfterSeconds: 60,
+          });
+    } finally {
+      try {
+        removeAbortListener();
+      } catch {
+        // Cleanup is best effort after the provider conclusion is frozen.
+      }
+      try {
+        combinedSignal?.dispose();
+      } catch {
+        // Cleanup must not suppress mandatory outcome settlement.
+      }
+      try {
+        providerDeadline?.dispose();
+      } catch {
+        // Cleanup must not suppress mandatory outcome settlement.
+      }
+    }
+  }
+
+  private providerBudgetAt(
+    conservativeLocalLeaseDeadlineMs: number,
+    conclusiveClaimAttemptStartedAtMs: number,
+    sqlIdempotencyRemainingMs: number,
+    nowMs: number,
+  ): {
+    conservativeIdempotencyRemainingMs: number;
+    localProviderCapacityMs: number;
+    effectiveProviderTimeoutMs: number;
+  } {
+    const elapsedSinceConclusiveClaimAttemptStartedMs = Math.max(
+      0,
+      nowMs - conclusiveClaimAttemptStartedAtMs,
+    );
+    const conservativeIdempotencyRemainingMs = Math.max(
+      0,
+      sqlIdempotencyRemainingMs -
+        elapsedSinceConclusiveClaimAttemptStartedMs,
+    );
+    const localLeaseRemainingMs = Math.max(
+      0,
+      conservativeLocalLeaseDeadlineMs - nowMs,
+    );
+    const localProviderCapacityMs = Math.max(
+      0,
+      localLeaseRemainingMs -
+        this.dependencies.config.rpcTimeoutMs -
+        MIN_STAGE_WINDOW_MS,
+    );
+    return {
+      conservativeIdempotencyRemainingMs,
+      localProviderCapacityMs,
+      effectiveProviderTimeoutMs: Math.min(
+        this.dependencies.config.emailProviderTimeoutMs,
+        localProviderCapacityMs,
+      ),
+    };
+  }
+
+  private async settleEmailOutcomeWithRecovery(
+    item: ClaimedItem,
+    tokenHash: string,
+    conservativeLocalLeaseDeadlineMs: number,
+    request: Readonly<RecordEmailDeliveryOutcomeInput>,
+    phase: EmailExecutionPhase,
+  ): Promise<OutcomeSettlementConclusion> {
+    for (
+      let attempt = 0;
+      attempt < MAX_EMAIL_OBLIGATION_ATTEMPTS;
+      attempt += 1
+    ) {
+      const invocation =
+        await this.invokeEmailObligationAttempt<RecordEmailDeliveryOutcomeResult>(
+          conservativeLocalLeaseDeadlineMs,
+          attempt,
+          (requestSignal) =>
+            this.dependencies.client.recordEmailDeliveryOutcome(request, {
+              signal: requestSignal,
+            }),
+        );
+      if (invocation.kind === "budget_exhausted") {
+        break;
+      }
+      if (
+        invocation.kind === "deadline_exceeded" ||
+        invocation.kind === "thrown"
+      ) {
+        continue;
+      }
+
+      const result = invocation.result;
+      if (result.kind === "transport_error") {
+        continue;
+      }
+      if (result.kind === "success") {
+        if (
+          result.response.order_id !== item.order_id ||
+          result.response.delivery_attempt_id !== request.deliveryAttemptId
+        ) {
+          return this.outcomeSettlementUnsettled(
+            item,
+            tokenHash,
+            phase,
+            "worker_email_outcome_settlement_exhausted",
+          );
+        }
+        const accounting = this.accountEmailSettlementSuccess(
+          request,
+          result.response,
+        );
+        if (!accounting) {
+          return this.outcomeSettlementUnsettled(
+            item,
+            tokenHash,
+            phase,
+            "worker_email_outcome_settlement_exhausted",
+          );
+        }
+        return { kind: "settled", accounting };
+      }
+      if (result.kind === "business_error") {
+        const code = result.response.error.code;
+        if (code === "concurrency_conflict") {
+          continue;
+        }
+        switch (code) {
+          case "stale_lease":
+          case "outcome_conflict":
+          case "provider_message_conflict":
+          case "delivery_attempt_mismatch":
+          case "delivery_attempt_not_found":
+          case "order_not_found":
+          case "fulfillment_not_found":
+          case "invalid_request":
+          case "internal_error":
+            return this.outcomeSettlementUnsettled(
+              item,
+              tokenHash,
+              phase,
+              code,
+            );
+          default:
+            return this.outcomeSettlementUnsettled(
+              item,
+              tokenHash,
+              phase,
+              "worker_email_outcome_settlement_exhausted",
+            );
+        }
+      }
+      return this.outcomeSettlementUnsettled(
+        item,
+        tokenHash,
+        phase,
+        "worker_email_outcome_settlement_exhausted",
+      );
+    }
+
+    return this.outcomeSettlementUnsettled(
+      item,
+      tokenHash,
+      phase,
+      "worker_email_outcome_settlement_exhausted",
+    );
+  }
+
+  private accountEmailSettlementSuccess(
+    request: Readonly<RecordEmailDeliveryOutcomeInput>,
+    response: Extract<
+      RecordEmailDeliveryOutcomeResult,
+      { kind: "success" }
+    >["response"],
+  ): EmailAccounting | null {
+    if (response.status === "accepted") {
+      if (request.outcome !== "accepted") {
+        return null;
+      }
+      return Object.freeze({
+        accepted: true,
+        ...(response.manual_review ? { manualReview: true as const } : {}),
+      });
+    }
+
+    if (response.idempotent === true) {
+      if (
+        (response.status !== "failed" && response.status !== "ambiguous") ||
+        response.status !== request.outcome
+      ) {
+        return null;
+      }
+      return Object.freeze({
+        ...(request.outcome === "ambiguous"
+          ? { ambiguous: true as const }
+          : request.retryAfterSeconds !== null
+            ? { retryScheduled: true as const }
+            : {}),
+        manualReviewUnknown: true,
+      });
+    }
+
+    if (request.outcome === "accepted") {
+      return null;
+    }
+    if (
+      (response.status === "failed" && request.outcome !== "failed") ||
+      (response.status === "ambiguous" &&
+        request.outcome !== "ambiguous")
+    ) {
+      return null;
+    }
+    return Object.freeze({
+      ...(request.outcome === "ambiguous"
+        ? { ambiguous: true as const }
+        : response.retryable
+          ? { retryScheduled: true as const }
+          : {}),
+      ...(response.manual_review ? { manualReview: true as const } : {}),
+    });
+  }
+
+  private outcomeSettlementUnsettled(
+    item: ClaimedItem,
+    tokenHash: string,
+    phase: EmailExecutionPhase,
+    errorCode: string,
+  ): OutcomeSettlementConclusion {
+    this.safeLog(
+      "error",
+      "access_fulfillment_email_unsettled",
+      this.emailMetadata(item, tokenHash, phase, { errorCode }),
+    );
+    const fatal = this.latchFatalStop(errorCode);
+    return {
+      kind: "unsettled",
+      accounting: Object.freeze({ unsettled: true }),
+      errorCode: fatal.errorCode,
+    };
+  }
+
 
   private async reconcileIssuance(
     item: ClaimedItem,
@@ -1381,6 +3659,99 @@ export class AccessFulfillmentWorker {
     }
   }
 
+  private async invokeEmailObligationAttempt<Response>(
+    parentDeadlineMs: number,
+    attemptsAlreadyMade: number,
+    invoke: (signal: AbortSignal) => Promise<Response>,
+  ): Promise<ObligationInvocationConclusion<Response>> {
+    const attemptsRemaining =
+      MAX_EMAIL_OBLIGATION_ATTEMPTS - attemptsAlreadyMade;
+    const budgetNowMs = this.readObligationMonotonicNow();
+    if (
+      budgetNowMs === undefined ||
+      attemptsRemaining <= 0 ||
+      !Number.isFinite(parentDeadlineMs)
+    ) {
+      return { kind: "budget_exhausted", requestStarted: false };
+    }
+    const remainingParentBudgetMs = parentDeadlineMs - budgetNowMs;
+    const attemptTimeoutMs = Math.min(
+      this.dependencies.config.rpcTimeoutMs,
+      Math.floor(remainingParentBudgetMs / attemptsRemaining),
+    );
+    if (
+      !Number.isFinite(attemptTimeoutMs) ||
+      attemptTimeoutMs < MIN_STAGE_WINDOW_MS
+    ) {
+      return { kind: "budget_exhausted", requestStarted: false };
+    }
+
+    let deadline: AbortDeadline;
+    try {
+      deadline = (this.dependencies.createDeadline ?? createAbortDeadline)(
+        attemptTimeoutMs,
+      );
+    } catch {
+      return { kind: "thrown", requestStarted: false };
+    }
+
+    let removeAbortListener = (): void => undefined;
+    let requestStarted = false;
+    try {
+      if (deadline.signal.aborted) {
+        return { kind: "deadline_exceeded", requestStarted: false };
+      }
+      const startedAtMs = this.readObligationMonotonicNow();
+      if (startedAtMs === undefined || deadline.signal.aborted) {
+        return { kind: "deadline_exceeded", requestStarted: false };
+      }
+
+      const abortPromise = new Promise<{ kind: "aborted" }>((resolve) => {
+        const handleAbort = (): void => resolve({ kind: "aborted" });
+        deadline.signal.addEventListener("abort", handleAbort, { once: true });
+        removeAbortListener = () =>
+          deadline.signal.removeEventListener("abort", handleAbort);
+      });
+
+      let operationPromise: Promise<
+        { kind: "result"; result: Response } | { kind: "thrown" }
+      >;
+      try {
+        requestStarted = true;
+        operationPromise = Promise.resolve(invoke(deadline.signal)).then(
+          (result) => ({ kind: "result" as const, result }),
+          () => ({ kind: "thrown" as const }),
+        );
+      } catch {
+        return { kind: "thrown", requestStarted };
+      }
+
+      if (deadline.signal.aborted) {
+        return { kind: "deadline_exceeded", requestStarted };
+      }
+      const conclusion = await Promise.race([
+        operationPromise,
+        abortPromise,
+      ]);
+      if (deadline.signal.aborted || conclusion.kind === "aborted") {
+        return { kind: "deadline_exceeded", requestStarted };
+      }
+      if (conclusion.kind === "thrown") {
+        return { kind: "thrown", requestStarted };
+      }
+      return {
+        kind: "result",
+        result: conclusion.result,
+        startedAtMs,
+        requestStarted: true,
+      };
+    } finally {
+      removeAbortListener();
+      deadline.dispose();
+    }
+  }
+
+
   private effectiveRpcTimeoutMs(
     conservativeLocalLeaseDeadlineMs: number,
   ): EffectiveRpcTimeout {
@@ -1450,10 +3821,7 @@ export class AccessFulfillmentWorker {
   private latchedFatalItemResult(errorCode: string): ItemProcessingResult {
     const fatal = this.latchFatalStop(errorCode);
     return {
-      kind:
-        fatal.errorCode === "local_lease_budget_exhausted"
-          ? "local_lease_budget_exhausted"
-          : "failed",
+      kind: "failed",
       fatalErrorCode: fatal.errorCode,
     };
   }
@@ -1480,7 +3848,10 @@ export class AccessFulfillmentWorker {
         ...(durationMs === undefined ? {} : { durationMs }),
       },
     );
-    return this.latchedFatalItemResult(fatal.errorCode);
+    return {
+      kind: "local_lease_budget_exhausted",
+      fatalErrorCode: fatal.errorCode,
+    };
   }
 
   private logReleaseFailure(
@@ -1516,6 +3887,23 @@ export class AccessFulfillmentWorker {
       ...(release.kind === "fatal" ? { fatalErrorCode: release.errorCode } : {}),
     };
   }
+
+  private emailObligationStale(
+    item: ClaimedItem,
+    tokenHash: string,
+    originStage: AccessFulfillmentStaleOriginStage,
+  ): ItemProcessingResult {
+    this.safeLog(
+      "warn",
+      "access_fulfillment_stale_lease",
+      this.itemMetadata(item, tokenHash, {
+        originStage,
+        errorCode: "stale_lease",
+      }),
+    );
+    return { kind: "stale" };
+  }
+
 
   private logStaleLease(
     item: ClaimedItem,
@@ -1564,7 +3952,17 @@ export class AccessFulfillmentWorker {
   }
 
   private readMonotonicNow(): number | undefined {
-    if (this.fatalState) {
+    return this.readMonotonicNowInternal(false);
+  }
+
+  private readObligationMonotonicNow(): number | undefined {
+    return this.readMonotonicNowInternal(true);
+  }
+
+  private readMonotonicNowInternal(
+    allowAfterFatal: boolean,
+  ): number | undefined {
+    if (!allowAfterFatal && this.fatalState) {
       return undefined;
     }
     try {
@@ -1622,18 +4020,39 @@ export class AccessFulfillmentWorker {
     };
   }
 
+  private emailMetadata(
+    item: ClaimedItem,
+    tokenHash: string,
+    phase: EmailExecutionPhase,
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    return {
+      tokenHash,
+      orderHash: accessFulfillmentCorrelationHash(item.order_id),
+      generation: item.email_generation,
+      epoch: item.reconcile_lease_epoch,
+      phase,
+      ...extra,
+    };
+  }
+
   private summarize(
     claimedCount: number,
-    outcomes: readonly ItemProcessingResult[],
+    outcomes: readonly (ItemProcessingResult | undefined)[],
   ): AccessFulfillmentCycleSummary {
     const summary = emptySummary(claimedCount);
     for (const outcome of outcomes) {
+      if (!outcome) {
+        continue;
+      }
       switch (outcome.kind) {
         case "reconciled":
           summary.reconciledCount += 1;
           break;
         case "deferred":
           summary.deferredCount += 1;
+          break;
+        case "email_settled":
           break;
         case "failed":
           summary.failedCount += 1;
@@ -1650,6 +4069,28 @@ export class AccessFulfillmentWorker {
       }
       if (outcome.releaseFailed) {
         summary.releaseFailedCount += 1;
+      }
+      const email = outcome.emailAccounting;
+      if (email?.accepted) {
+        summary.emailAcceptedCount += 1;
+      }
+      if (email?.retryScheduled) {
+        summary.emailRetryScheduledCount += 1;
+      }
+      if (email?.ambiguous) {
+        summary.emailAmbiguousCount += 1;
+      }
+      if (email?.skippedSent) {
+        summary.emailSkippedSentCount += 1;
+      }
+      if (email?.unsettled) {
+        summary.emailUnsettledCount += 1;
+      }
+      if (email?.manualReview) {
+        summary.emailManualReviewCount += 1;
+      }
+      if (email?.manualReviewUnknown) {
+        summary.emailManualReviewUnknownCount += 1;
       }
     }
     return summary;
