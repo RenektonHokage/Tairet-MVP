@@ -115,6 +115,7 @@ These are manual/review commands today; no tracked harness script is implied.
 | Contract | Existing test surface |
 | --- | --- |
 | Configuration modes and mutual exclusion | `functions/api/src/config/accessFulfillment.test.ts` |
+| Bancard callback private-key, token, and configuration gates; default/true/false legacy authority; confirm and issue outcomes; rejected/manual review; lazy sender loading; non-blocking sender failure; invocation-captured gate and dependency/concurrency isolation; safe logging | `functions/api/src/services/bancardConfirm.test.ts` |
 | `WorkerMain` invalid config; OFF/dry-run side-effect boundaries; reconcile-only; lazy Supabase/email-runtime loading; shared-client ownership; capability wiring; provider creation without startup send; startup failures; signal cleanup; safe logging | `functions/api/src/workers/accessFulfillmentWorker.test.ts` |
 | Abort/deadline semantics | `functions/api/src/services/abortDeadline.test.ts` |
 | RPC schemas and sanitized transport | `functions/api/src/services/accessFulfillment.test.ts` |

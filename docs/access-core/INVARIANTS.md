@@ -54,6 +54,10 @@ These are stable decisions and safety properties. They do not describe current d
 22. A terminal pre-claim failure may coexist with exactly one earlier current-generation `ambiguous` attempt only when no `processing` or `accepted` attempt exists; the ambiguous attempt remains intact as the authoritative historical provider evidence, no new claim, provider call, or provider outcome is created or implied, and the marker identifies only the exact terminal request.
 23. Legacy direct delivery and durable delivery cannot both hold email authority. Cutover must be explicit, gated, and reversible.
 
+## Legacy HTTP direct email
+
+1. The Bancard callback decides `ACCESS_LEGACY_DIRECT_EMAIL_ENABLED` once per invocation, after token validation and before the first mutating RPC: an invalid value fails closed before payment mutation, `false` prevents loading or invoking the legacy sender, and the omitted/default `true` preserves legacy compatibility. The decision uses no mutable global override, and disabling the legacy sender does not by itself activate durable email or transfer authority.
+
 ## Migrations and database boundaries
 
 1. Closed migrations are immutable evidence. Corrections use a new migration rather than editing an applied migration.

@@ -15,7 +15,7 @@ Start with the repository guardrails in [`AGENTS.md`](../../AGENTS.md), then cho
 | What is closed, eligible, blocked, or awaiting a gate? | [`ROADMAP.md`](ROADMAP.md) | Authorization from roadmap eligibility alone |
 | What validation exists now or is planned? | [`TEST_MATRIX.md`](TEST_MATRIX.md) | Planned tooling as implemented tooling |
 | How should an authorized slice be executed? | Its single file under `exec-plans/active/` | Authority beyond the current prompt and plan |
-| What exactly closed in a previous slice? | The matching file under [`exec-plans/completed/`](exec-plans/completed/9E.5B3B4B.md) | Current runtime state from historical evidence |
+| What exactly closed in a previous slice? | The matching file under [`exec-plans/completed/`](exec-plans/completed/9E.5B3B4C.md) | Current runtime state from historical evidence |
 
 Do not read all completed checkpoints unless the task requires historical reconstruction.
 
@@ -70,6 +70,7 @@ Historical documents remain evidence for their own cuts. Their titles do not gra
 - [`9E.5B3B4R`](exec-plans/completed/9E.5B3B4R.md)
 - [`9E.5B3B4A`](exec-plans/completed/9E.5B3B4A.md)
 - [`9E.5B3B4B`](exec-plans/completed/9E.5B3B4B.md)
+- [`9E.5B3B4C`](exec-plans/completed/9E.5B3B4C.md)
 
 ## Update discipline
 
