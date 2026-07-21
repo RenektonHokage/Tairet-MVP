@@ -64,15 +64,40 @@ Prompts for sensitive work should contain:
 
 Repeat task-critical restrictions in the prompt.
 
-## Validation, review, and push
+## Fast-Safe execution
 
-- Run focused validation while implementing.
-- Run the complete applicable suite once for each exact candidate changeset.
-- Bind review evidence to the exact base and changeset identity.
-- Reuse review gates only when the changeset is byte-for-byte identical.
-- If any path, mode, byte, or base changes after review, create a new changeset identity and rerun applicable gates.
-- A push is mechanical only when the reviewed commit and changeset are unchanged and the remote has not advanced. Pushing never authorizes semantic changes.
-- Keep reports compact: outcome, changed paths, validations, residual risk, and next authorized action.
+Detailed workflows, gates, and evidence-reuse rules live in [`docs/access-core/TEST_MATRIX.md`](docs/access-core/TEST_MATRIX.md).
+
+### Risk classification
+
+- **HIGH:** SQL or migrations, payments, idempotency, authority, concurrency, callbacks, provider calls, production, deployment, activation, cutover, or rollout.
+- **MEDIUM:** WorkerMain wiring, dependency composition, startup/config gates, adapters with closed contracts, bounded runtime refactors, and changes to the authoritative agent-process contract, including this file.
+- **LOW:** non-authoritative documentation, isolated lint or tests, messages, internal scripts, and mechanical pushes, but only when product behavior, authoritative contracts, runtime, deployment, activation, and authority remain unchanged.
+
+### Risk escalation
+
+- Any task touching a HIGH surface is HIGH, regardless of whether the edited file is a test, script, document, or configuration. The affected surface prevails over file type.
+- LOW applies only when product behavior, authoritative contracts, runtime state, deployment, activation, and authority remain unchanged.
+- Byte-exact identity permits reuse only of deterministic candidate evidence: tests, build, typecheck, lint, and review bound to that identity.
+- Reverify volatile evidence—remote refs, runtime, migration ledger, deployment, production, and external availability—whenever it conditions the requested action, even for an unchanged candidate.
+- A push is mechanical/LOW only for an immutable reviewed commit after fetch confirms `origin/main` is exactly its expected parent and the push is fast-forward.
+
+### Workflow
+
+- **HIGH:** ASK only if technical decisions remain open → CODE + gates without commit → independent review + local commit → mechanical push → documentation closure → documentation push.
+- **MEDIUM:** focused read → CODE + gates → independent review + commit when concurrency, authority, remote effects, or an especially sensitive boundary is involved → mechanical push → compact documentation closure.
+- **LOW:** implement + validate + review + local commit in one turn → separate mechanical push.
+- **Isolated finding:** fix only the finding → repeat affected gates → recalculate identity → continue at the surface's risk level.
+
+### Compact rules
+
+- Do not generate ASK when code, tests, and canonical documentation already close the required contracts.
+- Read only the minimum canonical route; do not reconstruct versioned context from conversations.
+- Reuse gates only when base, paths, modes, and bytes are identical. Any change creates a new changeset identity and requires the affected gates again.
+- Keep mechanical pushes brief; do not repeat semantic review.
+- LOW documentation may combine implementation, validation, review, and local commit; its push remains separate.
+- Reports are compact by default, and contextual stops remain fail-closed.
+- Keep capability, deployment, activation, authority, and authorization distinct.
 
 ## Contextual stops
 

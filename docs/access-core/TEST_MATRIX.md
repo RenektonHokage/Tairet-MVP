@@ -6,6 +6,94 @@ Focused validation runs while implementing. The complete applicable suite runs o
 
 The entries below distinguish tools and tests that exist now from tooling planned for CONTEXT HARNESS V1B.
 
+## FAST_SAFE_V1 workflow and evidence reuse
+
+### Risk table
+
+| Risk | Typical surfaces | Default flow |
+| --- | --- | --- |
+| HIGH | SQL, payments, idempotency, authority, concurrency, callbacks, providers, production/deploy/cutover | ASK only if decisions are open → CODE+gates → independent review+commit → mechanical push → docs closure |
+| MEDIUM | WorkerMain wiring, dependency composition, startup/config gates, bounded runtime refactors, agent-process governance | Focused read → CODE+gates → independent review when sensitive → mechanical push → compact docs closure |
+| LOW | Non-authoritative docs, isolated lint/tests, messages, internal scripts, reviewed immutable pushes | Implement+validate+review+commit → separate mechanical push |
+
+Risk follows the affected surface, not the edited file type. A test, document, script, or configuration that affects a HIGH surface is HIGH.
+
+### ASK policy
+
+- Use ASK only when safe implementation requires an unresolved technical decision.
+- When code, tests, and canonical documentation already close the contract, begin with focused reading and CODE.
+- A focused read may stop with `TECHNICAL_DECISION_REQUIRED` without modifying files.
+
+### Independent review
+
+- HIGH requires independent review.
+- MEDIUM requires independent review when it involves concurrency, authority, security, a remote effect, or another sensitive boundary.
+- LOW does not automatically require a second independent review.
+- No risk level permits skipping applicable technical gates.
+
+### LOW documentation
+
+- LOW documentation may be implemented, validated, reviewed, selectively staged, and committed in one turn.
+- The push remains separate.
+- Documentation that changes a decision or authoritative contract is not LOW.
+
+### Small findings
+
+- Fix an isolated finding in one bounded turn.
+- Repeat only the affected gates and recalculate the changeset identity.
+- Do not generate a new ASK unless a real decision emerges.
+
+### Compact reports
+
+The default report uses:
+
+`CLASSIFICATION`, `FILES`, `CHANGES`, `GATES`, `FINDINGS`, `IDENTITY`, `GIT_STATE`, `RESIDUAL_RISK`, and `NEXT_AUTHORIZED_ACTION`.
+
+Reserve longer explanations for findings, new decisions, scope expansion, material residual risks, and sensitive remote actions.
+
+### Evidence reuse
+
+When base, paths, modes, and bytes are identical, reuse deterministic tests, build, typecheck, lint, and semantic review. Repeat only identity, scope, diff-check, and the applicable mechanical gate.
+
+When any base, path, mode, or byte changes, create a new changeset identity and repeat the affected gates; evidence from the prior candidate is not assumed to remain closed.
+
+### Risk escalation and volatile evidence
+
+- Classification depends on the affected surface, not only on file extension or location. A test, document, script, or configuration that changes a HIGH surface is HIGH.
+- LOW covers only tasks with no effect on product behavior, authoritative contracts, runtime, deployment, activation, or authority.
+- Byte-exact identity permits reuse only of deterministic candidate evidence.
+- Remote refs, runtime, migration ledger, deployment, production, and external availability are volatile evidence and must be reverified whenever they condition the task, even when the candidate remains byte-identical.
+
+### Mechanical push
+
+A mechanical push contains only:
+
+- repository and branch;
+- commit and expected parent;
+- expected paths or tree;
+- clean worktree and staging;
+- fetch;
+- `origin/main` exactly at the parent;
+- fast-forward check;
+- push without force;
+- post-push verification;
+- contextual stops.
+
+It does not repeat architecture, complete test matrices, closed decisions, semantic review, or slice history.
+
+A push is mechanical only when the commit is reviewed and immutable, worktree and staging are clean, fetch confirms `origin/main` exactly at the expected parent, and the fast-forward check passes.
+
+### Controls preserved
+
+FAST_SAFE_V1 does not remove exact scope, selective staging, applicable tests, typecheck, build, lint, diff-check, evidence-binding manifests, risk-sensitive independent review, fast-forward-only pushes, fail-closed stops, separation of capability/deployment/activation/authority, or human authorization for production and cutover.
+
+### CONTEXT HARNESS V1B
+
+- CONTEXT HARNESS V1B remains **PLANNED**; this changeset implements no V1B tooling.
+- `PRE_REVIEW_CHANGESET_SHA256` remains a temporary V1A convention.
+- No scripts, CI, or automation are added, and planned tooling is not presented as available.
+- The V1B capabilities listed below remain intact.
+
 ## AVAILABLE NOW
 
 ### Repository and scope gates
@@ -80,9 +168,3 @@ For V1A, calculate `PRE_REVIEW_CHANGESET_SHA256` outside tracked tooling from a 
 5. the lowercase SHA-256 of its exact bytes.
 
 Serialize the manifest as UTF-8 with LF line endings and a final LF. Report both the serialization and resulting digest. This temporary convention is review evidence, not the completed V1B implementation.
-
-## Review reuse
-
-- Same base and same manifest digest: existing semantic review and applicable gates may be reused.
-- Different base, path, mode, or content hash: new changeset identity; rerun applicable gates.
-- Push is mechanical only after confirming the reviewed identity and remote base remain unchanged; an unchanged identity does not require a full semantic re-review merely to push.
