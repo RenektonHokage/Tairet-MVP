@@ -6,6 +6,7 @@ import {
   ACCESS_FULFILLMENT_LIMITS,
   AccessFulfillmentConfigError,
   loadAccessFulfillmentConfig,
+  loadLegacyDirectEmailEnabled,
 } from "./accessFulfillment";
 
 const WORKER_ONLY_BASE = {
@@ -22,6 +23,47 @@ const DURABLE_BASE = {
   RESEND_API_KEY: "test-key",
   EMAIL_FROM_ADDRESS: "access@example.test",
 } as const;
+
+describe("loadLegacyDirectEmailEnabled", () => {
+  it("defaults legacy direct email to enabled", () => {
+    assert.equal(loadLegacyDirectEmailEnabled({}), true);
+  });
+
+  it("accepts the explicit true value", () => {
+    assert.equal(
+      loadLegacyDirectEmailEnabled({
+        ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: "true",
+      }),
+      true,
+    );
+  });
+
+  it("accepts the explicit false value", () => {
+    assert.equal(
+      loadLegacyDirectEmailEnabled({
+        ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: "false",
+      }),
+      false,
+    );
+  });
+
+  it("rejects every other value without echoing it", () => {
+    const invalidValue = "raw-invalid-legacy-authority-value";
+
+    assert.throws(
+      () =>
+        loadLegacyDirectEmailEnabled({
+          ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: invalidValue,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof AccessFulfillmentConfigError);
+        assert.equal(error.field, "ACCESS_LEGACY_DIRECT_EMAIL_ENABLED");
+        assert.equal(error.message.includes(invalidValue), false);
+        return true;
+      },
+    );
+  });
+});
 
 describe("loadAccessFulfillmentConfig", () => {
   it("loads the documented safe defaults without reading process.env", () => {

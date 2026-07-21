@@ -60,6 +60,16 @@ function readBoolean(
   );
 }
 
+export function loadLegacyDirectEmailEnabled(
+  env: AccessFulfillmentEnv,
+): boolean {
+  return readBoolean(
+    env,
+    "ACCESS_LEGACY_DIRECT_EMAIL_ENABLED",
+    true,
+  );
+}
+
 function readInteger(
   env: AccessFulfillmentEnv,
   field: string,
@@ -107,11 +117,7 @@ export function loadAccessFulfillmentConfig(
     "ACCESS_DURABLE_EMAIL_DELIVERY_ENABLED",
     false,
   );
-  const legacyDirectEmailEnabled = readBoolean(
-    env,
-    "ACCESS_LEGACY_DIRECT_EMAIL_ENABLED",
-    true,
-  );
+  const legacyDirectEmailEnabled = loadLegacyDirectEmailEnabled(env);
   const workerDryRun = readBoolean(env, "ACCESS_FULFILLMENT_WORKER_DRY_RUN", true);
   const emailEnabled = readBoolean(env, "EMAIL_ENABLED", false);
 
