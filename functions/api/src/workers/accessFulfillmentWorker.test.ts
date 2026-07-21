@@ -45,6 +45,8 @@ import {
   createAccessFulfillmentWorker,
 } from "./accessFulfillmentWorker";
 import {
+  type AccessFulfillmentEmailRuntime,
+  type AccessFulfillmentRuntimeSupabaseClient,
   registerAccessFulfillmentWorkerSignalHandlers,
   runAccessFulfillmentWorkerMain,
 } from "./accessFulfillmentWorkerMain";
@@ -83,6 +85,7 @@ const DRY_RUN_ENV = {
 
 const DURABLE_ENV = {
   ACCESS_FULFILLMENT_WORKER_ENABLED: "true",
+  ACCESS_FULFILLMENT_WORKER_DRY_RUN: "false",
   ACCESS_DURABLE_EMAIL_DELIVERY_ENABLED: "true",
   ACCESS_LEGACY_DIRECT_EMAIL_ENABLED: "false",
   EMAIL_ENABLED: "true",
@@ -828,7 +831,10 @@ describe("access fulfillment worker startup", () => {
   it("keeps default-disabled mode free of Supabase imports and RPCs", async () => {
     const logger = new MemoryLogger();
     let loadCalls = 0;
+    let loadSupabaseCalls = 0;
+    let loadEmailRuntimeCalls = 0;
     let factoryCalls = 0;
+    let signalCalls = 0;
     const result = await runAccessFulfillmentWorkerMain({
       env: {},
       logger,
@@ -836,37 +842,104 @@ describe("access fulfillment worker startup", () => {
         loadCalls += 1;
         return new RecordingWorkerClient();
       },
+      loadSupabaseClient: async () => {
+        loadSupabaseCalls += 1;
+        throw new Error("disabled mode must not load Supabase");
+      },
+      loadEmailRuntime: async () => {
+        loadEmailRuntimeCalls += 1;
+        throw new Error("disabled mode must not load email runtime");
+      },
       createWorker: () => {
         factoryCalls += 1;
         throw new Error("disabled mode must not create a worker");
+      },
+      registerSignalHandlers: () => {
+        signalCalls += 1;
+        throw new Error("disabled mode must not register handlers");
       },
     });
 
     assert.deepEqual(result, { kind: "disabled", exitCode: 0 });
     assert.equal(loadCalls, 0);
+    assert.equal(loadSupabaseCalls, 0);
+    assert.equal(loadEmailRuntimeCalls, 0);
     assert.equal(factoryCalls, 0);
+    assert.equal(signalCalls, 0);
     assert.equal(logger.entries[0]?.event, "access_fulfillment_worker_disabled");
   });
 
-  it("keeps valid dry-run mode free of Supabase imports and RPCs", async () => {
+  it("keeps durable worker-off mode free of runtime side effects", async () => {
+    let sideEffectCalls = 0;
+    const result = await runAccessFulfillmentWorkerMain({
+      env: {
+        ...DURABLE_ENV,
+        ACCESS_FULFILLMENT_WORKER_ENABLED: "false",
+      },
+      logger: new MemoryLogger(),
+      loadClient: async () => {
+        sideEffectCalls += 1;
+        throw new Error("worker-off mode must not load a client");
+      },
+      loadSupabaseClient: async () => {
+        sideEffectCalls += 1;
+        throw new Error("worker-off mode must not load Supabase");
+      },
+      loadEmailRuntime: async () => {
+        sideEffectCalls += 1;
+        throw new Error("worker-off mode must not load email runtime");
+      },
+      createWorker: () => {
+        sideEffectCalls += 1;
+        throw new Error("worker-off mode must not create a worker");
+      },
+      registerSignalHandlers: () => {
+        sideEffectCalls += 1;
+        throw new Error("worker-off mode must not register handlers");
+      },
+    });
+
+    assert.deepEqual(result, { kind: "disabled", exitCode: 0 });
+    assert.equal(sideEffectCalls, 0);
+  });
+
+  it("keeps valid durable dry-run mode free of runtime side effects", async () => {
     let loadCalls = 0;
+    let loadSupabaseCalls = 0;
+    let loadEmailRuntimeCalls = 0;
+    let signalCalls = 0;
     const logger = new MemoryLogger();
     const result = await runAccessFulfillmentWorkerMain({
-      env: DRY_RUN_ENV,
+      env: { ...DURABLE_ENV, ACCESS_FULFILLMENT_WORKER_DRY_RUN: "true" },
       logger,
       loadClient: async () => {
         loadCalls += 1;
         return new RecordingWorkerClient();
       },
+      loadSupabaseClient: async () => {
+        loadSupabaseCalls += 1;
+        throw new Error("dry-run mode must not load Supabase");
+      },
+      loadEmailRuntime: async () => {
+        loadEmailRuntimeCalls += 1;
+        throw new Error("dry-run mode must not load email runtime");
+      },
+      registerSignalHandlers: () => {
+        signalCalls += 1;
+        throw new Error("dry-run mode must not register handlers");
+      },
     });
 
     assert.deepEqual(result, { kind: "dry_run", exitCode: 0 });
     assert.equal(loadCalls, 0);
+    assert.equal(loadSupabaseCalls, 0);
+    assert.equal(loadEmailRuntimeCalls, 0);
+    assert.equal(signalCalls, 0);
     assert.equal(logger.entries[0]?.event, "access_fulfillment_worker_dry_run");
   });
 
   it("rejects legacy plus dry-run before loading Supabase", async () => {
-    let loadCalls = 0;
+    let sideEffectCalls = 0;
     const result = await runAccessFulfillmentWorkerMain({
       env: {
         ...DRY_RUN_ENV,
@@ -874,40 +947,26 @@ describe("access fulfillment worker startup", () => {
       },
       logger: new MemoryLogger(),
       loadClient: async () => {
-        loadCalls += 1;
+        sideEffectCalls += 1;
         return new RecordingWorkerClient();
+      },
+      loadSupabaseClient: async () => {
+        sideEffectCalls += 1;
+        throw new Error("invalid config must not load Supabase");
+      },
+      loadEmailRuntime: async () => {
+        sideEffectCalls += 1;
+        throw new Error("invalid config must not load email runtime");
+      },
+      registerSignalHandlers: () => {
+        sideEffectCalls += 1;
+        throw new Error("invalid config must not register handlers");
       },
     });
 
     assert.equal(result.kind, "fatal");
     assert.equal(result.kind === "fatal" && result.errorCode, "invalid_access_fulfillment_configuration");
-    assert.equal(loadCalls, 0);
-  });
-
-  it("blocks durable capability in dry-run and active modes before Supabase", async () => {
-    for (const dryRun of ["true", "false"] as const) {
-      let loadCalls = 0;
-      const logger = new MemoryLogger();
-      const result = await runAccessFulfillmentWorkerMain({
-        env: { ...DURABLE_ENV, ACCESS_FULFILLMENT_WORKER_DRY_RUN: dryRun },
-        logger,
-        loadClient: async () => {
-          loadCalls += 1;
-          return new RecordingWorkerClient();
-        },
-      });
-
-      assert.deepEqual(result, {
-        kind: "fatal",
-        exitCode: 1,
-        stopReason: "fatal_stop",
-        errorCode: "durable_email_capability_not_implemented",
-      });
-      assert.equal(loadCalls, 0);
-      const serialized = JSON.stringify(logger.entries);
-      assert.equal(serialized.includes(DURABLE_ENV.RESEND_API_KEY), false);
-      assert.equal(serialized.includes(DURABLE_ENV.EMAIL_FROM_ADDRESS), false);
-    }
+    assert.equal(sideEffectCalls, 0);
   });
 
   it("loads the client only for active reconcile-only mode", async () => {
@@ -924,9 +983,16 @@ describe("access fulfillment worker startup", () => {
         loadCalls += 1;
         return client;
       },
+      loadSupabaseClient: async () => {
+        throw new Error("reconcile-only mode must not load durable Supabase");
+      },
+      loadEmailRuntime: async () => {
+        throw new Error("reconcile-only mode must not load email runtime");
+      },
       createWorker: (dependencies) => {
         factoryCalls += 1;
         assert.equal(dependencies.client, client);
+        assert.equal(dependencies.emailCapability, undefined);
         return {
           async runLoop(signal) {
             assert.equal(signal.aborted, false);
@@ -996,6 +1062,253 @@ describe("access fulfillment worker startup", () => {
     }
     assert.equal(process.rawListeners("SIGTERM").length, initialSigtermListeners);
     assert.equal(process.rawListeners("SIGINT").length, initialSigintListeners);
+  });
+
+  it("composes the durable runtime lazily with exact bindings and shared Supabase ownership", async () => {
+    const events: string[] = [];
+    const logger = new MemoryLogger();
+    const supabaseClient = Object.freeze(
+      {},
+    ) as unknown as AccessFulfillmentRuntimeSupabaseClient;
+    const rpcClient = new RecordingWorkerClient();
+    const reader = Object.freeze({}) as ReturnType<
+      AccessFulfillmentEmailRuntime["createReader"]
+    >;
+    const emailData = canonicalEmailData();
+    const builtMessage = canonicalBuiltMessage(emailData);
+    let providerSendCalls = 0;
+    let cleanupCalls = 0;
+    let requestShutdown: (() => void) | undefined;
+    let capabilityFromWorker: AccessFulfillmentEmailCapability | undefined;
+    const provider: AccessFulfillmentEmailCapability["provider"] = {
+      async send() {
+        providerSendCalls += 1;
+        return {
+          kind: "accepted",
+          providerMessageId: EMAIL_PROVIDER_MESSAGE_A,
+        };
+      },
+    };
+    const emailRuntime: AccessFulfillmentEmailRuntime = {
+      createReader(client) {
+        events.push("reader");
+        assert.equal(client, supabaseClient);
+        return reader;
+      },
+      async loadMessageData(activeReader, orderId, options) {
+        events.push("load");
+        assert.equal(activeReader, reader);
+        assert.equal(orderId, ORDER_A);
+        assert.ok(options?.signal);
+        return { kind: "success", orderId, data: emailData };
+      },
+      async buildMessage(input) {
+        events.push("build");
+        assert.deepEqual(input, {
+          from: DURABLE_ENV.EMAIL_FROM_ADDRESS,
+          buyerEmail: emailData.buyerEmail,
+          buyerName: emailData.buyerName,
+          publicRef: emailData.publicRef,
+          sourceName: emailData.sourceName,
+          accessDate: emailData.accessDate,
+          qrBaseUrl: "https://runtime.example.test",
+          entries: emailData.entries,
+        });
+        return builtMessage;
+      },
+      createProvider(options) {
+        events.push("provider");
+        assert.deepEqual(options, {
+          apiKey: DURABLE_ENV.RESEND_API_KEY,
+          timeoutMs: WORKER_CONFIG.emailProviderTimeoutMs,
+        });
+        return provider;
+      },
+      getQrBaseUrl() {
+        events.push("qr_base_url");
+        return "https://runtime.example.test";
+      },
+    };
+
+    const result = await runAccessFulfillmentWorkerMain({
+      env: DURABLE_ENV,
+      logger,
+      registerSignalHandlers: (handler) => {
+        events.push("signals");
+        requestShutdown = handler;
+        return () => {
+          events.push("unregister");
+          cleanupCalls += 1;
+        };
+      },
+      loadSupabaseClient: async () => {
+        events.push("supabase");
+        return supabaseClient;
+      },
+      createRpcClient: (transport) => {
+        events.push("rpc");
+        assert.equal(transport, supabaseClient);
+        return rpcClient;
+      },
+      loadEmailRuntime: async () => {
+        events.push("email_runtime");
+        return emailRuntime;
+      },
+      createWorker: (dependencies) => {
+        events.push("worker");
+        assert.equal(dependencies.client, rpcClient);
+        assert.equal(dependencies.config.durableEmailDeliveryEnabled, true);
+        assert.ok(dependencies.emailCapability);
+        capabilityFromWorker = dependencies.emailCapability;
+        return {
+          async runLoop(signal) {
+            events.push("run_loop");
+            assert.equal(signal.aborted, false);
+            const loadResult = await dependencies.emailCapability?.load(ORDER_A, {
+              signal,
+            });
+            assert.deepEqual(loadResult, {
+              kind: "success",
+              orderId: ORDER_A,
+              data: emailData,
+            });
+            const buildResult = await dependencies.emailCapability?.build(emailData);
+            assert.equal(buildResult, builtMessage);
+            assert.ok(requestShutdown);
+            requestShutdown();
+            assert.equal(signal.aborted, true);
+            return { kind: "stopped", stopReason: "external_shutdown" };
+          },
+        };
+      },
+    });
+
+    assert.deepEqual(result, {
+      kind: "stopped",
+      exitCode: 0,
+      stopReason: "external_shutdown",
+    });
+    assert.ok(capabilityFromWorker);
+    assert.equal(capabilityFromWorker.provider, provider);
+    assert.equal(providerSendCalls, 0);
+    assert.equal(cleanupCalls, 1);
+    assert.deepEqual(events, [
+      "signals",
+      "supabase",
+      "rpc",
+      "email_runtime",
+      "reader",
+      "qr_base_url",
+      "provider",
+      "worker",
+      "run_loop",
+      "load",
+      "build",
+      "unregister",
+    ]);
+    const startLog = logger.entries.find(
+      (entry) => entry.event === "access_fulfillment_worker_started",
+    );
+    assert.deepEqual(startLog?.metadata, {
+      mode: "durable_email",
+      durableEmailDeliveryEnabled: true,
+      provider: "resend",
+      emailProviderTimeoutMs: WORKER_CONFIG.emailProviderTimeoutMs,
+      batchSize: WORKER_CONFIG.batchSize,
+      pollIntervalMs: WORKER_CONFIG.pollIntervalMs,
+      leaseSeconds: WORKER_CONFIG.leaseSeconds,
+      concurrency: WORKER_CONFIG.concurrency,
+      rpcTimeoutMs: WORKER_CONFIG.rpcTimeoutMs,
+    });
+    const serializedLogs = JSON.stringify(logger.entries);
+    assert.equal(serializedLogs.includes(DURABLE_ENV.RESEND_API_KEY), false);
+    assert.equal(serializedLogs.includes(DURABLE_ENV.EMAIL_FROM_ADDRESS), false);
+    assert.equal(serializedLogs.includes("https://runtime.example.test"), false);
+  });
+
+  it("fails closed and cleans signal handlers for durable startup failures", async () => {
+    const stages = ["supabase", "reader", "provider", "worker"] as const;
+
+    for (const failingStage of stages) {
+      const logger = new MemoryLogger();
+      const supabaseClient = Object.freeze(
+        {},
+      ) as unknown as AccessFulfillmentRuntimeSupabaseClient;
+      const reader = Object.freeze({}) as ReturnType<
+        AccessFulfillmentEmailRuntime["createReader"]
+      >;
+      let cleanupCalls = 0;
+      let providerSendCalls = 0;
+      const emailRuntime: AccessFulfillmentEmailRuntime = {
+        createReader() {
+          if (failingStage === "reader") {
+            throw new Error("synthetic reader construction failure");
+          }
+          return reader;
+        },
+        async loadMessageData(_reader, orderId) {
+          return { kind: "success", orderId, data: canonicalEmailData() };
+        },
+        async buildMessage(input) {
+          return canonicalBuiltMessage(input);
+        },
+        createProvider() {
+          if (failingStage === "provider") {
+            throw new Error("synthetic provider construction failure");
+          }
+          return {
+            async send() {
+              providerSendCalls += 1;
+              return {
+                kind: "accepted",
+                providerMessageId: EMAIL_PROVIDER_MESSAGE_A,
+              };
+            },
+          };
+        },
+        getQrBaseUrl() {
+          return "https://runtime.example.test";
+        },
+      };
+      const result = await runAccessFulfillmentWorkerMain({
+        env: DURABLE_ENV,
+        logger,
+        registerSignalHandlers: () => () => {
+          cleanupCalls += 1;
+        },
+        loadSupabaseClient: async () => {
+          if (failingStage === "supabase") {
+            throw new Error("synthetic Supabase load failure");
+          }
+          return supabaseClient;
+        },
+        createRpcClient: () => new RecordingWorkerClient(),
+        loadEmailRuntime: async () => emailRuntime,
+        createWorker: () => {
+          if (failingStage === "worker") {
+            throw new Error("synthetic worker construction failure");
+          }
+          return {
+            async runLoop() {
+              assert.fail("startup failure must not run the worker");
+            },
+          };
+        },
+      });
+
+      assert.deepEqual(result, {
+        kind: "fatal",
+        exitCode: 1,
+        stopReason: "fatal_stop",
+        errorCode: "worker_startup_failed",
+      });
+      assert.equal(cleanupCalls, 1);
+      assert.equal(providerSendCalls, 0);
+      const serializedLogs = JSON.stringify(logger.entries);
+      assert.equal(serializedLogs.includes(DURABLE_ENV.RESEND_API_KEY), false);
+      assert.equal(serializedLogs.includes(DURABLE_ENV.EMAIL_FROM_ADDRESS), false);
+      assert.equal(serializedLogs.includes("synthetic"), false);
+    }
   });
 
   it("propagates a runtime fatal stop through the main result and final log", async () => {

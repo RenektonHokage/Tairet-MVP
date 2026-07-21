@@ -6,9 +6,26 @@ import {
   type AccessFulfillmentEnv,
   loadAccessFulfillmentConfig,
 } from "../config/accessFulfillment";
-import { createAccessFulfillmentClient } from "../services/accessFulfillment";
+import {
+  createAccessFulfillmentClient,
+  type AccessFulfillmentRpcTransport,
+} from "../services/accessFulfillment";
+import type {
+  AccessEntriesEmailMessageInput,
+  BuiltAccessEntriesEmailMessage,
+} from "../services/accessEmailMessage";
+import type {
+  AccessEmailMessageData,
+  AccessEmailMessageDataLoadResult,
+  AccessEmailMessageDataReadOptions,
+  AccessEmailMessageDataReader,
+} from "../services/accessEmailMessageData";
+import type { AccessEmailMessageDataSupabaseClient } from "../services/accessEmailMessageDataSupabase";
+import type { AccessEmailProvider } from "../services/accessEmailProvider";
+import type { CreateResendAccessEmailProviderOptions } from "../services/accessEmailProviderResend";
 import { logger as defaultLogger } from "../utils/logger";
 import {
+  type AccessFulfillmentEmailCapability,
   type AccessFulfillmentRunLoopResult,
   type AccessFulfillmentStopReason,
   type AccessFulfillmentWorkerClient,
@@ -22,10 +39,37 @@ export interface AccessFulfillmentWorkerRunner {
   runLoop(signal: AbortSignal): Promise<AccessFulfillmentRunLoopResult>;
 }
 
+export interface AccessFulfillmentRuntimeSupabaseClient
+  extends AccessFulfillmentRpcTransport,
+    AccessEmailMessageDataSupabaseClient {}
+
+export interface AccessFulfillmentEmailRuntime {
+  createReader(
+    client: AccessEmailMessageDataSupabaseClient,
+  ): AccessEmailMessageDataReader;
+  loadMessageData(
+    reader: AccessEmailMessageDataReader,
+    orderId: string,
+    options?: AccessEmailMessageDataReadOptions,
+  ): Promise<AccessEmailMessageDataLoadResult>;
+  buildMessage(
+    input: AccessEntriesEmailMessageInput,
+  ): Promise<BuiltAccessEntriesEmailMessage>;
+  createProvider(
+    options: CreateResendAccessEmailProviderOptions,
+  ): AccessEmailProvider;
+  getQrBaseUrl(): string;
+}
+
 export interface AccessFulfillmentWorkerMainDependencies {
   env?: AccessFulfillmentEnv;
   logger?: AccessFulfillmentWorkerLogger;
   loadClient?: () => Promise<AccessFulfillmentWorkerClient>;
+  loadSupabaseClient?: () => Promise<AccessFulfillmentRuntimeSupabaseClient>;
+  createRpcClient?: (
+    transport: AccessFulfillmentRpcTransport,
+  ) => AccessFulfillmentWorkerClient;
+  loadEmailRuntime?: () => Promise<AccessFulfillmentEmailRuntime>;
   createWorker?: (
     dependencies: AccessFulfillmentWorkerDependencies,
   ) => AccessFulfillmentWorkerRunner;
@@ -69,8 +113,66 @@ export function abortableWorkerSleep(
 }
 
 async function loadDefaultClient(): Promise<AccessFulfillmentWorkerClient> {
+  return createAccessFulfillmentClient(await loadDefaultSupabaseClient());
+}
+
+async function loadDefaultSupabaseClient(): Promise<AccessFulfillmentRuntimeSupabaseClient> {
   const { supabase } = await import("../services/supabase");
-  return createAccessFulfillmentClient(supabase);
+  return supabase as unknown as AccessFulfillmentRuntimeSupabaseClient;
+}
+
+async function loadDefaultEmailRuntime(): Promise<AccessFulfillmentEmailRuntime> {
+  const [messageData, messageDataSupabase, message, provider, qr] =
+    await Promise.all([
+      import("../services/accessEmailMessageData"),
+      import("../services/accessEmailMessageDataSupabase"),
+      import("../services/accessEmailMessage"),
+      import("../services/accessEmailProviderResend"),
+      import("../services/accessQr"),
+    ]);
+  return Object.freeze({
+    createReader: messageDataSupabase.createAccessEmailMessageDataSupabaseReader,
+    loadMessageData: messageData.loadAccessEmailMessageData,
+    buildMessage: message.buildAccessEntriesEmailMessage,
+    createProvider: provider.createResendAccessEmailProvider,
+    getQrBaseUrl: qr.getAccessQrBaseUrl,
+  });
+}
+
+function readDurableEmailEnv(
+  env: AccessFulfillmentEnv,
+  field: "EMAIL_FROM_ADDRESS" | "RESEND_API_KEY",
+): string {
+  const value = env[field];
+  if (value === undefined) {
+    throw new Error("Missing validated durable email configuration");
+  }
+  return value;
+}
+
+function bindEmailLoader(
+  runtime: AccessFulfillmentEmailRuntime,
+  reader: AccessEmailMessageDataReader,
+): AccessFulfillmentEmailCapability["load"] {
+  return (orderId, options) => runtime.loadMessageData(reader, orderId, options);
+}
+
+function bindEmailBuilder(
+  runtime: AccessFulfillmentEmailRuntime,
+  from: string,
+  qrBaseUrl: string,
+): AccessFulfillmentEmailCapability["build"] {
+  return (data: AccessEmailMessageData) =>
+    runtime.buildMessage({
+      from,
+      buyerEmail: data.buyerEmail,
+      buyerName: data.buyerName,
+      publicRef: data.publicRef,
+      sourceName: data.sourceName,
+      accessDate: data.accessDate,
+      qrBaseUrl,
+      entries: data.entries,
+    });
 }
 
 export function registerAccessFulfillmentWorkerSignalHandlers(
@@ -101,9 +203,10 @@ export async function runAccessFulfillmentWorkerMain(
   dependencies: AccessFulfillmentWorkerMainDependencies = {},
 ): Promise<AccessFulfillmentWorkerMainResult> {
   const workerLogger = dependencies.logger ?? defaultLogger;
+  const env = dependencies.env ?? process.env;
   let config;
   try {
-    config = loadAccessFulfillmentConfig(dependencies.env ?? process.env);
+    config = loadAccessFulfillmentConfig(env);
   } catch (error) {
     const field =
       error instanceof AccessFulfillmentConfigError ? error.field : "access_fulfillment";
@@ -117,19 +220,6 @@ export async function runAccessFulfillmentWorkerMain(
       exitCode: 1,
       stopReason: "fatal_stop",
       errorCode: "invalid_access_fulfillment_configuration",
-    };
-  }
-
-  if (config.durableEmailDeliveryEnabled) {
-    safeWorkerLog(workerLogger, "error", "access_fulfillment_worker_stopped", {
-      errorCode: "durable_email_capability_not_implemented",
-      stopReason: "fatal_stop",
-    });
-    return {
-      kind: "fatal",
-      exitCode: 1,
-      stopReason: "fatal_stop",
-      errorCode: "durable_email_capability_not_implemented",
     };
   }
 
@@ -160,7 +250,34 @@ export async function runAccessFulfillmentWorkerMain(
   )(requestShutdown);
 
   try {
-    const client = await (dependencies.loadClient ?? loadDefaultClient)();
+    let client: AccessFulfillmentWorkerClient;
+    let emailCapability: AccessFulfillmentEmailCapability | undefined;
+
+    if (config.durableEmailDeliveryEnabled) {
+      const supabaseClient = await (
+        dependencies.loadSupabaseClient ?? loadDefaultSupabaseClient
+      )();
+      client = (dependencies.createRpcClient ?? createAccessFulfillmentClient)(
+        supabaseClient,
+      );
+      const emailRuntime = await (
+        dependencies.loadEmailRuntime ?? loadDefaultEmailRuntime
+      )();
+      const reader = emailRuntime.createReader(supabaseClient);
+      const from = readDurableEmailEnv(env, "EMAIL_FROM_ADDRESS");
+      const qrBaseUrl = emailRuntime.getQrBaseUrl();
+      const load = bindEmailLoader(emailRuntime, reader);
+      const build = bindEmailBuilder(emailRuntime, from, qrBaseUrl);
+      const apiKey = readDurableEmailEnv(env, "RESEND_API_KEY");
+      const provider = emailRuntime.createProvider({
+        apiKey,
+        timeoutMs: config.emailProviderTimeoutMs,
+      });
+      emailCapability = Object.freeze({ load, build, provider });
+    } else {
+      client = await (dependencies.loadClient ?? loadDefaultClient)();
+    }
+
     const worker = (dependencies.createWorker ?? createAccessFulfillmentWorker)({
       client,
       config,
@@ -168,9 +285,18 @@ export async function runAccessFulfillmentWorkerMain(
       now: () => performance.now(),
       sleep: dependencies.sleep ?? abortableWorkerSleep,
       logger: workerLogger,
+      ...(emailCapability ? { emailCapability } : {}),
     });
 
     safeWorkerLog(workerLogger, "info", "access_fulfillment_worker_started", {
+      ...(config.durableEmailDeliveryEnabled
+        ? {
+            mode: "durable_email",
+            durableEmailDeliveryEnabled: true,
+            provider: "resend",
+            emailProviderTimeoutMs: config.emailProviderTimeoutMs,
+          }
+        : {}),
       batchSize: config.batchSize,
       pollIntervalMs: config.pollIntervalMs,
       leaseSeconds: config.leaseSeconds,
