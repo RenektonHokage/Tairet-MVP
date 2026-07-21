@@ -16,9 +16,9 @@ Evidence labels:
 | Field | Value | Evidence |
 | --- | --- | --- |
 | `documentation_baseline` | `CONTEXT_HARNESS_V1A` | `VERIFIED_REPOSITORY` after this documentation changeset is accepted |
-| `state_as_of_product_commit` | `3ba88e82bd2686ba41c545712cebfd7f326a3c43` | `VERIFIED_REPOSITORY` |
-| `last_closed_product_slice` | `9E.5B3B4A` | `VERIFIED_REPOSITORY` |
-| `next_eligible_product_slice` | `9E.5B3B4B` | `VERIFIED_REPOSITORY` |
+| `state_as_of_product_commit` | `dc261581eb1bafc8d1147ac1fea736d3ceb75edc` | `VERIFIED_REPOSITORY` |
+| `last_closed_product_slice` | `9E.5B3B4B` | `VERIFIED_REPOSITORY` |
+| `next_eligible_product_slice` | `NONE_DECLARED` | `VERIFIED_REPOSITORY` |
 | `next_product_slice_authorized` | `false` | `REPORTED` |
 | `actual_checkout_head` | `VERIFY_WITH_GIT` | `VERIFIED_REPOSITORY`; deliberately not stored as a checkout assertion |
 
@@ -51,9 +51,17 @@ Eligibility is sequencing information, not authorization.
 | Post-provider settlement is bounded and independent of global cancellation once the provider obligation has started | Present | `VERIFIED_REPOSITORY` |
 | The worker exposes seven orthogonal email counters: accepted, retry scheduled, ambiguous, skipped sent, unsettled, manual review, and manual-review unknown | Present | `VERIFIED_REPOSITORY` |
 | Worker logging uses sanitized allowlisted metadata without buyer PII, tokens, keys, or provider identifiers | Present | `VERIFIED_REPOSITORY` |
-| Product commit `3ba88e82bd2686ba41c545712cebfd7f326a3c43` leaves `accessFulfillmentWorkerMain.ts` byte-identical to its parent | Unchanged | `VERIFIED_REPOSITORY` |
-| The durable-email hard gate in `WorkerMain` remains intact | Present | `VERIFIED_REPOSITORY` |
 | Worker, deterministic message, canonical loader, provider contract, and Resend adapter capabilities are present | Present | `VERIFIED_REPOSITORY` |
+| Product commit `dc261581eb1bafc8d1147ac1fea736d3ceb75edc` composes the durable-email capability lazily in `WorkerMain` | Present | `VERIFIED_REPOSITORY` |
+| Invalid configuration fails before runtime dependencies are imported or constructed | Present | `VERIFIED_REPOSITORY` |
+| Worker OFF and dry-run return before Supabase, the Resend-capable email runtime, provider construction, or signal-handler registration | Present | `VERIFIED_REPOSITORY` |
+| Reconcile-only mode preserves its prior client path and constructs no durable reader, builder, or provider | Preserved | `VERIFIED_REPOSITORY` |
+| Active durable composition shares one Supabase client between the RPC client and read-only message-data reader | Present | `VERIFIED_REPOSITORY` |
+| The canonical loader and builder are bound to the reader, sender address, and QR base URL; one Resend provider instance per active process is passed in the exact worker capability | Present | `VERIFIED_REPOSITORY` |
+| `provider.send` is not invoked during startup | Preserved | `VERIFIED_REPOSITORY` |
+| Import, reader, builder, provider, and worker startup failures fail closed with sanitized logging, and registered signal handlers are cleaned up | Present | `VERIFIED_REPOSITORY` |
+| The former `durable_email_capability_not_implemented` hard gate was removed | Removed | `VERIFIED_REPOSITORY` |
+| Worker and durable-email defaults remain OFF, legacy direct email defaults ON, and legacy/durable mutual exclusion remains intact | Preserved | `VERIFIED_REPOSITORY` |
 
 Repository presence proves capability only. It does not prove deployment, activation, or authority.
 
@@ -62,8 +70,8 @@ Repository presence proves capability only. It does not prove deployment, activa
 | Surface | Result | Evidence |
 | --- | --- | --- |
 | Isolated PostgreSQL/Supabase 17.6 with `network=none` | Migrations 046 through 049 applied; 48 SQL cases/results, two concurrent races across four sessions, and zero deadlocks | `VERIFIED_RUNTIME` in an isolated local runtime; not production |
-| Worker targeted validation | 100 of 100 tests passed | `VERIFIED_REPOSITORY` for the exact product changeset |
-| Complete API validation | 212 of 212 tests passed | `VERIFIED_REPOSITORY` for the exact product changeset |
+| Worker targeted validation | 102 of 102 tests passed | `VERIFIED_REPOSITORY` for product changeset `65f330660ff88201fa1d57ffec3d8370e33691c21648d442de460852f3b35702` |
+| Complete API validation | 214 of 214 tests passed | `VERIFIED_REPOSITORY` for product changeset `65f330660ff88201fa1d57ffec3d8370e33691c21648d442de460852f3b35702` |
 | TypeScript gates | Typecheck and build passed | `VERIFIED_REPOSITORY` for the exact product changeset |
 | Directed lint | Passed for the two changed TypeScript files | `VERIFIED_REPOSITORY` for the exact product changeset |
 | Global API lint | Blocked before analysis by pre-existing lint infrastructure | `VERIFIED_REPOSITORY`; not a product regression |
@@ -82,7 +90,7 @@ The isolated runtime evidence is not production evidence. It does not verify a r
 | Durable worker process deployed | Not independently established | `UNKNOWN` |
 | Durable email composition deployed | Not independently established | `UNKNOWN` |
 
-No production state is inferred from the push of `3ba88e82bd2686ba41c545712cebfd7f326a3c43`. Unknown independent ledger state for migrations 046 through 049 does **not** block a future, separately authorized local and reversible ASK/CODE for `9E.5B3B4B`; verified target state is a gate for deployment, activation, or rollout that depends on those contracts.
+No production state is inferred from the push of `dc261581eb1bafc8d1147ac1fea736d3ceb75edc`. Independent verification of migrations 046 through 049 remains a gate for deployment, activation, or rollout that depends on those contracts.
 
 ## Activation state
 
@@ -91,9 +99,9 @@ No production state is inferred from the push of `3ba88e82bd2686ba41c545712cebfd
 | Access fulfillment worker | OFF | `REPORTED` |
 | Durable email delivery | OFF | `REPORTED` |
 | Legacy direct email | ON in the reported operating mode | `REPORTED` |
-| Durable email path in `WorkerMain` | Not composed; enabling it reaches an explicit capability gate | `VERIFIED_REPOSITORY` |
+| Durable email path in `WorkerMain` | Composed as repository capability; not reported active | `VERIFIED_REPOSITORY` for composition; activation remains `REPORTED` OFF |
 
-Repository defaults are worker OFF, durable email OFF, and legacy direct email ON (`VERIFIED_REPOSITORY`). They support but do not independently verify the reported runtime activation state. The `WorkerMain` hard gate remains intact (`VERIFIED_REPOSITORY`).
+Repository defaults are worker OFF, durable email OFF, and legacy direct email ON (`VERIFIED_REPOSITORY`). They support but do not independently verify the reported runtime activation state. Composition does not establish deployment, activation, or authority.
 
 ## Operational authority
 
@@ -104,7 +112,7 @@ Repository defaults are worker OFF, durable email OFF, and legacy direct email O
 | Worker reconciliation | No active production authority established | `REPORTED` |
 | Payment approval | Existing payment confirmation contract; unchanged by this slice | `VERIFIED_REPOSITORY` |
 
-Slice `9E.5B3B4A` transfers no authority (`REPORTED`). Authority changes require a separately authorized cutover; capability, deployment, or a feature flag alone does not transfer authority.
+Slice `9E.5B3B4B` transfers no authority (`REPORTED`). Authority changes require a separately authorized cutover; capability, deployment, or a feature flag alone does not transfer authority.
 
 ## Authorization state
 
@@ -113,7 +121,8 @@ Slice `9E.5B3B4A` transfers no authority (`REPORTED`). Authority changes require
 | `9E.5B3B4Q` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4R` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4A` | `CLOSED` | `VERIFIED_REPOSITORY` |
-| Start or implement `9E.5B3B4B` | Eligible, but not authorized and not started | `REPORTED` |
+| `9E.5B3B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| Start another product slice | No next slice declared; requires an explicit name and authorization | `REPORTED` |
 | Apply migrations 046 through 049 remotely | Not authorized | `REPORTED` |
 | Enable worker or durable email | Not authorized | `REPORTED` |
 | Disable legacy direct email or transfer authority | Not authorized | `REPORTED` |
