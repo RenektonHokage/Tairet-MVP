@@ -1,6 +1,12 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
+import {
+  createAccessPublicStatusReader,
+  type AccessPublicStatusReader,
+  type AccessPublicStatusSupabaseClient,
+  type AccessPublicStatusVenueLookup,
+} from "../services/accessPublicStatus";
 import {
   accessBancardSingleBuyErrorCode,
   accessBancardSingleBuySchema,
@@ -12,178 +18,176 @@ import { confirmBancardAccessPayment } from "../services/bancardConfirm";
 export const paymentsRouter = Router();
 
 const ACCESS_PUBLIC_REF_PATTERN = /^acc_[0-9a-f]{32}$/;
-const PUBLIC_ACCESS_ORDER_STATUSES = new Set([
-  "pending_payment",
-  "paid",
-  "cancelled",
-  "manual_review",
-  "expired",
-]);
-
-type PublicAccessOrderStatus =
-  | "pending_payment"
-  | "paid"
-  | "cancelled"
-  | "manual_review"
-  | "expired";
-
-interface AccessStatusOrderRow {
-  public_ref: string;
-  status: string;
-  source_type: string;
-  local_id: string | null;
-  event_id: string | null;
-  access_date: string;
-  amount_gs: number | string;
-  currency: string;
-  expires_at: string | null;
-}
 
 function parseAccessPublicRef(value: unknown): string | null {
   return typeof value === "string" && ACCESS_PUBLIC_REF_PATTERN.test(value) ? value : null;
 }
 
-function normalizeAccessOrderStatus(status: string, expiresAt: string | null): PublicAccessOrderStatus | null {
-  if (!PUBLIC_ACCESS_ORDER_STATUSES.has(status)) {
-    return null;
-  }
+interface AccessVenuePostgrestResult {
+  readonly data: unknown;
+  readonly error: unknown;
+}
 
-  if (status === "pending_payment" && expiresAt) {
-    const expiresAtMs = Date.parse(expiresAt);
-    if (Number.isFinite(expiresAtMs) && expiresAtMs < Date.now()) {
-      return "expired";
+interface AccessVenuePostgrestRequest
+  extends PromiseLike<AccessVenuePostgrestResult> {
+  eq(column: string, value: string): AccessVenuePostgrestRequest;
+  maybeSingle(): PromiseLike<AccessVenuePostgrestResult>;
+}
+
+interface AccessVenuePostgrestTable {
+  select(columns: string): AccessVenuePostgrestRequest;
+}
+
+export interface AccessVenueSupabaseClient {
+  from(table: string): AccessVenuePostgrestTable;
+}
+
+export type AccessVenueNameResult =
+  | Readonly<{ kind: "resolved"; venueName: string | null }>
+  | Readonly<{ kind: "read_error" }>;
+
+export type AccessVenueNameResolver = (
+  venue: AccessPublicStatusVenueLookup,
+) => Promise<AccessVenueNameResult>;
+
+interface AccessStatusRouteLogger {
+  error(message: string, meta?: Record<string, unknown>): void;
+  warn(message: string, meta?: Record<string, unknown>): void;
+}
+
+export interface AccessStatusHandlerDependencies {
+  readonly reader: AccessPublicStatusReader;
+  readonly resolveVenueName: AccessVenueNameResolver;
+  readonly logger: AccessStatusRouteLogger;
+}
+
+const VENUE_READ_ERROR = Object.freeze({ kind: "read_error" as const });
+
+function resolvedVenueName(venueName: string | null): AccessVenueNameResult {
+  return Object.freeze({ kind: "resolved", venueName });
+}
+
+export function createAccessVenueNameResolver(
+  client: AccessVenueSupabaseClient,
+): AccessVenueNameResolver {
+  return async (venue) => {
+    if (venue.id === null) return resolvedVenueName(null);
+
+    const table = venue.kind === "local" ? "locals" : "events";
+    const field = venue.kind === "local" ? "name" : "title";
+    try {
+      const result = await client
+        .from(table)
+        .select(field)
+        .eq("id", venue.id)
+        .maybeSingle();
+      if (result.error !== null) return VENUE_READ_ERROR;
+      if (result.data === null) return resolvedVenueName(null);
+      if (!result.data || typeof result.data !== "object" || Array.isArray(result.data)) {
+        return VENUE_READ_ERROR;
+      }
+
+      const value = (result.data as Record<string, unknown>)[field];
+      return resolvedVenueName(
+        typeof value === "string" && value.trim().length > 0 ? value : null,
+      );
+    } catch {
+      return VENUE_READ_ERROR;
     }
-  }
-
-  return status as PublicAccessOrderStatus;
+  };
 }
 
-function normalizeAmountGs(value: number | string): number | null {
-  const amount = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(amount) && amount >= 0 ? amount : null;
+function internalStatusError(res: Parameters<RequestHandler>[1]) {
+  return res.status(500).json({
+    ok: false,
+    error: {
+      code: "internal_error",
+      message: "Internal error",
+    },
+  });
 }
 
-async function resolveAccessVenueName(order: AccessStatusOrderRow): Promise<string | null> {
-  if (order.source_type === "local" && order.local_id) {
-    const { data, error } = await supabase
-      .from("locals")
-      .select("name")
-      .eq("id", order.local_id)
-      .maybeSingle();
+export function createAccessStatusHandler(
+  dependencies: AccessStatusHandlerDependencies,
+): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      const ref = parseAccessPublicRef(req.query.ref);
+      if (!ref) {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "invalid_ref",
+            message: "Invalid reference",
+          },
+        });
+      }
 
-    if (error) {
-      logger.warn("Failed to resolve Access Core local venue name", {
-        error: error.message,
-        publicRef: order.public_ref,
+      const result = await dependencies.reader.read(ref);
+      if (result.kind === "not_found") {
+        return res.status(404).json({
+          ok: false,
+          error: {
+            code: "not_found",
+            message: "Payment status not found",
+          },
+        });
+      }
+
+      if (result.kind === "read_error" || result.kind === "invalid_snapshot") {
+        dependencies.logger.error("Failed to fetch Access Core public status", {
+          publicRef: ref,
+          errorCode: result.errorCode,
+        });
+        return internalStatusError(res);
+      }
+
+      let venueName: string | null = null;
+      let venueResult: AccessVenueNameResult;
+      try {
+        venueResult = await dependencies.resolveVenueName(result.venue);
+      } catch {
+        venueResult = VENUE_READ_ERROR;
+      }
+      if (venueResult.kind === "read_error") {
+        dependencies.logger.warn("Failed to resolve Access Core venue name", {
+          publicRef: ref,
+          errorCode: "access_public_status_venue_read_error",
+        });
+      } else {
+        venueName = venueResult.venueName;
+      }
+
+      return res.status(200).json({
+        ok: true,
+        order: {
+          ...result.order,
+          venue_name: venueName,
+        },
       });
-      return null;
+    } catch (error) {
+      next(error);
     }
-
-    return typeof data?.name === "string" && data.name.trim().length > 0 ? data.name : null;
-  }
-
-  if (order.source_type === "event" && order.event_id) {
-    const { data, error } = await supabase
-      .from("events")
-      .select("title")
-      .eq("id", order.event_id)
-      .maybeSingle();
-
-    if (error) {
-      logger.warn("Failed to resolve Access Core event venue name", {
-        error: error.message,
-        publicRef: order.public_ref,
-      });
-      return null;
-    }
-
-    return typeof data?.title === "string" && data.title.trim().length > 0 ? data.title : null;
-  }
-
-  return null;
+  };
 }
+
+const accessPublicStatusReader = createAccessPublicStatusReader(
+  supabase as unknown as AccessPublicStatusSupabaseClient,
+);
+const accessVenueNameResolver = createAccessVenueNameResolver(
+  supabase as unknown as AccessVenueSupabaseClient,
+);
 
 // GET /payments/access/status?ref=acc_...
 // Consulta publica de estado post-pago por public_ref, sin exponer IDs internos.
-paymentsRouter.get("/access/status", async (req, res, next) => {
-  try {
-    const ref = parseAccessPublicRef(req.query.ref);
-    if (!ref) {
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: "invalid_ref",
-          message: "Invalid reference",
-        },
-      });
-    }
-
-    const { data, error } = await supabase
-      .from("access_orders")
-      .select("public_ref, status, source_type, local_id, event_id, access_date, amount_gs, currency, expires_at")
-      .eq("public_ref", ref)
-      .maybeSingle();
-
-    if (error) {
-      logger.error("Failed to fetch Access Core public status", {
-        error: error.message,
-        publicRef: ref,
-      });
-      return res.status(500).json({
-        ok: false,
-        error: {
-          code: "internal_error",
-          message: "Internal error",
-        },
-      });
-    }
-
-    if (!data) {
-      return res.status(404).json({
-        ok: false,
-        error: {
-          code: "not_found",
-          message: "Payment status not found",
-        },
-      });
-    }
-
-    const order = data as AccessStatusOrderRow;
-    const status = normalizeAccessOrderStatus(order.status, order.expires_at);
-    const amountGs = normalizeAmountGs(order.amount_gs);
-
-    if (!status || (order.source_type !== "local" && order.source_type !== "event") || amountGs === null) {
-      logger.error("Access Core public status row has invalid public shape", {
-        publicRef: ref,
-      });
-      return res.status(500).json({
-        ok: false,
-        error: {
-          code: "internal_error",
-          message: "Internal error",
-        },
-      });
-    }
-
-    const venueName = await resolveAccessVenueName(order);
-
-    return res.status(200).json({
-      ok: true,
-      order: {
-        ref: order.public_ref,
-        status,
-        source_type: order.source_type,
-        access_date: order.access_date,
-        amount_gs: amountGs,
-        currency: order.currency,
-        expires_at: order.expires_at,
-        venue_name: venueName,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+paymentsRouter.get(
+  "/access/status",
+  createAccessStatusHandler({
+    reader: accessPublicStatusReader,
+    resolveVenueName: accessVenueNameResolver,
+    logger,
+  }),
+);
 
 // POST /payments/access/bancard/single-buy
 // Inicia un checkout Bancard Single Buy sobre Access Core.

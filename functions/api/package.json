@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:worker:access": "node dist/workers/accessFulfillmentWorkerMain.js",
-    "test": "tsx src/config/accessFulfillment.test.ts && tsx src/services/bancardConfirm.test.ts && tsx src/services/abortDeadline.test.ts && tsx src/services/accessFulfillment.test.ts && tsx src/services/accessQr.test.ts && tsx src/services/accessEmailMessage.test.ts && tsx src/services/accessEmailMessageData.test.ts && tsx src/services/accessEmailMessageDataSupabase.test.ts && tsx src/services/accessEmailProvider.test.ts && tsx src/services/accessEmailProviderResend.test.ts && tsx src/workers/accessFulfillmentWorker.test.ts",
+    "test": "tsx src/config/accessFulfillment.test.ts && tsx src/services/bancardConfirm.test.ts && tsx src/services/abortDeadline.test.ts && tsx src/services/accessFulfillment.test.ts && tsx src/services/accessPublicStatus.test.ts && tsx src/services/accessQr.test.ts && tsx src/services/accessEmailMessage.test.ts && tsx src/services/accessEmailMessageData.test.ts && tsx src/services/accessEmailMessageDataSupabase.test.ts && tsx src/services/accessEmailProvider.test.ts && tsx src/services/accessEmailProviderResend.test.ts && tsx src/workers/accessFulfillmentWorker.test.ts && tsx src/routes/payments.accessStatus.test.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
