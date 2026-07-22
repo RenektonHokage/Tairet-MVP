@@ -18,10 +18,11 @@ This file records sequence and gates. It does not authorize work by itself and d
 | `9E.5B3B4A` | `CLOSED` | Durable email worker state machine core |
 | `9E.5B3B4B` | `CLOSED` | Runtime composition and lazy `WorkerMain` wiring |
 | `9E.5B3B4C` | `CLOSED` | HTTP legacy direct-email authority gate |
+| `9E.5B4A` | `CLOSED` | Public Access fulfillment-status API contract |
 
 The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replace the public `B6` cutover and `B7` rollout stages below.
 
-The latest closed checkpoint is [`9E.5B3B4C`](exec-plans/completed/9E.5B3B4C.md). It closes the HTTP legacy direct-email authority gate while preserving activation, deployment, migration, and authority boundaries.
+The latest closed checkpoint is [`9E.5B4A`](exec-plans/completed/9E.5B4A.md). It closes the public post-payment fulfillment-status API contract while preserving activation, deployment, migration, and authority boundaries.
 
 ## Closed worker state-machine core
 
@@ -42,6 +43,16 @@ Independent verification of remote migrations 046–049 remains a gate for deplo
 `9E.5B3B4C` is `CLOSED` (`VERIFIED_REPOSITORY`). The Bancard confirmation callback can now exclude the legacy sender materially through configuration: gate `false` prevents both its lazy loader and invocation, while the repository default remains `true` for legacy compatibility. The gate is captured per invocation before the first mutating RPC and invalid configuration fails closed before payment mutation.
 
 The current legacy runtime authority remains unchanged (`REPORTED`), and worker and durable email remain OFF (`REPORTED`). This capability neither activates durable delivery nor transfers authority. No next product slice is declared; any later slice requires an explicit name and human authorization. The independent remote migration ledger and deployment state remain later operational gates, and `B6` and `B7` remain blocked and unauthorized.
+
+## Closed public status contract
+
+`9E.5B4A` is `CLOSED` (`VERIFIED_REPOSITORY`). The public API now preserves payment-level order state while exposing required, non-null fulfillment and email dimensions from one fail-closed persisted snapshot.
+
+B2C was not updated to consume this contract and remains pending as separate product work.
+
+No next product slice is declared. Any later slice requires an explicit name and human authorization; no future identifier is inferred or canonized.
+
+Deployment and the independent remote migration ledger remain later gates. This slice does not activate durable delivery or transfer authority, and `B6` and `B7` remain blocked and unauthorized.
 
 ## Gates after local composition
 
@@ -92,13 +103,14 @@ Required categories:
 | `9E.5B3B4A` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4C` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| `9E.5B4A` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | Next product slice | `NONE_DECLARED`; not authorized | `REPORTED` |
 | Remote application of migrations 046–049 | Not authorized | `REPORTED` |
 | Worker/durable-email activation | Not authorized | `REPORTED` |
 | `B6` cutover | Blocked and not authorized | `REPORTED` |
 | `B7` rollout | Blocked and not authorized | `REPORTED` |
 
-No product CODE is authorized by this closure. This file grants no remote action, deployment, activation, authority transfer, cutover, or rollout, and C leaves the `B6` and `B7` states and gates unchanged.
+No product CODE is authorized by this closure. This file grants no remote action, deployment, activation, authority transfer, cutover, or rollout, and `9E.5B4A` leaves the `B6` and `B7` states and gates unchanged.
 
 ## Contextual stops
 

@@ -20,6 +20,19 @@ These are stable decisions and safety properties. They do not describe current d
 4. Email delivery cannot create, approve, reject, refund, or otherwise redefine a payment.
 5. Legacy `orders`, event-specific tables, and Access Core tables are not silently mixed. Any adapter or migration between them requires explicit scope and contracts.
 
+## Public post-payment status
+
+1. Payment, fulfillment, and email are separate public dimensions.
+2. `payment = paid` does not imply `fulfillment = issued` or `email = sent`.
+3. Positive public fulfillment or email states require valid persisted evidence.
+4. Public `sent` requires complete coherent evidence; an aggregate status alone is insufficient.
+5. Impossible inconsistencies fail closed and never produce a positive public assertion.
+6. Valid persisted divergence projects to `manual_review` when the closed mapping requires it.
+7. `issuance_status = manual_review` means public email is `not_started`.
+8. Complete issuance with `issuance_review_status = manual_review` keeps email as an independent evidence-based dimension.
+9. The public endpoint exposes no internal identifiers, retry schedules, internal errors, attempts, provider data, buyer or attendee PII, or access/check-in tokens.
+10. Frontend presentation and copy are not authority for payment, issuance, or email state.
+
 ## Issuance and fulfillment
 
 1. Entry issuance is idempotent by the closed database identity `(order_item_id, unit_index)`.

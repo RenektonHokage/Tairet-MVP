@@ -125,6 +125,8 @@ These are manual/review commands today; no tracked harness script is implied.
 | Provider-neutral outcomes | `functions/api/src/services/accessEmailProvider.test.ts` |
 | Resend adapter classification/deadlines | `functions/api/src/services/accessEmailProviderResend.test.ts` |
 | Issuance/reconcile regression; durable-OFF defer; capability validation; loader/builder orchestration; terminal preclaim; correlated delivery claim; provider outcomes; bounded settlement; deadline, shutdown, and fatal races; accounting; safe logging | `functions/api/src/workers/accessFulfillmentWorker.test.ts` |
+| Public status service mapping: every payment status; fulfillment absence and presence; issuance pending, partial, complete, and both manual-review forms; email pending, processing, retry, sent, and manual review; legacy sent projection; invalid cardinality, counts, shapes, timestamps, and enums; `items_not_found` with zero expected entries; one embedded snapshot; forbidden internal fields | `functions/api/src/services/accessPublicStatus.test.ts` |
+| Public status endpoint: 400/404/500/200; preserved prior shape with required fulfillment and email objects; local, event, and null venue resolution; venue failure isolation; sanitized logging; invocation-local dependencies; concurrent request isolation | `functions/api/src/routes/payments.accessStatus.test.ts` |
 
 Run only the focused files relevant to the implementation while iterating.
 
