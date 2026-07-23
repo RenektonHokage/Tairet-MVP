@@ -223,11 +223,11 @@ export function AccessPaidCheckout({ publicRef, processId, onClose }: AccessPaid
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-white/70">
                 <p>
-                  Si Bancard ya procesó tu pago, la pantalla de estado confirma el resultado cuando llega el
-                  callback del procesador.
+                  La pantalla de estado verifica el resultado del pago cuando llega el callback del procesador.
                 </p>
                 <p>
-                  Si el pago se confirma, las entradas se envían al correo indicado. B2C no muestra el QR.
+                  Luego muestra por separado la preparación de las entradas y su envío por correo. B2C nunca
+                  muestra el QR públicamente.
                 </p>
                 <Button asChild className="w-full bg-white text-[#111827] hover:bg-white/85">
                   <Link to={statusPath}>
