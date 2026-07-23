@@ -19,10 +19,11 @@ This file records sequence and gates. It does not authorize work by itself and d
 | `9E.5B3B4B` | `CLOSED` | Runtime composition and lazy `WorkerMain` wiring |
 | `9E.5B3B4C` | `CLOSED` | HTTP legacy direct-email authority gate |
 | `9E.5B4A` | `CLOSED` | Public Access fulfillment-status API contract |
+| `9E.5B4B` | `CLOSED` | B2C truthful fulfillment presentation and polling |
 
 The `9E.5B*` identifiers are internal sub-slices. They do not renumber or replace the public `B6` cutover and `B7` rollout stages below.
 
-The latest closed checkpoint is [`9E.5B4A`](exec-plans/completed/9E.5B4A.md). It closes the public post-payment fulfillment-status API contract while preserving activation, deployment, migration, and authority boundaries.
+The latest closed checkpoint is [`9E.5B4B`](exec-plans/completed/9E.5B4B.md). It closes truthful B2C consumption, presentation, and polling for the public post-payment contract while preserving activation, deployment, migration, and authority boundaries.
 
 ## Closed worker state-machine core
 
@@ -46,13 +47,21 @@ The current legacy runtime authority remains unchanged (`REPORTED`), and worker 
 
 ## Closed public status contract
 
-`9E.5B4A` is `CLOSED` (`VERIFIED_REPOSITORY`). The public API now preserves payment-level order state while exposing required, non-null fulfillment and email dimensions from one fail-closed persisted snapshot.
+`9E.5B4A` is `CLOSED` (`VERIFIED_REPOSITORY`). The public API preserves payment-level order state while exposing required, non-null fulfillment and email dimensions from one fail-closed persisted snapshot.
 
-B2C was not updated to consume this contract and remains pending as separate product work.
+At the `9E.5B4A` closure, B2C consumption remained separate pending product work. That historical gap is now closed by `9E.5B4B`.
 
 No next product slice is declared. Any later slice requires an explicit name and human authorization; no future identifier is inferred or canonized.
 
 Deployment and the independent remote migration ledger remain later gates. This slice does not activate durable delivery or transfer authority, and `B6` and `B7` remain blocked and unauthorized.
+
+## Closed B2C truthful fulfillment presentation
+
+`9E.5B4B` is `CLOSED` (`VERIFIED_REPOSITORY`). B2C now fail-closes on the strict public response shape, presents payment, fulfillment, and email as separate dimensions, and applies the closed visual model without inferring issuance or delivery from payment.
+
+The slice closes sequential polling, single-flight concurrency, the bounded deadline, abort and stale-response guards, cleanup, timeout behavior, manual refresh, error classification, and truthful checkout copy. Refresh preserves the last valid state, performs no business retry, and does not restart polling; fulfillment `manual_review` stops automatic polling while email remains visible.
+
+No next product slice is declared or authorized. B2C deployment is `UNKNOWN`; repository capability and the product push establish neither production, activation, nor authority. `9E.5B4A` must be deployed before this B2C capability where the public contract is required. `B6` and `B7` remain blocked and unauthorized.
 
 ## Gates after local composition
 
@@ -104,13 +113,14 @@ Required categories:
 | `9E.5B3B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4C` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B4A` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| `9E.5B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | Next product slice | `NONE_DECLARED`; not authorized | `REPORTED` |
 | Remote application of migrations 046–049 | Not authorized | `REPORTED` |
 | Worker/durable-email activation | Not authorized | `REPORTED` |
 | `B6` cutover | Blocked and not authorized | `REPORTED` |
 | `B7` rollout | Blocked and not authorized | `REPORTED` |
 
-No product CODE is authorized by this closure. This file grants no remote action, deployment, activation, authority transfer, cutover, or rollout, and `9E.5B4A` leaves the `B6` and `B7` states and gates unchanged.
+No product CODE is authorized by this closure. This file grants no remote action, deployment, activation, authority transfer, cutover, or rollout, and `9E.5B4B` leaves the `B6` and `B7` states and gates unchanged.
 
 ## Contextual stops
 

@@ -16,8 +16,8 @@ Evidence labels:
 | Field | Value | Evidence |
 | --- | --- | --- |
 | `documentation_baseline` | `CONTEXT_HARNESS_V1A` | `VERIFIED_REPOSITORY` after this documentation changeset is accepted |
-| `state_as_of_product_commit` | `aa0557d9fdc14b704a3578534ac39b464b8889d2` | `VERIFIED_REPOSITORY` |
-| `last_closed_product_slice` | `9E.5B4A` | `VERIFIED_REPOSITORY` |
+| `state_as_of_product_commit` | `b287b9291ce757ef15cc4568c1686a38471b48f5` | `VERIFIED_REPOSITORY` |
+| `last_closed_product_slice` | `9E.5B4B` | `VERIFIED_REPOSITORY` |
 | `next_eligible_product_slice` | `NONE_DECLARED` | `VERIFIED_REPOSITORY` |
 | `next_product_slice_authorized` | `false` | `REPORTED` |
 | `actual_checkout_head` | `VERIFY_WITH_GIT` | `VERIFIED_REPOSITORY`; deliberately not stored as a checkout assertion |
@@ -76,6 +76,14 @@ Eligibility is sequencing information, not authorization.
 | Terminal `issuance_status = manual_review` projects fulfillment `manual_review` and email `not_started`; completed issuance with `issuance_review_status = manual_review` preserves email as an independent evidence-based dimension | Present | `VERIFIED_REPOSITORY` |
 | `items_not_found` with `expected_entries = 0` projects fulfillment `manual_review` and email `not_started` | Present | `VERIFIED_REPOSITORY` |
 | The public result exposes no counts, retry timestamps, internal errors, attempts, leases, provider metadata, buyer or attendee PII, or access/check-in tokens | Preserved | `VERIFIED_REPOSITORY` |
+| Product commit `b287b9291ce757ef15cc4568c1686a38471b48f5` closes truthful B2C presentation and polling for the public fulfillment-status contract | Present | `VERIFIED_REPOSITORY` |
+| B2C strictly consumes required non-null `fulfillment` and `email` objects and has no silent fallback to the legacy response shape | Present | `VERIFIED_REPOSITORY` |
+| Payment, fulfillment, and email are presented separately, with no `paid → issued`, `paid → sent`, or `issued → sent` equivalence | Preserved | `VERIFIED_REPOSITORY` |
+| Automatic polling is sequential every 3 seconds within one maximum 60-second window, with single-flight requests, abort, generation/reference guards, and cleanup | Present | `VERIFIED_REPOSITORY` |
+| Timeout and manual refresh preserve the last valid state; refresh performs no business retry and does not restart automatic polling | Present | `VERIFIED_REPOSITORY` |
+| Fulfillment `manual_review` stops automatic polling while the independent email dimension remains visible and manually refreshable | Present | `VERIFIED_REPOSITORY` |
+| Checkout copy no longer claims that confirmed payment means email was sent | Present | `VERIFIED_REPOSITORY` |
+| B2C has a direct test runner through exact development dependency `tsx@4.20.6` | Present | `VERIFIED_REPOSITORY` |
 
 Repository presence proves capability only. It does not prove deployment, activation, or authority.
 
@@ -101,6 +109,11 @@ Repository presence proves capability only. It does not prove deployment, activa
 | `9E.5B4A` TypeScript gates | Typecheck and build passed | `VERIFIED_REPOSITORY` for the exact product changeset |
 | `9E.5B4A` directed lint | Passed for the changed TypeScript surface | `VERIFIED_REPOSITORY` for the exact product changeset |
 | `9E.5B4A` final review | The Medium `items_not_found` finding was corrected before the final commit; High 0, Medium 0, Low 0 remained | `VERIFIED_REPOSITORY` for the exact product changeset |
+| `9E.5B4B` B2C tests | 27 of 27 tests passed | `VERIFIED_REPOSITORY` for product changeset `65dd043b57895d40e06441746e5828785fcc7a3c1776ca2c6fc9c02cef46e325` |
+| `9E.5B4B` TypeScript gates | Typecheck and build passed | `VERIFIED_REPOSITORY` for the exact product changeset |
+| `9E.5B4B` directed lint | Passed for the four changed TypeScript files | `VERIFIED_REPOSITORY` for the exact product changeset |
+| `9E.5B4B` global B2C lint | Blocked only by pre-existing errors outside the candidate | `VERIFIED_REPOSITORY`; not a candidate regression or permanent exemption |
+| `9E.5B4B` final review | High 0, Medium 0, Low 0 | `VERIFIED_REPOSITORY` for the exact product changeset |
 
 The isolated runtime evidence is not production evidence. It does not verify a remote migration ledger, deployment, activation, or operational authority.
 
@@ -115,8 +128,9 @@ The isolated runtime evidence is not production evidence. It does not verify a r
 | Current independent remote migration-ledger state for migrations 046 through 049 | Not verified | `UNKNOWN` |
 | Durable worker process deployed | Not independently established | `UNKNOWN` |
 | Durable email composition deployed | Not independently established | `UNKNOWN` |
+| `9E.5B4B` B2C deployed | Not established by this documentation cut | `UNKNOWN` |
 
-No production state is inferred from the push of `aa0557d9fdc14b704a3578534ac39b464b8889d2`. Independent verification of migrations 046 through 049 remains a gate for deployment, activation, or rollout that depends on those contracts.
+No production state is inferred from the pushes of `aa0557d9fdc14b704a3578534ac39b464b8889d2` or `b287b9291ce757ef15cc4568c1686a38471b48f5`. Independent verification of migrations 046 through 049 remains a gate for deployment, activation, or rollout that depends on those contracts.
 
 ## Activation state
 
@@ -138,7 +152,7 @@ Repository defaults are worker OFF, durable email OFF, and legacy direct email O
 | Worker reconciliation | No active production authority established | `REPORTED` |
 | Payment approval | Existing payment confirmation contract; unchanged by this slice | `VERIFIED_REPOSITORY` |
 
-Slice `9E.5B4A` transfers no authority (`REPORTED`). The reported legacy runtime authority remains unchanged. Authority changes require a separately authorized cutover; capability, deployment, or a feature flag alone does not transfer authority.
+Slices `9E.5B4A` and `9E.5B4B` transfer no authority (`REPORTED`). The reported legacy runtime authority remains unchanged. Authority changes require a separately authorized cutover; capability, deployment, or a feature flag alone does not transfer authority.
 
 ## Authorization state
 
@@ -150,6 +164,7 @@ Slice `9E.5B4A` transfers no authority (`REPORTED`). The reported legacy runtime
 | `9E.5B3B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B3B4C` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | `9E.5B4A` | `CLOSED` | `VERIFIED_REPOSITORY` |
+| `9E.5B4B` | `CLOSED` | `VERIFIED_REPOSITORY` |
 | Start another product slice | No next slice declared; requires an explicit name and authorization | `REPORTED` |
 | Apply migrations 046 through 049 remotely | Not authorized | `REPORTED` |
 | Enable worker or durable email | Not authorized | `REPORTED` |

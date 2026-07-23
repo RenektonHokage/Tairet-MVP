@@ -127,6 +127,7 @@ These are manual/review commands today; no tracked harness script is implied.
 | Issuance/reconcile regression; durable-OFF defer; capability validation; loader/builder orchestration; terminal preclaim; correlated delivery claim; provider outcomes; bounded settlement; deadline, shutdown, and fatal races; accounting; safe logging | `functions/api/src/workers/accessFulfillmentWorker.test.ts` |
 | Public status service mapping: every payment status; fulfillment absence and presence; issuance pending, partial, complete, and both manual-review forms; email pending, processing, retry, sent, and manual review; legacy sent projection; invalid cardinality, counts, shapes, timestamps, and enums; `items_not_found` with zero expected entries; one embedded snapshot; forbidden internal fields | `functions/api/src/services/accessPublicStatus.test.ts` |
 | Public status endpoint: 400/404/500/200; preserved prior shape with required fulfillment and email objects; local, event, and null venue resolution; venue failure isolation; sanitized logging; invocation-local dependencies; concurrent request isolation | `functions/api/src/routes/payments.accessStatus.test.ts` |
+| B2C public-status contract: strict fail-closed parser; required fulfillment/email dimensions; valid enums and timestamps; unknown, missing, null, and legacy-incomplete shapes; separate payment/fulfillment/email visual matrix; sequential polling, single-flight, original deadline, timeout, abort, generation/reference stale-response guards, and cleanup; manual refresh and error classification | `apps/web-b2c/src/lib/accessPublicStatus.test.ts` |
 
 Run only the focused files relevant to the implementation while iterating.
 
@@ -141,6 +142,17 @@ Available package-level gates include:
 The global `functions/api` lint gate is currently blocked before analysis by pre-existing infrastructure. Recent slices used a temporary, reproducible directed lint invocation for their changed TypeScript files; that invocation is changeset-specific review evidence, not permanent available tooling.
 
 Use the complete applicable suite once per changeset version. Documentation-only work does not require API tests, build, typecheck, or SQL execution unless its explicit prompt says otherwise.
+
+### B2C package gates
+
+Available B2C package gates include:
+
+- `pnpm -C apps/web-b2c test`
+- `pnpm -C apps/web-b2c typecheck`
+- `pnpm -C apps/web-b2c build`
+- `pnpm -C apps/web-b2c lint`
+
+For the exact `9E.5B4B` product changeset, tests passed 27 of 27, typecheck and build passed, and directed lint passed over `AccessPaymentStatus.tsx`, `AccessPaidCheckout.tsx`, `accessPublicStatus.ts`, and `accessPublicStatus.test.ts`. The global B2C lint command exists but failed at that documented cut only on pre-existing errors outside the candidate. Directed lint is changeset-specific evidence, not a permanent exemption from the global lint gate.
 
 ### Runtime and migration evidence
 
