@@ -1,0 +1,5 @@
+create trigger access_email_delivery_attempts_append_only
+before update or delete
+on public.access_email_delivery_attempts
+for each row
+execute function public.guard_access_email_delivery_attempts();

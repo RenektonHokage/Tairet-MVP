@@ -1,0 +1,72 @@
+{
+  "allocation_evidence_sha256": "1cc0c29dcf4f979ab199e1ac980e99f628dfc682b4811949b73dc5260153d065",
+  "assignment_write": {
+    "atomic_rename": true,
+    "authoritative_path_create_count": 1,
+    "correction_count": 0,
+    "final_path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-fac55618\\deployment-manifest\\version-assignment-v2.json",
+    "operation": "VERSION_ASSIGNMENT"
+  },
+  "assignments": [
+    {
+      "logical_migration": "046",
+      "name": "access_core_recoverable_fulfillment",
+      "version": "20260802015354"
+    },
+    {
+      "logical_migration": "047",
+      "name": "access_email_preclaim_terminal_failure",
+      "version": "20260802015355"
+    },
+    {
+      "logical_migration": "048",
+      "name": "access_email_preclaim_terminal_after_ambiguous",
+      "version": "20260802015356"
+    },
+    {
+      "logical_migration": "049",
+      "name": "access_email_delivery_claim_correlation",
+      "version": "20260802015357"
+    }
+  ],
+  "candidate_inputs": [
+    "20260711062759",
+    "20260711062759",
+    "20260801235131",
+    "20260801235132",
+    "20260801235133",
+    "20260801235134",
+    "20260801235134",
+    "20260802015354"
+  ],
+  "discovered_assignments": [
+    {
+      "package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+      "source_path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-1f2c969e\\deployment-manifest\\version-assignment.json",
+      "versions": [
+        "20260801235130",
+        "20260801235131",
+        "20260801235132",
+        "20260801235133"
+      ]
+    }
+  ],
+  "event_write": {
+    "atomic_rename": true,
+    "authoritative_path_create_count": 1,
+    "correction_count": 0,
+    "final_path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-fac55618\\manifests\\packaging-event-v2.json",
+    "operation": "PACKAGING_EVENT"
+  },
+  "failed_package_versions": [
+    "20260801235130",
+    "20260801235131",
+    "20260801235132",
+    "20260801235133"
+  ],
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "packaging_event_utc": "2026-08-02T01:53:54Z",
+  "production_contact": 0,
+  "schema": "ACCESS_CORE_046_049_VERSION_ALLOCATION_EVIDENCE_V2",
+  "t0": "20260802015354"
+}

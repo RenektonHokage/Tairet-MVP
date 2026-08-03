@@ -1,0 +1,3 @@
+
+-- Assert effective table/function privileges, ownership, secure definers,
+-- RLS, and absence of client policies. Any inherited PUBLIC access is included.

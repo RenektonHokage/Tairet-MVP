@@ -1,0 +1,97 @@
+{
+  "canonical_package_field": "package_path",
+  "consumers": [
+    {
+      "component": "build-draft.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/build-draft.js",
+      "schema_version": 2,
+      "sha256": "5772cfb8c938952be2d28de80580ddfb54d4ecea72b35b35a1d896f4dc690c37",
+      "size": 44989
+    },
+    {
+      "component": "contract-tests.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/contract-tests.js",
+      "schema_version": 2,
+      "sha256": "43521e42f4ca11889e1aafd305f627c1d74c1212d63aab6337cc4db9896bf40a",
+      "size": 7182
+    },
+    {
+      "component": "package-runtime.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/package-runtime.js",
+      "schema_version": 2,
+      "sha256": "e61cbf37d2490025b417f33b7cf8b84396b39e00eb261992352eb7c90692b3fc",
+      "size": 42681
+    },
+    {
+      "component": "self-validate.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/self-validate.js",
+      "schema_version": 2,
+      "sha256": "08c9fda2c355bdd5c00fe90631eb65c4fd985442512aff946079167e08aeb71b",
+      "size": 3492
+    },
+    {
+      "component": "rehearsal-suite.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/rehearsal-suite.js",
+      "schema_version": 2,
+      "sha256": "597067b101ae26edaf9bcb77812639c624f67dd6993ccd4146125eeaa3acb24b",
+      "size": 20931
+    },
+    {
+      "component": "authoritative-finalize.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/authoritative-finalize.js",
+      "schema_version": 2,
+      "sha256": "ff56714cf530e8f3ce2464709c6c87e6d9470d597bfac30b570941f79904dfe1",
+      "size": 16345
+    },
+    {
+      "component": "freeze-package.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/freeze-package.js",
+      "schema_version": 2,
+      "sha256": "0a539f870444dbf6f0fe987cc7043cd5ba43b36e3a56ce335b1b66069722bfda",
+      "size": 5838
+    },
+    {
+      "component": "finalize-report.js",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/finalize-report.js",
+      "schema_version": 2,
+      "sha256": "0bb74979d06a26b4ef69035d14cfdbb994b4067ae696b9cf7d6ab7ec68d2197e",
+      "size": 20454
+    },
+    {
+      "component": "run-rehearsal.ps1",
+      "manifest_parser": "editable-source/lib/input-manifest-v2.js",
+      "package_path": "editable-source/run-rehearsal.ps1",
+      "schema_version": 2,
+      "sha256": "ed04f3b3ce6356652e71521616fea28da8c343f6296ea9c1438e372ae8513e19",
+      "size": 19337
+    }
+  ],
+  "manifest_schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2",
+  "original_authority_field": "source_path",
+  "package_v2_input_manifest_runtime_binding_sha256": "e73a01263522ddd3cd87dd870cd25a8ab6f1f0bdd3859e00ac2e32bd2a2e2304",
+  "rejected_legacy_fields": [
+    "path",
+    "destination"
+  ],
+  "runtime_resolution_field": "package_path",
+  "schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_RUNTIME_BINDING_V2",
+  "schema_file": {
+    "package_path": "package-contracts/input-manifest-v2.schema.json",
+    "sha256": "a3075bf8ae1b7b6f3ed678cfb0cf061cff5ccecd57f0b4da9262653e60f9df77",
+    "size": 2150
+  },
+  "schema_version": 2,
+  "shared_parser": {
+    "package_path": "editable-source/lib/input-manifest-v2.js",
+    "sha256": "c0218f72dd1510b76b195480537ec7b3cc912635076e0c4ae1b7ef6448ed149e",
+    "size": 8572
+  }
+}

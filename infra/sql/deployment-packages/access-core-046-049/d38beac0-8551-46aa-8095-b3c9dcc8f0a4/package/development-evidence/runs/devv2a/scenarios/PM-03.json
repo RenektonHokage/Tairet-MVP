@@ -1,0 +1,16 @@
+{
+  "completed_utc": "2026-08-02T01:49:12.138Z",
+  "description": "wrong intermediate payload identity is rejected",
+  "error": null,
+  "id": "PM-03",
+  "mode": "Development",
+  "pass": true,
+  "production_contact": 0,
+  "result": {
+    "code": "INTERMEDIATE_PAYLOAD_IDENTITY_MISMATCH",
+    "message": "INTERMEDIATE_PAYLOAD_IDENTITY_MISMATCH: 046"
+  },
+  "scenario_evidence_sha256": "561180cde719a1c4df11d7076a9c0e436f8d96ab7d8c52f78dac41a1bd41ee69",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:49:12.079Z"
+}

@@ -1,0 +1,5 @@
+
+-- Applying this migration acquires an ACCESS EXCLUSIVE DDL lock on
+-- access_order_fulfillments. Apply only in a controlled maintenance window.
+-- This migration does not invoke the new RPC or mutate existing business rows.
+

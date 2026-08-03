@@ -1,0 +1,58 @@
+{
+  "allocator_inputs": {
+    "known_unavailable_versions": [
+      "20260711062758",
+      "20260801235130",
+      "20260801235131",
+      "20260801235132",
+      "20260801235133"
+    ],
+    "other_authorized_local_assignments": [
+      {
+        "package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+        "source_path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-1f2c969e\\deployment-manifest\\version-assignment.json",
+        "versions": [
+          "20260801235130",
+          "20260801235131",
+          "20260801235132",
+          "20260801235133"
+        ]
+      }
+    ],
+    "packaging_event_utc_form": "20260802015354",
+    "successor_of_failed_package_maximum": "20260801235134",
+    "successor_of_predecessor": "20260711062759"
+  },
+  "assignments": [
+    {
+      "logical_migration": "046",
+      "name": "access_core_recoverable_fulfillment",
+      "version": "20260802015354"
+    },
+    {
+      "logical_migration": "047",
+      "name": "access_email_preclaim_terminal_failure",
+      "version": "20260802015355"
+    },
+    {
+      "logical_migration": "048",
+      "name": "access_email_preclaim_terminal_after_ambiguous",
+      "version": "20260802015356"
+    },
+    {
+      "logical_migration": "049",
+      "name": "access_email_delivery_claim_correlation",
+      "version": "20260802015357"
+    }
+  ],
+  "failed_package_versions_reused": false,
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_version_assignment_sha256": "0f057efd91c6f27deda4a14014e13596dc009cf9201cac8d3582127d112838ae",
+  "packaging_event_identity_sha256": "b2eb0ed3ce082f71e96b24169ffec53dc2c97ff83ec9d02ccbfb0b5566225a94",
+  "production_contact": 0,
+  "renumber_count": 0,
+  "schema": "ACCESS_CORE_046_049_VERSION_ASSIGNMENT_V2",
+  "strict_increase": true,
+  "t0": "20260802015354",
+  "write_count": 1
+}

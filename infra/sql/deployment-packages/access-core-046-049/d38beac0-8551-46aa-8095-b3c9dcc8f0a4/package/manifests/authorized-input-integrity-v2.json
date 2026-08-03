@@ -1,0 +1,19 @@
+{
+  "authorized_input_integrity_sha256": "1a5352c9a36197f5fc90c731aa0bf968ef348ae1995731bb9b1194d06e10bd5a",
+  "byte_equal_count": 153,
+  "executor_release_identity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+  "imported_artifact_count": 153,
+  "input_manifest_sha256": "711f37c201b6cdddb328f83cb8097fb4e1e7cac3aeccb9dc041da6003d8890d8",
+  "mismatch_count": 0,
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "production_contact": 0,
+  "repository": {
+    "baseline_status_including_untracked": "?? .sigsegv-forensics/Dockerfile.debug\n?? tmp-bancard/bancard-004.html",
+    "branch": "main",
+    "head": "715ad1cea644e45d688dca785de09c83e1956413",
+    "root": "C:/Importante/Python/tairet-mono-2",
+    "staged_status": "",
+    "tracked_status": ""
+  },
+  "schema": "ACCESS_CORE_V2_AUTHORIZED_INPUT_INTEGRITY"
+}

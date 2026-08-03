@@ -1,0 +1,106 @@
+{
+  "artifact": {
+    "path": "editable-source/tests/orchestration-acceptance-suite.js",
+    "sha256": "e52a37df0c5f1d09044020493c7de5ae0a1ffa682d2844233741cd263a33a5bd",
+    "size": 12087
+  },
+  "negative": [
+    {
+      "case": "old V2 mixed stdout array",
+      "id": "N001"
+    },
+    {
+      "case": "JSON array result",
+      "id": "N002"
+    },
+    {
+      "case": "two result objects",
+      "id": "N003"
+    },
+    {
+      "case": "missing result file",
+      "id": "N004"
+    },
+    {
+      "case": "malformed JSON",
+      "id": "N005"
+    },
+    {
+      "case": "stale preexisting file",
+      "id": "N006"
+    },
+    {
+      "case": "wrong suite ID",
+      "id": "N007"
+    },
+    {
+      "case": "wrong run ID",
+      "id": "N008"
+    },
+    {
+      "case": "wrong release ID",
+      "id": "N009"
+    },
+    {
+      "case": "duplicate suite result",
+      "id": "N010"
+    },
+    {
+      "case": "missing suite result",
+      "id": "N011"
+    },
+    {
+      "case": "PASS plus exit 1",
+      "id": "N012"
+    },
+    {
+      "case": "FAIL plus exit 0 with contradictory wrapper evidence",
+      "id": "N013"
+    },
+    {
+      "case": "wrong test counts",
+      "id": "N014"
+    },
+    {
+      "case": "raw-log hash mismatch",
+      "id": "N015"
+    },
+    {
+      "case": "result evidence hash mismatch",
+      "id": "N016"
+    },
+    {
+      "case": "result rewritten after seal",
+      "id": "N017"
+    },
+    {
+      "case": "result from another final attempt",
+      "id": "N018"
+    },
+    {
+      "case": "finalizer directory input",
+      "id": "N019"
+    }
+  ],
+  "positive": [
+    {
+      "case": "many stdout log lines and one valid result file",
+      "id": "P001"
+    },
+    {
+      "case": "stderr logs and one valid result file",
+      "id": "P002"
+    },
+    {
+      "case": "all six suites PASS",
+      "id": "P003"
+    },
+    {
+      "case": "finalizer emits READY candidate result",
+      "id": "P004"
+    }
+  ],
+  "requiredOutcome": "ALL_PASS",
+  "schema": "tairet-executor-v3-orchestration-acceptance-matrix-v1",
+  "testCount": 23
+}

@@ -1,0 +1,157 @@
+{
+  "schema": "tairet-executor-v2-final-orchestration-forensics-v1",
+  "classification": "V2_FINAL_ORCHESTRATION_ROOT_CAUSE_REPRODUCED",
+  "v2_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405",
+  "v2_frozen_release_sha256": "2b4668c5f1671114a856589298e0102b238841f53890b92ca5dde666eb7a17c8",
+  "v2_artifact_hash_manifest_sha256": "0f3e00a85b03c44472e49cf4ae2031a6b2a1dc1be28170e1914a6f09bc250120",
+  "artifact_manifest_verification": {
+    "entry_count": 15,
+    "pass_count": 15,
+    "fail_count": 0
+  },
+  "powershell_command": {
+    "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "argv": [
+      "-NoProfile",
+      "-File",
+      "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tools\\run-final-suite.ps1",
+      "-ExecutorRoot",
+      "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405",
+      "-RepositoryRoot",
+      "C:\\Importante\\Python\\tairet-mono-2"
+    ],
+    "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+    "exit_code": 1
+  },
+  "child_environment": {
+    "ROOT_EXECUTOR_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405",
+    "FROZEN_RELEASE_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release",
+    "FINAL_OUTPUT_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\final-output",
+    "MUTATION_WORK_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\final-output\\mutation-workspaces",
+    "POSTGRES_WORK_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\final-output\\postgres-work",
+    "TAIRET_REPO_ROOT": "C:\\Importante\\Python\\tairet-mono-2",
+    "V1_EXECUTOR_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v1-008a2f38",
+    "RELEASE_MANIFEST": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\frozen-release-manifest.json",
+    "TEST_MANIFEST": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\manifests\\test-manifest.json",
+    "PRODUCTION_TEMPLATE": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\manifests\\production-manifest-template.json",
+    "IDENTITY_MODEL": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\manifests\\executor-v2-identity-model.json",
+    "FINAL_EVIDENCE_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\final-evidence",
+    "FINAL_RUN_ID": "final001",
+    "FROZEN_RELEASE_READ_ONLY_REQUIRED": "1",
+    "EVIDENCE_DIR": "suite-specific, assigned immediately before each Node suite"
+  },
+  "suite_order": [
+    "GLOBAL_GATES",
+    "FINAL_PRE_RUNTIME_INVENTORY",
+    "STATIC",
+    "PATH_CONTRACT",
+    "SEMANTIC_MUTATIONS",
+    "POSTGRESQL_ATOMICITY",
+    "FINAL_POST_RUNTIME_INVENTORY",
+    "CLEANUP",
+    "FINAL_ORCHESTRATION_SERIALIZATION",
+    "FINALIZER"
+  ],
+  "node_commands": [
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tests\\global-gate-suite.js",
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tests\\static-suite.js",
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tests\\path-contract-suite.js",
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tests\\mutation-suite.js",
+    "docker run ... mcr.microsoft.com/devcontainers/javascript-node:22 node /executor/frozen-release/release/editable-source/tests/integration-suite.js",
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tests\\cleanup-suite.js",
+    "node C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\frozen-release\\release\\editable-source\\tools\\finalize-evidence.js"
+  ],
+  "raw_stdout": {
+    "transport": "inherited PowerShell success-output stream; not separately persisted as raw log files",
+    "suite_lines_preserved_inside_final_suite_result": {
+      "STATIC": "{\"testCount\":61,\"passCount\":61,\"failCount\":0}",
+      "PATH_CONTRACT": "{\"testCount\":16,\"passCount\":16,\"failCount\":0,\"residual\":0}",
+      "SEMANTIC_MUTATIONS": "{\"mutationCount\":14,\"appliedCount\":14,\"activatedCount\":14,\"killedCount\":14,\"survivorCount\":0,\"workspaceResidualCount\":0}",
+      "CLEANUP": "{\"testCount\":12,\"passCount\":12,\"failCount\":0,\"v1ChangeCount\":0,\"repositoryWriteCount\":0,\"migrationFileChangeCount\":0,\"residualDockerResourceCount\":0,\"survivingProcessCount\":0}"
+    },
+    "other_observed_lines": [
+      "{\"gateCount\":6,\"passCount\":6,\"failCount\":0}",
+      "{\"testCount\":25,\"passCount\":25,\"failCount\":0,\"residualDatabases\":0}",
+      "{\"classification\":\"STATEMENT_AWARE_ATOMIC_MIGRATION_EXECUTOR_V2_FINDINGS\",\"frozenReleaseSha256\":\"2b4668c5f1671114a856589298e0102b238841f53890b92ca5dde666eb7a17c8\",\"artifactCount\":15}"
+    ]
+  },
+  "raw_stderr": {
+    "transport": "inherited PowerShell error stream; not redirected or separately persisted",
+    "preserved_stderr_artifact": false,
+    "observed_error_line_count_in_preserved_invocation": 0,
+    "byte_identity_available": false
+  },
+  "powershell_values": {
+    "simulation_semantics": {
+      "value_type": "System.Object[]",
+      "member_count": 2,
+      "member_types": [
+        "System.String",
+        "System.Collections.Specialized.OrderedDictionary"
+      ]
+    },
+    "preserved_value_types": {
+      "static": "System.Object[]",
+      "path_contract": "System.Object[]",
+      "semantic_mutations": "System.Object[]",
+      "atomicity": "System.Collections.Specialized.OrderedDictionary",
+      "cleanup": "System.Object[]"
+    },
+    "exact_array_members": {
+      "static": [
+        "{\"testCount\":61,\"passCount\":61,\"failCount\":0}",
+        { "name": "static", "exit_code": 0, "status": "PASS", "error": null }
+      ],
+      "path_contract": [
+        "{\"testCount\":16,\"passCount\":16,\"failCount\":0,\"residual\":0}",
+        { "name": "path-contract", "exit_code": 0, "status": "PASS", "error": null }
+      ],
+      "semantic_mutations": [
+        "{\"mutationCount\":14,\"appliedCount\":14,\"activatedCount\":14,\"killedCount\":14,\"survivorCount\":0,\"workspaceResidualCount\":0}",
+        { "name": "semantic-mutations", "exit_code": 0, "status": "PASS", "error": null }
+      ],
+      "cleanup": [
+        "{\"testCount\":12,\"passCount\":12,\"failCount\":0,\"v1ChangeCount\":0,\"repositoryWriteCount\":0,\"migrationFileChangeCount\":0,\"residualDockerResourceCount\":0,\"survivingProcessCount\":0}",
+        { "name": "cleanup", "exit_code": 0, "status": "PASS", "error": null }
+      ]
+    }
+  },
+  "finalizer_input": {
+    "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405\\final-evidence\\final-suite-result.json",
+    "sha256": "791bece601bae4d8fd1c2f99b718787c5423474ee07ef4bc122e8ee79ba0f0df",
+    "failing_source": "frozen-release/release/editable-source/tools/finalize-evidence.js",
+    "failing_line": 48,
+    "failing_expression": "Object.values(orchestration.suites).every((row) => row.status === 'PASS')",
+    "array_status_in_javascript": "undefined"
+  },
+  "runner_source": {
+    "path": "frozen-release/release/editable-source/tools/run-final-suite.ps1",
+    "relevant_line": 50,
+    "expression": "node $Script",
+    "mechanism": "Unassigned native stdout entered the function success-output stream, then return emitted the ordered result object; assignment captured both values as System.Object[]."
+  },
+  "exit_codes": {
+    "GLOBAL_GATES": 0,
+    "STATIC": 0,
+    "PATH_CONTRACT": 0,
+    "SEMANTIC_MUTATIONS": 0,
+    "POSTGRESQL_ATOMICITY": 0,
+    "CLEANUP": 0,
+    "FINALIZER": 1,
+    "POWERSHELL_WRAPPER": 1
+  },
+  "substantive_results": {
+    "STATIC": "77/77 including path contract",
+    "PARSER": "36/36",
+    "RECOVERY": "10/10",
+    "ATOMICITY": "25/25",
+    "SEMANTIC_MUTATIONS": "14 applied, 14 activated, 14 killed, 0 survivors",
+    "CLEANUP": "12/12"
+  },
+  "root_cause": "V2 used the PowerShell success-output pipeline as both a human log channel and a structured result transport. Four Invoke-NodeSuite assignments therefore became mixed two-member arrays. The intended result objects were valid and every substantive process exited zero, but the aggregate and JavaScript finalizer evaluated the arrays rather than the second member object, so orchestration alone failed.",
+  "required_finding": {
+    "id": "V2-FINAL-ORCHESTRATION",
+    "severity": "HIGH"
+  },
+  "conclusion": "ROOT_CAUSE_REPRODUCED_WITHOUT_RERUNNING_V2"
+}

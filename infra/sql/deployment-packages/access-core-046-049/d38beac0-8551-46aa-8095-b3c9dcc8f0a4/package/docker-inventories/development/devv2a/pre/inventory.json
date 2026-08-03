@@ -1,0 +1,12 @@
+{
+  "schema": "ACCESS_CORE_PACKAGE_V2_DOCKER_INVENTORY",
+  "phase": "pre",
+  "captured_utc": "2026-08-02T01:48:35Z",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "containers": [],
+  "networks": [],
+  "volumes": [],
+  "container_count": 0,
+  "network_count": 0,
+  "volume_count": 0
+}

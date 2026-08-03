@@ -1,0 +1,3 @@
+
+-- Fail closed unless the database is exactly on the immutable migration 047
+-- function and batch baselines expected by this additive replacement.

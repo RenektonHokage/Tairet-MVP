@@ -1,0 +1,82 @@
+{
+  "enforcement": "Runtime executes every stage verifier and independently compares exact ledger arrays, material state, source bytes and source relation identities.",
+  "executor_v3_verifier_identities": {
+    "frozen_stage_contract": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+    "in_transaction": "30bd5a7096f1c63b42360214a6042f06833a6606a8f1e7f5970b29955acd5b9d",
+    "material": "e1ce9f34cbcf140ed45650a08f6f3bde43b6bbb2076f45e1032aa1bcae09c329",
+    "post_commit": "986cb7619a41940318acbc3770a0e3eef6be14cfb81917fea8bc13815524ee40"
+  },
+  "files": [
+    {
+      "package_path": "stage-verifiers/PRE_046.post-commit.sql",
+      "phase": "post-commit-read-only",
+      "sha256": "af3c2a0b8b03763816be035360469d43ee5da939d1069b2c2810b74c75e93d59",
+      "size": 1842,
+      "stage": "PRE_046"
+    },
+    {
+      "package_path": "stage-verifiers/POST_046.in-transaction.sql",
+      "phase": "in-transaction",
+      "sha256": "b6142c24e8fdc5e775c23c9b1363c404004e6e79ebdf2296dd23c38615efa0eb",
+      "size": 7748,
+      "stage": "POST_046"
+    },
+    {
+      "package_path": "stage-verifiers/POST_046.post-commit.sql",
+      "phase": "post-commit-read-only",
+      "sha256": "5ce2f011709fc92087282419288af1cc0a5d211db71b95a81d2d9894a246cf88",
+      "size": 2622,
+      "stage": "POST_046"
+    },
+    {
+      "package_path": "stage-verifiers/POST_047.in-transaction.sql",
+      "phase": "in-transaction",
+      "sha256": "31e5a57dad0cb666aaa94fc82fe532d76dd992bafbd97a5631b8ff13d78ecdd3",
+      "size": 7748,
+      "stage": "POST_047"
+    },
+    {
+      "package_path": "stage-verifiers/POST_047.post-commit.sql",
+      "phase": "post-commit-read-only",
+      "sha256": "9ac470679d7d0a82c99e878b8045bd4848eab299877adeeb8b841efdee8901a8",
+      "size": 2622,
+      "stage": "POST_047"
+    },
+    {
+      "package_path": "stage-verifiers/POST_048.in-transaction.sql",
+      "phase": "in-transaction",
+      "sha256": "7ebc845e5f8538af7996ec1e1aee74aaca714832f2f8a489a14b82838442b2e6",
+      "size": 7748,
+      "stage": "POST_048"
+    },
+    {
+      "package_path": "stage-verifiers/POST_048.post-commit.sql",
+      "phase": "post-commit-read-only",
+      "sha256": "adefff24a89f5bbb9403b2f3fecc4aaea0922623c23b702009d61b1b2ee25fc0",
+      "size": 2622,
+      "stage": "POST_048"
+    },
+    {
+      "package_path": "stage-verifiers/POST_049.in-transaction.sql",
+      "phase": "in-transaction",
+      "sha256": "14db9f36698d1d0c57cf107af71ef473addf525b228ab85c695bffefb7d94a8b",
+      "size": 7748,
+      "stage": "POST_049"
+    },
+    {
+      "package_path": "stage-verifiers/POST_049.post-commit.sql",
+      "phase": "post-commit-read-only",
+      "sha256": "d9f617ceedd60e282b0d872e51a78abf011cb2460eb7c98d54176bff6bd54fe7",
+      "size": 2622,
+      "stage": "POST_049"
+    }
+  ],
+  "production_use_constraint": "Local synthetic fingerprints are rehearsal-only; production remains pending an exact final ledger and PRE_046 guard.",
+  "schema": "ACCESS_CORE_046_049_STAGE_VERIFIER_MANIFEST_V2",
+  "stage_verifier_manifest_sha256": "8f7478a81de7a7f65f1419d14a1a58b1b1ebaa285e5cac30ec0419df55abb519",
+  "static_validation": {
+    "file_count": 9,
+    "forbidden_write_or_transaction_control_count": 0,
+    "pass": true
+  }
+}

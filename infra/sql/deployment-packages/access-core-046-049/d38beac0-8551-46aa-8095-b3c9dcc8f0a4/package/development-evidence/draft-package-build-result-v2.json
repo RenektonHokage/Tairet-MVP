@@ -1,0 +1,37 @@
+{
+  "authoritative_manifest_status": "NOT_WRITTEN",
+  "authoritative_packaging_event_status": "NOT_CAPTURED",
+  "authorized_input_integrity": "PASS 153/153 BYTE_EQUAL",
+  "canonical_migration_count": 4,
+  "draft_package_build_result_sha256": "12ee98d9d04e41da2ec5779e3e367cc27e1d1fb3c2a355b960812330bab373b2",
+  "failed_package_root_cause": "INPUT_MANIFEST_RUNTIME_SCHEMA_MISMATCH",
+  "identities": {
+    "draft_descriptor": "391066950187fac45a8cd3ca4cf759c86c98688ef54855b2791b831be15428a7",
+    "failed_package_forensics": "6212265c9def84c3593717691707b47ddac15500016c2d67a3b74d19ae766208",
+    "failed_version_reservation": "cee908347293b96c45e09c0a3f344550347202347c827b67cd13ca8e1ebf6452",
+    "final_preflight_binding": "edfcb676a35b1e67d0673d9b61a4700a6a1748a00df3429e617cded593d80b41",
+    "input_manifest": "711f37c201b6cdddb328f83cb8097fb4e1e7cac3aeccb9dc041da6003d8890d8",
+    "input_manifest_runtime_binding": "a1299ac27f4e6a22c7caf05513dac2e75c5f07656c316c22274e009bb645d19e",
+    "input_manifest_schema": "eeba7aed2755d875be541ceae5339d7ac6a8ce97361e95327c8962320d484109",
+    "stage_verifier_manifest": "8f7478a81de7a7f65f1419d14a1a58b1b1ebaa285e5cac30ec0419df55abb519",
+    "statement_manifest": "0ef26ee5fdc45907b095a6c4c2bd8850ae4a2af85b09366e0e48e9afeef16834"
+  },
+  "imported_artifact_count": 153,
+  "intermediate_payload_count": 4,
+  "package_classification": "DRAFT_NON_DEPLOYABLE",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "pre_authoritative_draft_revision": 2,
+  "production_contact": 0,
+  "real_version_assignment_status": "NOT_ASSIGNED",
+  "repository_write_count": 0,
+  "runtime_required_artifact_count": 143,
+  "schema": "ACCESS_CORE_046_049_DRAFT_PACKAGE_BUILD_RESULT_V2",
+  "statement_counts": [
+    69,
+    12,
+    6,
+    6
+  ],
+  "static_stage_verifier_count": 9,
+  "test_only_version_count": 4
+}

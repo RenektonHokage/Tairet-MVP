@@ -1,0 +1,16 @@
+{
+  "ambiguous_commit_requires_independent_read": true,
+  "classifications": [
+    "ALREADY_APPLIED_VERIFIED",
+    "NOT_APPLIED_VERIFIED",
+    "AMBIGUOUS_COMMIT_RESOLVED_AS_COMMITTED",
+    "AMBIGUOUS_COMMIT_RESOLVED_AS_ROLLED_BACK",
+    "HARD_STOP_SPLIT_STATE",
+    "HARD_STOP_INCOMPATIBLE_STATE"
+  ],
+  "ledger_only_reconciliation": false,
+  "ordinary_retry": false,
+  "recovery_policy_sha256": "c11187098a00aec269ccb206bcb13a11c4e857de5b544153236491086de3b721",
+  "schema": "ACCESS_CORE_DEPLOYMENT_RECOVERY_POLICY_V2",
+  "split_state_automatic_repair": false
+}

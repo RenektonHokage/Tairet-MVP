@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "EXECUTOR_SUITE_RESULT_V1",
+  "title": "Tairet executor canonical suite result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "suite_id", "suite_version", "final_run_id", "frozen_release_identity",
+    "execution_attempt", "start_sequence", "end_sequence", "status", "exit_code",
+    "test_count", "pass_count", "fail_count", "skipped_count", "raw_stdout_path",
+    "raw_stdout_sha256", "raw_stderr_path", "raw_stderr_sha256", "suite_evidence_paths",
+    "suite_evidence_hashes", "result_created_at", "result_sha256"
+  ],
+  "properties": {
+    "schema": { "const": "EXECUTOR_SUITE_RESULT_V1" },
+    "suite_id": { "enum": ["STATIC", "PARSER", "RECOVERY", "ATOMICITY", "SEMANTIC_MUTATION", "CLEANUP"] },
+    "suite_version": { "type": "string", "minLength": 1 },
+    "final_run_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,31}$" },
+    "frozen_release_identity": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "execution_attempt": { "type": "integer", "minimum": 1 },
+    "start_sequence": { "type": "integer", "minimum": 0 },
+    "end_sequence": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["PASS", "FAIL", "UNRESOLVED"] },
+    "exit_code": { "type": "integer", "minimum": 0 },
+    "test_count": { "type": "integer", "minimum": 0 },
+    "pass_count": { "type": "integer", "minimum": 0 },
+    "fail_count": { "type": "integer", "minimum": 0 },
+    "skipped_count": { "type": "integer", "minimum": 0 },
+    "raw_stdout_path": { "type": "string", "minLength": 1 },
+    "raw_stdout_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "raw_stderr_path": { "type": "string", "minLength": 1 },
+    "raw_stderr_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "suite_evidence_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "suite_evidence_hashes": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+    "result_created_at": { "type": "string", "format": "date-time" },
+    "result_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

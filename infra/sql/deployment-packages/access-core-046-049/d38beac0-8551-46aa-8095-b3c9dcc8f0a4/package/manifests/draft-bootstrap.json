@@ -1,0 +1,12 @@
+{
+  "schema": "ACCESS_CORE_DEPLOYMENT_PACKAGE_V2_DRAFT_BOOTSTRAP",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-fac55618",
+  "draft_created_utc": "2026-08-02T01:23:18Z",
+  "package_classification": "DRAFT_NON_DEPLOYABLE",
+  "authoritative_packaging_event_status": "NOT_CAPTURED",
+  "real_version_assignment_status": "NOT_ASSIGNED",
+  "authoritative_manifest_status": "NOT_WRITTEN",
+  "failed_package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+  "production_contact": 0
+}

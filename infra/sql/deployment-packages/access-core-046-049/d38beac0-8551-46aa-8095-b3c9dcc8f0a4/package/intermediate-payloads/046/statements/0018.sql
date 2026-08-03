@@ -1,0 +1,1 @@
+grant select on table public.access_email_delivery_attempts to service_role;

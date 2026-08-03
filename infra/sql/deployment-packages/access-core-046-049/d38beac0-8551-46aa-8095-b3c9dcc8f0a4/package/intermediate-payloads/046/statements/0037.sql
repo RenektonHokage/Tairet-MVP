@@ -1,0 +1,1 @@
+alter function public.guard_access_email_delivery_attempts() owner to postgres;

@@ -1,0 +1,30 @@
+{
+  "authoritative_write_prerequisites": [
+    "RUNTIME_SELF_VALIDATION_PASS",
+    "DEVELOPMENT_REHEARSAL_19_OF_19_PASS"
+  ],
+  "draft_authority": "DRAFT_NON_DEPLOYABLE",
+  "eligibility_policy_sha256": "f17737b1a6767ec2f448a1183c825248746dbf41d08ffaf1fa17cccb7724f149",
+  "input_manifest_schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2",
+  "invalidated_by": [
+    "input manifest schema or parser change",
+    "canonical migration identity change",
+    "intermediate payload identity change",
+    "executor frozen identity change",
+    "verifier identity change",
+    "deployment manifest change",
+    "version/name pair change",
+    "stage order change",
+    "target identity change",
+    "predecessor ledger mismatch",
+    "assigned version collision",
+    "unexpected later Access Core migration",
+    "production structural state not exact PRE_046"
+  ],
+  "invalidated_package_action": "DO_NOT_EDIT_OR_RENUMBER; CREATE_A_NEW_PACKAGE_IDENTITY",
+  "package_authority_after_authoritative_write": "AUTHORITATIVE_LOCAL_DEPLOYMENT_CANDIDATE",
+  "production_contact": 0,
+  "production_eligibility": "PENDING_FINAL_PRODUCTION_LEDGER_GUARD",
+  "production_ready_without_guard": false,
+  "schema": "ACCESS_CORE_DEPLOYMENT_PACKAGE_ELIGIBILITY_POLICY_V2"
+}

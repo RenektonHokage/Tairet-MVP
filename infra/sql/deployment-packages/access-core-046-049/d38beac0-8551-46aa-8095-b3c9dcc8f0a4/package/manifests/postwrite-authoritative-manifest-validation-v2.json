@@ -1,0 +1,13 @@
+{
+  "authoritative_manifest_sha256": "eb07ac82de3f024bcc65281cd8e7d171b544980d29da5584d04e7adc79b0f7b3",
+  "event_write_count": 1,
+  "exact_byte_equal_to_prewrite_candidate": true,
+  "manifest_correction_count": 0,
+  "manifest_write_count": 1,
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "postwrite_manifest_validation_sha256": "be09a4d64b15a0c3419a7c562ef71ed083910ee10b543431b4bf0e20a2fe4aab",
+  "production_contact": 0,
+  "schema": "ACCESS_CORE_046_049_POSTWRITE_AUTHORITATIVE_MANIFEST_VALIDATION_V2",
+  "validation": "PASS",
+  "version_assignment_write_count": 1
+}

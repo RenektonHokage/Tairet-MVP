@@ -1,0 +1,1 @@
+alter function public.access_core_entry_snapshot(uuid) owner to postgres;

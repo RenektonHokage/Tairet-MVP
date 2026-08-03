@@ -1,0 +1,2 @@
+create index idx_access_email_delivery_attempts_order_generation_created
+  on public.access_email_delivery_attempts(order_id, generation, created_at);

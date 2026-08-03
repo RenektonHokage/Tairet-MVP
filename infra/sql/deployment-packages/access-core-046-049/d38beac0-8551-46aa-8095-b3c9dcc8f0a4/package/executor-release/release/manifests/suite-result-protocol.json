@@ -1,0 +1,81 @@
+{
+  "allowedStatuses": [
+    "PASS",
+    "FAIL",
+    "UNRESOLVED"
+  ],
+  "artifacts": [
+    {
+      "path": "editable-source/src/result/suite-result.js",
+      "sha256": "6afc4b8231c46cbb0872fb5014c54ab295f5e6518871ca7776faf610253c4caa",
+      "size": 13910
+    },
+    {
+      "path": "editable-source/src/result/suite-result.schema.json",
+      "sha256": "5a4c5c832cb510a1d89d59cf8a3b1b6d784bff86a968b0e1a1558b5344350ee9",
+      "size": 2196
+    }
+  ],
+  "protocol": "EXECUTOR_SUITE_RESULT_V1",
+  "rejections": [
+    "ARRAY",
+    "SCALAR",
+    "MULTIPLE_OBJECTS",
+    "DUPLICATE_KEYS",
+    "UNKNOWN_SCHEMA",
+    "UNKNOWN_SUITE",
+    "MISSING_FIELD",
+    "WRONG_RUN",
+    "WRONG_RELEASE",
+    "WRONG_ATTEMPT",
+    "STALE_RESULT",
+    "CREATED_BEFORE_START",
+    "POST_SEAL_REWRITE",
+    "STATUS_EXIT_CONTRADICTION",
+    "COUNT_CONTRADICTION",
+    "LOG_HASH_MISMATCH",
+    "EVIDENCE_HASH_MISMATCH"
+  ],
+  "requiredFields": [
+    "schema",
+    "suite_id",
+    "suite_version",
+    "final_run_id",
+    "frozen_release_identity",
+    "execution_attempt",
+    "start_sequence",
+    "end_sequence",
+    "status",
+    "exit_code",
+    "test_count",
+    "pass_count",
+    "fail_count",
+    "skipped_count",
+    "raw_stdout_path",
+    "raw_stdout_sha256",
+    "raw_stderr_path",
+    "raw_stderr_sha256",
+    "suite_evidence_paths",
+    "suite_evidence_hashes",
+    "result_created_at",
+    "result_sha256"
+  ],
+  "requiredSuites": [
+    "STATIC",
+    "PARSER",
+    "RECOVERY",
+    "ATOMICITY",
+    "SEMANTIC_MUTATION",
+    "CLEANUP"
+  ],
+  "schema": "tairet-executor-v3-suite-result-protocol-v1",
+  "transport": {
+    "atomicTemporaryThenRename": true,
+    "explicitAbsoluteResultPath": true,
+    "logsAreEvidenceOnly": true,
+    "readOnlyAfterSeal": true,
+    "resultIsExactlyOneJsonObject": true,
+    "resultPathMustBeAbsent": true,
+    "suiteAndRunPathBinding": true
+  }
+}

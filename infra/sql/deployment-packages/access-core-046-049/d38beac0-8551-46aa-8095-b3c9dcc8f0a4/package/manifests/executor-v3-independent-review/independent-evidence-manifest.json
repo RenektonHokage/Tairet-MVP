@@ -1,0 +1,3125 @@
+{
+  "classification": "INDEPENDENT_STATEMENT_AWARE_ATOMIC_MIGRATION_EXECUTOR_V3_PASSED",
+  "confirmations": {
+    "all14MutantsReachedRealEnforcementPaths": true,
+    "all23TestsReachedProductionCode": true,
+    "all25AtomicityCasesInspected": true,
+    "finalizerCrossCheckedWrapperExit": true,
+    "independentReviewChat": true,
+    "noRealVersionsOrProductionManifest": true,
+    "noSuiteSqlOrDockerExecuted": true,
+    "noSupabaseRailwayVercelProductionContact": true,
+    "noV3V2V1OrRepositoryChange": true,
+    "sixObjectsBoundToFinal001": true,
+    "stdoutStderrNeverStructuredResults": true,
+    "v2FindingReconstructed": true
+  },
+  "findingCounts": {
+    "HIGH": 0,
+    "LOW": 0,
+    "MEDIUM": 0,
+    "OBSERVATION": 3
+  },
+  "findings": [
+    {
+      "detail": "The V3 14/14 manifest excludes its own bytes to avoid recursion; its externally recalculated SHA-256 is 357c1676885241549f6f562be94c1a721780f7b5a6e3eef43ed49712c1f92c30.",
+      "id": "OBS-V3-001",
+      "severity": "OBSERVATION",
+      "title": "Artifact hash manifest self-exclusion"
+    },
+    {
+      "detail": "Some productionSourceFunction fields use oracle labels. Exact diffs, imports/call graphs, activation evidence, and original-PASS/mutant-FAIL outcomes bind all 14 to real production enforcement paths.",
+      "id": "OBS-V3-002",
+      "severity": "OBSERVATION",
+      "title": "Mutation function metadata labels"
+    },
+    {
+      "detail": "Raw pre/post inventories contain 16 containers, 3 networks and 2 volumes unrelated to V3. Executor-owned pre/post and cleanup residual counts are zero.",
+      "id": "OBS-V3-003",
+      "severity": "OBSERVATION",
+      "title": "Unrelated Docker inventory entries"
+    }
+  ],
+  "method": {
+    "notPerformed": [
+      "input modification",
+      "suite execution",
+      "release Node/PowerShell tooling",
+      "SQL",
+      "Docker",
+      "network/production contact",
+      "subagents",
+      "C:\\tmp"
+    ],
+    "performed": [
+      "read-only inspection",
+      "independent SHA-256/size calculations",
+      "static source/call-graph analysis",
+      "JSON/schema/manifest reconciliation",
+      "raw evidence inspection"
+    ],
+    "role": "independent read-only reviewer"
+  },
+  "nextAllowedAction": "Return to the architecture chat. A separate approved checkpoint may assign exact UTC deployment versions, create the authoritative deployment manifest, bind frozen V3, and perform the local executor/ledger rehearsal. Do not contact or modify production.",
+  "residualRisk": [
+    "Frozen local evidence is not deployed or production state.",
+    "Current Docker/runtime state was not queried; cleanup is bound to preserved final001 evidence.",
+    "Deployment versions and production manifest remain unassigned."
+  ],
+  "reviewDigests": {
+    "authorityIdentity": "20e3d1d8ad8aa795d34cebe3ee09084c34bc09da773eb41db1ad19681130981f",
+    "cleanup": "7146d3a413504348c4c3502812572a092103b3191be37346aa98c5fed85b3209",
+    "finalImmutability": "8462769b2247afcf90060722e12049221856d47b134337953aa35a3a0039db46",
+    "finalizer": "9223de6d2c490a84617c4e5c6afcbebd05a870c22fac9443c9ebf37436eeaca4",
+    "freezeAndFinalRun": "f05177195660fb70bca7c70e2849683a12ee8299fa6855ccc3c0f6feb7ecb316",
+    "orchestrationAcceptance": "79a2b3d3113b9363cb8f32fdecf3167e62eaef8e0cebb33ef1e6a8e0502908bb",
+    "orchestrationTestBinding": "67aef39897320130001ac9a379f335175ac5a81f70ddf4b53b363ab4484ed8df",
+    "resultChannel": "af1929cd59e13519ab697b25b9c6f80afb503bf6dfe7f2a3d30f2e42aeab6438",
+    "reuseAndChange": "b93e43fdaec964787fef770a2b142899b82ffb8b3120e23878ec3826fb0eb341",
+    "scope": "b85b27f823cd6f39b785628ea95ef3e588b502a57a28c410061ce7677c830e11",
+    "semanticMutation": "3b8e99d426afd356cba65ec3a46f43c5db6c283cbe9f45845b0d432fbcccc685",
+    "substantiveSuite": "403d1157bc600350b6139848c06981198dfd538b4f74732db1c1d6fd04bf0fed",
+    "suiteResultProtocol": "30970075d1c5ff4bed425eaba7afd6208c6ee786dd43af6ce766e661628f7226",
+    "suiteWrapper": "ad87e3c5358cf81133db28a54061ac8c8efd025c8be69ee25db4fd6d116b0b5c",
+    "v2Finding": "bbe4d09dcc3ab30cb56a7a40a3bf0eb43991b423f8c517c3d23e789c915f3720"
+  },
+  "reviewRoot": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-review-a6f31c8d",
+  "schema": "tairet-independent-v3-executor-review-evidence-v1",
+  "sections": {
+    "authorityIdentity": {
+      "body": {
+        "authoritativeFinalDossier": {
+          "additionalCompetingDossiers": 0,
+          "artifactHashManifests": [
+            "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\artifact-hash-manifest.json"
+          ],
+          "count": 1,
+          "detailedReports": [
+            "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\detailed-report.md"
+          ],
+          "structuredResults": [
+            "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\structured-result.json"
+          ]
+        },
+        "hashMismatches": 0,
+        "missingFiles": 0,
+        "repository": {
+          "branch": "main",
+          "head": "715ad1cea644e45d688dca785de09c83e1956413",
+          "migrations": [
+            {
+              "id": "046",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\046_access_core_recoverable_fulfillment.sql",
+              "payloadSha256": "bc86b500ad4b01248edc1a20677bdeb49c8a39360215350b26b71d987b50f9bf",
+              "payloadSize": 163777,
+              "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+              "size": 163792,
+              "verified": true
+            },
+            {
+              "id": "047",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\047_access_email_preclaim_terminal_failure.sql",
+              "payloadSha256": "e2400dd0bd191b097bbd5097557522f6a30949528f4d98214974a328c679afcf",
+              "payloadSize": 46334,
+              "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+              "size": 46349,
+              "verified": true
+            },
+            {
+              "id": "048",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\048_access_email_preclaim_terminal_after_ambiguous.sql",
+              "payloadSha256": "0238e401a59b7dc3943e077ff49f087629bdcf096e8c08a9e5a0b30c8f03fb64",
+              "payloadSize": 24837,
+              "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+              "size": 24852,
+              "verified": true
+            },
+            {
+              "id": "049",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\049_access_email_delivery_claim_correlation.sql",
+              "payloadSha256": "e367fe2c3bd96df4ae0b72ea9348a1f2fb139e723123dc43bf566ecd9d9ae3d3",
+              "payloadSize": 55683,
+              "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+              "size": 55698,
+              "verified": true
+            }
+          ],
+          "preExistingUntracked": [
+            ".sigsegv-forensics/",
+            "tmp-bancard/"
+          ],
+          "staged": 0,
+          "trackedDiff": 0
+        },
+        "reviewRoot": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-review-a6f31c8d",
+        "reviewRootCount": 1,
+        "sizeMismatches": 0,
+        "v1": {
+          "releaseIdentity": "0bd295e131ecfdd0a2337c1fe7bb9be610dbf64be13ce254b13b46d5e04ec322",
+          "tree": {
+            "actual": 190,
+            "additional": [],
+            "expected": 190,
+            "inventorySha256": "fcbfde7728240f62aa0a84db1baafca08d166b0884112dfd44c076a14bb31b37",
+            "mismatches": [],
+            "missing": [],
+            "totalBytes": 2220735,
+            "verified": 190
+          }
+        },
+        "v2": {
+          "artifactHashManifestSha256": "0f3e00a85b03c44472e49cf4ae2031a6b2a1dc1be28170e1914a6f09bc250120",
+          "releaseIdentity": "2b4668c5f1671114a856589298e0102b238841f53890b92ca5dde666eb7a17c8",
+          "tree": {
+            "actual": 278,
+            "additional": [],
+            "expected": 278,
+            "inventorySha256": "6d7f7d4ac882380aece199f2672a463bb3b478537a1d7a1d4380019b2d9c936d",
+            "mismatches": [],
+            "missing": [],
+            "totalBytes": 4312819,
+            "verified": 278
+          }
+        },
+        "v3AuthorityRootCount": 1,
+        "v3CanonicalReleaseReconstruction": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+        "v3FinalArtifactAudit": {
+          "artifactManifestSha256": "357c1676885241549f6f562be94c1a721780f7b5a6e3eef43ed49712c1f92c30",
+          "expected": 14,
+          "rows": [
+            {
+              "actualSha256": "8b6b4940026ec8afbdc714886691b01525e9157413c126a62fc48f3927be4662",
+              "actualSize": 1207,
+              "expectedSha256": "8b6b4940026ec8afbdc714886691b01525e9157413c126a62fc48f3927be4662",
+              "expectedSize": 1207,
+              "path": "orchestration-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+              "actualSize": 2052,
+              "expectedSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+              "expectedSize": 2052,
+              "path": "static-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+              "actualSize": 1354,
+              "expectedSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+              "expectedSize": 1354,
+              "path": "parser-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+              "actualSize": 1362,
+              "expectedSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+              "expectedSize": 1362,
+              "path": "recovery-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+              "actualSize": 1589,
+              "expectedSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+              "expectedSize": 1589,
+              "path": "atomicity-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+              "actualSize": 1396,
+              "expectedSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+              "expectedSize": 1396,
+              "path": "semantic-mutation-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+              "actualSize": 1586,
+              "expectedSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+              "expectedSize": 1586,
+              "path": "cleanup-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "88a585426f65d60c2f4f89cff25422d2ab159edc64eacd44ca57bd3e5da0338d",
+              "actualSize": 1733,
+              "expectedSha256": "88a585426f65d60c2f4f89cff25422d2ab159edc64eacd44ca57bd3e5da0338d",
+              "expectedSize": 1733,
+              "path": "per-suite-wrapper-evidence-manifest.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "5c7f06f40228f6dcf0b50125528a0fdab318b3df637bbc3d40c7c241647072a2",
+              "actualSize": 9445,
+              "expectedSha256": "5c7f06f40228f6dcf0b50125528a0fdab318b3df637bbc3d40c7c241647072a2",
+              "expectedSize": 9445,
+              "path": "v2-final-orchestration-forensics.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "57dd64a4a0992704912be56a687189e8ad6b38a119194652b616aa311cd815a3",
+              "actualSize": 1867,
+              "expectedSha256": "57dd64a4a0992704912be56a687189e8ad6b38a119194652b616aa311cd815a3",
+              "expectedSize": 1867,
+              "path": "suite-result-protocol.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "811b43b868585f4ce9b8ef77a893d9c466e398b4269869f1bf8971b941814a83",
+              "actualSize": 24603,
+              "expectedSha256": "811b43b868585f4ce9b8ef77a893d9c466e398b4269869f1bf8971b941814a83",
+              "expectedSize": 24603,
+              "path": "frozen-release-manifest.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "dd4f441b75a30a4173e152e5dde73fcb516455c6816d36b7348c2c44e8f9b704",
+              "actualSize": 3669,
+              "expectedSha256": "dd4f441b75a30a4173e152e5dde73fcb516455c6816d36b7348c2c44e8f9b704",
+              "expectedSize": 3669,
+              "path": "structured-result.json",
+              "verified": true
+            },
+            {
+              "actualSha256": "a66b547622cb669a10699d140b8e2618734ef191550a51df68c88ddd92f29b6b",
+              "actualSize": 985,
+              "expectedSha256": "a66b547622cb669a10699d140b8e2618734ef191550a51df68c88ddd92f29b6b",
+              "expectedSize": 985,
+              "path": "detailed-report.md",
+              "verified": true
+            },
+            {
+              "actualSha256": "2707b84b24d77b32f3ae7146fb026e2fddc45675eac2534682f432b2bd1f385f",
+              "actualSize": 2338,
+              "expectedSha256": "2707b84b24d77b32f3ae7146fb026e2fddc45675eac2534682f432b2bd1f385f",
+              "expectedSize": 2338,
+              "path": "evidence-manifest.json",
+              "verified": true
+            }
+          ],
+          "selfHashDisposition": "SELF_EXCLUDED_TO_AVOID_RECURSIVE_DIGEST",
+          "verified": 14
+        },
+        "v3FrozenAudit": {
+          "additional": [],
+          "expected": 131,
+          "generatedBindings": 22,
+          "hashMismatches": [],
+          "inventorySha256": "ded4b298a2ca6295c95dd8517f50c0b808330bb69969faca135f53a567fd1db8",
+          "missing": [],
+          "readOnly": 131,
+          "releaseEntries": 108,
+          "releaseManifest": 1,
+          "reparsePoints": 0,
+          "sizeMismatches": [],
+          "totalBytes": 1180726,
+          "verified": 131
+        },
+        "v3FrozenReleaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1"
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "20e3d1d8ad8aa795d34cebe3ee09084c34bc09da773eb41db1ad19681130981f"
+    },
+    "cleanup": {
+      "body": {
+        "cleanupCore": {
+          "failed": 0,
+          "passed": 12,
+          "postgresResidual": 0,
+          "tests": 12
+        },
+        "dockerInventories": {
+          "postOwned": 0,
+          "preOwned": 0,
+          "unrelatedPreExisting": {
+            "containers": 16,
+            "networks": 3,
+            "volumes": 2
+          }
+        },
+        "dockerSuite": {
+          "exitCode": 0,
+          "externalContact": 0,
+          "pulls": 0,
+          "removedContainers": [
+            "tairet_v2_client_v3final001",
+            "tairet_v2_pg_v3final001"
+          ],
+          "removedNetworks": [
+            "tairet_v2_net_v3final001"
+          ],
+          "residualOwned": 0
+        },
+        "mutationCleaned": 14,
+        "mutationCreated": 14,
+        "mutationResidual": 0,
+        "processInventories": {
+          "post": 0,
+          "pre": 0
+        },
+        "rawEvidenceInspected": true
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "7146d3a413504348c4c3502812572a092103b3191be37346aa98c5fed85b3209"
+    },
+    "finalImmutability": {
+      "body": {
+        "inputFilesChangedByReview": 0,
+        "migrationChanges": 0,
+        "migrations": "4/4",
+        "rehashUtc": "2026-08-01T23:24:20.477337Z",
+        "reviewWritesOutsideReviewRoot": 0,
+        "v1": "190/190",
+        "v1Changes": 0,
+        "v2": "278/278",
+        "v2Changes": 0,
+        "v3Changes": 0,
+        "v3Frozen": "131/131",
+        "v3Release": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1"
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "8462769b2247afcf90060722e12049221856d47b134337953aa35a3a0039db46"
+    },
+    "finalizer": {
+      "body": {
+        "anyInvalidResultBlocks": true,
+        "callerPassAccepted": false,
+        "cleanupRequired": true,
+        "designIdentity": "bcb18ec106efdc3b49e00027b1132a6c835fecaef1d6eab00de9926f230601f2",
+        "directoryGlobAccepted": false,
+        "evidenceAndLogHashes": true,
+        "exactIdsAndCardinality": true,
+        "explicitPaths": 6,
+        "finalPassSynthesizedByFinalizer": true,
+        "pipelineObjectAccepted": false,
+        "sameRunReleaseAttempt": true,
+        "suiteIds": [
+          "STATIC",
+          "PARSER",
+          "RECOVERY",
+          "ATOMICITY",
+          "SEMANTIC_MUTATION",
+          "CLEANUP"
+        ],
+        "wrapperExitComparedIndependently": true
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "9223de6d2c490a84617c4e5c6afcbebd05a870c22fac9443c9ebf37436eeaca4"
+    },
+    "freezeAndFinalRun": {
+      "body": {
+        "chronology": [
+          {
+            "event": "dev003 orchestration acceptance",
+            "utc": "2026-08-01T21:02:05.7791496Z"
+          },
+          {
+            "event": "dev003 accepted",
+            "utc": "2026-08-01T21:02:07.382Z"
+          },
+          {
+            "event": "freeze manifest",
+            "utc": "2026-08-01T21:03:04Z"
+          },
+          {
+            "event": "freeze sealed, final executions 0",
+            "utc": "2026-08-01T21:03:13Z"
+          },
+          {
+            "event": "final001 allocated",
+            "utc": "2026-08-01T21:03:51.8Z"
+          },
+          {
+            "event": "STATIC/PARSER/RECOVERY sealed",
+            "utc": "2026-08-01T21:03:55.479Z..21:03:56.435Z"
+          },
+          {
+            "event": "ATOMICITY/MUTATION/CLEANUP sealed",
+            "utc": "2026-08-01T21:05:24.160Z..21:05:29.531Z"
+          },
+          {
+            "event": "wrapper manifest and finalizer PASS",
+            "utc": "2026-08-01T21:05:29.718Z..21:05:30.542Z"
+          },
+          {
+            "event": "final dossier completed",
+            "utc": "2026-08-01T21:05:30.560Z..21:05:30.575Z"
+          }
+        ],
+        "executionCount": 1,
+        "finalDirectories": [
+          "final001"
+        ],
+        "postFreezeChanges": 0,
+        "rerunCount": 0,
+        "suiteOrder": [
+          "STATIC",
+          "PARSER",
+          "RECOVERY",
+          "ATOMICITY",
+          "SEMANTIC_MUTATION",
+          "CLEANUP"
+        ]
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "f05177195660fb70bca7c70e2849683a12ee8299fa6855ccc3c0f6feb7ecb316"
+    },
+    "orchestrationAcceptance": {
+      "body": {
+        "designIdentity": "00c3f16afe405581ca689bcf51c1e8ef00655d96cd869d74b27f37517a480bb3",
+        "duplicatedValidator": false,
+        "negative": 19,
+        "passCount": 23,
+        "positive": 4,
+        "productionCodeReached": 23,
+        "productionImports": [
+          "src/result/suite-result.js",
+          "src/result/finalizer.js validateResultSet"
+        ],
+        "rows": [
+          {
+            "description": "many stdout lines plus one canonical result file",
+            "expected": "ACCEPT",
+            "id": "P001",
+            "pass": true
+          },
+          {
+            "description": "stderr logs plus one canonical result file",
+            "expected": "ACCEPT",
+            "id": "P002",
+            "pass": true
+          },
+          {
+            "description": "all six explicit suite result objects pass",
+            "expected": "ACCEPT",
+            "id": "P003",
+            "pass": true
+          },
+          {
+            "description": "strict finalizer produces a READY candidate set",
+            "expected": "ACCEPT",
+            "id": "P004",
+            "pass": true
+          },
+          {
+            "description": "old V2 mixed stdout and object array",
+            "expected": "REJECT",
+            "id": "N001",
+            "pass": true
+          },
+          {
+            "description": "JSON array result",
+            "expected": "REJECT",
+            "id": "N002",
+            "pass": true
+          },
+          {
+            "description": "two concatenated result objects",
+            "expected": "REJECT",
+            "id": "N003",
+            "pass": true
+          },
+          {
+            "description": "missing result file",
+            "expected": "REJECT",
+            "id": "N004",
+            "pass": true
+          },
+          {
+            "description": "malformed result JSON",
+            "expected": "REJECT",
+            "id": "N005",
+            "pass": true
+          },
+          {
+            "description": "stale preexisting result flag",
+            "expected": "REJECT",
+            "id": "N006",
+            "pass": true
+          },
+          {
+            "description": "wrong suite ID",
+            "expected": "REJECT",
+            "id": "N007",
+            "pass": true
+          },
+          {
+            "description": "wrong run ID",
+            "expected": "REJECT",
+            "id": "N008",
+            "pass": true
+          },
+          {
+            "description": "wrong release ID",
+            "expected": "REJECT",
+            "id": "N009",
+            "pass": true
+          },
+          {
+            "description": "duplicate suite result",
+            "expected": "REJECT",
+            "id": "N010",
+            "pass": true
+          },
+          {
+            "description": "missing suite result",
+            "expected": "REJECT",
+            "id": "N011",
+            "pass": true
+          },
+          {
+            "description": "PASS with exit code 1",
+            "expected": "REJECT",
+            "id": "N012",
+            "pass": true
+          },
+          {
+            "description": "FAIL with zero wrapper exit contradiction",
+            "expected": "REJECT",
+            "id": "N013",
+            "pass": true
+          },
+          {
+            "description": "contradictory test counts",
+            "expected": "REJECT",
+            "id": "N014",
+            "pass": true
+          },
+          {
+            "description": "raw log hash mismatch",
+            "expected": "REJECT",
+            "id": "N015",
+            "pass": true
+          },
+          {
+            "description": "suite evidence hash mismatch",
+            "expected": "REJECT",
+            "id": "N016",
+            "pass": true
+          },
+          {
+            "description": "result rewritten after wrapper seal",
+            "expected": "REJECT",
+            "id": "N017",
+            "pass": true
+          },
+          {
+            "description": "result from another final attempt",
+            "expected": "REJECT",
+            "id": "N018",
+            "pass": true
+          },
+          {
+            "description": "finalizer receives a directory instead of explicit files",
+            "expected": "REJECT",
+            "id": "N019",
+            "pass": true
+          }
+        ],
+        "sourceSha256": "e52a4aa80661c74a21f522fca9e0a94ecb089966f316d654ef59bda26b8b38cc",
+        "testCount": 23
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "79a2b3d3113b9363cb8f32fdecf3167e62eaef8e0cebb33ef1e6a8e0502908bb"
+    },
+    "orchestrationTestBinding": {
+      "body": {
+        "acceptedUtc": "2026-08-01T21:02:07.382Z",
+        "bindingSha256": "0a96201a0b733a1aaa29f7aec5294ee918cce05f358b2fa7bffe0d2bfee5048a",
+        "count": 23,
+        "executionCount": 1,
+        "final001Binding": "The finalizer verifies the frozen accepted-development hash and then the final001 marker plus six wrapper/result pairs against the same frozen release in one invocation; the tests were not rerun in Final mode.",
+        "frozenBinding": "frozen-release/release/manifests/development-orchestration-acceptance-result.json",
+        "ranWhenUtc": "2026-08-01T21:02:05.7791496Z",
+        "ranWhere": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\development-evidence\\runs\\dev003\\orchestration-acceptance-result.json",
+        "rerunCount": 0,
+        "runId": "dev003"
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "67aef39897320130001ac9a379f335175ac5a81f70ddf4b53b363ab4484ed8df"
+    },
+    "resultChannel": {
+      "body": {
+        "absentBeforeStart": 6,
+        "arrays": 0,
+        "designIdentity": "02e79478e1894107ddee0b96f902c57ec97677ed215d9e8d2e010dc7e0d633d8",
+        "explicitResultPaths": 6,
+        "objectsAfterCompletion": 6,
+        "rows": [
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "STATIC",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\STATIC.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "100",
+              "--end-sequence",
+              "101",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\STATIC.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\STATIC.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 101,
+            "endUtc": "2026-08-01T21:03:55.5050123Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "540ec54f83b3f2afa3c96a9b4418600d81ef755829cb63f1fd113f451a029d32",
+              "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f",
+              "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c",
+              "8985aaf51072aae95db6972e802f614fc4f4bf665456ed59d5f65bce68063591"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\static-result.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\parser-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\recovery-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\path-contract\\path-contract-result.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 77,
+            "processExitCode": 0,
+            "processId": 64076,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\STATIC.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "4d187862b7bd33465a2d74b4c389587748dc6cd35f4e764bc64030863e71333a",
+            "selfHashClaim": "4d187862b7bd33465a2d74b4c389587748dc6cd35f4e764bc64030863e71333a",
+            "selfHashVerified": true,
+            "startSequence": 100,
+            "startUtc": "2026-08-01T21:03:53.6603274Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\STATIC.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\STATIC.stdout.log",
+            "stdoutSha256": "d40394d2fc1d741738831db6ce75a94964bf3d31124d32e128b6493fcec15936",
+            "suiteId": "STATIC",
+            "testCount": 77,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\STATIC.wrapper.json",
+            "wrapperResultSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+            "wrapperSha256": "18de6725808de75824d979a8a2837b77b7cfc02b5914a3e0ded4e3099abc608d"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "PARSER",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\PARSER.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "200",
+              "--end-sequence",
+              "201",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\PARSER.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\PARSER.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 201,
+            "endUtc": "2026-08-01T21:03:55.9419428Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\parser-test-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 36,
+            "processExitCode": 0,
+            "processId": 62260,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\PARSER.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "aae72b19457abddb5520196f88448f421a5f6ea5b92c933720e6bdce20acff21",
+            "selfHashClaim": "aae72b19457abddb5520196f88448f421a5f6ea5b92c933720e6bdce20acff21",
+            "selfHashVerified": true,
+            "startSequence": 200,
+            "startUtc": "2026-08-01T21:03:55.7086058Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\PARSER.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\PARSER.stdout.log",
+            "stdoutSha256": "0675525390815c6e3456f1a662910fa5b235d3986ab496fa5274d817a46a8572",
+            "suiteId": "PARSER",
+            "testCount": 36,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\PARSER.wrapper.json",
+            "wrapperResultSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+            "wrapperSha256": "25f5fdeb51815f73e45d747ba3c905850acda405bd5fbe7cc84dbf2c7d2c65b1"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "RECOVERY",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\RECOVERY.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "300",
+              "--end-sequence",
+              "301",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\RECOVERY.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\RECOVERY.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 301,
+            "endUtc": "2026-08-01T21:03:56.4620861Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\recovery-test-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 10,
+            "processExitCode": 0,
+            "processId": 57552,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\RECOVERY.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "287a2fd08e5281276ffc5202d65640bbf04cb852b29706d382252e8d8feed4e9",
+            "selfHashClaim": "287a2fd08e5281276ffc5202d65640bbf04cb852b29706d382252e8d8feed4e9",
+            "selfHashVerified": true,
+            "startSequence": 300,
+            "startUtc": "2026-08-01T21:03:56.2284881Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\RECOVERY.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\RECOVERY.stdout.log",
+            "stdoutSha256": "32fb31a79ca3340dfa0dd48ad938f6ee26ec9fc5eed45c0fcebf7f5ad66a2448",
+            "suiteId": "RECOVERY",
+            "testCount": 10,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\RECOVERY.wrapper.json",
+            "wrapperResultSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+            "wrapperSha256": "c29494fdb66a09030237c4ca9606578ae659789056545fa0c2c1380a645ba5d7"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "ATOMICITY",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\ATOMICITY.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "400",
+              "--end-sequence",
+              "401",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\ATOMICITY.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\ATOMICITY.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 401,
+            "endUtc": "2026-08-01T21:05:24.1896570Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "733bdb9fc45d1296f0e9f79b4fbeabc74977117bfb6b70414b3265edead26dfc",
+              "0d10e0bea832580598c799f696bafc109202fcb4f8b1dd91a21929e16824876e"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\integration\\atomicity-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\docker\\docker-suite-final.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 25,
+            "processExitCode": 0,
+            "processId": 39204,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\ATOMICITY.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "cbeea8a70c9b18f2768924109de3a312875841475dccc0451749c58f108cbbfa",
+            "selfHashClaim": "cbeea8a70c9b18f2768924109de3a312875841475dccc0451749c58f108cbbfa",
+            "selfHashVerified": true,
+            "startSequence": 400,
+            "startUtc": "2026-08-01T21:03:56.6552868Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\ATOMICITY.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\ATOMICITY.stdout.log",
+            "stdoutSha256": "c1da22c9b3d3da629e165686c59034cf06061b207e2e68cf940916c5a0093d4c",
+            "suiteId": "ATOMICITY",
+            "testCount": 25,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\ATOMICITY.wrapper.json",
+            "wrapperResultSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+            "wrapperSha256": "fef3f7c6a6d6e6b4d50e99d6b9a69cd8fadd22ad3f429d27f5acc54c23de2bfc"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "SEMANTIC_MUTATION",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\SEMANTIC_MUTATION.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "500",
+              "--end-sequence",
+              "501",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\SEMANTIC_MUTATION.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\SEMANTIC_MUTATION.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 501,
+            "endUtc": "2026-08-01T21:05:25.1807709Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "982be1f41bdd9bc152ac1f80418f567ac8998383a7bc8f26960935b9439b2c51"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\mutations\\semantic-mutation-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 14,
+            "processExitCode": 0,
+            "processId": 39388,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\SEMANTIC_MUTATION.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "f38fcb6df95ae460a9ebebbeedbe7d0fef6b789d45a8e053f284cc4d7822cc71",
+            "selfHashClaim": "f38fcb6df95ae460a9ebebbeedbe7d0fef6b789d45a8e053f284cc4d7822cc71",
+            "selfHashVerified": true,
+            "startSequence": 500,
+            "startUtc": "2026-08-01T21:05:24.3549298Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\SEMANTIC_MUTATION.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\SEMANTIC_MUTATION.stdout.log",
+            "stdoutSha256": "13d8c8d0bf882b6ad4bf41b24dc4b90e4e9d324b5d2abca396824058da82a708",
+            "suiteId": "SEMANTIC_MUTATION",
+            "testCount": 14,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\SEMANTIC_MUTATION.wrapper.json",
+            "wrapperResultSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+            "wrapperSha256": "0dec66f66c1e34d156574fe6828e4aafae3da4f260496c54c5309994043e7b73"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "CLEANUP",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\CLEANUP.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "600",
+              "--end-sequence",
+              "601",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\CLEANUP.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\CLEANUP.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 601,
+            "endUtc": "2026-08-01T21:05:29.5556893Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "ec7837d55f10b6c076aafe9768cb96b1997eb5a34eca5b0262b233819ca4ce4f",
+              "bbaefd7a922134805a194bb5d623d303609b213720a58a2257dfcb14ba66eebc"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\cleanup\\cleanup-result.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\cleanup\\v3-cleanup-supplement.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 14,
+            "processExitCode": 0,
+            "processId": 25368,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\CLEANUP.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "8c0e15890894a014fdd4fc39fed7cfdf313d915027ebec18f395f8d61d350483",
+            "selfHashClaim": "8c0e15890894a014fdd4fc39fed7cfdf313d915027ebec18f395f8d61d350483",
+            "selfHashVerified": true,
+            "startSequence": 600,
+            "startUtc": "2026-08-01T21:05:26.8605270Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\CLEANUP.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\CLEANUP.stdout.log",
+            "stdoutSha256": "e874d72eb8e80683ebc7b7e3fd05e75dcb82625033c61990ca79e7761519949c",
+            "suiteId": "CLEANUP",
+            "testCount": 14,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\CLEANUP.wrapper.json",
+            "wrapperResultSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+            "wrapperSha256": "e89f902f31bb36f284a6b92118f10b6c3b00090391c5aa645d33b69a5c0e8b2e"
+          }
+        ],
+        "sealedResults": 6,
+        "stderrParsedAsResult": false,
+        "stdoutParsedAsResult": false
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "af1929cd59e13519ab697b25b9c6f80afb503bf6dfe7f2a3d30f2e42aeab6438"
+    },
+    "reuseAndChange": {
+      "body": {
+        "byteExactCommon": 26,
+        "byteExactCore": [
+          "parser",
+          "envelope validator",
+          "atomic stage",
+          "invariant guard",
+          "transaction verifiers",
+          "recovery classifier",
+          "path/mutation enforcement",
+          "substantive suites",
+          "fixtures",
+          "postgres fixtures",
+          "vendor pg-protocol"
+        ],
+        "changedCommon": 7,
+        "changedCommonFiles": [
+          "editable-source/package.json",
+          "editable-source/tools/build-development.js",
+          "editable-source/tools/finalize-evidence.js",
+          "editable-source/tools/freeze-release.js",
+          "editable-source/tools/preflight-final-environment.js",
+          "editable-source/tools/run-development-suite.ps1",
+          "editable-source/tools/run-final-suite.ps1"
+        ],
+        "classificationCounts": {
+          "BYTE_EXACT_REUSE": 89,
+          "NEW_EVIDENCE_SCHEMA": 25,
+          "ORCHESTRATION_MODIFICATION": 9,
+          "ORCHESTRATION_TEST": 3,
+          "RESULT_PROTOCOL_ADAPTER": 5,
+          "UNEXPECTED_EXECUTOR_CORE_CHANGE": 0
+        },
+        "common": 33,
+        "files": [
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/package.json",
+            "sha256": "f5adfc4b3921301409e6c12cba6750b6e22a371a9803b5df9bf89cdb2830fa2f",
+            "size": 610
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/db/protocol-client.js",
+            "sha256": "aa72ca8875e052a449d0408be2e04dadc118ab826c17feed8d3043465a038855",
+            "size": 7991
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/db/scram.js",
+            "sha256": "ddcea7e7f394ccf2a4b6e671ec0f89b60c02a9192aaccc4bc4f9e81650786058",
+            "size": 3257
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/envelope/validator.js",
+            "sha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+            "size": 2040
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/executor/atomic-stage.js",
+            "sha256": "84b9af6f9214dfebcd5fe079cdc1fcef35d3ec8189eed76c7bc0f61b705dad32",
+            "size": 15834
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/executor/invariant-guard.js",
+            "sha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "size": 2327
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/hash/canonical.js",
+            "sha256": "2cc062e0d6ef40d32c65d90e1cd8d9f28d94fb9227b85c851178d87ba0c0d38e",
+            "size": 797
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/identity/model.js",
+            "sha256": "b645238b51e47b0445661118edb08a0e66de39a995708511de2d4ebfa122fcb4",
+            "size": 3662
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/identity/release.js",
+            "sha256": "863b7d4382f1910fb09b458d56696dbbe3b093032f2f26bc9fc3dd630b1bca9b",
+            "size": 1953
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/manifest/deployment-manifest.schema.json",
+            "sha256": "2fbe91e9468f59fc071f8eb711eea2549658692f7b779dc6ba728a143645ccd3",
+            "size": 1796
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/manifest/validator.js",
+            "sha256": "4d2ddfb64d664999ecafdb673315a084e6dcbb8ff08edc58bf0df2bae86f5646",
+            "size": 5492
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/parser/statementScanner.js",
+            "sha256": "26e70cc879c3ef91884c8d7af6eff3101727a421600c4bff5b3b3ac8d2759717",
+            "size": 7140
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/path/authority.js",
+            "sha256": "9ebfcc3a79e48be25883688c7f6b5fe2f4e616c64f5ed288aa5086785ff75cd1",
+            "size": 7032
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/path/mutation-workspace.js",
+            "sha256": "119ba36b5c276fbae2480abc65b308fc0d0121cb944ea20d820acf90f36fa5d2",
+            "size": 7010
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/recovery/classifier.js",
+            "sha256": "26e744c89b5967953590c9c8db5456363b78fafb03d290af41f56f6a2aee0a4c",
+            "size": 1592
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/src/result/finalizer.js",
+            "sha256": "556b1ec38e526596b61a20459c5eb47f92deeb74d4f280cf6e00490152e47fc7",
+            "size": 8727
+          },
+          {
+            "classification": "RESULT_PROTOCOL_ADAPTER",
+            "path": "editable-source/src/result/suite-result.js",
+            "sha256": "6afc4b8231c46cbb0872fb5014c54ab295f5e6518871ca7776faf610253c4caa",
+            "size": 13910
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "editable-source/src/result/suite-result.schema.json",
+            "sha256": "5a4c5c832cb510a1d89d59cf8a3b1b6d784bff86a968b0e1a1558b5344350ee9",
+            "size": 2196
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/verifiers/in-transaction.js",
+            "sha256": "30bd5a7096f1c63b42360214a6042f06833a6606a8f1e7f5970b29955acd5b9d",
+            "size": 259
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/verifiers/material.js",
+            "sha256": "e1ce9f34cbcf140ed45650a08f6f3bde43b6bbb2076f45e1032aa1bcae09c329",
+            "size": 8264
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/src/verifiers/post-commit.js",
+            "sha256": "986cb7619a41940318acbc3770a0e3eef6be14cfb81917fea8bc13815524ee40",
+            "size": 1265
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/cleanup-suite.js",
+            "sha256": "38b64ee3089f4ec8453c1d23678a77e1f6635687bc84850e2c4cfc23912009d8",
+            "size": 10548
+          },
+          {
+            "classification": "ORCHESTRATION_TEST",
+            "path": "editable-source/tests/global-gate-suite-v3.js",
+            "sha256": "970f49c7e05539ad0b1d005ace352ec5981c9c0e1ce6967365854dcfa305a54f",
+            "size": 6910
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/global-gate-suite.js",
+            "sha256": "fdc33289797a0b5465a872998f065cb24987a2a7e5dcd0a19145e767510ef0d4",
+            "size": 7148
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/integration-suite.js",
+            "sha256": "6eced7304720321ed413bf8efece91c0c1308c8dbe1a50170c958dbc53fc52d3",
+            "size": 14198
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/mutation-suite.js",
+            "sha256": "4d227bf5e37d07d64c4c47dde7db0b9d5011516d651625e9aca8f32a9ada3fd8",
+            "size": 16524
+          },
+          {
+            "classification": "ORCHESTRATION_TEST",
+            "path": "editable-source/tests/orchestration-acceptance-suite.js",
+            "sha256": "e52a37df0c5f1d09044020493c7de5ae0a1ffa682d2844233741cd263a33a5bd",
+            "size": 12087
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/path-contract-suite.js",
+            "sha256": "006624a903697fb5dd9f8c98b4cce7286985cd817cae81062c0d0d2940d87806",
+            "size": 10243
+          },
+          {
+            "classification": "ORCHESTRATION_TEST",
+            "path": "editable-source/tests/protocol-validation-suite.js",
+            "sha256": "d8b098d6da03b88eee8b1edb0183dcb4f832cb73ebfa4b7f0b569ea5b2441daf",
+            "size": 4323
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tests/static-suite.js",
+            "sha256": "cfc014844ed2976733852135876ee078788afe50bdfdea5ed547da8bc6684c04",
+            "size": 10408
+          },
+          {
+            "classification": "RESULT_PROTOCOL_ADAPTER",
+            "path": "editable-source/tests/suite-adapter-v3.js",
+            "sha256": "6eddfb0ac87aa067c7539aa9381a55c3feaf9d1318e4359280ea79f1e84869e8",
+            "size": 12248
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/build-development.js",
+            "sha256": "0c493ad00edb78c170fc84b1a2260315ac24dd3d247f9d99a9a32d759ee59dfb",
+            "size": 10518
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tools/build-reuse-manifest.js",
+            "sha256": "d1c7845387256012a19753815b66dbd22d97432c96bf6e890a4a162d2428b124",
+            "size": 4913
+          },
+          {
+            "classification": "RESULT_PROTOCOL_ADAPTER",
+            "path": "editable-source/tools/capture-runtime-inventory-v3.ps1",
+            "sha256": "a006aac0e83fe1df38120ea29016b31c39c6399855c03336130b480682d1d579",
+            "size": 3107
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tools/capture-runtime-inventory.ps1",
+            "sha256": "6b2e78b2e2cb8c755566fca2be618f18cfb83cb7c24ffbc2ac7c179690ff9df5",
+            "size": 2965
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/finalize-evidence.js",
+            "sha256": "b226d05f62f75897898c514e319db26d5f6027fd001c058cbee7ac1353d8f1cc",
+            "size": 16833
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/freeze-release.js",
+            "sha256": "ffef5bf49e51c352c985739a97a0915ec5484942dd3444798dd6d048bcb3bf4b",
+            "size": 12208
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "editable-source/tools/generate-v3-manifests.js",
+            "sha256": "8e6adcc178e3f02e22ab9b8790a3c32e59beda2747557ebbdbebdb5759baf26a",
+            "size": 11230
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/preflight-final-environment.js",
+            "sha256": "1c4b11b103347d351486511671614b5484c7bb4849800627c410390cee1bdc0f",
+            "size": 5789
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/run-development-suite.ps1",
+            "sha256": "d7ac65dd29350572b6cb1c557f014ba79c41ab8ffd9529501639cf807d7c0f74",
+            "size": 491
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "editable-source/tools/run-docker-suite.ps1",
+            "sha256": "1f4afc84fc61c8c110e7a18a7287893d6525a83b7025126d53be94d293eb6d74",
+            "size": 8767
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/run-executor-v3.ps1",
+            "sha256": "3a5aae825ae492c86e240890e3389b2815b528453a5b5aecf11b7cf945077500",
+            "size": 11630
+          },
+          {
+            "classification": "ORCHESTRATION_MODIFICATION",
+            "path": "editable-source/tools/run-final-suite.ps1",
+            "sha256": "d850c5c16344e97ace93cea8bb710ca35e4d9b8336eb9ea85e095d17e0187995",
+            "size": 449
+          },
+          {
+            "classification": "RESULT_PROTOCOL_ADAPTER",
+            "path": "editable-source/tools/suite-wrapper-v3.ps1",
+            "sha256": "11bda7aa72eeba777a69e1d750e2da8183750a9a7221e632b41bda0f9359c118",
+            "size": 6657
+          },
+          {
+            "classification": "RESULT_PROTOCOL_ADAPTER",
+            "path": "editable-source/tools/validate-suite-result.js",
+            "sha256": "843ff42205933e93a6ada3552508a16554f6b0d86cfea9d5adc69d05ec4fc00d",
+            "size": 1562
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/000_bootstrap.sql",
+            "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+            "size": 1169
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/037_material_checkout_routine.sql",
+            "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+            "size": 16065
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+            "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+            "size": 12558
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/999_finalize.sql",
+            "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+            "size": 1440
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/apply-order.txt",
+            "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+            "size": 126
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/approved-predecessor/five_source_relations.sql",
+            "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+            "size": 27423
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/integration/independent-stage-contract.json",
+            "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+            "size": 2844
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/integration/ledger-fixture.sql",
+            "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+            "size": 406
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+            "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+            "size": 3832
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "fixtures/parser-adversarial/cases.json",
+            "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+            "size": 1525
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "frozen-release-manifest.json",
+            "sha256": "811b43b868585f4ce9b8ef77a893d9c466e398b4269869f1bf8971b941814a83",
+            "size": 24603
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/authorized-input-integrity.json",
+            "sha256": "d4dd64ac7d10283cb725b64ad93786737540bed6bee2fc91e9c66e8b9dec9675",
+            "size": 17302
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/development-orchestration-acceptance-result.json",
+            "sha256": "0a96201a0b733a1aaa29f7aec5294ee918cce05f358b2fa7bffe0d2bfee5048a",
+            "size": 4191
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/executor-v3-identity-model.json",
+            "sha256": "dc159bed55456235047378a7b6ee7acd61e7d8b394ba5ef72b51023c3d642545",
+            "size": 20238
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/final-environment-contract.json",
+            "sha256": "0b63f99a847d91c27f48072c44e2e2cf4c6158b1c34bbae0887af3fb79691e75",
+            "size": 5457
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/final-suite-contract.json",
+            "sha256": "b9d35dbb8df4085d97177384e376a812e8079036c97ac3ae6ebe1c67fedc699e",
+            "size": 469
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/finalizer-implementation.json",
+            "sha256": "bcb18ec106efdc3b49e00027b1132a6c835fecaef1d6eab00de9926f230601f2",
+            "size": 952
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/local-executor-dependency-inventory.json",
+            "sha256": "6ff18a2eaf01a8a9c1e45cbcbd6e505400b03d9a0476c35cc3ff61891b647e19",
+            "size": 1338
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/orchestration-acceptance-matrix.json",
+            "sha256": "00c3f16afe405581ca689bcf51c1e8ef00655d96cd869d74b27f37517a480bb3",
+            "size": 2066
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/path-authority-spec.json",
+            "sha256": "90e68930ec64c44d9caab37aa1ad9d7ad45f8d637b6c8cd6fdbdfb5b00103536",
+            "size": 699
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/path-contract-test-matrix.json",
+            "sha256": "f067517fd6ced979ce876fe879e44a825cd68f07e6371028217b39cdf67d926f",
+            "size": 1056
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/production-manifest-template.json",
+            "sha256": "f3b55fc592f689e08e7e59cf4ab8ae8f624a202f668a3772c9fae4f9d1da72f8",
+            "size": 18015
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/protocol-validation-result.json",
+            "sha256": "005f61e247f305be3a071d03e292d608420a4c5e3de64deb7027b3380985884e",
+            "size": 1652
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/result-channel-implementation.json",
+            "sha256": "02e79478e1894107ddee0b96f902c57ec97677ed215d9e8d2e010dc7e0d633d8",
+            "size": 945
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/reuse-and-change-manifest.json",
+            "sha256": "ebee152e6e92af321945d512f33e6534d7beadfce8eeaa7e9056652d6dc6b902",
+            "size": 35220
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/suite-isolation-spec.json",
+            "sha256": "8aaed76eb4fbd54bd78dc7fcb55ef4884f4fd65b8837ab22298dfcc76baca554",
+            "size": 660
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/suite-result-protocol.json",
+            "sha256": "57dd64a4a0992704912be56a687189e8ad6b38a119194652b616aa311cd815a3",
+            "size": 1867
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/suite-wrapper-evidence-spec.json",
+            "sha256": "6a8af2cf8e7067e24f1fa9d9a810d0b732328fde5e64ffcc630b345733c49d03",
+            "size": 1122
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/test-manifest.json",
+            "sha256": "3106831218b4e73a74788c7a6131e432715d32d95c2378f81aaa3d0a689a7b0c",
+            "size": 316536
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/v1-tree-baseline.json",
+            "sha256": "3d86430c1c72e486ad5a28b7e36ddd247f372f8623c8bc23617866a0494c621d",
+            "size": 35558
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/v2-final-orchestration-forensics.json",
+            "sha256": "5c7f06f40228f6dcf0b50125528a0fdab318b3df637bbc3d40c7c241647072a2",
+            "size": 9445
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/v2-provenance.json",
+            "sha256": "5c7c2cd3cb65c48cc3a19cd3b5fb19d62864a7659437fe7176d0b6f8b62ea6df",
+            "size": 387
+          },
+          {
+            "classification": "NEW_EVIDENCE_SCHEMA",
+            "path": "manifests/v2-tree-baseline.json",
+            "sha256": "eaa0d213e99ebfa6c64353ed1c76761c31c77992f8f9272c68029c40f6a4d38c",
+            "size": 52272
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/000_bootstrap.sql",
+            "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+            "size": 1169
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/037_material_checkout_routine.sql",
+            "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+            "size": 16065
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+            "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+            "size": 12558
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/999_finalize.sql",
+            "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+            "size": 1440
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/apply-order.txt",
+            "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+            "size": 126
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/approved-predecessor/five_source_relations.sql",
+            "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+            "size": 27423
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/integration/independent-stage-contract.json",
+            "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+            "size": 2844
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/integration/ledger-fixture.sql",
+            "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+            "size": 406
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+            "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+            "size": 3832
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "postgres-fixtures/parser-adversarial/cases.json",
+            "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+            "size": 1525
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/LICENSE",
+            "sha256": "192b8f5c96900f04a1271dec39688655d7416c1c6ea84a508e18b50d2b6751f3",
+            "size": 1077
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/README.md",
+            "sha256": "163df61eaa9f5337d5c0fcb3c0f15207f91a208dbd12ed26582bfc1e9bd59180",
+            "size": 150
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/b.d.ts",
+            "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+            "size": 11
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/b.js",
+            "sha256": "a1024bdec7246a732be4713a3d3326258732971363ac234d4c1709fe54b48be1",
+            "size": 636
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/b.js.map",
+            "sha256": "7088732cf16dfe50f60a9e459171cec3d6bc6309483486fa2105d5f926d9ce85",
+            "size": 792
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-reader.d.ts",
+            "sha256": "ed0ab65d6257e36b916b18a497643a9b78de447e3a7af7c1f91e1474ccb8e943",
+            "size": 396
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-reader.js",
+            "sha256": "ee648594694b9fa7a65c6300bf316869a82711f225bf42daf84da15f528cd8f4",
+            "size": 1639
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-reader.js.map",
+            "sha256": "ff6ebc4854cc9a1b79fb22e0cb339a50875715f61c49751cbf5a42122b38e246",
+            "size": 1747
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-writer.d.ts",
+            "sha256": "ed359de1e527dedeed1ea1985b4db6e48f69c92f00083af8cce7ddb77b16ab12",
+            "size": 441
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-writer.js",
+            "sha256": "64a7904c3ff4e778d624426c2f78ab54c46df63091a75a41cfbc430a3c600ac8",
+            "size": 2772
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/buffer-writer.js.map",
+            "sha256": "bb956e31d4c0028d82d3b9b5cf66f5110fcf55d377042f54695fff36061f7778",
+            "size": 3087
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/inbound-parser.test.d.ts",
+            "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+            "size": 11
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/inbound-parser.test.js",
+            "sha256": "caa80515ef21dead1a985560664adc58687d616046a09f24004fdd318dd4ecd7",
+            "size": 19234
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/inbound-parser.test.js.map",
+            "sha256": "5590c9482277ce5d49cd5ceb8912da69408167f41fdb1a6b86eacafb73239722",
+            "size": 14688
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/index.d.ts",
+            "sha256": "0dfe35191a04e8f9dc7caeb9f52f2ee07402736563d12cbccd15fb5f31ac877f",
+            "size": 302
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/index.js",
+            "sha256": "b1af1a8b96887bb4df5611e3e648f2d753051ccc18d1d983ee6da83479f70971",
+            "size": 791
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/index.js.map",
+            "sha256": "c83132d7a1ded851de8eba034cb8ef9e483700ba54fcfa69bcc1d23c31d347ea",
+            "size": 522
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/messages.d.ts",
+            "sha256": "17230b34bb564a3a2e36f9d3985372ccab4ad1722df2c43f7c5c2b553f68e5db",
+            "size": 6103
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/messages.js",
+            "sha256": "dfd22ad639f3030b41617ff0ee201ece7cdbce4adb7e1aae7978541b1384cd31",
+            "size": 4973
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/messages.js.map",
+            "sha256": "811fb02046104bfd60c5478bab3e491e8f9eb88602a17ca47f5ae69c72580dd9",
+            "size": 3383
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/outbound-serializer.test.d.ts",
+            "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+            "size": 11
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/outbound-serializer.test.js",
+            "sha256": "a6806571d41fa3f9bd1c557ff522e50b20b96596fbebe4614cea7c255cc7c01f",
+            "size": 11065
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/outbound-serializer.test.js.map",
+            "sha256": "39483226b60b19c0bf02d5b412542af869c38cc45c2a4fea88727d937ddda816",
+            "size": 10276
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/parser.d.ts",
+            "sha256": "9b4f7ff9681448c72abe38ea8eefd7ffe0c3aefe495137f02012a08801373f71",
+            "size": 1242
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/parser.js",
+            "sha256": "dff10e15ac457e6ba1c522489e69ee1bed5aa7f2f416df219c673c979a099b22",
+            "size": 13824
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/parser.js.map",
+            "sha256": "6142293319195fcb20cfb4472658a33c2be323c46a161ede5c7b978b7bc292e0",
+            "size": 11246
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/serializer.d.ts",
+            "sha256": "6e5c9272f6b3783be7bdddaf207cccdb8e033be3d14c5beacc03ae9d27d50929",
+            "size": 1273
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/serializer.js",
+            "sha256": "8ac7c902efc4a8221a08704cbe9e049367678ca6fccf2807dd34742117638efb",
+            "size": 6937
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/dist/serializer.js.map",
+            "sha256": "71e9cecd7cf42974947f1e0f315402b9bf5821e807b10a9a85f4180d869e039c",
+            "size": 7124
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/esm/index.js",
+            "sha256": "0f6c279f5e18cbc73dd3eab808e6eaa9621ddd3511197da2e67106fdd0b2b3b2",
+            "size": 325
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/package.json",
+            "sha256": "dd7cbb1ddc3eb921ec0af4647f43b08f84f1de2938d5050c11cf5c2305988acb",
+            "size": 1102
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/b.ts",
+            "sha256": "eb585946649fd05e86397b77be4a9d00c225d2222cbc356d725afe11ea8ab265",
+            "size": 473
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/buffer-reader.ts",
+            "sha256": "80a39b189a5ff22d29ecbb1403829758fde0a15dd86711ddbe69ed94fb629f7d",
+            "size": 1440
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/buffer-writer.ts",
+            "sha256": "e8f350f8d8c21cae20fab518a7f2b0554685b04acc2a57ee1ad2c1db5b539409",
+            "size": 2503
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/inbound-parser.test.ts",
+            "sha256": "023229ef9ab845ef6bafaf96ebbb3b3fe25d00e9be3feed2d9eae33d5275a431",
+            "size": 15158
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/index.ts",
+            "sha256": "a7acc3e9fd87b531b93012b3d4d3af0cb1ec88bc4f29ba76b4af9d3d6dde927a",
+            "size": 443
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/messages.ts",
+            "sha256": "98ceb278f736325f847a0c8326aae46f2573f2a750b056d5061ae0d00714cd2d",
+            "size": 6458
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/outbound-serializer.test.ts",
+            "sha256": "2f99dbbb68b1624dd419c66f07740a7efd7be6366b480e44bce9e9808e3edf44",
+            "size": 8562
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/parser.ts",
+            "sha256": "c1f673d6950f6b2de4619410d4c77c77206d4069cef3808e8576fccc11417106",
+            "size": 13469
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/serializer.ts",
+            "sha256": "aa2dd58a140de1b6395a15a0d29060d33aab503a9e0c820faef62e8e38536a99",
+            "size": 7193
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/testing/buffer-list.ts",
+            "sha256": "01bce658cf7fbb2c03ebb4c3d7e729389d6b3c9edb3cbfc2e1864f2a76647a00",
+            "size": 1727
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/testing/test-buffers.ts",
+            "sha256": "556522ba2930a51c27b1ad945a6308f3a4d6b4f449a0f9d90e8bc631f9eb8536",
+            "size": 4360
+          },
+          {
+            "classification": "BYTE_EXACT_REUSE",
+            "path": "vendor/pg-protocol/src/types/chunky.d.ts",
+            "sha256": "a184faa9f71c372f3c5ee7ba28fc96e852fbaa2460cffd5c5ad291bd31cbd50d",
+            "size": 24
+          }
+        ],
+        "unexpectedExecutorCoreChanges": [],
+        "v2EditableSourceCount": 38,
+        "v2OnlyAliases": 5,
+        "v3EditableSourceCount": 45,
+        "v3Only": 12
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "b93e43fdaec964787fef770a2b142899b82ffb8b3120e23878ec3826fb0eb341"
+    },
+    "scope": {
+      "body": {
+        "deployable": false,
+        "manifestAssignments": "UNASSIGNED",
+        "migrationChanges": 0,
+        "productionContact": 0,
+        "productionManifestCreated": 0,
+        "railwayContact": 0,
+        "realDeploymentVersionsAssigned": 0,
+        "repositoryWrites": 0,
+        "reviewDockerExecutions": 0,
+        "reviewNetworkAccess": 0,
+        "reviewSqlExecutions": 0,
+        "reviewSuiteExecutions": 0,
+        "supabaseContact": 0,
+        "vercelContact": 0
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "b85b27f823cd6f39b785628ea95ef3e588b502a57a28c410061ce7677c830e11"
+    },
+    "semanticMutation": {
+      "body": {
+        "activated": 14,
+        "applied": 14,
+        "byteDifferenceOnlyKills": 0,
+        "count": 14,
+        "globalSourceHashOnlyKills": 0,
+        "killed": 14,
+        "metadataOnlyKills": 0,
+        "rows": [
+          {
+            "activated": true,
+            "activationEvidence": "validateCanonicalBytes valid canonical envelope",
+            "afterSha256": "21cb436b9eca971424da798d7e69fc5845e5e5dde1dd350999a22fa9a49faa33",
+            "beforeSha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+            "exactSourceDiff": "--- a/editable-source/src/envelope/validator.js\n+++ b/editable-source/src/envelope/validator.js\n-bytes.subarray(LEADING.length, bytes.length - TRAILING.length)\n+bytes.subarray(LEADING.length - 1, bytes.length - TRAILING.length)\n",
+            "finalRunBinding": "final001",
+            "id": "SM-01",
+            "intendedUnsafeBehavior": "envelope removal",
+            "killReason": "envelopeRemoval reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "envelopeRemoval",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/envelope/validator.js",
+            "productionFunction": "validateCanonicalBytes",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "envelopeRemoval",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "StageInvariantGuard canonical executor event replay",
+            "afterSha256": "3d01bef01b05aea11da8d3a7397aea811dff7be752d8c2ff1783a4133d6700b4",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-  'BEGIN',\n+  'BEGIN_MUTATED',\n",
+            "finalRunBinding": "final001",
+            "id": "SM-02",
+            "intendedUnsafeBehavior": "transaction begin",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard/REQUIRED_EVENTS",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "StageInvariantGuard canonical executor event replay",
+            "afterSha256": "0647a9d0e03ace02353dd3e73c3e562ebc7017a1b9164d6cfdb47c7117fe00c0",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-  'IN_TRANSACTION_VERIFIER',\n+  'IN_TRANSACTION_VERIFIER_MUTATED',\n",
+            "finalRunBinding": "final001",
+            "id": "SM-03",
+            "intendedUnsafeBehavior": "verifier invocation",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard/REQUIRED_EVENTS",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "compareStage mismatched material contract",
+            "afterSha256": "f2d2ba300bfa3d332c580423cecf96f9e5d65fcbd2a51db54c9659efdf1afac1",
+            "beforeSha256": "e1ce9f34cbcf140ed45650a08f6f3bde43b6bbb2076f45e1032aa1bcae09c329",
+            "exactSourceDiff": "--- a/editable-source/src/verifiers/material.js\n+++ b/editable-source/src/verifiers/material.js\n-  if (mismatches.length) throw new StageVerificationError(stage, mismatches);\n+  if (false && mismatches.length) throw new StageVerificationError(stage, mismatches);\n",
+            "finalRunBinding": "final001",
+            "id": "SM-04",
+            "intendedUnsafeBehavior": "verifier result enforcement",
+            "killReason": "verifierEnforcement reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "verifierEnforcement",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/verifiers/material.js",
+            "productionFunction": "compareStage",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "verifierEnforcement",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "LEDGER_PARAMETERIZED_INSERT event with actual extended-query evidence",
+            "afterSha256": "098847feacab3262f428e52cb327f4906cf654eb5d65a8251db8265ffaf439c7",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-evidence.operationKind !== 'extended-parameterized-query'\n+evidence.operationKind === 'extended-parameterized-query'\n",
+            "finalRunBinding": "final001",
+            "id": "SM-05",
+            "intendedUnsafeBehavior": "ledger parameterization",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard.record",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "canonical verifier-before-ledger sequence",
+            "afterSha256": "9dccb772668ec43b13a91dc7eb2e72a1c2f5946313be45d69b29a348564b33c6",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-  'IN_TRANSACTION_VERIFIER',\n  'LEDGER_PARAMETERIZED_INSERT',\n+  'LEDGER_PARAMETERIZED_INSERT',\n  'IN_TRANSACTION_VERIFIER',\n",
+            "finalRunBinding": "final001",
+            "id": "SM-06",
+            "intendedUnsafeBehavior": "ledger insertion ordering",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "REQUIRED_EVENTS order",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "canonical effect reread event",
+            "afterSha256": "63c06e74f492accb44020406d26461997832df289a53331fb751239493b69447",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-  'EFFECT_REREAD',\n+  'EFFECT_REREAD_MUTATED',\n",
+            "finalRunBinding": "final001",
+            "id": "SM-07",
+            "intendedUnsafeBehavior": "pre-commit effect reread",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard/REQUIRED_EVENTS",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "canonical effect-reread-before-commit sequence",
+            "afterSha256": "46d38e2a9e7c18528d15610750684fb01839efd17498aef76b30fc7623f5922f",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-  'EFFECT_REREAD',\n  'COMMIT',\n+  'COMMIT',\n  'EFFECT_REREAD',\n",
+            "finalRunBinding": "final001",
+            "id": "SM-08",
+            "intendedUnsafeBehavior": "commit ordering",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "required event ordering",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "independent read-only post-commit event",
+            "afterSha256": "569ed2324a4e223f9b28e70eb175f01502a2a451738a05e12daa0703a88954dd",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-evidence.readOnly !== true\n+evidence.readOnly === true\n",
+            "finalRunBinding": "final001",
+            "id": "SM-09",
+            "intendedUnsafeBehavior": "post-commit read-only verification",
+            "killReason": "guardReplay reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "guardReplay",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard.record",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "guardReplay",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "validateCanonicalBytes wrong canonical hash",
+            "afterSha256": "dd5c2b06634f6ad1f55f42b15946f8b968cca8c9a2193ee530a766f2addcdcb1",
+            "beforeSha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+            "exactSourceDiff": "--- a/editable-source/src/envelope/validator.js\n+++ b/editable-source/src/envelope/validator.js\n-if (sha256Bytes(bytes) !== expected.sha256)\n+if (false && sha256Bytes(bytes) !== expected.sha256)\n",
+            "finalRunBinding": "final001",
+            "id": "SM-10",
+            "intendedUnsafeBehavior": "source hash check",
+            "killReason": "sourceHash reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "sourceHash",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/envelope/validator.js",
+            "productionFunction": "validateCanonicalBytes",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "sourceHash",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "validateCanonicalBytes wrong intermediate payload hash",
+            "afterSha256": "d770d883b38c7e566bb810b6138c8a755c2f185dccce10c59a72cc8a1d77b544",
+            "beforeSha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+            "exactSourceDiff": "--- a/editable-source/src/envelope/validator.js\n+++ b/editable-source/src/envelope/validator.js\n-if (sha256Bytes(payload) !== expected.payloadSha256)\n+if (false && sha256Bytes(payload) !== expected.payloadSha256)\n",
+            "finalRunBinding": "final001",
+            "id": "SM-11",
+            "intendedUnsafeBehavior": "payload hash check",
+            "killReason": "payloadHash reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "payloadHash",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/envelope/validator.js",
+            "productionFunction": "validateCanonicalBytes",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "payloadHash",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "validateManifest distinct decreasing test-only version",
+            "afterSha256": "270af1b87587b23dcbce0e1134ef677027eda2798eba44bbed13da1b3219f837",
+            "beforeSha256": "4d2ddfb64d664999ecafdb673315a084e6dcbb8ff08edc58bf0df2bae86f5646",
+            "exactSourceDiff": "--- a/editable-source/src/manifest/validator.js\n+++ b/editable-source/src/manifest/validator.js\n-if (versions.length && actual.version <= versions[versions.length - 1])\n+if (false && versions.length && actual.version <= versions[versions.length - 1])\n",
+            "finalRunBinding": "final001",
+            "id": "SM-12",
+            "intendedUnsafeBehavior": "version order validation",
+            "killReason": "versionOrder reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "versionOrder",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/manifest/validator.js",
+            "productionFunction": "validateManifest",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "versionOrder",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "classifyRecovery exact-ledger/absent-effects split",
+            "afterSha256": "50aa906dfcd5b6cb36f9d22d517d0c4a6e956c7fc1f1712854ffdbe6de88ac11",
+            "beforeSha256": "26e744c89b5967953590c9c8db5456363b78fafb03d290af41f56f6a2aee0a4c",
+            "exactSourceDiff": "--- a/editable-source/src/recovery/classifier.js\n+++ b/editable-source/src/recovery/classifier.js\n-if ((ledger === 'exact') !== (effects === 'exact'))\n+if (false && (ledger === 'exact') !== (effects === 'exact'))\n",
+            "finalRunBinding": "final001",
+            "id": "SM-13",
+            "intendedUnsafeBehavior": "split-state hard stop",
+            "killReason": "splitState reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "splitState",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/recovery/classifier.js",
+            "productionFunction": "classifyRecovery",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "splitState",
+            "workspaceCleaned": true
+          },
+          {
+            "activated": true,
+            "activationEvidence": "BEGIN evidence with retryCount=1",
+            "afterSha256": "46f9827a559ce685fbe7a53f61fd8b066bd3eee977d6cfe30d3091ef6a62831e",
+            "beforeSha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+            "exactSourceDiff": "--- a/editable-source/src/executor/invariant-guard.js\n+++ b/editable-source/src/executor/invariant-guard.js\n-evidence.retryCount !== 0 || evidence.reconnectCount !== 0\n+evidence.retryCount < 0 || evidence.reconnectCount < 0\n",
+            "finalRunBinding": "final001",
+            "id": "SM-14",
+            "intendedUnsafeBehavior": "automatic retry prohibition",
+            "killReason": "retryProhibition reached the mutated production path; original PASS, mutant FAIL",
+            "killed": true,
+            "manifestFunctionLabel": "retryProhibition",
+            "mutantPass": false,
+            "originalPass": true,
+            "productionFile": "editable-source/src/executor/invariant-guard.js",
+            "productionFunction": "StageInvariantGuard.record",
+            "productionSourceUnchanged": true,
+            "releaseBinding": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "targetedOracle": "retryProhibition",
+            "workspaceCleaned": true
+          }
+        ],
+        "survivors": 0,
+        "unreachedPathKills": 0,
+        "workspaceResidual": 0,
+        "workspacesCleaned": 14,
+        "workspacesCreated": 14
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "3b8e99d426afd356cba65ec3a46f43c5db6c283cbe9f45845b0d432fbcccc685"
+    },
+    "substantiveSuite": {
+      "body": {
+        "allPrimaryEvidenceHashesVerified": true,
+        "atomicity": {
+          "actualProductionImports": [
+            "ProtocolClient",
+            "executeAtomicStage"
+          ],
+          "discovered": 25,
+          "fullChainStages": 4,
+          "network": "docker-internal-only",
+          "onePhysicalConnectionAndTransactionPerApplicableStage": true,
+          "passed": 25,
+          "postCommitReadOnlySeparateConnection": true,
+          "postgresTarget": "17.6",
+          "reconnects": 0,
+          "retries": 0,
+          "rows": [
+            {
+              "description": "normal 046",
+              "evidenceKeys": [
+                "classification",
+                "commitCount",
+                "effectReread",
+                "guard",
+                "identityBinding",
+                "inTransaction",
+                "ledgerReread",
+                "logicalNumber",
+                "mutationConnection",
+                "postCommit",
+                "postCommitConnection",
+                "preflight",
+                "releaseEvidence",
+                "status"
+              ],
+              "id": "A001",
+              "pass": true
+            },
+            {
+              "description": "normal 046 to 049 chain",
+              "evidenceKeys": [
+                "stages"
+              ],
+              "id": "A002",
+              "pass": true
+            },
+            {
+              "description": "migration statement failure rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A003",
+              "pass": true
+            },
+            {
+              "description": "in-transaction verifier failure rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A004",
+              "pass": true
+            },
+            {
+              "description": "ledger insertion endpoint failure rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A005",
+              "pass": true
+            },
+            {
+              "description": "ledger reread mismatch rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A006",
+              "pass": true
+            },
+            {
+              "description": "effect reread mismatch rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A007",
+              "pass": true
+            },
+            {
+              "description": "cancellation before commit rolls back",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A008",
+              "pass": true
+            },
+            {
+              "description": "disconnect before commit resolves rolled back",
+              "evidenceKeys": [
+                "classification",
+                "commitCount",
+                "mutationConnection",
+                "recovery",
+                "status"
+              ],
+              "id": "A009",
+              "pass": true
+            },
+            {
+              "description": "commit success with simulated lost ACK resolves committed",
+              "evidenceKeys": [
+                "classification",
+                "commitCount",
+                "effectReread",
+                "inTransaction",
+                "logicalNumber",
+                "mutationConnection",
+                "recovery",
+                "releaseEvidence",
+                "status"
+              ],
+              "id": "A010",
+              "pass": true
+            },
+            {
+              "description": "second invocation is already-applied verified",
+              "evidenceKeys": [
+                "first",
+                "second"
+              ],
+              "id": "A011",
+              "pass": true
+            },
+            {
+              "description": "out-of-order migration hard stops",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A012",
+              "pass": true
+            },
+            {
+              "description": "version collision hard stops",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A013",
+              "pass": true
+            },
+            {
+              "description": "name mismatch manifest rejected",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A014",
+              "pass": true
+            },
+            {
+              "description": "statements-array mismatch hard stops",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A015",
+              "pass": true
+            },
+            {
+              "description": "source identity tampering rejected",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A016",
+              "pass": true
+            },
+            {
+              "description": "payload identity tampering rejected",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A017",
+              "pass": true
+            },
+            {
+              "description": "verifier identity mismatch rejected",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A018",
+              "pass": true
+            },
+            {
+              "description": "executor identity mismatch rejected",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A019",
+              "pass": true
+            },
+            {
+              "description": "effects exact and ledger absent hard stops split state",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A020",
+              "pass": true
+            },
+            {
+              "description": "ledger exact and effects absent hard stops split state",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A021",
+              "pass": true
+            },
+            {
+              "description": "partial effects hard stop incompatible",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A022",
+              "pass": true
+            },
+            {
+              "description": "incompatible effects hard stop",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A023",
+              "pass": true
+            },
+            {
+              "description": "unexpected predecessor ledger hard stop",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A024",
+              "pass": true
+            },
+            {
+              "description": "conflicting exact-version statements hard stop",
+              "evidenceKeys": [
+                "code",
+                "mutationConnection",
+                "rollback"
+              ],
+              "id": "A025",
+              "pass": true
+            }
+          ]
+        },
+        "cleanup": {
+          "core": "12/12",
+          "rawEvidenceInspected": true,
+          "reported": "14/14",
+          "v1V2Supplement": "2/2"
+        },
+        "parser": {
+          "discovered": 36,
+          "passed": 36,
+          "payloadReconstruction046To049": [
+            {
+              "id": "046",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\046_access_core_recoverable_fulfillment.sql",
+              "payloadSha256": "bc86b500ad4b01248edc1a20677bdeb49c8a39360215350b26b71d987b50f9bf",
+              "payloadSize": 163777,
+              "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+              "size": 163792,
+              "verified": true
+            },
+            {
+              "id": "047",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\047_access_email_preclaim_terminal_failure.sql",
+              "payloadSha256": "e2400dd0bd191b097bbd5097557522f6a30949528f4d98214974a328c679afcf",
+              "payloadSize": 46334,
+              "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+              "size": 46349,
+              "verified": true
+            },
+            {
+              "id": "048",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\048_access_email_preclaim_terminal_after_ambiguous.sql",
+              "payloadSha256": "0238e401a59b7dc3943e077ff49f087629bdcf096e8c08a9e5a0b30c8f03fb64",
+              "payloadSize": 24837,
+              "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+              "size": 24852,
+              "verified": true
+            },
+            {
+              "id": "049",
+              "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\049_access_email_delivery_claim_correlation.sql",
+              "payloadSha256": "e367fe2c3bd96df4ae0b72ea9348a1f2fb139e723123dc43bf566ecd9d9ae3d3",
+              "payloadSize": 55683,
+              "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+              "size": 55698,
+              "verified": true
+            }
+          ]
+        },
+        "recovery": {
+          "discovered": 10,
+          "passed": 10,
+          "splitIncompatibleAndPredecessorMismatchHardStop": true
+        },
+        "static": {
+          "discovered": 77,
+          "passed": 77,
+          "pathContract": 16,
+          "staticCore": 61
+        }
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "403d1157bc600350b6139848c06981198dfd538b4f74732db1c1d6fd04bf0fed"
+    },
+    "suiteResultProtocol": {
+      "body": {
+        "atomicSingleAssignment": {
+          "atomicRename": true,
+          "explicitAbsolutePath": true,
+          "fsync": true,
+          "readOnlySeal": true,
+          "temporaryOpen": "wx"
+        },
+        "designIdentity": "57dd64a4a0992704912be56a687189e8ad6b38a119194652b616aa311cd815a3",
+        "exactlyOneObject": true,
+        "protocolValidation": "12/12 PASS",
+        "rejections": [
+          "arrays",
+          "scalars",
+          "multiple objects/trailing JSON",
+          "duplicate suite IDs",
+          "missing suite/file",
+          "unknown schema",
+          "wrong run",
+          "wrong release",
+          "wrong attempt",
+          "stale file",
+          "post-seal rewrite",
+          "status/exit contradiction",
+          "count contradiction",
+          "stdout/stderr hash mismatch",
+          "evidence hash mismatch"
+        ]
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "30970075d1c5ff4bed425eaba7afd6208c6ee786dd43af6ce766e661628f7226"
+    },
+    "suiteWrapper": {
+      "body": {
+        "allBindingsVerified": true,
+        "designIdentity": "6a8af2cf8e7067e24f1fa9d9a810d0b732328fde5e64ffcc630b345733c49d03",
+        "independentExitCrosschecks": 6,
+        "rows": [
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "STATIC",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\STATIC.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "100",
+              "--end-sequence",
+              "101",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\STATIC.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\STATIC.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 101,
+            "endUtc": "2026-08-01T21:03:55.5050123Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "540ec54f83b3f2afa3c96a9b4418600d81ef755829cb63f1fd113f451a029d32",
+              "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f",
+              "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c",
+              "8985aaf51072aae95db6972e802f614fc4f4bf665456ed59d5f65bce68063591"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\static-result.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\parser-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\recovery-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\path-contract\\path-contract-result.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 77,
+            "processExitCode": 0,
+            "processId": 64076,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\STATIC.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "4d187862b7bd33465a2d74b4c389587748dc6cd35f4e764bc64030863e71333a",
+            "selfHashClaim": "4d187862b7bd33465a2d74b4c389587748dc6cd35f4e764bc64030863e71333a",
+            "selfHashVerified": true,
+            "startSequence": 100,
+            "startUtc": "2026-08-01T21:03:53.6603274Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\STATIC.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\STATIC.stdout.log",
+            "stdoutSha256": "d40394d2fc1d741738831db6ce75a94964bf3d31124d32e128b6493fcec15936",
+            "suiteId": "STATIC",
+            "testCount": 77,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\STATIC.wrapper.json",
+            "wrapperResultSha256": "e0b1e53ea5ce6fae16e032bf69f5b598931ddf266007e2334994b57a7a1f7699",
+            "wrapperSha256": "18de6725808de75824d979a8a2837b77b7cfc02b5914a3e0ded4e3099abc608d"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "PARSER",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\PARSER.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "200",
+              "--end-sequence",
+              "201",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\PARSER.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\PARSER.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 201,
+            "endUtc": "2026-08-01T21:03:55.9419428Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\parser-test-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 36,
+            "processExitCode": 0,
+            "processId": 62260,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\PARSER.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "aae72b19457abddb5520196f88448f421a5f6ea5b92c933720e6bdce20acff21",
+            "selfHashClaim": "aae72b19457abddb5520196f88448f421a5f6ea5b92c933720e6bdce20acff21",
+            "selfHashVerified": true,
+            "startSequence": 200,
+            "startUtc": "2026-08-01T21:03:55.7086058Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\PARSER.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\PARSER.stdout.log",
+            "stdoutSha256": "0675525390815c6e3456f1a662910fa5b235d3986ab496fa5274d817a46a8572",
+            "suiteId": "PARSER",
+            "testCount": 36,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\PARSER.wrapper.json",
+            "wrapperResultSha256": "9061d78e3368892dcd19dc71e7e2d027296666cbcbeba47c36d4ba1975ae2e50",
+            "wrapperSha256": "25f5fdeb51815f73e45d747ba3c905850acda405bd5fbe7cc84dbf2c7d2c65b1"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "RECOVERY",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\RECOVERY.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "300",
+              "--end-sequence",
+              "301",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\RECOVERY.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\RECOVERY.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 301,
+            "endUtc": "2026-08-01T21:03:56.4620861Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\static\\recovery-test-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 10,
+            "processExitCode": 0,
+            "processId": 57552,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\RECOVERY.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "287a2fd08e5281276ffc5202d65640bbf04cb852b29706d382252e8d8feed4e9",
+            "selfHashClaim": "287a2fd08e5281276ffc5202d65640bbf04cb852b29706d382252e8d8feed4e9",
+            "selfHashVerified": true,
+            "startSequence": 300,
+            "startUtc": "2026-08-01T21:03:56.2284881Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\RECOVERY.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\RECOVERY.stdout.log",
+            "stdoutSha256": "32fb31a79ca3340dfa0dd48ad938f6ee26ec9fc5eed45c0fcebf7f5ad66a2448",
+            "suiteId": "RECOVERY",
+            "testCount": 10,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\RECOVERY.wrapper.json",
+            "wrapperResultSha256": "ce9cd8d815531096af66dc389c25eab4f81051007633bf3bc74641bed16cbda5",
+            "wrapperSha256": "c29494fdb66a09030237c4ca9606578ae659789056545fa0c2c1380a645ba5d7"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "ATOMICITY",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\ATOMICITY.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "400",
+              "--end-sequence",
+              "401",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\ATOMICITY.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\ATOMICITY.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 401,
+            "endUtc": "2026-08-01T21:05:24.1896570Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "733bdb9fc45d1296f0e9f79b4fbeabc74977117bfb6b70414b3265edead26dfc",
+              "0d10e0bea832580598c799f696bafc109202fcb4f8b1dd91a21929e16824876e"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\integration\\atomicity-test-manifest.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\docker\\docker-suite-final.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 25,
+            "processExitCode": 0,
+            "processId": 39204,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\ATOMICITY.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "cbeea8a70c9b18f2768924109de3a312875841475dccc0451749c58f108cbbfa",
+            "selfHashClaim": "cbeea8a70c9b18f2768924109de3a312875841475dccc0451749c58f108cbbfa",
+            "selfHashVerified": true,
+            "startSequence": 400,
+            "startUtc": "2026-08-01T21:03:56.6552868Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\ATOMICITY.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\ATOMICITY.stdout.log",
+            "stdoutSha256": "c1da22c9b3d3da629e165686c59034cf06061b207e2e68cf940916c5a0093d4c",
+            "suiteId": "ATOMICITY",
+            "testCount": 25,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\ATOMICITY.wrapper.json",
+            "wrapperResultSha256": "e86e280845bd2442711022814de69d74dfa4a015025f830a5819ea17232328a1",
+            "wrapperSha256": "fef3f7c6a6d6e6b4d50e99d6b9a69cd8fadd22ad3f429d27f5acc54c23de2bfc"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "SEMANTIC_MUTATION",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\SEMANTIC_MUTATION.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "500",
+              "--end-sequence",
+              "501",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\SEMANTIC_MUTATION.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\SEMANTIC_MUTATION.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 501,
+            "endUtc": "2026-08-01T21:05:25.1807709Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "982be1f41bdd9bc152ac1f80418f567ac8998383a7bc8f26960935b9439b2c51"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\mutations\\semantic-mutation-manifest.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 14,
+            "processExitCode": 0,
+            "processId": 39388,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\SEMANTIC_MUTATION.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "f38fcb6df95ae460a9ebebbeedbe7d0fef6b789d45a8e053f284cc4d7822cc71",
+            "selfHashClaim": "f38fcb6df95ae460a9ebebbeedbe7d0fef6b789d45a8e053f284cc4d7822cc71",
+            "selfHashVerified": true,
+            "startSequence": 500,
+            "startUtc": "2026-08-01T21:05:24.3549298Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\SEMANTIC_MUTATION.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\SEMANTIC_MUTATION.stdout.log",
+            "stdoutSha256": "13d8c8d0bf882b6ad4bf41b24dc4b90e4e9d324b5d2abca396824058da82a708",
+            "suiteId": "SEMANTIC_MUTATION",
+            "testCount": 14,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\SEMANTIC_MUTATION.wrapper.json",
+            "wrapperResultSha256": "3e5b4af6696bafd610dedf2287c25fa58308869f075670e3d471f80b8538ccaf",
+            "wrapperSha256": "0dec66f66c1e34d156574fe6828e4aafae3da4f260496c54c5309994043e7b73"
+          },
+          {
+            "argv": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tests\\suite-adapter-v3.js",
+              "--suite-id",
+              "CLEANUP",
+              "--result-file",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\CLEANUP.result.json",
+              "--final-run-id",
+              "final001",
+              "--release-id",
+              "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+              "--execution-attempt",
+              "1",
+              "--start-sequence",
+              "600",
+              "--end-sequence",
+              "601",
+              "--raw-stdout-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\CLEANUP.stdout.log",
+              "--raw-stderr-path",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\CLEANUP.stderr.log",
+              "--evidence-root",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core",
+              "--mode",
+              "Final"
+            ],
+            "attempt": 1,
+            "cancelled": false,
+            "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+            "endSequence": 601,
+            "endUtc": "2026-08-01T21:05:29.5556893Z",
+            "environmentIdentity": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+            "evidenceHashes": [
+              "ec7837d55f10b6c076aafe9768cb96b1997eb5a34eca5b0262b233819ca4ce4f",
+              "bbaefd7a922134805a194bb5d623d303609b213720a58a2257dfcb14ba66eebc"
+            ],
+            "evidenceHashesVerified": true,
+            "evidencePaths": [
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\cleanup\\cleanup-result.json",
+              "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence\\core\\cleanup\\v3-cleanup-supplement.json"
+            ],
+            "executable": "C:\\nvm4w\\nodejs\\node.exe",
+            "passCount": 14,
+            "processExitCode": 0,
+            "processId": 25368,
+            "protocolValidationExitCode": 0,
+            "releaseIdentity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+            "resultAbsentBeforeStart": true,
+            "resultExists": true,
+            "resultExitCode": 0,
+            "resultFileSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+            "resultPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\CLEANUP.result.json",
+            "resultReadOnly": true,
+            "runId": "final001",
+            "selfHashActual": "8c0e15890894a014fdd4fc39fed7cfdf313d915027ebec18f395f8d61d350483",
+            "selfHashClaim": "8c0e15890894a014fdd4fc39fed7cfdf313d915027ebec18f395f8d61d350483",
+            "selfHashVerified": true,
+            "startSequence": 600,
+            "startUtc": "2026-08-01T21:05:26.8605270Z",
+            "status": "PASS",
+            "stderrPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stderr\\final001\\CLEANUP.stderr.log",
+            "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stdoutPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\raw-stdout\\final001\\CLEANUP.stdout.log",
+            "stdoutSha256": "e874d72eb8e80683ebc7b7e3fd05e75dcb82625033c61990ca79e7761519949c",
+            "suiteId": "CLEANUP",
+            "testCount": 14,
+            "timedOut": false,
+            "wrapperExitIndependentlyMatchesResult": true,
+            "wrapperPath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\wrapper-evidence\\final001\\CLEANUP.wrapper.json",
+            "wrapperResultSha256": "031d14d86959182e20c39ca1b557f4c4f0f637cbb6c7041653faed14474e7e5b",
+            "wrapperSha256": "e89f902f31bb36f284a6b92118f10b6c3b00090391c5aa645d33b69a5c0e8b2e"
+          }
+        ],
+        "suiteIsolationIdentity": "8aaed76eb4fbd54bd78dc7fcb55ef4884f4fd65b8837ab22298dfcc76baca554",
+        "wrapperExitDerivedFromResult": false
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "ad87e3c5358cf81133db28a54061ac8c8efd025c8be69ee25db4fd6d116b0b5c"
+    },
+    "v2Finding": {
+      "body": {
+        "affectedArraySuites": [
+          "static",
+          "path_contract",
+          "semantic_mutations",
+          "cleanup"
+        ],
+        "exactMechanism": [
+          "run-final-suite.ps1 line 50 emits node stdout to the PowerShell success stream",
+          "line 52 returns an ordered status object",
+          "assignments at lines 58-60 and 76 capture [stdout JSON string, ordered result object] arrays",
+          "finalize-evidence.js line 48 expects each suite value to expose .status",
+          "all substantive process exits are zero but finalizer and wrapper exit one, so readiness is correctly rejected"
+        ],
+        "executionCount": 1,
+        "findingId": "V2-FINAL-ORCHESTRATION",
+        "nodeStdoutLines": {
+          "cleanup-suite.js": 180,
+          "finalize-evidence.js": 161,
+          "global-gate-suite.js": 111,
+          "integration-suite.js": 116,
+          "mutation-suite.js": 201,
+          "path-contract-suite.js": 167,
+          "static-suite.js": 100
+        },
+        "preservedFinalSuiteResultSha256": "791bece15c7446738bec71eef06113701fda24e389ca01a14b799c5529f6274d",
+        "rerunCount": 0,
+        "rootCauseReconstructed": true,
+        "severity": "HIGH",
+        "v2Classification": "STATEMENT_AWARE_ATOMIC_MIGRATION_EXECUTOR_V2_FINDINGS",
+        "v2Unchanged": true,
+        "v3Correction": [
+          "separate stdout/stderr files",
+          "explicit atomic result file",
+          "wrapper-owned exit evidence",
+          "six explicit finalizer paths",
+          "strict schema and production-code rejection tests"
+        ]
+      },
+      "digestCanonicalization": "UTF-8 compact JSON, recursively sorted keys, no trailing newline",
+      "sha256": "bbe4d09dcc3ab30cb56a7a40a3bf0eb43991b423f8c517c3d23e789c915f3720"
+    }
+  }
+}

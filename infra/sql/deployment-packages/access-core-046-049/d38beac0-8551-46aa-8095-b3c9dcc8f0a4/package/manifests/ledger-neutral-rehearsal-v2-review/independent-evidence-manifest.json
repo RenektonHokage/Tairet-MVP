@@ -1,0 +1,453 @@
+{
+  "classification": "INDEPENDENT_MIGRATIONS_046_049_LEDGER_NEUTRAL_REHEARSAL_V2_PASSED",
+  "evidence_labels": {
+    "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE": "Historical execution/static evidence whose bytes were independently verified; not rerun.",
+    "HASH_VERIFIED_V1_AUTHORITY": "Byte-verified V1 rehearsal authority.",
+    "HASH_VERIFIED_V1_INDEPENDENT_REVIEW_AUTHORITY": "Byte-verified V1 independent-review authority.",
+    "REVIEWER_GENERATED": "Produced under the independent review root.",
+    "VERIFIED_REPOSITORY": "Direct local repository identity."
+  },
+  "input_artifact_count": 49,
+  "input_artifacts": [
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\reports\\final\\detailed-closure-report.md",
+      "sha256": "5ea784998823dea081025738666ea0f8ebfa2c1c8360aabc0ee2fa1339a8bdd6",
+      "size": 2213
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\reports\\final\\structured-result.json",
+      "sha256": "0c9680ba7c5e683905a7f65029621960298fc4f1fb1afa2f2d8147f72a9afd76",
+      "size": 10996
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\reports\\final\\evidence-manifest.json",
+      "sha256": "a62a70274a211f2f4dd2f47181011ad89f88393bb9f560018641280d908cef76",
+      "size": 4207
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\reports\\final\\artifact-hash-manifest.json",
+      "sha256": "439b7174c1d41f720750814675188f0ddc0d58c32ef379f797a60c6ccdcd08c3",
+      "size": 277699
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\reports\\final\\findings-closure-result.json",
+      "sha256": "75632772b80dc00dd8c3d9c2548d21e10d4fe0a9ebfc7ce0b6007aad6dd95db8",
+      "size": 9436
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\per-invocation-migration-identity-manifest.json",
+      "sha256": "cfc77ff8cb6aff5f8a9bda38cd0a2841c4f835a7adb0803d2a0ee12f5c757047",
+      "size": 183464
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\raw-case-execution-manifest.json",
+      "sha256": "464dc13dbaade11295af72b82f227736fe3aa4d76835ba707e13f4d7e246d54c",
+      "size": 602730
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\runner-raw-stage-evidence-manifest.json",
+      "sha256": "7ec827bbbe3aa9dd335640bb5e873ee3a772ee0f3d6aea6d2fd2a9c2b49f3415",
+      "size": 125605
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\runner-raw-aggregate-manifest.json",
+      "sha256": "4245adc505ea2b039c49daf988d654dea10ee89c2ac3ef5c951018c93d8366bd",
+      "size": 195686
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\runner-support-migration-manifest.json",
+      "sha256": "3e68e9f1bc926282e977eb88c65078000ab5c5d813b3e557a6d90954a1d958d8",
+      "size": 14862
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\runner\\cases\\LK-07.json",
+      "sha256": "61a3c22f23d134b523261cbc05c82279828895b95ae36f219326b45e3d844e36",
+      "size": 23417
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\independent-verifier\\per-case-result-manifest.json",
+      "sha256": "c787aa0f62c1f44b34974b8b82724fc5710fc32e75c6989e55ee2648552b830c",
+      "size": 37635
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\independent-verifier\\independent-stage-verifier-result.json",
+      "sha256": "df26d9fee1929eb77aab542368e3e7cd9ca317ba7752123dae52cffb79cf4c8c",
+      "size": 9766
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\final-raw-evidence\\independent-verifier\\aggregate-prediction-result.json",
+      "sha256": "73c97551c363acd637594f9f97803c31815b25688adaaf576f2542820678436e",
+      "size": 12222
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\docker-inventories\\final\\comparison.json",
+      "sha256": "764a491010720667b28e6c3668d5354fdd32b8ef44359342115d443ddc5d1371",
+      "size": 1594
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\docker-inventories\\final\\pre\\inventory.json",
+      "sha256": "43862f080b600f0ea4917afaa9ece3cfcee82b3aa6cda4f4a67b91f5c67ac927",
+      "size": 14004
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\docker-inventories\\final\\post\\inventory.json",
+      "sha256": "bd908edb778704d2ab43b76847b91f61b0569f0564e47c0b05d72ba2e6e43bf3",
+      "size": 14005
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\process-inventories\\final\\host-process-lifecycle-manifest.json",
+      "sha256": "58c90f683bf63d5b1ddda8c00d5fadd7076235a0c5030b7cb1532fdab921433b",
+      "size": 1817819
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\process-inventories\\final\\host-process-final-inventory.json",
+      "sha256": "14ab1cc77009f806f87071184965949f224cdcd08a707221b984f2c084afb650",
+      "size": 328326
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\frozen\\bundle\\bundle-index.json",
+      "sha256": "322e114d626c8dc1361bbc82abc3db32aa92b67a3391d98a86e56b413849ea8a",
+      "size": 12723
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\manifests\\frozen-content-inventory.json",
+      "sha256": "c7cf63a1c2d7f483065d81a49a53f242af36561a01ac9d4f2d3fdc427e380579",
+      "size": 12716
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\manifests\\bundle-index-write-audit.json",
+      "sha256": "f9be891960529e68969849478cb4bd8aaae34d1abb42137d839af6fd7a214b22",
+      "size": 681
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\manifests\\freeze-provenance-v2.json",
+      "sha256": "da00bb7fd7ceb66baca3b0992fbabf28450020897fe27bca5c7f0fac39d89807",
+      "size": 741
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\v1-review-findings-closure-matrix.json",
+      "sha256": "00924769f14d6aaf355a24bfd7f9f2a031a8a5218e239d9df79f52b54a8fc134",
+      "size": 6226
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\v2-reuse-manifest.json",
+      "sha256": "cd77f7914b31810feeae1257a547fbea87ca242c949cd9b4f79f999738227a4f",
+      "size": 2704
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\lk07-multisession-spec.json",
+      "sha256": "6d7421d283da6bc4d8e165e3d5f5caf02096c5ee99c46503ad6add2c8838a2c0",
+      "size": 769
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\independent-stage-verifier-spec.json",
+      "sha256": "de4a84dfbeef0a384482f8fc77757efe65533891599d1cb919a85517ba850299",
+      "size": 591
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\independent-stage-contract.json",
+      "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+      "size": 2844
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\per-invocation-migration-identity-spec.json",
+      "sha256": "4020378f219dbe868fd43f1f65fef74579433358a9da4a40008375f87d1a8635",
+      "size": 616
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\bundle-index-single-assignment-spec.json",
+      "sha256": "53f444f862a859a755817556eb1f477be0ff5597f03907118b5cb2a57f21256f",
+      "size": 374
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\docker-inventory-evidence-spec.json",
+      "sha256": "3325ee07eab207c25c01c6c8c82382ccaeddbefe48ab1d988b51cc85068d98d8",
+      "size": 520
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\host-process-identity-evidence-spec.json",
+      "sha256": "778cbd245d711ef2e889cef8ba413091f7679dda213581582848fbc0aec05d87",
+      "size": 448
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\predecessor-manifest-routine-identity.json",
+      "sha256": "5751e328b07b2fd643a4d5fd7068fb0ae80c9ecba6054aafc4bb208a6ca7d6d8",
+      "size": 1254
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\contracts\\aggregate-preflight-equivalence-v2.json",
+      "sha256": "e2aaff1c2cc210ee8cd2b48f70bf1be814f3f071416436d919bfcec8952125c2",
+      "size": 679
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\source\\raw_runner.py",
+      "sha256": "a3f6d9f7b1e72f6061176af4cccf047dcde69c35c3630670f08f5ff0c1964f1c",
+      "size": 74374
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\source\\freeze_bundle.py",
+      "sha256": "d42c6660636e80f5525e02fa1b9325f7df592bb4129ac66b49a84d7ee5aefd8a",
+      "size": 7187
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\source\\docker_inventory.py",
+      "sha256": "1d70e76ff46a7a9df1664e00fdaa40bf3dd499b11c43045d6568da812e48d639",
+      "size": 7382
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\source\\v2_common.py",
+      "sha256": "92edc071dc84c697cf80b2676962e7a264a1ec3e881aeaec30c0fd14505a8287",
+      "size": 11316
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\independent-stage-verifier\\independent_stage_verifier.py",
+      "sha256": "a27263b58e4b94e75cdb5314adbc14eb1a7dd47d691897e488be0cea0cdec206",
+      "size": 34116
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_FROZEN_OR_STATIC_V2_EVIDENCE",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-v2-87d175c4\\tests\\closure_tests.py",
+      "sha256": "806a542279bea87a8df6bd7bf490a36daf98685c1a40de1095b57590e393fef9",
+      "size": 10807
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_V1_AUTHORITY",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-rehearsal-f72db5ff\\final-evidence\\closure-report.md",
+      "sha256": "85456de899bd1a6e8e3abc33729b68d771be9f641fad404eec26c6ce4ad553a3",
+      "size": 2429
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_V1_INDEPENDENT_REVIEW_AUTHORITY",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-991fbaf0\\independent-artifact-hash-manifest.json",
+      "sha256": "353cf3829bea9a7d0dd2418062df2df9bbce67b600253e8c53ca8cf23aeea6bd",
+      "size": 928
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_V1_INDEPENDENT_REVIEW_AUTHORITY",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-991fbaf0\\independent-evidence-manifest.json",
+      "sha256": "8598185008d7b7ceb5424387b5051b337f5472fc3a818a514220d852115c0b57",
+      "size": 466604
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_V1_INDEPENDENT_REVIEW_AUTHORITY",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-991fbaf0\\independent-review-report.md",
+      "sha256": "ef5809e4d3d23176eb2dbf36ae0c12e72b37960ecc5c1dbfb317b098781ed9b9",
+      "size": 19315
+    },
+    {
+      "evidence_label": "HASH_VERIFIED_V1_INDEPENDENT_REVIEW_AUTHORITY",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-991fbaf0\\independent-review-result.json",
+      "sha256": "1deda6cea723278de3e1e55286c532dc617591074e026827ecca02d9af404659",
+      "size": 9188
+    },
+    {
+      "evidence_label": "VERIFIED_REPOSITORY",
+      "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\046_access_core_recoverable_fulfillment.sql",
+      "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+      "size": 163792
+    },
+    {
+      "evidence_label": "VERIFIED_REPOSITORY",
+      "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\047_access_email_preclaim_terminal_failure.sql",
+      "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+      "size": 46349
+    },
+    {
+      "evidence_label": "VERIFIED_REPOSITORY",
+      "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\048_access_email_preclaim_terminal_after_ambiguous.sql",
+      "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+      "size": 24852
+    },
+    {
+      "evidence_label": "VERIFIED_REPOSITORY",
+      "path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\049_access_email_delivery_claim_correlation.sql",
+      "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+      "size": 55698
+    }
+  ],
+  "prohibited_actions": {
+    "docker_commands": 0,
+    "network_access": 0,
+    "production_contact": 0,
+    "sql_or_case_reruns": 0,
+    "subagents": 0,
+    "supabase_contact": 0
+  },
+  "review_artifact_count": 19,
+  "review_artifacts": [
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\final-authority-snapshot.json",
+      "relative_path": "evidence/final-authority-snapshot.json",
+      "sha256": "dedfa2b496e260836dbffa0dc609b2e9ed9c87b2152ac1ccad2f26e033152e72",
+      "size": 531945
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\initial-authority-snapshot.json",
+      "relative_path": "evidence/initial-authority-snapshot.json",
+      "sha256": "ade070185b749c1b584148d2518b00c74ef09c78254a1559c66fbb1395224653",
+      "size": 531945
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\final-v2-rehearsal-immutability-review.json",
+      "relative_path": "evidence/reviews/final-v2-rehearsal-immutability-review.json",
+      "sha256": "153764dcdabfba74b529779b05ecfdad92618e0c40d4e7d38783dd5451da339f",
+      "size": 4916
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v1-findings-v2-closure-review.json",
+      "relative_path": "evidence/reviews/independent-v1-findings-v2-closure-review.json",
+      "sha256": "e9f71b53b3f4238c8f74b5614dded79bf9379cad5455e0bdb718b8e7af8d0b20",
+      "size": 12950
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-authority-identity-review.json",
+      "relative_path": "evidence/reviews/independent-v2-authority-identity-review.json",
+      "sha256": "1475aaea345a06e7453d150b130287162eebe9fd7955978bfd13d07da26fa9b2",
+      "size": 5178
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-bundle-single-assignment-review.json",
+      "relative_path": "evidence/reviews/independent-v2-bundle-single-assignment-review.json",
+      "sha256": "f4ff1b8fa58976755a58e8c24b1f60cdbd3e694467d1dd2e815c076555fe794d",
+      "size": 33182
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-canonical-migration-identity-review.json",
+      "relative_path": "evidence/reviews/independent-v2-canonical-migration-identity-review.json",
+      "sha256": "5e2c62d0b8efe2f3892d1653462d70904a8820b4b8b1ab50833d35feba93a3a8",
+      "size": 6019
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-docker-inventory-review.json",
+      "relative_path": "evidence/reviews/independent-v2-docker-inventory-review.json",
+      "sha256": "0bde81fa9382f8afe230f2481f6c4dc03c20fd8ccf56fa45e1da04c11fe85814",
+      "size": 38042
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-final-case-and-freeze-review.json",
+      "relative_path": "evidence/reviews/independent-v2-final-case-and-freeze-review.json",
+      "sha256": "a806dd13246ba9a9495f0d74cc1599297b686798a8dbdf6598d4e66165c7c032",
+      "size": 48712
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-functional-regression-review.json",
+      "relative_path": "evidence/reviews/independent-v2-functional-regression-review.json",
+      "sha256": "1f5cca41ccb4f92cd202e31f237bd8df2afdad06e3b9f09dc2ac2d379ac9013a",
+      "size": 18790
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-host-process-lifecycle-review.json",
+      "relative_path": "evidence/reviews/independent-v2-host-process-lifecycle-review.json",
+      "sha256": "ababfc399f89aa633c27961278e0b20e9175ff0c7dc6a76d83047c7314beadc9",
+      "size": 7012
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-lk07-multisession-review.json",
+      "relative_path": "evidence/reviews/independent-v2-lk07-multisession-review.json",
+      "sha256": "5d80aa5b4bef813e7fa2bd229816fd4eae924ff8b19bbbbb0d77f1d7ff09d085",
+      "size": 9585
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-migration-process-reconciliation.json",
+      "relative_path": "evidence/reviews/independent-v2-migration-process-reconciliation.json",
+      "sha256": "fd8a35baac1e77f04d8615230fb418739902694602476b3df76d5580ca3b3dd8",
+      "size": 115495
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-per-invocation-identity-review.json",
+      "relative_path": "evidence/reviews/independent-v2-per-invocation-identity-review.json",
+      "sha256": "809d7878af13058d4fca6bf89401ea5765fe83e2c301753c215b181976fc7991",
+      "size": 115082
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-predecessor-routine-identity-review.json",
+      "relative_path": "evidence/reviews/independent-v2-predecessor-routine-identity-review.json",
+      "sha256": "7a2d83e717328f385efcb799ae56cc50c87ef4fedf6cd66766a4625e02187768",
+      "size": 4797
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-scope-and-ledger-neutrality-review.json",
+      "relative_path": "evidence/reviews/independent-v2-scope-and-ledger-neutrality-review.json",
+      "sha256": "167e408a19b8437f16039ecf4b799604133a46ba8a2fded33c48e5cedd479050",
+      "size": 4704
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\evidence\\reviews\\independent-v2-stage-verifier-independence-review.json",
+      "relative_path": "evidence/reviews/independent-v2-stage-verifier-independence-review.json",
+      "sha256": "2d16507919a1aa6598f3f2ed655fdba02c76ee29065e6bcd68fde4f60d8e4382",
+      "size": 10920
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\independent-review-report.md",
+      "relative_path": "independent-review-report.md",
+      "sha256": "ef7d88f25096391ea9b8071d85d6eee9aa0238153a4611c6aa6377eb20b22d04",
+      "size": 22748
+    },
+    {
+      "evidence_label": "REVIEWER_GENERATED",
+      "path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454\\independent-review-result.json",
+      "relative_path": "independent-review-result.json",
+      "sha256": "d2a1318238d21153b47865ff74e29cb967699ca735d50357817d07af637a30af",
+      "size": 8814
+    }
+  ],
+  "review_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454",
+  "schema": "tairet-independent-v2-review-evidence-manifest-v1"
+}

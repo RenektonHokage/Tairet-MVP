@@ -1,0 +1,26 @@
+{
+  "allListedArtifactsVerifiedAtCreation": true,
+  "artifactCount": 4,
+  "artifacts": [
+    {
+      "path": "independent-v3-executor-review.md",
+      "sha256": "844d51099da3535496a20a855e0ee785053f737340f70890c29362c6caaf6abb",
+      "size": 15833
+    },
+    {
+      "path": "independent-structured-result.json",
+      "sha256": "2ea4bfe1267a6e1aba504a0dad59ad70162bf9cb9bf572da7080e0f817eab9c2",
+      "size": 8297
+    },
+    {
+      "path": "independent-evidence-manifest.json",
+      "sha256": "635c4ed7e66b4ebf07c7bea52313d037f54d67c070425e88ae3f949236e29cb7",
+      "size": 150213
+    }
+  ],
+  "classification": "INDEPENDENT_STATEMENT_AWARE_ATOMIC_MIGRATION_EXECUTOR_V3_PASSED",
+  "hashedArtifactCount": 3,
+  "schema": "tairet-independent-review-artifact-hash-manifest-v1",
+  "selfHashDisposition": "SELF_EXCLUDED_TO_AVOID_RECURSIVE_DIGEST; externally re-hash final bytes",
+  "selfPath": "independent-artifact-hash-manifest.json"
+}

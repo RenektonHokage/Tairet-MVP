@@ -1,0 +1,16 @@
+{
+  "completed_utc": "2026-08-02T01:53:26.904Z",
+  "description": "wrong stage verifier identity is rejected",
+  "error": null,
+  "id": "PM-04",
+  "mode": "Development",
+  "pass": true,
+  "production_contact": 0,
+  "result": {
+    "code": "VERIFIER_IDENTITY_MISMATCH",
+    "message": "VERIFIER_IDENTITY_MISMATCH"
+  },
+  "scenario_evidence_sha256": "6e3376c15ed838c4571eb39314f31889a24e7df931bb0f19bf8b9750e7d78a67",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:53:26.886Z"
+}

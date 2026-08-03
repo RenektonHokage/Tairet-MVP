@@ -1,0 +1,67 @@
+{
+  "authority": {
+    "canonical_migration_bytes": {
+      "046_access_core_recoverable_fulfillment.sql": {
+        "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+        "size": 163792
+      },
+      "047_access_email_preclaim_terminal_failure.sql": {
+        "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+        "size": 46349
+      },
+      "048_access_email_preclaim_terminal_after_ambiguous.sql": {
+        "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+        "size": 24852
+      },
+      "049_access_email_delivery_claim_correlation.sql": {
+        "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+        "size": 55698
+      }
+    },
+    "independent_review_report_sha256": "ef5809e4d3d23176eb2dbf36ae0c12e72b37960ecc5c1dbfb317b098781ed9b9"
+  },
+  "runner_must_not_generate_or_modify_this_contract": true,
+  "schema": "tairet-v2-independent-stage-contract-v1",
+  "stages": {
+    "POST_046": {
+      "catalog_fingerprint": "2d6d30c3b6a818a03e1b8a06d686fe51b41b24be539e79e52d03df0bdead9c50",
+      "claim_sha256": "bbcb3b55dd8751590d0953664bb4b868e01343eee641846d9bd10afe41ecdd47",
+      "delivery_attempt_table": true,
+      "fulfillment_table": true,
+      "marker_column": false,
+      "terminal_sha256": ""
+    },
+    "POST_047": {
+      "catalog_fingerprint": "c7da83399895174310db94095faf561c3ad4a47382abae518c60c58be0a24709",
+      "claim_sha256": "bbcb3b55dd8751590d0953664bb4b868e01343eee641846d9bd10afe41ecdd47",
+      "delivery_attempt_table": true,
+      "fulfillment_table": true,
+      "marker_column": true,
+      "terminal_sha256": "2ff9f65ab1d1668a8d9915eab0cce13d1178a97e8b40a038e49b2457dafa7206"
+    },
+    "POST_048": {
+      "catalog_fingerprint": "fdd5fb7803ad3496dcd8fa1c0ef8f02cb639ec4ce12b5202700fc6ef93f24689",
+      "claim_sha256": "bbcb3b55dd8751590d0953664bb4b868e01343eee641846d9bd10afe41ecdd47",
+      "delivery_attempt_table": true,
+      "fulfillment_table": true,
+      "marker_column": true,
+      "terminal_sha256": "d4ce5f3a232e8703950e71b889ed259c81a61e474bd87dc8c8bae2b471099b4b"
+    },
+    "POST_049": {
+      "catalog_fingerprint": "34de45e7e789f191a678fa76c97732964ca26aefd1005c5e6a5593f7e10fc28b",
+      "claim_sha256": "547cb9509b8b558cf1e6bb18195df8fac08a116051adb533d1c39d6085f2e986",
+      "delivery_attempt_table": true,
+      "fulfillment_table": true,
+      "marker_column": true,
+      "terminal_sha256": "d4ce5f3a232e8703950e71b889ed259c81a61e474bd87dc8c8bae2b471099b4b"
+    },
+    "PRE_046": {
+      "catalog_fingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claim_sha256": "",
+      "delivery_attempt_table": false,
+      "fulfillment_table": false,
+      "marker_column": false,
+      "terminal_sha256": ""
+    }
+  }
+}

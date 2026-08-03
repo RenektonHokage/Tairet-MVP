@@ -1,0 +1,3 @@
+
+-- Fail closed unless migrations 047 and 048 and the immutable delivery-claim
+-- baseline are exactly compatible with this function-only replacement.

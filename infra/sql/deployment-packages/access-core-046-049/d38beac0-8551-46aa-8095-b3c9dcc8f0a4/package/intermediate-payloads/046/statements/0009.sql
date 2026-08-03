@@ -1,0 +1,2 @@
+create unique index access_email_delivery_attempts_idempotency_key_uidx
+  on public.access_email_delivery_attempts(idempotency_key);

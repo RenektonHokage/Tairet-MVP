@@ -1,0 +1,1 @@
+grant select on table public.access_order_items to service_role;

@@ -1,0 +1,16 @@
+{
+  "completed_utc": "2026-08-02T01:53:26.798Z",
+  "description": "wrong canonical migration bytes identity is rejected",
+  "error": null,
+  "id": "PM-02",
+  "mode": "Development",
+  "pass": true,
+  "production_contact": 0,
+  "result": {
+    "code": "CANONICAL_MIGRATION_IDENTITY_MISMATCH",
+    "message": "CANONICAL_MIGRATION_IDENTITY_MISMATCH: 046"
+  },
+  "scenario_evidence_sha256": "4a6349d44dcb4311838bb02e91860e7d843ce9b71b16fe08d2160a85bf9b28e3",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:53:26.738Z"
+}

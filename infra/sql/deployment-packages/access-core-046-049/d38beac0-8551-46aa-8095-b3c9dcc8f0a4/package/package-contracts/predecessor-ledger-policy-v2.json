@@ -1,0 +1,18 @@
+{
+  "candidate_versions_required_absent": [
+    "046",
+    "047",
+    "048",
+    "049"
+  ],
+  "local_fixture_is_not_production_evidence": true,
+  "local_fixture_statements": [
+    "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+  ],
+  "name": "045_access_core_paid_checkin_operational_window",
+  "predecessor_policy_sha256": "3ca88d7793bf82142bcaae6fe2a0eec8912dab0a8a569197b96cdd07ad015b65",
+  "production_statements_authority": "CAPTURE_AND_PRESERVE_EXACT_AT_FINAL_PRODUCTION_LEDGER_GUARD",
+  "schema": "ACCESS_CORE_PREDECESSOR_LEDGER_POLICY_V2",
+  "unexpected_later_access_core_migration_policy": "HARD_STOP",
+  "version": "20260711062758"
+}

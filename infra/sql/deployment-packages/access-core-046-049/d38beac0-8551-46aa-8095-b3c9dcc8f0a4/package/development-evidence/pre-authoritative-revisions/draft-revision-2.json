@@ -1,0 +1,23 @@
+{
+  "authoritative_manifest_status": "NOT_WRITTEN",
+  "authoritative_packaging_event_status": "NOT_CAPTURED",
+  "changed_source_files": [
+    "authoritative-finalize.js"
+  ],
+  "draft_revision_evidence_sha256": "e6a743a526664c5809dfb2bf93aaae40c36fc29675215cb113aeb93ccd4758e6",
+  "new_draft_descriptor_sha256": "391066950187fac45a8cd3ca4cf759c86c98688ef54855b2791b831be15428a7",
+  "new_runtime_binding_sha256": "a1299ac27f4e6a22c7caf05513dac2e75c5f07656c316c22274e009bb645d19e",
+  "old_draft_descriptor_sha256": "07276ee2fbf766eff6734c5075fb04dcdef7dce1d5ed4acaa8d0a31bc7cbeccf",
+  "old_green_development_run_preserved": "devv2a",
+  "old_runtime_binding_sha256": "e73a01263522ddd3cd87dd870cd25a8ab6f1f0bdd3859e00ac2e32bd2a2e2304",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "production_contact": 0,
+  "real_version_assignment_status": "NOT_ASSIGNED",
+  "reason": "Bounded local reservation discovery replaces an unbounded recursive inventory scan that failed before event capture.",
+  "required_regates": [
+    "RUNTIME_SELF_VALIDATION",
+    "DEVELOPMENT_REHEARSAL_19_CASES"
+  ],
+  "revision": 2,
+  "schema": "ACCESS_CORE_046_049_PRE_AUTHORITATIVE_DRAFT_REVISION_V2"
+}

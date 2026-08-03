@@ -1,0 +1,16 @@
+{
+  "completed_utc": "2026-08-02T01:53:26.921Z",
+  "description": "wrong target identity is rejected",
+  "error": null,
+  "id": "PM-05",
+  "mode": "Development",
+  "pass": true,
+  "production_contact": 0,
+  "result": {
+    "code": "TARGET_IDENTITY_MISMATCH",
+    "message": "TARGET_IDENTITY_MISMATCH"
+  },
+  "scenario_evidence_sha256": "2c3b82dadc4849f5dfd4a1ee9fad6972f5bfbec8880ba47d5772abeabd41cb0c",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:53:26.914Z"
+}

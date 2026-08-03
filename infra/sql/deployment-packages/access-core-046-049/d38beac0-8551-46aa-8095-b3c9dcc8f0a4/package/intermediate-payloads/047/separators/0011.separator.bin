@@ -1,0 +1,5 @@
+
+
+-- Structural, security, and immutable-batch-baseline assertions. The normalized
+-- batch baseline is derived from immutable migration 046 SHA-256
+-- 6F1B39FC66B53856E19475B20539DE1377F20E29FE6AD99A79472C97DBA2FE0C.

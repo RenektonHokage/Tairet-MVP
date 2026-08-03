@@ -1,0 +1,37 @@
+{
+  "artifacts": [
+    {
+      "path": "editable-source/src/result/finalizer.js",
+      "sha256": "556b1ec38e526596b61a20459c5eb47f92deeb74d4f280cf6e00490152e47fc7",
+      "size": 8727
+    },
+    {
+      "path": "editable-source/tools/finalize-evidence.js",
+      "sha256": "b226d05f62f75897898c514e319db26d5f6027fd001c058cbee7ac1353d8f1cc",
+      "size": 16833
+    }
+  ],
+  "directoryInputPermitted": false,
+  "inputCardinality": 6,
+  "inputMode": "EXPLICIT_ABSOLUTE_FILE_PATHS_ONLY",
+  "pipelineObjectInputPermitted": false,
+  "schema": "tairet-executor-v3-finalizer-implementation-v1",
+  "verifications": [
+    "schema",
+    "suite_id",
+    "run_binding",
+    "release_binding",
+    "attempt_binding",
+    "status_exit_agreement",
+    "counts",
+    "raw_log_hashes",
+    "suite_evidence_hashes",
+    "uniqueness",
+    "cardinality",
+    "sequence_order",
+    "wrapper_process_exit",
+    "post_seal_identity",
+    "global_gates",
+    "cleanup"
+  ]
+}

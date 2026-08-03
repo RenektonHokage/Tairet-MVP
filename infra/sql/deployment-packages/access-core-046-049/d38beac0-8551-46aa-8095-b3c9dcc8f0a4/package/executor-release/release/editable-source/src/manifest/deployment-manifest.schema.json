@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tairet-statement-aware-atomic-migration-deployment-manifest-v1",
+  "title": "Tairet statement-aware atomic migration deployment manifest",
+  "type": "object",
+  "required": [
+    "manifestFormat", "manifestVersion", "classification", "executable",
+    "packagingEventIdentity", "target", "expectedPredecessorLedgerIdentity",
+    "migrations", "executorReleaseIdentity", "parserIdentity", "verifierIdentities", "stageOrder",
+    "recoveryPolicy", "timeoutLockPolicy", "manifestSha256"
+  ],
+  "properties": {
+    "manifestFormat": { "const": "TAIRET_STATEMENT_AWARE_ATOMIC_MIGRATION_MANIFEST" },
+    "manifestVersion": { "const": 1 },
+    "classification": { "enum": ["NON_DEPLOYABLE_TEST_ONLY", "PRODUCTION_TEMPLATE_UNASSIGNED"] },
+    "executable": { "type": "boolean" },
+    "packagingEventIdentity": { "type": "string", "minLength": 1 },
+    "target": {
+      "type": "object",
+      "required": ["projectIdentity", "databaseIdentity"],
+      "properties": {
+        "projectIdentity": { "type": "string", "minLength": 1 },
+        "databaseIdentity": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "expectedPredecessorLedgerIdentity": { "type": "object" },
+    "migrations": { "type": "array", "minItems": 4, "maxItems": 4 },
+    "executorReleaseIdentity": { "type": "string", "minLength": 1 },
+    "parserIdentity": { "type": "string", "minLength": 1 },
+    "verifierIdentities": { "type": "object" },
+    "stageOrder": { "type": "array", "minItems": 4, "maxItems": 4 },
+    "recoveryPolicy": { "type": "object" },
+    "timeoutLockPolicy": { "type": "object" },
+    "manifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "additionalProperties": false
+}

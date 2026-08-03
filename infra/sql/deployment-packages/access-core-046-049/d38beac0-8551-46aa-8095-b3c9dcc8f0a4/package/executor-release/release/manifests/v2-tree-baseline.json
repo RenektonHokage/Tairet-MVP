@@ -1,0 +1,1399 @@
+{
+  "fileCount": 278,
+  "files": [
+    {
+      "path": "development-evidence/cleanup/cleanup-result.json",
+      "sha256": "1ebfca4ec61b438f271e91a930075711a161e96cca006643e47d3c587b06b2ce",
+      "size": 4355
+    },
+    {
+      "path": "development-evidence/development-release-manifest.json",
+      "sha256": "77d6d800f005814c171cf47babcaf7049fd246bf1e67c5bd0358e42f886975da",
+      "size": 16577
+    },
+    {
+      "path": "development-evidence/development-suite-result.json",
+      "sha256": "ce49e1849885b868cf68143a0eeeddcd439780a30049306b4c15053aa556862d",
+      "size": 227
+    },
+    {
+      "path": "development-evidence/docker/docker-suite-development.json",
+      "sha256": "903baa7086439bda0d6d73a94e7588a23d58d8a074cb721a6ef64c2693433775",
+      "size": 988
+    },
+    {
+      "path": "development-evidence/final-environment/final-environment-contract-result.json",
+      "sha256": "2049968e6bf80c073cd97d716ad5cb4972a0fc36147b463f4708f49da836d5e7",
+      "size": 4104
+    },
+    {
+      "path": "development-evidence/integration/atomicity-test-manifest.json",
+      "sha256": "7aecb7ca9ba751925652f0d299c56ba1f79e0dab873868b1d2f72ac9adecb0e1",
+      "size": 546187
+    },
+    {
+      "path": "development-evidence/mutations/semantic-mutation-manifest.json",
+      "sha256": "ea22bde15d8f43481bf9005204e41b7c1e92b0e637eb65cc96e7b22f3614f3c7",
+      "size": 23902
+    },
+    {
+      "path": "development-evidence/path-contract/path-contract-result.json",
+      "sha256": "5122196dce52388e2f120c5795952ea98143b98c66d45a18de5408b57f15e515",
+      "size": 2364
+    },
+    {
+      "path": "development-evidence/static/parser-test-manifest.json",
+      "sha256": "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f",
+      "size": 3298
+    },
+    {
+      "path": "development-evidence/static/recovery-test-manifest.json",
+      "sha256": "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c",
+      "size": 915
+    },
+    {
+      "path": "development-evidence/static/static-result.json",
+      "sha256": "540ec54f83b3f2afa3c96a9b4418600d81ef755829cb63f1fd113f451a029d32",
+      "size": 5344
+    },
+    {
+      "path": "docker-inventories/development-post.json",
+      "sha256": "b5054d1bd19500da376e2833a19fd6ff14b980067d1e6241eb10182087c3c0aa",
+      "size": 5965
+    },
+    {
+      "path": "docker-inventories/development-pre.json",
+      "sha256": "2de92e83983948107ae9dcbe96aa9ae5a560e8c5cb5641fcfcdb1e7468d56bd9",
+      "size": 5964
+    },
+    {
+      "path": "docker-inventories/final-post.json",
+      "sha256": "5ed583ec11cfc223d6791cca136fc6aa068d25862fc8522637e91165f43f8840",
+      "size": 5959
+    },
+    {
+      "path": "docker-inventories/final-pre.json",
+      "sha256": "3b6a040b258dbafaa21f143890aadaf4109edb06088c3429a52326b8838218f9",
+      "size": 5958
+    },
+    {
+      "path": "editable-source/package.json",
+      "sha256": "cb0ee43aa0cccc93ce1b7348125d6f14a507901399c1cf4ac568fcda3b9bc132",
+      "size": 484
+    },
+    {
+      "path": "editable-source/src/db/protocol-client.js",
+      "sha256": "aa72ca8875e052a449d0408be2e04dadc118ab826c17feed8d3043465a038855",
+      "size": 7991
+    },
+    {
+      "path": "editable-source/src/db/scram.js",
+      "sha256": "ddcea7e7f394ccf2a4b6e671ec0f89b60c02a9192aaccc4bc4f9e81650786058",
+      "size": 3257
+    },
+    {
+      "path": "editable-source/src/envelope/validator.js",
+      "sha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+      "size": 2040
+    },
+    {
+      "path": "editable-source/src/executor/atomic-stage.js",
+      "sha256": "84b9af6f9214dfebcd5fe079cdc1fcef35d3ec8189eed76c7bc0f61b705dad32",
+      "size": 15834
+    },
+    {
+      "path": "editable-source/src/executor/invariant-guard.js",
+      "sha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+      "size": 2327
+    },
+    {
+      "path": "editable-source/src/hash/canonical.js",
+      "sha256": "2cc062e0d6ef40d32c65d90e1cd8d9f28d94fb9227b85c851178d87ba0c0d38e",
+      "size": 797
+    },
+    {
+      "path": "editable-source/src/identity/model.js",
+      "sha256": "b645238b51e47b0445661118edb08a0e66de39a995708511de2d4ebfa122fcb4",
+      "size": 3662
+    },
+    {
+      "path": "editable-source/src/identity/release.js",
+      "sha256": "863b7d4382f1910fb09b458d56696dbbe3b093032f2f26bc9fc3dd630b1bca9b",
+      "size": 1953
+    },
+    {
+      "path": "editable-source/src/manifest/deployment-manifest.schema.json",
+      "sha256": "2fbe91e9468f59fc071f8eb711eea2549658692f7b779dc6ba728a143645ccd3",
+      "size": 1796
+    },
+    {
+      "path": "editable-source/src/manifest/validator.js",
+      "sha256": "4d2ddfb64d664999ecafdb673315a084e6dcbb8ff08edc58bf0df2bae86f5646",
+      "size": 5492
+    },
+    {
+      "path": "editable-source/src/parser/statementScanner.js",
+      "sha256": "26e70cc879c3ef91884c8d7af6eff3101727a421600c4bff5b3b3ac8d2759717",
+      "size": 7140
+    },
+    {
+      "path": "editable-source/src/path/authority.js",
+      "sha256": "9ebfcc3a79e48be25883688c7f6b5fe2f4e616c64f5ed288aa5086785ff75cd1",
+      "size": 7032
+    },
+    {
+      "path": "editable-source/src/path/mutation-workspace.js",
+      "sha256": "119ba36b5c276fbae2480abc65b308fc0d0121cb944ea20d820acf90f36fa5d2",
+      "size": 7010
+    },
+    {
+      "path": "editable-source/src/recovery/classifier.js",
+      "sha256": "26e744c89b5967953590c9c8db5456363b78fafb03d290af41f56f6a2aee0a4c",
+      "size": 1592
+    },
+    {
+      "path": "editable-source/src/verifiers/in-transaction.js",
+      "sha256": "30bd5a7096f1c63b42360214a6042f06833a6606a8f1e7f5970b29955acd5b9d",
+      "size": 259
+    },
+    {
+      "path": "editable-source/src/verifiers/material.js",
+      "sha256": "e1ce9f34cbcf140ed45650a08f6f3bde43b6bbb2076f45e1032aa1bcae09c329",
+      "size": 8264
+    },
+    {
+      "path": "editable-source/src/verifiers/post-commit.js",
+      "sha256": "986cb7619a41940318acbc3770a0e3eef6be14cfb81917fea8bc13815524ee40",
+      "size": 1265
+    },
+    {
+      "path": "editable-source/tests/cleanup-suite.js",
+      "sha256": "38b64ee3089f4ec8453c1d23678a77e1f6635687bc84850e2c4cfc23912009d8",
+      "size": 10548
+    },
+    {
+      "path": "editable-source/tests/global-gate-suite.js",
+      "sha256": "fdc33289797a0b5465a872998f065cb24987a2a7e5dcd0a19145e767510ef0d4",
+      "size": 7148
+    },
+    {
+      "path": "editable-source/tests/integration-suite.js",
+      "sha256": "6eced7304720321ed413bf8efece91c0c1308c8dbe1a50170c958dbc53fc52d3",
+      "size": 14198
+    },
+    {
+      "path": "editable-source/tests/mutation-suite.js",
+      "sha256": "4d227bf5e37d07d64c4c47dde7db0b9d5011516d651625e9aca8f32a9ada3fd8",
+      "size": 16524
+    },
+    {
+      "path": "editable-source/tests/path-contract-suite.js",
+      "sha256": "006624a903697fb5dd9f8c98b4cce7286985cd817cae81062c0d0d2940d87806",
+      "size": 10243
+    },
+    {
+      "path": "editable-source/tests/static-suite.js",
+      "sha256": "cfc014844ed2976733852135876ee078788afe50bdfdea5ed547da8bc6684c04",
+      "size": 10408
+    },
+    {
+      "path": "editable-source/tools/build-development-v2.js",
+      "sha256": "6909ff0862bbe12ee090709b66abeabae49a63883c4d08e3033bc0db1cb1a6e6",
+      "size": 9654
+    },
+    {
+      "path": "editable-source/tools/build-development.js",
+      "sha256": "6909ff0862bbe12ee090709b66abeabae49a63883c4d08e3033bc0db1cb1a6e6",
+      "size": 9654
+    },
+    {
+      "path": "editable-source/tools/build-reuse-manifest.js",
+      "sha256": "d1c7845387256012a19753815b66dbd22d97432c96bf6e890a4a162d2428b124",
+      "size": 4913
+    },
+    {
+      "path": "editable-source/tools/capture-runtime-inventory.ps1",
+      "sha256": "6b2e78b2e2cb8c755566fca2be618f18cfb83cb7c24ffbc2ac7c179690ff9df5",
+      "size": 2965
+    },
+    {
+      "path": "editable-source/tools/finalize-evidence-v2.js",
+      "sha256": "af3046b54776f1fa640f13f29c6601fca4073e9033909af4f0d685227cefd743",
+      "size": 15043
+    },
+    {
+      "path": "editable-source/tools/finalize-evidence.js",
+      "sha256": "af3046b54776f1fa640f13f29c6601fca4073e9033909af4f0d685227cefd743",
+      "size": 15043
+    },
+    {
+      "path": "editable-source/tools/freeze-release-v2.js",
+      "sha256": "deb54f15590ac108123eb215eb224d888eeaba5cfe96bd19b2508563daa2c04c",
+      "size": 13747
+    },
+    {
+      "path": "editable-source/tools/freeze-release.js",
+      "sha256": "deb54f15590ac108123eb215eb224d888eeaba5cfe96bd19b2508563daa2c04c",
+      "size": 13747
+    },
+    {
+      "path": "editable-source/tools/preflight-final-environment.js",
+      "sha256": "f700025f35cb925b07437eebcf93e59484c57cdbb8aac730d868ad353d268838",
+      "size": 5558
+    },
+    {
+      "path": "editable-source/tools/run-development-suite.ps1",
+      "sha256": "cfa9509cfc8d150a575240353c34786ff05cdb0d54af089f3c0b695fedfc6c9b",
+      "size": 3615
+    },
+    {
+      "path": "editable-source/tools/run-docker-suite-v2.ps1",
+      "sha256": "1f4afc84fc61c8c110e7a18a7287893d6525a83b7025126d53be94d293eb6d74",
+      "size": 8767
+    },
+    {
+      "path": "editable-source/tools/run-docker-suite.ps1",
+      "sha256": "1f4afc84fc61c8c110e7a18a7287893d6525a83b7025126d53be94d293eb6d74",
+      "size": 8767
+    },
+    {
+      "path": "editable-source/tools/run-final-suite-v2.ps1",
+      "sha256": "41c4fec17e237aeb23bcbe4c10a5dbb6ec47df761e8c3a1a64fe9f0069f8d4ca",
+      "size": 5644
+    },
+    {
+      "path": "editable-source/tools/run-final-suite.ps1",
+      "sha256": "41c4fec17e237aeb23bcbe4c10a5dbb6ec47df761e8c3a1a64fe9f0069f8d4ca",
+      "size": 5644
+    },
+    {
+      "path": "final-evidence/artifact-hash-manifest.json",
+      "sha256": "0f3e00a85b03c44472e49cf4ae2031a6b2a1dc1be28170e1914a6f09bc250120",
+      "size": 2584
+    },
+    {
+      "path": "final-evidence/atomicity-result.json",
+      "sha256": "4fa2b553b1d9583b2c6a36e0a669f8376675f4788777e773bb8082937dce8fad",
+      "size": 546176
+    },
+    {
+      "path": "final-evidence/cleanup/cleanup-result.json",
+      "sha256": "54a52d556ec379d69f885fb045dd35f9d8c15872cb27e8f5026e841cc3b6b13b",
+      "size": 4369
+    },
+    {
+      "path": "final-evidence/cleanup-result.json",
+      "sha256": "54a52d556ec379d69f885fb045dd35f9d8c15872cb27e8f5026e841cc3b6b13b",
+      "size": 4369
+    },
+    {
+      "path": "final-evidence/detailed-report.md",
+      "sha256": "50faad0a0c4314dc8336bd211b146fe3e1a3843eb5ebd68d8115d8177617cb84",
+      "size": 1485
+    },
+    {
+      "path": "final-evidence/docker/docker-suite-final.json",
+      "sha256": "a3ce65817b28bdde515d40b5fb44cf512f23e7438089b53e5f23cc4c95a51528",
+      "size": 978
+    },
+    {
+      "path": "final-evidence/evidence-manifest.json",
+      "sha256": "4d238810647fe73848fbf4122b40472f48e060616dc54b02675464e92cd5cd4c",
+      "size": 2453
+    },
+    {
+      "path": "final-evidence/failure-root-cause-report.json",
+      "sha256": "ed36db8c49c306b5c432c5c49b7558a259d7d0c1c3275e8715545b9c87602b89",
+      "size": 832
+    },
+    {
+      "path": "final-evidence/final-execution-started.json",
+      "sha256": "2818fcd225b12d88e94a3202464de8089cd07a55010e117a39f96be11c5593b1",
+      "size": 227
+    },
+    {
+      "path": "final-evidence/final-suite-result.json",
+      "sha256": "791bece601bae4d8fd1c2f99b718787c5423474ee07ef4bc122e8ee79ba0f0df",
+      "size": 1659
+    },
+    {
+      "path": "final-evidence/finalizer-result.json",
+      "sha256": "5d38a0440b2d3f6229a2acafa5ac70ead6a71973c967684e513ceed47771e1a1",
+      "size": 160
+    },
+    {
+      "path": "final-evidence/frozen-release-manifest.json",
+      "sha256": "acda190972704085ccf65b4229fbce4f60618919831b2f930c4116c9cddc3234",
+      "size": 22950
+    },
+    {
+      "path": "final-evidence/global-gate-result.json",
+      "sha256": "81346a27d5152f90edf878d522c01e552503a89b2279f53dda471dd39a00921c",
+      "size": 3079
+    },
+    {
+      "path": "final-evidence/integration/atomicity-test-manifest.json",
+      "sha256": "4fa2b553b1d9583b2c6a36e0a669f8376675f4788777e773bb8082937dce8fad",
+      "size": 546176
+    },
+    {
+      "path": "final-evidence/mutations/semantic-mutation-manifest.json",
+      "sha256": "aa6f51f160ffa7252d9e235c92da40f7c5b40132c6836e9f651ed64817572b3f",
+      "size": 23860
+    },
+    {
+      "path": "final-evidence/parser-result.json",
+      "sha256": "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f",
+      "size": 3298
+    },
+    {
+      "path": "final-evidence/path-contract/path-contract-result.json",
+      "sha256": "a4d8d449d6bb9c82a3b36d0e4c76ad33e2a568703d46655646e577598f4bc71b",
+      "size": 2364
+    },
+    {
+      "path": "final-evidence/path-contract-result.json",
+      "sha256": "a4d8d449d6bb9c82a3b36d0e4c76ad33e2a568703d46655646e577598f4bc71b",
+      "size": 2364
+    },
+    {
+      "path": "final-evidence/recovery-result.json",
+      "sha256": "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c",
+      "size": 915
+    },
+    {
+      "path": "final-evidence/semantic-mutation-result.json",
+      "sha256": "aa6f51f160ffa7252d9e235c92da40f7c5b40132c6836e9f651ed64817572b3f",
+      "size": 23860
+    },
+    {
+      "path": "final-evidence/static/parser-test-manifest.json",
+      "sha256": "1e3eae01a69eecb42a11eb3a8d2da3bc08d335404c291e8a4758c2a5288bc21f",
+      "size": 3298
+    },
+    {
+      "path": "final-evidence/static/recovery-test-manifest.json",
+      "sha256": "f993fd4c84b4da4dc91d14f4df05dcbf606ccb7f56e458366d493166118d3f5c",
+      "size": 915
+    },
+    {
+      "path": "final-evidence/static/static-result.json",
+      "sha256": "540ec54f83b3f2afa3c96a9b4418600d81ef755829cb63f1fd113f451a029d32",
+      "size": 5344
+    },
+    {
+      "path": "final-evidence/structured-result.json",
+      "sha256": "18b717ddea01ad523e87e5b39fd787c91a8d11cdd6351e3f592c1c27d3b1a3cb",
+      "size": 20430
+    },
+    {
+      "path": "fixtures/approved-predecessor/000_bootstrap.sql",
+      "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+      "size": 1169
+    },
+    {
+      "path": "fixtures/approved-predecessor/037_material_checkout_routine.sql",
+      "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+      "size": 16065
+    },
+    {
+      "path": "fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+      "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+      "size": 12558
+    },
+    {
+      "path": "fixtures/approved-predecessor/999_finalize.sql",
+      "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+      "size": 1440
+    },
+    {
+      "path": "fixtures/approved-predecessor/apply-order.txt",
+      "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+      "size": 126
+    },
+    {
+      "path": "fixtures/approved-predecessor/five_source_relations.sql",
+      "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+      "size": 27423
+    },
+    {
+      "path": "fixtures/integration/independent-stage-contract.json",
+      "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+      "size": 2844
+    },
+    {
+      "path": "fixtures/integration/ledger-fixture.sql",
+      "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+      "size": 406
+    },
+    {
+      "path": "fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+      "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+      "size": 3832
+    },
+    {
+      "path": "fixtures/parser-adversarial/cases.json",
+      "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+      "size": 1525
+    },
+    {
+      "path": "frozen-release/freeze-record.json",
+      "sha256": "55cb80711bc52d7ae81b2c22edefd51dc253d01dabf5e9e92f4978459af4d0f9",
+      "size": 2172
+    },
+    {
+      "path": "frozen-release/release/editable-source/package.json",
+      "sha256": "cb0ee43aa0cccc93ce1b7348125d6f14a507901399c1cf4ac568fcda3b9bc132",
+      "size": 484
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/db/protocol-client.js",
+      "sha256": "aa72ca8875e052a449d0408be2e04dadc118ab826c17feed8d3043465a038855",
+      "size": 7991
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/db/scram.js",
+      "sha256": "ddcea7e7f394ccf2a4b6e671ec0f89b60c02a9192aaccc4bc4f9e81650786058",
+      "size": 3257
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/envelope/validator.js",
+      "sha256": "36bcc3bea4900a3fbae6d2a2f5f5317ffad9da44ffdd719c6e362d4e09b05661",
+      "size": 2040
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/executor/atomic-stage.js",
+      "sha256": "84b9af6f9214dfebcd5fe079cdc1fcef35d3ec8189eed76c7bc0f61b705dad32",
+      "size": 15834
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/executor/invariant-guard.js",
+      "sha256": "8bfcb1723f46563702339cac1e8b329c69457c55818f3fa1070459d69a0e11d7",
+      "size": 2327
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/hash/canonical.js",
+      "sha256": "2cc062e0d6ef40d32c65d90e1cd8d9f28d94fb9227b85c851178d87ba0c0d38e",
+      "size": 797
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/identity/model.js",
+      "sha256": "b645238b51e47b0445661118edb08a0e66de39a995708511de2d4ebfa122fcb4",
+      "size": 3662
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/identity/release.js",
+      "sha256": "863b7d4382f1910fb09b458d56696dbbe3b093032f2f26bc9fc3dd630b1bca9b",
+      "size": 1953
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/manifest/deployment-manifest.schema.json",
+      "sha256": "2fbe91e9468f59fc071f8eb711eea2549658692f7b779dc6ba728a143645ccd3",
+      "size": 1796
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/manifest/validator.js",
+      "sha256": "4d2ddfb64d664999ecafdb673315a084e6dcbb8ff08edc58bf0df2bae86f5646",
+      "size": 5492
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/parser/statementScanner.js",
+      "sha256": "26e70cc879c3ef91884c8d7af6eff3101727a421600c4bff5b3b3ac8d2759717",
+      "size": 7140
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/path/authority.js",
+      "sha256": "9ebfcc3a79e48be25883688c7f6b5fe2f4e616c64f5ed288aa5086785ff75cd1",
+      "size": 7032
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/path/mutation-workspace.js",
+      "sha256": "119ba36b5c276fbae2480abc65b308fc0d0121cb944ea20d820acf90f36fa5d2",
+      "size": 7010
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/recovery/classifier.js",
+      "sha256": "26e744c89b5967953590c9c8db5456363b78fafb03d290af41f56f6a2aee0a4c",
+      "size": 1592
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/verifiers/in-transaction.js",
+      "sha256": "30bd5a7096f1c63b42360214a6042f06833a6606a8f1e7f5970b29955acd5b9d",
+      "size": 259
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/verifiers/material.js",
+      "sha256": "e1ce9f34cbcf140ed45650a08f6f3bde43b6bbb2076f45e1032aa1bcae09c329",
+      "size": 8264
+    },
+    {
+      "path": "frozen-release/release/editable-source/src/verifiers/post-commit.js",
+      "sha256": "986cb7619a41940318acbc3770a0e3eef6be14cfb81917fea8bc13815524ee40",
+      "size": 1265
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/cleanup-suite.js",
+      "sha256": "38b64ee3089f4ec8453c1d23678a77e1f6635687bc84850e2c4cfc23912009d8",
+      "size": 10548
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/global-gate-suite.js",
+      "sha256": "fdc33289797a0b5465a872998f065cb24987a2a7e5dcd0a19145e767510ef0d4",
+      "size": 7148
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/integration-suite.js",
+      "sha256": "6eced7304720321ed413bf8efece91c0c1308c8dbe1a50170c958dbc53fc52d3",
+      "size": 14198
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/mutation-suite.js",
+      "sha256": "4d227bf5e37d07d64c4c47dde7db0b9d5011516d651625e9aca8f32a9ada3fd8",
+      "size": 16524
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/path-contract-suite.js",
+      "sha256": "006624a903697fb5dd9f8c98b4cce7286985cd817cae81062c0d0d2940d87806",
+      "size": 10243
+    },
+    {
+      "path": "frozen-release/release/editable-source/tests/static-suite.js",
+      "sha256": "cfc014844ed2976733852135876ee078788afe50bdfdea5ed547da8bc6684c04",
+      "size": 10408
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/build-development-v2.js",
+      "sha256": "6909ff0862bbe12ee090709b66abeabae49a63883c4d08e3033bc0db1cb1a6e6",
+      "size": 9654
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/build-development.js",
+      "sha256": "6909ff0862bbe12ee090709b66abeabae49a63883c4d08e3033bc0db1cb1a6e6",
+      "size": 9654
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/build-reuse-manifest.js",
+      "sha256": "d1c7845387256012a19753815b66dbd22d97432c96bf6e890a4a162d2428b124",
+      "size": 4913
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/capture-runtime-inventory.ps1",
+      "sha256": "6b2e78b2e2cb8c755566fca2be618f18cfb83cb7c24ffbc2ac7c179690ff9df5",
+      "size": 2965
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/finalize-evidence-v2.js",
+      "sha256": "af3046b54776f1fa640f13f29c6601fca4073e9033909af4f0d685227cefd743",
+      "size": 15043
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/finalize-evidence.js",
+      "sha256": "af3046b54776f1fa640f13f29c6601fca4073e9033909af4f0d685227cefd743",
+      "size": 15043
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/freeze-release-v2.js",
+      "sha256": "deb54f15590ac108123eb215eb224d888eeaba5cfe96bd19b2508563daa2c04c",
+      "size": 13747
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/freeze-release.js",
+      "sha256": "deb54f15590ac108123eb215eb224d888eeaba5cfe96bd19b2508563daa2c04c",
+      "size": 13747
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/preflight-final-environment.js",
+      "sha256": "f700025f35cb925b07437eebcf93e59484c57cdbb8aac730d868ad353d268838",
+      "size": 5558
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/run-development-suite.ps1",
+      "sha256": "cfa9509cfc8d150a575240353c34786ff05cdb0d54af089f3c0b695fedfc6c9b",
+      "size": 3615
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/run-docker-suite-v2.ps1",
+      "sha256": "1f4afc84fc61c8c110e7a18a7287893d6525a83b7025126d53be94d293eb6d74",
+      "size": 8767
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/run-docker-suite.ps1",
+      "sha256": "1f4afc84fc61c8c110e7a18a7287893d6525a83b7025126d53be94d293eb6d74",
+      "size": 8767
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/run-final-suite-v2.ps1",
+      "sha256": "41c4fec17e237aeb23bcbe4c10a5dbb6ec47df761e8c3a1a64fe9f0069f8d4ca",
+      "size": 5644
+    },
+    {
+      "path": "frozen-release/release/editable-source/tools/run-final-suite.ps1",
+      "sha256": "41c4fec17e237aeb23bcbe4c10a5dbb6ec47df761e8c3a1a64fe9f0069f8d4ca",
+      "size": 5644
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/000_bootstrap.sql",
+      "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+      "size": 1169
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/037_material_checkout_routine.sql",
+      "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+      "size": 16065
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+      "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+      "size": 12558
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/999_finalize.sql",
+      "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+      "size": 1440
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/apply-order.txt",
+      "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+      "size": 126
+    },
+    {
+      "path": "frozen-release/release/fixtures/approved-predecessor/five_source_relations.sql",
+      "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+      "size": 27423
+    },
+    {
+      "path": "frozen-release/release/fixtures/integration/independent-stage-contract.json",
+      "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+      "size": 2844
+    },
+    {
+      "path": "frozen-release/release/fixtures/integration/ledger-fixture.sql",
+      "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+      "size": 406
+    },
+    {
+      "path": "frozen-release/release/fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+      "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+      "size": 3832
+    },
+    {
+      "path": "frozen-release/release/fixtures/parser-adversarial/cases.json",
+      "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+      "size": 1525
+    },
+    {
+      "path": "frozen-release/release/frozen-release-manifest.json",
+      "sha256": "acda190972704085ccf65b4229fbce4f60618919831b2f930c4116c9cddc3234",
+      "size": 22950
+    },
+    {
+      "path": "frozen-release/release/manifests/authorized-input-integrity.json",
+      "sha256": "e37aa3ebf014232daebbfa3f2ebb36d8c7320d049a90a6e2d5aea7eb68fa6f41",
+      "size": 17302
+    },
+    {
+      "path": "frozen-release/release/manifests/executor-v1-final-failure-forensics.json",
+      "sha256": "b1b78f0a8a59ea4804a4704714af43432585589b7a6b609e5d7192b160082223",
+      "size": 9552
+    },
+    {
+      "path": "frozen-release/release/manifests/executor-v2-identity-model.json",
+      "sha256": "8f2016a88e10a56c91848e2ee9b637d38bd4269394f25391ccea97ae9f58153a",
+      "size": 20242
+    },
+    {
+      "path": "frozen-release/release/manifests/final-environment-contract.json",
+      "sha256": "2049968e6bf80c073cd97d716ad5cb4972a0fc36147b463f4708f49da836d5e7",
+      "size": 4104
+    },
+    {
+      "path": "frozen-release/release/manifests/final-suite-contract.json",
+      "sha256": "2b3dfb631ebc28d6408db3c2c397d6641c10f8fa5c0f5a960c5b86793966969e",
+      "size": 356
+    },
+    {
+      "path": "frozen-release/release/manifests/final-suite-orchestration-spec.json",
+      "sha256": "bde7ee94b00f54326ea1b3ded18ba81f57cfc288ee135816e92a61056bc30362",
+      "size": 887
+    },
+    {
+      "path": "frozen-release/release/manifests/local-executor-dependency-inventory.json",
+      "sha256": "faafc5dea7df80158296e7a4dc85840a884cc8d9702afbdce6299b1a605ad78e",
+      "size": 1489
+    },
+    {
+      "path": "frozen-release/release/manifests/path-authority-spec.json",
+      "sha256": "1eb4e7cb2e39414c8f6d319fb49a180434f126284c24d397ce0f54dd7ae91943",
+      "size": 1334
+    },
+    {
+      "path": "frozen-release/release/manifests/path-contract-test-matrix.json",
+      "sha256": "f067517fd6ced979ce876fe879e44a825cd68f07e6371028217b39cdf67d926f",
+      "size": 1056
+    },
+    {
+      "path": "frozen-release/release/manifests/production-manifest-template.json",
+      "sha256": "f3b55fc592f689e08e7e59cf4ab8ae8f624a202f668a3772c9fae4f9d1da72f8",
+      "size": 18015
+    },
+    {
+      "path": "frozen-release/release/manifests/reuse-and-change-manifest.json",
+      "sha256": "9190293bbfa9e10e56500baa00af8f47165584661d473c780e8bdfc03b4e9b6e",
+      "size": 8530
+    },
+    {
+      "path": "frozen-release/release/manifests/test-manifest.json",
+      "sha256": "52744ae185969dbe49584c1bd425aed616f2a702e1ce51959cdade8696ccfb4a",
+      "size": 316536
+    },
+    {
+      "path": "frozen-release/release/manifests/v1-tree-baseline.json",
+      "sha256": "5397acc0312f1c6353722c8f8488d849cee18be243bd641c9ec94d94f1c4b297",
+      "size": 35558
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/000_bootstrap.sql",
+      "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+      "size": 1169
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/037_material_checkout_routine.sql",
+      "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+      "size": 16065
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+      "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+      "size": 12558
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/999_finalize.sql",
+      "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+      "size": 1440
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/apply-order.txt",
+      "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+      "size": 126
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/approved-predecessor/five_source_relations.sql",
+      "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+      "size": 27423
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/integration/independent-stage-contract.json",
+      "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+      "size": 2844
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/integration/ledger-fixture.sql",
+      "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+      "size": 406
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+      "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+      "size": 3832
+    },
+    {
+      "path": "frozen-release/release/postgres-fixtures/parser-adversarial/cases.json",
+      "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+      "size": 1525
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/b.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/b.js",
+      "sha256": "a1024bdec7246a732be4713a3d3326258732971363ac234d4c1709fe54b48be1",
+      "size": 636
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/b.js.map",
+      "sha256": "7088732cf16dfe50f60a9e459171cec3d6bc6309483486fa2105d5f926d9ce85",
+      "size": 792
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-reader.d.ts",
+      "sha256": "ed0ab65d6257e36b916b18a497643a9b78de447e3a7af7c1f91e1474ccb8e943",
+      "size": 396
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-reader.js",
+      "sha256": "ee648594694b9fa7a65c6300bf316869a82711f225bf42daf84da15f528cd8f4",
+      "size": 1639
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-reader.js.map",
+      "sha256": "ff6ebc4854cc9a1b79fb22e0cb339a50875715f61c49751cbf5a42122b38e246",
+      "size": 1747
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-writer.d.ts",
+      "sha256": "ed359de1e527dedeed1ea1985b4db6e48f69c92f00083af8cce7ddb77b16ab12",
+      "size": 441
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-writer.js",
+      "sha256": "64a7904c3ff4e778d624426c2f78ab54c46df63091a75a41cfbc430a3c600ac8",
+      "size": 2772
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/buffer-writer.js.map",
+      "sha256": "bb956e31d4c0028d82d3b9b5cf66f5110fcf55d377042f54695fff36061f7778",
+      "size": 3087
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/inbound-parser.test.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/inbound-parser.test.js",
+      "sha256": "caa80515ef21dead1a985560664adc58687d616046a09f24004fdd318dd4ecd7",
+      "size": 19234
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/inbound-parser.test.js.map",
+      "sha256": "5590c9482277ce5d49cd5ceb8912da69408167f41fdb1a6b86eacafb73239722",
+      "size": 14688
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/index.d.ts",
+      "sha256": "0dfe35191a04e8f9dc7caeb9f52f2ee07402736563d12cbccd15fb5f31ac877f",
+      "size": 302
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/index.js",
+      "sha256": "b1af1a8b96887bb4df5611e3e648f2d753051ccc18d1d983ee6da83479f70971",
+      "size": 791
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/index.js.map",
+      "sha256": "c83132d7a1ded851de8eba034cb8ef9e483700ba54fcfa69bcc1d23c31d347ea",
+      "size": 522
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/messages.d.ts",
+      "sha256": "17230b34bb564a3a2e36f9d3985372ccab4ad1722df2c43f7c5c2b553f68e5db",
+      "size": 6103
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/messages.js",
+      "sha256": "dfd22ad639f3030b41617ff0ee201ece7cdbce4adb7e1aae7978541b1384cd31",
+      "size": 4973
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/messages.js.map",
+      "sha256": "811fb02046104bfd60c5478bab3e491e8f9eb88602a17ca47f5ae69c72580dd9",
+      "size": 3383
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/outbound-serializer.test.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/outbound-serializer.test.js",
+      "sha256": "a6806571d41fa3f9bd1c557ff522e50b20b96596fbebe4614cea7c255cc7c01f",
+      "size": 11065
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/outbound-serializer.test.js.map",
+      "sha256": "39483226b60b19c0bf02d5b412542af869c38cc45c2a4fea88727d937ddda816",
+      "size": 10276
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/parser.d.ts",
+      "sha256": "9b4f7ff9681448c72abe38ea8eefd7ffe0c3aefe495137f02012a08801373f71",
+      "size": 1242
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/parser.js",
+      "sha256": "dff10e15ac457e6ba1c522489e69ee1bed5aa7f2f416df219c673c979a099b22",
+      "size": 13824
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/parser.js.map",
+      "sha256": "6142293319195fcb20cfb4472658a33c2be323c46a161ede5c7b978b7bc292e0",
+      "size": 11246
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/serializer.d.ts",
+      "sha256": "6e5c9272f6b3783be7bdddaf207cccdb8e033be3d14c5beacc03ae9d27d50929",
+      "size": 1273
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/serializer.js",
+      "sha256": "8ac7c902efc4a8221a08704cbe9e049367678ca6fccf2807dd34742117638efb",
+      "size": 6937
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/dist/serializer.js.map",
+      "sha256": "71e9cecd7cf42974947f1e0f315402b9bf5821e807b10a9a85f4180d869e039c",
+      "size": 7124
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/esm/index.js",
+      "sha256": "0f6c279f5e18cbc73dd3eab808e6eaa9621ddd3511197da2e67106fdd0b2b3b2",
+      "size": 325
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/LICENSE",
+      "sha256": "192b8f5c96900f04a1271dec39688655d7416c1c6ea84a508e18b50d2b6751f3",
+      "size": 1077
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/package.json",
+      "sha256": "dd7cbb1ddc3eb921ec0af4647f43b08f84f1de2938d5050c11cf5c2305988acb",
+      "size": 1102
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/README.md",
+      "sha256": "163df61eaa9f5337d5c0fcb3c0f15207f91a208dbd12ed26582bfc1e9bd59180",
+      "size": 150
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/b.ts",
+      "sha256": "eb585946649fd05e86397b77be4a9d00c225d2222cbc356d725afe11ea8ab265",
+      "size": 473
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/buffer-reader.ts",
+      "sha256": "80a39b189a5ff22d29ecbb1403829758fde0a15dd86711ddbe69ed94fb629f7d",
+      "size": 1440
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/buffer-writer.ts",
+      "sha256": "e8f350f8d8c21cae20fab518a7f2b0554685b04acc2a57ee1ad2c1db5b539409",
+      "size": 2503
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/inbound-parser.test.ts",
+      "sha256": "023229ef9ab845ef6bafaf96ebbb3b3fe25d00e9be3feed2d9eae33d5275a431",
+      "size": 15158
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/index.ts",
+      "sha256": "a7acc3e9fd87b531b93012b3d4d3af0cb1ec88bc4f29ba76b4af9d3d6dde927a",
+      "size": 443
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/messages.ts",
+      "sha256": "98ceb278f736325f847a0c8326aae46f2573f2a750b056d5061ae0d00714cd2d",
+      "size": 6458
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/outbound-serializer.test.ts",
+      "sha256": "2f99dbbb68b1624dd419c66f07740a7efd7be6366b480e44bce9e9808e3edf44",
+      "size": 8562
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/parser.ts",
+      "sha256": "c1f673d6950f6b2de4619410d4c77c77206d4069cef3808e8576fccc11417106",
+      "size": 13469
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/serializer.ts",
+      "sha256": "aa2dd58a140de1b6395a15a0d29060d33aab503a9e0c820faef62e8e38536a99",
+      "size": 7193
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/testing/buffer-list.ts",
+      "sha256": "01bce658cf7fbb2c03ebb4c3d7e729389d6b3c9edb3cbfc2e1864f2a76647a00",
+      "size": 1727
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/testing/test-buffers.ts",
+      "sha256": "556522ba2930a51c27b1ad945a6308f3a4d6b4f449a0f9d90e8bc631f9eb8536",
+      "size": 4360
+    },
+    {
+      "path": "frozen-release/release/vendor/pg-protocol/src/types/chunky.d.ts",
+      "sha256": "a184faa9f71c372f3c5ee7ba28fc96e852fbaa2460cffd5c5ad291bd31cbd50d",
+      "size": 24
+    },
+    {
+      "path": "manifests/authorized-input-integrity.json",
+      "sha256": "e37aa3ebf014232daebbfa3f2ebb36d8c7320d049a90a6e2d5aea7eb68fa6f41",
+      "size": 17302
+    },
+    {
+      "path": "manifests/development-test-manifest.json",
+      "sha256": "e7bb720e8627b11133ce38fd0c5731fe01cfbcc64c8e7412b5f135862631cda8",
+      "size": 316543
+    },
+    {
+      "path": "manifests/executor-v1-final-failure-forensics.json",
+      "sha256": "b1b78f0a8a59ea4804a4704714af43432585589b7a6b609e5d7192b160082223",
+      "size": 9552
+    },
+    {
+      "path": "manifests/executor-v2-identity-model.json",
+      "sha256": "9d04c13e39374153c58dbfe1fc57ff0a3fe0c3d6585f2b952b8e0146fd18393b",
+      "size": 20250
+    },
+    {
+      "path": "manifests/final-environment-contract.json",
+      "sha256": "2049968e6bf80c073cd97d716ad5cb4972a0fc36147b463f4708f49da836d5e7",
+      "size": 4104
+    },
+    {
+      "path": "manifests/final-suite-contract.json",
+      "sha256": "2b3dfb631ebc28d6408db3c2c397d6641c10f8fa5c0f5a960c5b86793966969e",
+      "size": 356
+    },
+    {
+      "path": "manifests/final-suite-orchestration-spec.json",
+      "sha256": "bde7ee94b00f54326ea1b3ded18ba81f57cfc288ee135816e92a61056bc30362",
+      "size": 887
+    },
+    {
+      "path": "manifests/local-executor-dependency-inventory.json",
+      "sha256": "68c57f6c370ccdd0cea6194eed9e495c0d87cf901aadf41fe3d0c1e95a5101d6",
+      "size": 1396
+    },
+    {
+      "path": "manifests/path-authority-spec.json",
+      "sha256": "1eb4e7cb2e39414c8f6d319fb49a180434f126284c24d397ce0f54dd7ae91943",
+      "size": 1334
+    },
+    {
+      "path": "manifests/path-contract-test-matrix.json",
+      "sha256": "f067517fd6ced979ce876fe879e44a825cd68f07e6371028217b39cdf67d926f",
+      "size": 1056
+    },
+    {
+      "path": "manifests/production-manifest-template.json",
+      "sha256": "f3b55fc592f689e08e7e59cf4ab8ae8f624a202f668a3772c9fae4f9d1da72f8",
+      "size": 18015
+    },
+    {
+      "path": "manifests/reuse-and-change-manifest.json",
+      "sha256": "9190293bbfa9e10e56500baa00af8f47165584661d473c780e8bdfc03b4e9b6e",
+      "size": 8530
+    },
+    {
+      "path": "manifests/v1-import/authorized-input-integrity.json",
+      "sha256": "156549a83604b1efdeffa3850f60f1147a3c6deeb60317d3ae015ff465939650",
+      "size": 17635
+    },
+    {
+      "path": "manifests/v1-import/executor-v1-identity-model.json",
+      "sha256": "e62ad741de4a442a298acff990560f261e5ff82ad4bf322498d39aee8ee0d44d",
+      "size": 20242
+    },
+    {
+      "path": "manifests/v1-import/local-executor-dependency-inventory.json",
+      "sha256": "0a75dac450444224c22ad559715d0ab2b05a2a00de99a83c3fe4c9d6903dbafe",
+      "size": 1013
+    },
+    {
+      "path": "manifests/v1-import/production-manifest-template.json",
+      "sha256": "f3b55fc592f689e08e7e59cf4ab8ae8f624a202f668a3772c9fae4f9d1da72f8",
+      "size": 18015
+    },
+    {
+      "path": "manifests/v1-import/test-manifest.json",
+      "sha256": "189026be47d9c7b6f69e621bfb7044a31147532943daed772904f2e2936351df",
+      "size": 316536
+    },
+    {
+      "path": "manifests/v1-tree-baseline.json",
+      "sha256": "5397acc0312f1c6353722c8f8488d849cee18be243bd641c9ec94d94f1c4b297",
+      "size": 35558
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/000_bootstrap.sql",
+      "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+      "size": 1169
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/037_material_checkout_routine.sql",
+      "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+      "size": 16065
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/045_exact_checkin_routines.sql",
+      "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+      "size": 12558
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/999_finalize.sql",
+      "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+      "size": 1440
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/apply-order.txt",
+      "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+      "size": 126
+    },
+    {
+      "path": "postgres-fixtures/approved-predecessor/five_source_relations.sql",
+      "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+      "size": 27423
+    },
+    {
+      "path": "postgres-fixtures/integration/independent-stage-contract.json",
+      "sha256": "a0a633ea2e874a14dfe79a4ee57b6d4319cf8018ee37a7743589b838217d72ad",
+      "size": 2844
+    },
+    {
+      "path": "postgres-fixtures/integration/ledger-fixture.sql",
+      "sha256": "07e2a28195998acd0191bf4748f8607735626173a344f81384d2df7adc15eab8",
+      "size": 406
+    },
+    {
+      "path": "postgres-fixtures/integration/synthetic-predecessor-slice-manifest-v2.json",
+      "sha256": "a050646370452dd4397444e183705ee25db483caf5de860e7cf18609955cacbc",
+      "size": 3832
+    },
+    {
+      "path": "postgres-fixtures/parser-adversarial/cases.json",
+      "sha256": "85c2ae00abe0108744090e8e1977ec34bacd66cdc57a6ee2359283e17e49d99d",
+      "size": 1525
+    },
+    {
+      "path": "process-inventories/development-post.json",
+      "sha256": "c8b0cb55ddfaf34d0cf746a3c7d16a0e148e95b7a1e43427504015da670ee92f",
+      "size": 148
+    },
+    {
+      "path": "process-inventories/development-pre.json",
+      "sha256": "3bae326a1d143124e8d438f00ab95f0c1d7ad481510565055d258f16281b6f14",
+      "size": 147
+    },
+    {
+      "path": "process-inventories/final-post.json",
+      "sha256": "9b05dbae9596b609858c61628c273aa7ce70dad871fe35b45b4c350acae95d06",
+      "size": 142
+    },
+    {
+      "path": "process-inventories/final-pre.json",
+      "sha256": "54da41382aadf145acac970a7e5ece18bddbe08e98533dfb9999166c70fc677b",
+      "size": 141
+    },
+    {
+      "path": "vendor/pg-protocol/dist/b.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "vendor/pg-protocol/dist/b.js",
+      "sha256": "a1024bdec7246a732be4713a3d3326258732971363ac234d4c1709fe54b48be1",
+      "size": 636
+    },
+    {
+      "path": "vendor/pg-protocol/dist/b.js.map",
+      "sha256": "7088732cf16dfe50f60a9e459171cec3d6bc6309483486fa2105d5f926d9ce85",
+      "size": 792
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-reader.d.ts",
+      "sha256": "ed0ab65d6257e36b916b18a497643a9b78de447e3a7af7c1f91e1474ccb8e943",
+      "size": 396
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-reader.js",
+      "sha256": "ee648594694b9fa7a65c6300bf316869a82711f225bf42daf84da15f528cd8f4",
+      "size": 1639
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-reader.js.map",
+      "sha256": "ff6ebc4854cc9a1b79fb22e0cb339a50875715f61c49751cbf5a42122b38e246",
+      "size": 1747
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-writer.d.ts",
+      "sha256": "ed359de1e527dedeed1ea1985b4db6e48f69c92f00083af8cce7ddb77b16ab12",
+      "size": 441
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-writer.js",
+      "sha256": "64a7904c3ff4e778d624426c2f78ab54c46df63091a75a41cfbc430a3c600ac8",
+      "size": 2772
+    },
+    {
+      "path": "vendor/pg-protocol/dist/buffer-writer.js.map",
+      "sha256": "bb956e31d4c0028d82d3b9b5cf66f5110fcf55d377042f54695fff36061f7778",
+      "size": 3087
+    },
+    {
+      "path": "vendor/pg-protocol/dist/inbound-parser.test.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "vendor/pg-protocol/dist/inbound-parser.test.js",
+      "sha256": "caa80515ef21dead1a985560664adc58687d616046a09f24004fdd318dd4ecd7",
+      "size": 19234
+    },
+    {
+      "path": "vendor/pg-protocol/dist/inbound-parser.test.js.map",
+      "sha256": "5590c9482277ce5d49cd5ceb8912da69408167f41fdb1a6b86eacafb73239722",
+      "size": 14688
+    },
+    {
+      "path": "vendor/pg-protocol/dist/index.d.ts",
+      "sha256": "0dfe35191a04e8f9dc7caeb9f52f2ee07402736563d12cbccd15fb5f31ac877f",
+      "size": 302
+    },
+    {
+      "path": "vendor/pg-protocol/dist/index.js",
+      "sha256": "b1af1a8b96887bb4df5611e3e648f2d753051ccc18d1d983ee6da83479f70971",
+      "size": 791
+    },
+    {
+      "path": "vendor/pg-protocol/dist/index.js.map",
+      "sha256": "c83132d7a1ded851de8eba034cb8ef9e483700ba54fcfa69bcc1d23c31d347ea",
+      "size": 522
+    },
+    {
+      "path": "vendor/pg-protocol/dist/messages.d.ts",
+      "sha256": "17230b34bb564a3a2e36f9d3985372ccab4ad1722df2c43f7c5c2b553f68e5db",
+      "size": 6103
+    },
+    {
+      "path": "vendor/pg-protocol/dist/messages.js",
+      "sha256": "dfd22ad639f3030b41617ff0ee201ece7cdbce4adb7e1aae7978541b1384cd31",
+      "size": 4973
+    },
+    {
+      "path": "vendor/pg-protocol/dist/messages.js.map",
+      "sha256": "811fb02046104bfd60c5478bab3e491e8f9eb88602a17ca47f5ae69c72580dd9",
+      "size": 3383
+    },
+    {
+      "path": "vendor/pg-protocol/dist/outbound-serializer.test.d.ts",
+      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+      "size": 11
+    },
+    {
+      "path": "vendor/pg-protocol/dist/outbound-serializer.test.js",
+      "sha256": "a6806571d41fa3f9bd1c557ff522e50b20b96596fbebe4614cea7c255cc7c01f",
+      "size": 11065
+    },
+    {
+      "path": "vendor/pg-protocol/dist/outbound-serializer.test.js.map",
+      "sha256": "39483226b60b19c0bf02d5b412542af869c38cc45c2a4fea88727d937ddda816",
+      "size": 10276
+    },
+    {
+      "path": "vendor/pg-protocol/dist/parser.d.ts",
+      "sha256": "9b4f7ff9681448c72abe38ea8eefd7ffe0c3aefe495137f02012a08801373f71",
+      "size": 1242
+    },
+    {
+      "path": "vendor/pg-protocol/dist/parser.js",
+      "sha256": "dff10e15ac457e6ba1c522489e69ee1bed5aa7f2f416df219c673c979a099b22",
+      "size": 13824
+    },
+    {
+      "path": "vendor/pg-protocol/dist/parser.js.map",
+      "sha256": "6142293319195fcb20cfb4472658a33c2be323c46a161ede5c7b978b7bc292e0",
+      "size": 11246
+    },
+    {
+      "path": "vendor/pg-protocol/dist/serializer.d.ts",
+      "sha256": "6e5c9272f6b3783be7bdddaf207cccdb8e033be3d14c5beacc03ae9d27d50929",
+      "size": 1273
+    },
+    {
+      "path": "vendor/pg-protocol/dist/serializer.js",
+      "sha256": "8ac7c902efc4a8221a08704cbe9e049367678ca6fccf2807dd34742117638efb",
+      "size": 6937
+    },
+    {
+      "path": "vendor/pg-protocol/dist/serializer.js.map",
+      "sha256": "71e9cecd7cf42974947f1e0f315402b9bf5821e807b10a9a85f4180d869e039c",
+      "size": 7124
+    },
+    {
+      "path": "vendor/pg-protocol/esm/index.js",
+      "sha256": "0f6c279f5e18cbc73dd3eab808e6eaa9621ddd3511197da2e67106fdd0b2b3b2",
+      "size": 325
+    },
+    {
+      "path": "vendor/pg-protocol/LICENSE",
+      "sha256": "192b8f5c96900f04a1271dec39688655d7416c1c6ea84a508e18b50d2b6751f3",
+      "size": 1077
+    },
+    {
+      "path": "vendor/pg-protocol/package.json",
+      "sha256": "dd7cbb1ddc3eb921ec0af4647f43b08f84f1de2938d5050c11cf5c2305988acb",
+      "size": 1102
+    },
+    {
+      "path": "vendor/pg-protocol/README.md",
+      "sha256": "163df61eaa9f5337d5c0fcb3c0f15207f91a208dbd12ed26582bfc1e9bd59180",
+      "size": 150
+    },
+    {
+      "path": "vendor/pg-protocol/src/b.ts",
+      "sha256": "eb585946649fd05e86397b77be4a9d00c225d2222cbc356d725afe11ea8ab265",
+      "size": 473
+    },
+    {
+      "path": "vendor/pg-protocol/src/buffer-reader.ts",
+      "sha256": "80a39b189a5ff22d29ecbb1403829758fde0a15dd86711ddbe69ed94fb629f7d",
+      "size": 1440
+    },
+    {
+      "path": "vendor/pg-protocol/src/buffer-writer.ts",
+      "sha256": "e8f350f8d8c21cae20fab518a7f2b0554685b04acc2a57ee1ad2c1db5b539409",
+      "size": 2503
+    },
+    {
+      "path": "vendor/pg-protocol/src/inbound-parser.test.ts",
+      "sha256": "023229ef9ab845ef6bafaf96ebbb3b3fe25d00e9be3feed2d9eae33d5275a431",
+      "size": 15158
+    },
+    {
+      "path": "vendor/pg-protocol/src/index.ts",
+      "sha256": "a7acc3e9fd87b531b93012b3d4d3af0cb1ec88bc4f29ba76b4af9d3d6dde927a",
+      "size": 443
+    },
+    {
+      "path": "vendor/pg-protocol/src/messages.ts",
+      "sha256": "98ceb278f736325f847a0c8326aae46f2573f2a750b056d5061ae0d00714cd2d",
+      "size": 6458
+    },
+    {
+      "path": "vendor/pg-protocol/src/outbound-serializer.test.ts",
+      "sha256": "2f99dbbb68b1624dd419c66f07740a7efd7be6366b480e44bce9e9808e3edf44",
+      "size": 8562
+    },
+    {
+      "path": "vendor/pg-protocol/src/parser.ts",
+      "sha256": "c1f673d6950f6b2de4619410d4c77c77206d4069cef3808e8576fccc11417106",
+      "size": 13469
+    },
+    {
+      "path": "vendor/pg-protocol/src/serializer.ts",
+      "sha256": "aa2dd58a140de1b6395a15a0d29060d33aab503a9e0c820faef62e8e38536a99",
+      "size": 7193
+    },
+    {
+      "path": "vendor/pg-protocol/src/testing/buffer-list.ts",
+      "sha256": "01bce658cf7fbb2c03ebb4c3d7e729389d6b3c9edb3cbfc2e1864f2a76647a00",
+      "size": 1727
+    },
+    {
+      "path": "vendor/pg-protocol/src/testing/test-buffers.ts",
+      "sha256": "556522ba2930a51c27b1ad945a6308f3a4d6b4f449a0f9d90e8bc631f9eb8536",
+      "size": 4360
+    },
+    {
+      "path": "vendor/pg-protocol/src/types/chunky.d.ts",
+      "sha256": "a184faa9f71c372f3c5ee7ba28fc96e852fbaa2460cffd5c5ad291bd31cbd50d",
+      "size": 24
+    }
+  ],
+  "inventorySha256": "6d7f7d4ac882380aece199f2672a463bb3b478537a1d7a1d4380019b2d9c936d",
+  "root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405",
+  "schema": "tairet-v2-immutable-tree-baseline-v3",
+  "totalBytes": 4312819
+}

@@ -1,0 +1,236 @@
+{
+  "after": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "9fbfb15b4cd493e5",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "df310547ae8853db7348a70565414700514f30737fcb614cfa28d6a3ba273efa",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2b_004_ledgerfail",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "before": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "82cb815983501bd0",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "df310547ae8853db7348a70565414700514f30737fcb614cfa28d6a3ba273efa",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2b_004_ledgerfail",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "completed_utc": "2026-08-02T01:53:21.946Z",
+  "database_dropped": true,
+  "description": "ledger insertion failure rolls back effects and ledger",
+  "disposable_database": "acv2_devv2b_004_ledgerfail",
+  "error": null,
+  "id": "ELR-04",
+  "mode": "Development",
+  "pass": true,
+  "precondition": {
+    "baseline": {
+      "source_data": {
+        "access_entries": [],
+        "access_order_items": [],
+        "access_orders": [],
+        "access_ticket_types": [],
+        "payment_attempts": []
+      },
+      "source_relation_oids": {
+        "access_entries": "16711",
+        "access_order_items": "16735",
+        "access_orders": "16751",
+        "access_ticket_types": "16776",
+        "payment_attempts": "16797"
+      }
+    },
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "939170a3c4075f7e",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 3,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "material": {
+      "actual": {
+        "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claimSha256": "",
+        "databaseId": "acv2_devv2b_004_ledgerfail",
+        "deliveryAttemptTable": false,
+        "fulfillmentTable": false,
+        "markerColumn": false,
+        "serverVersion": "17.6",
+        "terminalSha256": ""
+      },
+      "evidenceSha256": "79316a89aac474edef76d18559a327cc3ab38a1abff3fe5537d0b02fdabda112",
+      "expected": {
+        "catalog_fingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claim_sha256": "",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "marker_column": false,
+        "terminal_sha256": ""
+      },
+      "mismatches": [],
+      "pass": true,
+      "stage": "PRE_046"
+    },
+    "pass": true,
+    "snapshot": {
+      "evidence_sha256": "73ebbd9e30afa30b124f035911ca0fed6be8c5c73754f33bc419af9be105257b",
+      "filename": "PRE_046.post-commit.sql",
+      "pass": true,
+      "snapshot": {
+        "database": "acv2_devv2b_004_ledgerfail",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "ledger": [
+          {
+            "name": "045_access_core_paid_checkin_operational_window",
+            "statements": [
+              "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+            ],
+            "version": "20260711062758"
+          }
+        ],
+        "marker_column": false,
+        "server_version": "17.6",
+        "source_data": {
+          "access_entries": [],
+          "access_order_items": [],
+          "access_orders": [],
+          "access_ticket_types": [],
+          "payment_attempts": []
+        },
+        "source_relation_oids": {
+          "access_entries": "16711",
+          "access_order_items": "16735",
+          "access_orders": "16751",
+          "access_ticket_types": "16776",
+          "payment_attempts": "16797"
+        },
+        "stage": "PRE_046",
+        "transaction_read_only": "on"
+      },
+      "sql_sha256": "af3c2a0b8b03763816be035360469d43ee5da939d1069b2c2810b74c75e93d59"
+    }
+  },
+  "production_contact": 0,
+  "result": {
+    "code": "POSTGRES_ERROR",
+    "commit_count": 0,
+    "message": "POSTGRES_ERROR: POSTGRES_ERROR: 22012 division by zero",
+    "rollback": {
+      "connectionId": "8ca7f7ea58952aa2",
+      "ledgerRows": [
+        {
+          "name": "045_access_core_paid_checkin_operational_window",
+          "statements": [
+            "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+          ],
+          "version": "20260711062758"
+        }
+      ],
+      "material": {
+        "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claimSha256": "",
+        "databaseId": "acv2_devv2b_004_ledgerfail",
+        "deliveryAttemptTable": false,
+        "fulfillmentTable": false,
+        "markerColumn": false,
+        "serverVersion": "17.6",
+        "terminalSha256": ""
+      },
+      "pass": true
+    },
+    "summary": "EFFECTS_AND_LEDGER_ROLLED_BACK",
+    "transaction_evidence": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "f7cbfc4378acbb3b",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 11,
+      "reconnectCount": 0,
+      "retryCount": 0
+    }
+  },
+  "scenario_evidence_sha256": "215bcaf59f4ab50a0504c23a3a5b94415229814d46a1deb346e8fb224f28ad4e",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:53:21.382Z"
+}

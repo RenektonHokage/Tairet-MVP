@@ -1,0 +1,35 @@
+{
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "repository": {
+    "branch": "main",
+    "head": "715ad1cea644e45d688dca785de09c83e1956413",
+    "migrations": [
+      {
+        "name": "046_access_core_recoverable_fulfillment.sql",
+        "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+        "size": 163792
+      },
+      {
+        "name": "047_access_email_preclaim_terminal_failure.sql",
+        "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+        "size": 46349
+      },
+      {
+        "name": "048_access_email_preclaim_terminal_after_ambiguous.sql",
+        "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+        "size": 24852
+      },
+      {
+        "name": "049_access_email_delivery_claim_correlation.sql",
+        "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+        "size": 55698
+      }
+    ],
+    "root": "C:/Importante/Python/tairet-mono-2",
+    "staging": "",
+    "status": "?? .sigsegv-forensics/Dockerfile.debug\n?? tmp-bancard/bancard-004.html"
+  },
+  "repository_baseline_evidence_sha256": "0bcd5b6e27ef6a7ee4f03afdb139f00ae588da562e3d83bb7c31468d8513966c",
+  "schema": "REPOSITORY_IMMUTABILITY_BASELINE_FOR_ACCESS_CORE_PACKAGE_V2",
+  "write_count": 0
+}

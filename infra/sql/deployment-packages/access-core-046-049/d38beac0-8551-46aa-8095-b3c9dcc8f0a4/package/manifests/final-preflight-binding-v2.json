@@ -1,0 +1,15 @@
+{
+  "executed_in_this_local_checkpoint": false,
+  "execution_requirement": "REQUIRED_DURING_FINAL_QUIESCED_WINDOW",
+  "final_preflight_binding_sha256": "edfcb676a35b1e67d0673d9b61a4700a6a1748a00df3429e617cded593d80b41",
+  "package_path": "preflight/Q046-PF-01.sql",
+  "required_true_fields": [
+    "sql_numeric_and_cast_safety_pass",
+    "catalog_promised_row_invariants_pass",
+    "migration_supported_projection_pass",
+    "clean_operational_handoff_pass"
+  ],
+  "schema": "ACCESS_CORE_046_FINAL_PREFLIGHT_BINDING_V2",
+  "sha256": "336db9f7cb0d88a422aff34f9e1358c893a3c992dfa200217edb346372639571",
+  "size": 13861
+}

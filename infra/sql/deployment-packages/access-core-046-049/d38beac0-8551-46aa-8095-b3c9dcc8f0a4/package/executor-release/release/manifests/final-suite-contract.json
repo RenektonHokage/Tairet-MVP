@@ -1,0 +1,23 @@
+{
+  "expectedCounts": {
+    "atomicity": 25,
+    "parser": 36,
+    "recovery": 10,
+    "semanticMutations": 14,
+    "static": 77
+  },
+  "finalExecutionCount": 1,
+  "finalRerunCount": 0,
+  "orchestrationAcceptanceCount": 23,
+  "productionContact": 0,
+  "realDeploymentVersionCountAssigned": 0,
+  "requiredSuiteIds": [
+    "STATIC",
+    "PARSER",
+    "RECOVERY",
+    "ATOMICITY",
+    "SEMANTIC_MUTATION",
+    "CLEANUP"
+  ],
+  "schema": "tairet-final-suite-contract-v3"
+}

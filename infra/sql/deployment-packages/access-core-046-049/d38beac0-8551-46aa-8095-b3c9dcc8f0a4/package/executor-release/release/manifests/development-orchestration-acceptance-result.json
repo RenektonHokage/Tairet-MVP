@@ -1,0 +1,167 @@
+{
+  "fail_count": 0,
+  "negative_count": 19,
+  "pass_count": 23,
+  "positive_count": 4,
+  "rows": [
+    {
+      "description": "many stdout lines plus one canonical result file",
+      "expected": "ACCEPT",
+      "id": "P001",
+      "pass": true
+    },
+    {
+      "description": "stderr logs plus one canonical result file",
+      "expected": "ACCEPT",
+      "id": "P002",
+      "pass": true
+    },
+    {
+      "description": "all six explicit suite result objects pass",
+      "expected": "ACCEPT",
+      "id": "P003",
+      "pass": true
+    },
+    {
+      "description": "strict finalizer produces a READY candidate set",
+      "expected": "ACCEPT",
+      "id": "P004",
+      "pass": true
+    },
+    {
+      "description": "old V2 mixed stdout and object array",
+      "expected": "REJECT",
+      "id": "N001",
+      "observed": "RESULT_ARRAY_REJECTED",
+      "pass": true
+    },
+    {
+      "description": "JSON array result",
+      "expected": "REJECT",
+      "id": "N002",
+      "observed": "RESULT_ARRAY_REJECTED",
+      "pass": true
+    },
+    {
+      "description": "two concatenated result objects",
+      "expected": "REJECT",
+      "id": "N003",
+      "observed": "JSON_TRAILING_VALUE",
+      "pass": true
+    },
+    {
+      "description": "missing result file",
+      "expected": "REJECT",
+      "id": "N004",
+      "observed": "FINALIZER_RESULT_NOT_FILE",
+      "pass": true
+    },
+    {
+      "description": "malformed result JSON",
+      "expected": "REJECT",
+      "id": "N005",
+      "observed": "JSON_STRING_EXPECTED",
+      "pass": true
+    },
+    {
+      "description": "stale preexisting result flag",
+      "expected": "REJECT",
+      "id": "N006",
+      "observed": "WRAPPER_EVIDENCE_STALE_RESULT",
+      "pass": true
+    },
+    {
+      "description": "wrong suite ID",
+      "expected": "REJECT",
+      "id": "N007",
+      "observed": "RESULT_PATH_BINDING_MISMATCH",
+      "pass": true
+    },
+    {
+      "description": "wrong run ID",
+      "expected": "REJECT",
+      "id": "N008",
+      "observed": "RESULT_PATH_BINDING_MISMATCH",
+      "pass": true
+    },
+    {
+      "description": "wrong release ID",
+      "expected": "REJECT",
+      "id": "N009",
+      "observed": "RESULT_WRONG_RELEASE",
+      "pass": true
+    },
+    {
+      "description": "duplicate suite result",
+      "expected": "REJECT",
+      "id": "N010",
+      "observed": "FINALIZER_DUPLICATE_RESULT_PATH",
+      "pass": true
+    },
+    {
+      "description": "missing suite result",
+      "expected": "REJECT",
+      "id": "N011",
+      "observed": "FINALIZER_RESULT_CARDINALITY_INVALID",
+      "pass": true
+    },
+    {
+      "description": "PASS with exit code 1",
+      "expected": "REJECT",
+      "id": "N012",
+      "observed": "RESULT_PASS_EXIT_CONTRADICTION",
+      "pass": true
+    },
+    {
+      "description": "FAIL with zero wrapper exit contradiction",
+      "expected": "REJECT",
+      "id": "N013",
+      "observed": "RESULT_WRAPPER_EXIT_CONTRADICTION",
+      "pass": true
+    },
+    {
+      "description": "contradictory test counts",
+      "expected": "REJECT",
+      "id": "N014",
+      "observed": "RESULT_COUNT_CONTRADICTION",
+      "pass": true
+    },
+    {
+      "description": "raw log hash mismatch",
+      "expected": "REJECT",
+      "id": "N015",
+      "observed": "RESULT_STDOUT_HASH_MISMATCH",
+      "pass": true
+    },
+    {
+      "description": "suite evidence hash mismatch",
+      "expected": "REJECT",
+      "id": "N016",
+      "observed": "RESULT_EVIDENCE_HASH_MISMATCH",
+      "pass": true
+    },
+    {
+      "description": "result rewritten after wrapper seal",
+      "expected": "REJECT",
+      "id": "N017",
+      "observed": "RESULT_POST_SEAL_MODIFICATION",
+      "pass": true
+    },
+    {
+      "description": "result from another final attempt",
+      "expected": "REJECT",
+      "id": "N018",
+      "observed": "RESULT_WRONG_ATTEMPT",
+      "pass": true
+    },
+    {
+      "description": "finalizer receives a directory instead of explicit files",
+      "expected": "REJECT",
+      "id": "N019",
+      "observed": "FINALIZER_RESULT_NOT_FILE",
+      "pass": true
+    }
+  ],
+  "schema": "tairet-v3-orchestration-acceptance-result-v1",
+  "test_count": 23
+}

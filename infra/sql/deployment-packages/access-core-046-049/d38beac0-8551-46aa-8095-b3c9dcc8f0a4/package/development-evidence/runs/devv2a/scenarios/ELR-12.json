@@ -1,0 +1,206 @@
+{
+  "after": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "0c81561e32dc20fb",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "315c38af42f515ca7b0f6091c9551d245db4525724f8332dafafc93430963049",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2a_012_outorder",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "before": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "d4f5dc2a08045eed",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "315c38af42f515ca7b0f6091c9551d245db4525724f8332dafafc93430963049",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2a_012_outorder",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "completed_utc": "2026-08-02T01:49:11.995Z",
+  "database_dropped": true,
+  "description": "out-of-order V047 hard-stops before mutation",
+  "disposable_database": "acv2_devv2a_012_outorder",
+  "error": null,
+  "id": "ELR-12",
+  "mode": "Development",
+  "pass": true,
+  "precondition": {
+    "baseline": {
+      "source_data": {
+        "access_entries": [],
+        "access_order_items": [],
+        "access_orders": [],
+        "access_ticket_types": [],
+        "payment_attempts": []
+      },
+      "source_relation_oids": {
+        "access_entries": "16711",
+        "access_order_items": "16735",
+        "access_orders": "16751",
+        "access_ticket_types": "16776",
+        "payment_attempts": "16797"
+      }
+    },
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "4dc161016fbb90a1",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 3,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "material": {
+      "actual": {
+        "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claimSha256": "",
+        "databaseId": "acv2_devv2a_012_outorder",
+        "deliveryAttemptTable": false,
+        "fulfillmentTable": false,
+        "markerColumn": false,
+        "serverVersion": "17.6",
+        "terminalSha256": ""
+      },
+      "evidenceSha256": "b7513e185c4b3f8bea7237a18f77231b99a133f93c3add5c394716b90528d8f1",
+      "expected": {
+        "catalog_fingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claim_sha256": "",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "marker_column": false,
+        "terminal_sha256": ""
+      },
+      "mismatches": [],
+      "pass": true,
+      "stage": "PRE_046"
+    },
+    "pass": true,
+    "snapshot": {
+      "evidence_sha256": "08f916efda5bc70e0328d4dfe49e3c30f42ad4c242eeef37f4bccbb3e501eefe",
+      "filename": "PRE_046.post-commit.sql",
+      "pass": true,
+      "snapshot": {
+        "database": "acv2_devv2a_012_outorder",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "ledger": [
+          {
+            "name": "045_access_core_paid_checkin_operational_window",
+            "statements": [
+              "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+            ],
+            "version": "20260711062758"
+          }
+        ],
+        "marker_column": false,
+        "server_version": "17.6",
+        "source_data": {
+          "access_entries": [],
+          "access_order_items": [],
+          "access_orders": [],
+          "access_ticket_types": [],
+          "payment_attempts": []
+        },
+        "source_relation_oids": {
+          "access_entries": "16711",
+          "access_order_items": "16735",
+          "access_orders": "16751",
+          "access_ticket_types": "16776",
+          "payment_attempts": "16797"
+        },
+        "stage": "PRE_046",
+        "transaction_read_only": "on"
+      },
+      "sql_sha256": "af3c2a0b8b03763816be035360469d43ee5da939d1069b2c2810b74c75e93d59"
+    }
+  },
+  "production_contact": 0,
+  "result": {
+    "code": "HARD_STOP_INCOMPATIBLE_STATE",
+    "commit_count": 0,
+    "message": "HARD_STOP_INCOMPATIBLE_STATE: HARD_STOP_INCOMPATIBLE_STATE",
+    "rollback": null,
+    "summary": "OUT_OF_ORDER_HARD_STOP_BEFORE_MUTATION",
+    "transaction_evidence": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "daa7b6a6f6b7f801",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 3,
+      "reconnectCount": 0,
+      "retryCount": 0
+    }
+  },
+  "scenario_evidence_sha256": "122b1cf7cf2d9bbd06c3ac2e86cb8f6dbdc05c88a10b730fc8f2033a1a00560d",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:49:11.571Z"
+}

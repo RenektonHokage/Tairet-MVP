@@ -1,0 +1,25 @@
+{
+  "schema": "tairet-path-contract-test-matrix-v2",
+  "expectedTestCount": 16,
+  "positive": [
+    { "id": "P001", "case": "valid allocated external workspace" },
+    { "id": "P002", "case": "nested mutant workspace" },
+    { "id": "P003", "case": "Windows case-normalized valid path" },
+    { "id": "P004", "case": "writable workspace while release is read-only" }
+  ],
+  "negative": [
+    { "id": "N001", "case": "path inside frozen release" },
+    { "id": "N002", "case": "repository path" },
+    { "id": "N003", "case": "V1 path" },
+    { "id": "N004", "case": "C:\\tmp" },
+    { "id": "N005", "case": "dot-dot escape" },
+    { "id": "N006", "case": "drive-relative path" },
+    { "id": "N007", "case": "sibling-prefix confusion" },
+    { "id": "N008", "case": "UNC path" },
+    { "id": "N009", "case": "junction/reparse escape" },
+    { "id": "N010", "case": "environment override" },
+    { "id": "N011", "case": "stale root receipt/binding" },
+    { "id": "N012", "case": "workspace reuse by another mutant" }
+  ],
+  "requiredOutcome": "ALL_PASS"
+}

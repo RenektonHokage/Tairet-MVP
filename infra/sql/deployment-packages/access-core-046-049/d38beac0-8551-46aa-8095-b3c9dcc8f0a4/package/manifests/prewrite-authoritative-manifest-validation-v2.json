@@ -1,0 +1,15 @@
+{
+  "candidate_classification": "NON_AUTHORITATIVE_TEMPORARY_ARTIFACT",
+  "candidate_manifest_sha256": "eb07ac82de3f024bcc65281cd8e7d171b544980d29da5584d04e7adc79b0f7b3",
+  "candidate_path": "temporary/NON_AUTHORITATIVE-prewrite-deployment-manifest-candidate-v2.json",
+  "event_identity_sha256": "b2eb0ed3ce082f71e96b24169ffec53dc2c97ff83ec9d02ccbfb0b5566225a94",
+  "exact_candidate_byte_length": 323254,
+  "input_manifest_schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_prewrite_manifest_validation_sha256": "82ed6595fa04a7c8e44c53ca0f0c4a86a1b0d4435defadbe7fbbd496555ad5df",
+  "production_contact": 0,
+  "runtime_source": "editable-source/package-runtime.js",
+  "schema": "ACCESS_CORE_046_049_PREWRITE_AUTHORITATIVE_MANIFEST_VALIDATION_V2",
+  "validation": "PASS",
+  "version_assignment_sha256": "0f057efd91c6f27deda4a14014e13596dc009cf9201cac8d3582127d112838ae"
+}

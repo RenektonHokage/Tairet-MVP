@@ -1,0 +1,24 @@
+{
+  "artifacts": [
+    {
+      "path": "editable-source/tests/suite-adapter-v3.js",
+      "sha256": "6eddfb0ac87aa067c7539aa9381a55c3feaf9d1318e4359280ea79f1e84869e8",
+      "size": 12248
+    },
+    {
+      "path": "editable-source/tools/suite-wrapper-v3.ps1",
+      "sha256": "11bda7aa72eeba777a69e1d750e2da8183750a9a7221e632b41bda0f9359c118",
+      "size": 6657
+    },
+    {
+      "path": "editable-source/src/result/suite-result.js",
+      "sha256": "6afc4b8231c46cbb0872fb5014c54ab295f5e6518871ca7776faf610253c4caa",
+      "size": 13910
+    }
+  ],
+  "finalizerParsesLogs": false,
+  "schema": "tairet-executor-v3-result-channel-implementation-v1",
+  "stderrRole": "RAW_LOG_EVIDENCE_ONLY",
+  "stdoutRole": "RAW_LOG_EVIDENCE_ONLY",
+  "suiteContract": "PowerShell redirects adapter stdout/stderr to dedicated files; the Node adapter closes both descriptors, hashes the sealed files, and atomically renames exactly one explicit result object."
+}

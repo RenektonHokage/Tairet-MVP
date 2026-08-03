@@ -1,0 +1,5 @@
+
+
+-- UPDATE/DELETE row triggers can enter after PostgreSQL has locked the item
+-- row and then lock the parent order here. Runtime service_role DML is revoked;
+-- administrative cleanup retains a residual deadlock risk and should be quiesced.

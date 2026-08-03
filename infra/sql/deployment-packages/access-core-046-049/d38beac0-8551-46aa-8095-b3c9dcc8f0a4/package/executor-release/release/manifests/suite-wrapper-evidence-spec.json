@@ -1,0 +1,43 @@
+{
+  "artifacts": [
+    {
+      "path": "editable-source/tools/suite-wrapper-v3.ps1",
+      "sha256": "11bda7aa72eeba777a69e1d750e2da8183750a9a7221e632b41bda0f9359c118",
+      "size": 6657
+    },
+    {
+      "path": "editable-source/tools/validate-suite-result.js",
+      "sha256": "843ff42205933e93a6ada3552508a16554f6b0d86cfea9d5adc69d05ec4fc00d",
+      "size": 1562
+    }
+  ],
+  "fields": [
+    "executable",
+    "argv",
+    "cwd",
+    "environment_identity",
+    "process_id",
+    "process_start_time_utc",
+    "process_exit_code",
+    "start_sequence",
+    "end_sequence",
+    "raw_stdout_path",
+    "raw_stdout_sha256",
+    "raw_stderr_path",
+    "raw_stderr_sha256",
+    "expected_result_file_path",
+    "result_file_exists",
+    "result_file_sha256",
+    "timeout_seconds",
+    "timed_out",
+    "cancelled",
+    "pass_synthesized"
+  ],
+  "invalidResultPolicy": {
+    "missingOrUnparseableResult": "UNRESOLVED_WRAPPER_EVIDENCE",
+    "synthesizePass": false,
+    "validFailResult": "FAIL"
+  },
+  "schema": "tairet-executor-v3-suite-wrapper-evidence-spec-v1",
+  "wrapperSchema": "EXECUTOR_SUITE_WRAPPER_EVIDENCE_V1"
+}

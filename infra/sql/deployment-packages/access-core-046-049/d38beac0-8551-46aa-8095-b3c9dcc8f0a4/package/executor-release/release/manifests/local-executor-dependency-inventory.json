@@ -1,0 +1,33 @@
+{
+  "databaseClient": {
+    "automaticReconnect": false,
+    "automaticRetry": false,
+    "implementation": "built-in node:net plus byte-exact vendored pg-protocol",
+    "parameterizedLedgerInsertion": true,
+    "pgProtocolPackageSha256": "dd7cbb1ddc3eb921ec0af4647f43b08f84f1de2938d5050c11cf5c2305988acb",
+    "pgProtocolVersion": "1.10.3",
+    "physicalConnectionInvariant": 1,
+    "simpleQueryPayload": true
+  },
+  "dockerImages": {
+    "node": {
+      "expectedImageId": "sha256:25a1f18c8f075b597b309c6fc7c09657353fd353b6bf912b48158b2af72b2b9c",
+      "observedImageId": "sha256:25a1f18c8f075b597b309c6fc7c09657353fd353b6bf912b48158b2af72b2b9c",
+      "pullPolicy": "never",
+      "reference": "mcr.microsoft.com/devcontainers/javascript-node:22"
+    },
+    "postgres": {
+      "expectedImageId": "sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453",
+      "observedImageId": "sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453",
+      "pullPolicy": "never",
+      "reference": "public.ecr.aws/supabase/postgres:17.6.1.143"
+    }
+  },
+  "externalNetworkPermitted": false,
+  "installPerformed": false,
+  "node": "v22.19.0",
+  "nodeExecutable": "C:\\nvm4w\\nodejs\\node.exe",
+  "productionContact": 0,
+  "pwsh": "PowerShell 7.6.3",
+  "schema": "tairet-local-executor-dependency-inventory-v3"
+}

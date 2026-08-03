@@ -1,0 +1,34 @@
+{
+  "schema": "tairet-postgresql-aware-parser-adversarial-fixtures-v1",
+  "positive": [
+    { "id": "P001", "sql": "SELECT ';';" },
+    { "id": "P002", "sql": "SELECT E'a\\\\\\' ; b';" },
+    { "id": "P003", "sql": "SELECT \"semi;colon\";" },
+    { "id": "P004", "sql": "-- ; COMMIT\nSELECT 1;" },
+    { "id": "P005", "sql": "/* outer ; /* inner ; */ BEGIN */ SELECT 1;" },
+    { "id": "P006", "sql": "DO $$ BEGIN PERFORM ';'; END $$;" },
+    { "id": "P007", "sql": "DO $named$ BEGIN PERFORM 'COMMIT;'; END $named$;" },
+    { "id": "P008", "sql": "CREATE FUNCTION f() RETURNS void LANGUAGE plpgsql AS $$ BEGIN EXECUTE 'SELECT 1;'; END $$;" },
+    { "id": "P009", "sql": "SELECT 'BEGIN; COMMIT; ROLLBACK;';" },
+    { "id": "P010", "sql": "SELECT 1; /* separator */ SELECT 2; -- tail\n" }
+  ],
+  "negative": [
+    { "id": "N001", "sql": "SELECT 'unterminated;", "code": "UNTERMINATED_SINGLE_QUOTE" },
+    { "id": "N002", "sql": "SELECT \"unterminated;", "code": "UNTERMINATED_DOUBLE_QUOTE" },
+    { "id": "N003", "sql": "SELECT 1; /* unclosed", "code": "UNTERMINATED_BLOCK_COMMENT" },
+    { "id": "N004", "sql": "DO $tag$ BEGIN; END;", "code": "UNTERMINATED_DOLLAR_QUOTE" },
+    { "id": "N005", "sql": "SELECT 1", "code": "UNTERMINATED_STATEMENT_WITHOUT_SEMICOLON" }
+  ],
+  "transactionControls": [
+    "BEGIN;",
+    "/*x*/ COMMIT;",
+    "--x\nROLLBACK;",
+    "START TRANSACTION;",
+    "END;",
+    "ABORT;",
+    "SAVEPOINT x;",
+    "RELEASE SAVEPOINT x;",
+    "PREPARE TRANSACTION 'x';",
+    "SET TRANSACTION READ ONLY;"
+  ]
+}

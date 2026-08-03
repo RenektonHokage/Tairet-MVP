@@ -1,0 +1,30 @@
+{
+  "authorities": {
+    "FINAL_OUTPUT_ROOT": {
+      "access": "WRITABLE",
+      "location": "V3_ROOT/final-run/output"
+    },
+    "FROZEN_RELEASE_ROOT": {
+      "access": "READ_ONLY",
+      "location": "V3_ROOT/frozen-release/release"
+    },
+    "MUTATION_WORK_ROOT": {
+      "access": "WRITABLE",
+      "isolation": "ONE_CHILD_PER_MUTANT",
+      "location": "FINAL_OUTPUT_ROOT/mutation-workspaces"
+    },
+    "POSTGRES_WORK_ROOT": {
+      "access": "WRITABLE",
+      "location": "FINAL_OUTPUT_ROOT/postgres-work"
+    }
+  },
+  "failClosed": true,
+  "forbidden": [
+    "REPOSITORY",
+    "V1_ROOT",
+    "V2_ROOT",
+    "C_TMP",
+    "FROZEN_RELEASE"
+  ],
+  "schema": "tairet-path-authority-spec-v3"
+}

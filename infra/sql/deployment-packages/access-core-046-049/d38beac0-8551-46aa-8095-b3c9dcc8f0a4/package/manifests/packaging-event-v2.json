@@ -1,0 +1,17 @@
+{
+  "captured_after": {
+    "contract_tests_sha256": "2a2326132b64b1f3282aa57e2999be9d204ac669d175b23ebad020ab9a713b32",
+    "development_rehearsal_sha256": "ba50d087d6fc3f4b44291b76f62f86bab2c38093845ea07bc9251ad9b5cd838a",
+    "development_rehearsal_status": "PASS_19_OF_19",
+    "runtime_self_validation_sha256": "a34a88c3bf619b8f8f5140435be2168bc666b03f883789e92c6b7c8f35d9501b"
+  },
+  "event_capture_count": 1,
+  "failed_package_event_reused": false,
+  "fourteen_digit_form": "20260802015354",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_packaging_event_identity_sha256": "b2eb0ed3ce082f71e96b24169ffec53dc2c97ff83ec9d02ccbfb0b5566225a94",
+  "packaging_event_utc": "2026-08-02T01:53:54Z",
+  "production_contact": 0,
+  "schema": "ACCESS_CORE_046_049_PACKAGING_EVENT_V2",
+  "write_count": 1
+}

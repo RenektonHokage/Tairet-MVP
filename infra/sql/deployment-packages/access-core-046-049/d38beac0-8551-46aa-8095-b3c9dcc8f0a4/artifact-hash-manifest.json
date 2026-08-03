@@ -1,0 +1,51 @@
+{
+  "ARTIFACT_HASH_MANIFEST_CANONICAL_SHA256": "1005bcb0cabaa5e0a903fa5bb58c8d699498521769b0b84f0bb6dce89823db14",
+  "artifact_count": 7,
+  "entries": [
+    {
+      "path": "INTEGRATION.md",
+      "sha256": "29330f8ca3236fcb5bd5be692af975f6d65d2c92713395cdc3c532071a7c3c56",
+      "size": 5112
+    },
+    {
+      "path": "detailed-report.md",
+      "sha256": "ee326c29262bafe696e84581a9fde6c92c5286bcef260f08ca24fb122451e2f9",
+      "size": 7602
+    },
+    {
+      "path": "integration-manifest.json",
+      "sha256": "008a7d7f044b37d01387fb09cae894e1bb2c742f68e0361c7a9a4b74cffe84d1",
+      "size": 9600
+    },
+    {
+      "path": "repository-copy-manifest.json",
+      "sha256": "9791ac2852c912d09ae3eca84706461d0a26acfcb617d9afd4d205278379e162",
+      "size": 270037
+    },
+    {
+      "path": "repository-integration-input-review.json",
+      "sha256": "2e21a597fdd6589353f9599ecc3986014aa365a81d55c6647cd6a8ff624cdf7e",
+      "size": 246997
+    },
+    {
+      "path": "repository-integration-validation.json",
+      "sha256": "cf77bf61d5cba53b35a13fdf27ef83fa5d8358edcb44b2db86b7776d27663d53",
+      "size": 3205
+    },
+    {
+      "path": "structured-result.json",
+      "sha256": "372bb015ba773b989e3571682d5644dc5c9de859c2775fb69c803f76a64e0289",
+      "size": 4677
+    }
+  ],
+  "package_directory_binding": {
+    "copied_file_count": 459,
+    "frozen_package_identity_sha256": "e76459033e407774cd7649da189235d94c786eadaf2ca07cf7a94ccd4e718398",
+    "frozen_tree_sha256": "a8f97119afcf3f7c28c2a21debb505edc12b36e963ae737461428197faada61d",
+    "repository_copy_manifest": "repository-copy-manifest.json"
+  },
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "repository_integration_id": "3115a451-4cd8-4436-8f3b-db86f253e2d5",
+  "schema": "TAIRET_ACCESS_CORE_046_049_REPOSITORY_INTEGRATION_ARTIFACT_HASH_MANIFEST_V1",
+  "self_hash_policy": "Raw self-hash cannot be embedded without recursion; use the canonical body seal."
+}

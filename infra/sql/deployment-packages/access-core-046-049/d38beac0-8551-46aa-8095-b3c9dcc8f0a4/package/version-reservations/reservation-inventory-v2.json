@@ -1,0 +1,21 @@
+{
+  "discovered_assignment_files": [
+    {
+      "package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+      "source_path": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-1f2c969e\\deployment-manifest\\version-assignment.json",
+      "status": "RESERVED_BY_FAILED_PACKAGE",
+      "versions": [
+        "20260801235130",
+        "20260801235131",
+        "20260801235132",
+        "20260801235133"
+      ]
+    }
+  ],
+  "maximum_unavailable_version": "20260801235133",
+  "predecessor_version": "20260711062758",
+  "production_contact": 0,
+  "reservation_inventory_sha256": "aee0db7e09aa1169dc1e6c941c01e021b43bc0c44711d92b07ad53ac60824f73",
+  "reservation_record_sha256": "cee908347293b96c45e09c0a3f344550347202347c827b67cd13ca8e1ebf6452",
+  "schema": "ACCESS_CORE_LOCAL_VERSION_RESERVATION_INVENTORY_V2"
+}

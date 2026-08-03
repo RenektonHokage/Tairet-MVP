@@ -1,0 +1,12 @@
+{
+  "fixture_scope": "LK-01..LK-07 plus M046-01..M046-16; M046-17 inapplicable from POST_046",
+  "independent_review_equivalence_sha256": "c51818c7eb2bccaff261fcbc9bb9c9fc527b3b38ae50feaa8685bf2b73b3b7da",
+  "logic_changed": false,
+  "prediction_fixture_count": 23,
+  "query_path": "preflight/Q046-PF-01.sql",
+  "query_sha256": "336db9f7cb0d88a422aff34f9e1358c893a3c992dfa200217edb346372639571",
+  "query_size": 13861,
+  "required_query_sha256": "336db9f7cb0d88a422aff34f9e1358c893a3c992dfa200217edb346372639571",
+  "schema": "tairet-v2-aggregate-preflight-equivalence-v1",
+  "v1_equivalence_manifest_sha256": "e2da21eb217dc46fdfa23a18600c98cb3627ca4129f589cee426eaadecea7a01"
+}

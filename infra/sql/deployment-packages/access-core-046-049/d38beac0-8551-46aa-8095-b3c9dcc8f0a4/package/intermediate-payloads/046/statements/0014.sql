@@ -1,0 +1,1 @@
+alter table public.access_email_delivery_attempts enable row level security;

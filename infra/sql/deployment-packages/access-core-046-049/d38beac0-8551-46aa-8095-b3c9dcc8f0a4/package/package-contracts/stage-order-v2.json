@@ -1,0 +1,43 @@
+{
+  "execution_order": [
+    "PRE_046",
+    "V046",
+    "POST_046",
+    "V047",
+    "POST_047",
+    "V048",
+    "POST_048",
+    "V049",
+    "POST_049"
+  ],
+  "one_transaction_per_migration": true,
+  "post_commit_read_only_connection": true,
+  "schema": "ACCESS_CORE_STAGE_ORDER_V2",
+  "stage_order_sha256": "b6b3cad17f0125ded4eb90a57ec49fdee65fd3aa70bcbc796acf4650b2394b08",
+  "stages": [
+    {
+      "in_transaction_post_stage": "POST_046",
+      "logical_migration": "046",
+      "post_commit_stage": "POST_046",
+      "pre_stage": "PRE_046"
+    },
+    {
+      "in_transaction_post_stage": "POST_047",
+      "logical_migration": "047",
+      "post_commit_stage": "POST_047",
+      "pre_stage": "POST_046"
+    },
+    {
+      "in_transaction_post_stage": "POST_048",
+      "logical_migration": "048",
+      "post_commit_stage": "POST_048",
+      "pre_stage": "POST_047"
+    },
+    {
+      "in_transaction_post_stage": "POST_049",
+      "logical_migration": "049",
+      "post_commit_stage": "POST_049",
+      "pre_stage": "POST_048"
+    }
+  ]
+}

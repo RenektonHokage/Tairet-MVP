@@ -1,0 +1,1 @@
+alter table public.access_order_fulfillments owner to postgres;

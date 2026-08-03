@@ -1,0 +1,1 @@
+alter function public.guard_access_order_items_frozen() owner to postgres;

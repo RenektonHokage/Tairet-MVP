@@ -1,0 +1,220 @@
+{
+  "ACCESS_CORE_PACKAGE_REPOSITORY_INTEGRATION_MANIFEST_SHA256": "4d989ef706e969847742ad55ebf1cd7a3a01ab38af4d831592071e66b609d17c",
+  "authoritative_deployment_manifest": false,
+  "authorization_state": {
+    "git_stage_commit_or_push_authorized": false,
+    "maintenance_window_approved": false,
+    "package_execution_authorized": false,
+    "production_contact_authorized": false,
+    "railway_change_authorized": false,
+    "repository_copy_authorized": true
+  },
+  "canonical_migrations": [
+    {
+      "logical_migration": "046",
+      "repository_path": "infra/sql/migrations/046_access_core_recoverable_fulfillment.sql",
+      "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+      "size": 163792
+    },
+    {
+      "logical_migration": "047",
+      "repository_path": "infra/sql/migrations/047_access_email_preclaim_terminal_failure.sql",
+      "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4",
+      "size": 46349
+    },
+    {
+      "logical_migration": "048",
+      "repository_path": "infra/sql/migrations/048_access_email_preclaim_terminal_after_ambiguous.sql",
+      "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532",
+      "size": 24852
+    },
+    {
+      "logical_migration": "049",
+      "repository_path": "infra/sql/migrations/049_access_email_delivery_claim_correlation.sql",
+      "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234",
+      "size": 55698
+    }
+  ],
+  "capability_deployment_activation_separation": {
+    "operational_authority": "REPORTED_NOT_GRANTED_FOR_EXECUTION",
+    "production_activation": "UNKNOWN",
+    "production_deployment": "UNKNOWN",
+    "repository_package_capability": "VERIFIED_REPOSITORY"
+  },
+  "created_utc": "2026-08-02T03:32:51Z",
+  "creation_sequence": [
+    {
+      "action": "VERIFY_PACKAGE_REVIEW_REPOSITORY_AND_MIGRATION_AUTHORITIES",
+      "evidence": "repository-integration-input-review.json",
+      "ordinal": 1
+    },
+    {
+      "action": "COPY_ONLY_THE_FROZEN_MANIFEST_ROOT_BYTE_EXACTLY",
+      "evidence": "repository-copy-manifest.json",
+      "ordinal": 2
+    },
+    {
+      "action": "CREATE_EXTERNAL_REPOSITORY_INTEGRATION_RECORD",
+      "evidence": "integration-manifest.json",
+      "ordinal": 3
+    },
+    {
+      "action": "RUN_LOCAL_STATIC_INTEGRATION_VALIDATION_WITHOUT_PACKAGE_EXECUTION",
+      "evidence": "repository-integration-validation.json",
+      "ordinal": 4
+    },
+    {
+      "action": "REQUEST_NEW_INDEPENDENT_READ_ONLY_REVIEW",
+      "evidence": null,
+      "ordinal": 5
+    }
+  ],
+  "expected_predecessor": {
+    "name": "045_access_core_paid_checkin_operational_window",
+    "statements_policy": "CAPTURE_AND_PRESERVE_EXACT_AT_FINAL_PRODUCTION_LEDGER_GUARD",
+    "version": "20260711062758"
+  },
+  "failed_version_reservations": {
+    "disposition": "PERMANENTLY_RESERVED_DO_NOT_REUSE",
+    "versions": [
+      "20260801235130",
+      "20260801235131",
+      "20260801235132",
+      "20260801235133"
+    ]
+  },
+  "independent_package_review": {
+    "artifact_identities": {
+      "artifact_hash_manifest_canonical_body_sha256": "c8e0d56039da91c1c56933cfc17d94d2a9550e14ce133e19ba377d307d013693",
+      "artifact_hash_manifest_raw_sha256": "457f8c760d784a17b1838666be081956dc08d41201419bebe025b8dc02162817",
+      "detailed_report_raw_sha256": "5dea523396ce314a65bfbb158b622861d2152d0314830afcf9aedbc9c3cd7b62",
+      "evidence_manifest_raw_sha256": "e2e50f2c8e8a7840af311065e03aa24e3902ff1bd9677c782fa835c8815de8cb",
+      "structured_result_raw_sha256": "9e10f4499b207766939cba40632840cbdfba81cb8aec6e5d372f273eb0497cdb"
+    },
+    "classification": "INDEPENDENT_ACCESS_CORE_046_049_DEPLOYMENT_PACKAGE_V2_PASSED",
+    "finding_counts": {
+      "high": 0,
+      "low": 0,
+      "medium": 0
+    },
+    "passed": true,
+    "root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-review-b7aedc34"
+  },
+  "operational_eligibility": "PENDING_FINAL_PRODUCTION_LEDGER_GUARD",
+  "package": {
+    "deployment_manifest": {
+      "canonical_body_identity_sha256": "eb07ac82de3f024bcc65281cd8e7d171b544980d29da5584d04e7adc79b0f7b3",
+      "edited_during_repository_integration": false,
+      "package_path": "deployment-manifest/access-core-046-049-deployment-manifest-v2.json",
+      "raw_file_sha256": "d0227d3a922be3922a16b8e1861b43931db4986446e7f941507e4b43ec6ca721"
+    },
+    "edit_or_renumber_action": "DO_NOT_EDIT_OR_RENUMBER; CREATE_A_NEW_PACKAGE_IDENTITY",
+    "executor_v3": {
+      "frozen_release_identity_sha256": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+      "frozen_release_manifest_sha256": "811b43b868585f4ce9b8ef77a893d9c466e398b4269869f1bf8971b941814a83",
+      "package_path": "executor-release/release",
+      "runtime_source_policy": "PACKAGE_CONTAINED_FROZEN_RELEASE_ONLY"
+    },
+    "frozen_package": {
+      "copy_manifest_identity_sha256": "556effa96ba476b7b861a84abc8f6d12f6458453f47ea090051617e299edfeb6",
+      "file_count": 459,
+      "identity_sha256": "e76459033e407774cd7649da189235d94c786eadaf2ca07cf7a94ccd4e718398",
+      "total_size": 18938406,
+      "tree_sha256": "a8f97119afcf3f7c28c2a21debb505edc12b36e963ae737461428197faada61d"
+    },
+    "immutable": true,
+    "input_manifest": {
+      "canonical_body_identity_sha256": "711f37c201b6cdddb328f83cb8097fb4e1e7cac3aeccb9dc041da6003d8890d8",
+      "record_count": 153,
+      "resolved_runtime_required_count": 143,
+      "runtime_required_count": 143
+    },
+    "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+    "repository_path": "infra/sql/deployment-packages/access-core-046-049/d38beac0-8551-46aa-8095-b3c9dcc8f0a4/package",
+    "source_authority": {
+      "classification": "ACCESS_CORE_046_049_DEPLOYMENT_PACKAGE_V2_READY_FOR_INDEPENDENT_REVIEW",
+      "packaging_event_utc": "2026-08-02T01:53:54Z",
+      "root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-fac55618"
+    },
+    "versions": [
+      {
+        "logical_migration": "046",
+        "name": "access_core_recoverable_fulfillment",
+        "version": "20260802015354"
+      },
+      {
+        "logical_migration": "047",
+        "name": "access_email_preclaim_terminal_failure",
+        "version": "20260802015355"
+      },
+      {
+        "logical_migration": "048",
+        "name": "access_email_preclaim_terminal_after_ambiguous",
+        "version": "20260802015356"
+      },
+      {
+        "logical_migration": "049",
+        "name": "access_email_delivery_claim_correlation",
+        "version": "20260802015357"
+      }
+    ]
+  },
+  "package_invalidation_rules": [
+    "input manifest schema or parser change",
+    "canonical migration identity change",
+    "intermediate payload identity change",
+    "executor frozen identity change",
+    "verifier identity change",
+    "deployment manifest change",
+    "version/name pair change",
+    "stage order change",
+    "target identity change",
+    "predecessor ledger mismatch",
+    "assigned version collision",
+    "unexpected later Access Core migration",
+    "production structural state not exact PRE_046"
+  ],
+  "production_target": {
+    "database": "postgres",
+    "direct_port": 5432,
+    "production_contact_during_repository_integration": 0,
+    "production_state": "UNKNOWN",
+    "supabase_project_id": "omteyctmrgahavgfaodw"
+  },
+  "record_role": "EXTERNAL_REPOSITORY_INTEGRATION_RECORD",
+  "repository_baseline": {
+    "branch": "main",
+    "head": "715ad1cea644e45d688dca785de09c83e1956413",
+    "input_review_identity_sha256": "8c24a14b4695f7bf55afc0658b2f43a42974c0db83e115dfa6c322534a1e1996",
+    "preexisting_untracked_file_count": 2,
+    "repository_baseline_identity_sha256": "dea1f1ad00726462f30b3391b85a9d037006019c2e3f82961edbca4ce1bb19de",
+    "root": "C:\\Importante\\Python\\tairet-mono-2",
+    "tracked_file_count": 735
+  },
+  "repository_integration_id": "3115a451-4cd8-4436-8f3b-db86f253e2d5",
+  "required_final_production_guards": {
+    "requirements": [
+      "Revalidate the immutable package, deployment manifest, versions, target and canonical migration identities.",
+      "Establish the exact production migration ledger with predecessor 20260711062758 and its preserved statements.",
+      "Establish that versions 20260802015354 through 20260802015357 are absent before first application.",
+      "Establish that no unexpected later Access Core migration exists.",
+      "Establish the exact PRE_046 structural state during the final quiesced window.",
+      "Run the approved final aggregate preflight only under its separately authorized quiesced-window checkpoint.",
+      "Obtain explicit maintenance-window approval and separate package-execution authorization.",
+      "Establish and preserve writer quiescence before execution and through final verification."
+    ],
+    "status": "PENDING_SEPARATE_AUTHORIZATION_AND_FRESH_RUNTIME_EVIDENCE"
+  },
+  "required_railway_pause_resume_proof": {
+    "commands_recorded_here": false,
+    "established_by_repository_integration": false,
+    "requirements": [
+      "Evidence that every in-scope production writer is paused before the final guard and package execution.",
+      "Evidence that writer quiescence remains effective for the entire maintenance interval.",
+      "Separate authorization to resume writers only after successful final verification or an approved recovery disposition.",
+      "Evidence of the authorized post-window writer state after resume."
+    ],
+    "status": "PENDING_SEPARATE_CHECKPOINT"
+  },
+  "schema": "TAIRET_DEPLOYMENT_PACKAGE_REPOSITORY_INTEGRATION_V1"
+}

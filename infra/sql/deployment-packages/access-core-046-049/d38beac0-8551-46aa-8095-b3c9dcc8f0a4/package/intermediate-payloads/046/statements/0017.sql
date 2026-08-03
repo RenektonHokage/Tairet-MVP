@@ -1,0 +1,1 @@
+grant select on table public.access_order_fulfillments to service_role;

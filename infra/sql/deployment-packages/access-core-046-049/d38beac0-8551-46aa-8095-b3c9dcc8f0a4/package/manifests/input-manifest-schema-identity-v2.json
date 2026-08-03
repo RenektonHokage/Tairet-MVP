@@ -1,0 +1,11 @@
+{
+  "legacy_destination_rejected": true,
+  "legacy_path_rejected": true,
+  "package_v2_input_manifest_schema_sha256": "eeba7aed2755d875be541ceae5339d7ac6a8ce97361e95327c8962320d484109",
+  "parser_sha256": "c0218f72dd1510b76b195480537ec7b3cc912635076e0c4ae1b7ef6448ed149e",
+  "runtime_field": "package_path",
+  "schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_SCHEMA_IDENTITY_V2",
+  "schema_file_sha256": "a3075bf8ae1b7b6f3ed678cfb0cf061cff5ccecd57f0b4da9262653e60f9df77",
+  "schema_name": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2",
+  "schema_version": 2
+}

@@ -1,0 +1,109 @@
+{
+  "classification": "INDEPENDENT_MIGRATIONS_046_049_LEDGER_NEUTRAL_REHEARSAL_V2_PASSED",
+  "file_count": 20,
+  "files": [
+    {
+      "path": "evidence/final-authority-snapshot.json",
+      "sha256": "dedfa2b496e260836dbffa0dc609b2e9ed9c87b2152ac1ccad2f26e033152e72",
+      "size": 531945
+    },
+    {
+      "path": "evidence/initial-authority-snapshot.json",
+      "sha256": "ade070185b749c1b584148d2518b00c74ef09c78254a1559c66fbb1395224653",
+      "size": 531945
+    },
+    {
+      "path": "evidence/reviews/final-v2-rehearsal-immutability-review.json",
+      "sha256": "153764dcdabfba74b529779b05ecfdad92618e0c40d4e7d38783dd5451da339f",
+      "size": 4916
+    },
+    {
+      "path": "evidence/reviews/independent-v1-findings-v2-closure-review.json",
+      "sha256": "e9f71b53b3f4238c8f74b5614dded79bf9379cad5455e0bdb718b8e7af8d0b20",
+      "size": 12950
+    },
+    {
+      "path": "evidence/reviews/independent-v2-authority-identity-review.json",
+      "sha256": "1475aaea345a06e7453d150b130287162eebe9fd7955978bfd13d07da26fa9b2",
+      "size": 5178
+    },
+    {
+      "path": "evidence/reviews/independent-v2-bundle-single-assignment-review.json",
+      "sha256": "f4ff1b8fa58976755a58e8c24b1f60cdbd3e694467d1dd2e815c076555fe794d",
+      "size": 33182
+    },
+    {
+      "path": "evidence/reviews/independent-v2-canonical-migration-identity-review.json",
+      "sha256": "5e2c62d0b8efe2f3892d1653462d70904a8820b4b8b1ab50833d35feba93a3a8",
+      "size": 6019
+    },
+    {
+      "path": "evidence/reviews/independent-v2-docker-inventory-review.json",
+      "sha256": "0bde81fa9382f8afe230f2481f6c4dc03c20fd8ccf56fa45e1da04c11fe85814",
+      "size": 38042
+    },
+    {
+      "path": "evidence/reviews/independent-v2-final-case-and-freeze-review.json",
+      "sha256": "a806dd13246ba9a9495f0d74cc1599297b686798a8dbdf6598d4e66165c7c032",
+      "size": 48712
+    },
+    {
+      "path": "evidence/reviews/independent-v2-functional-regression-review.json",
+      "sha256": "1f5cca41ccb4f92cd202e31f237bd8df2afdad06e3b9f09dc2ac2d379ac9013a",
+      "size": 18790
+    },
+    {
+      "path": "evidence/reviews/independent-v2-host-process-lifecycle-review.json",
+      "sha256": "ababfc399f89aa633c27961278e0b20e9175ff0c7dc6a76d83047c7314beadc9",
+      "size": 7012
+    },
+    {
+      "path": "evidence/reviews/independent-v2-lk07-multisession-review.json",
+      "sha256": "5d80aa5b4bef813e7fa2bd229816fd4eae924ff8b19bbbbb0d77f1d7ff09d085",
+      "size": 9585
+    },
+    {
+      "path": "evidence/reviews/independent-v2-migration-process-reconciliation.json",
+      "sha256": "fd8a35baac1e77f04d8615230fb418739902694602476b3df76d5580ca3b3dd8",
+      "size": 115495
+    },
+    {
+      "path": "evidence/reviews/independent-v2-per-invocation-identity-review.json",
+      "sha256": "809d7878af13058d4fca6bf89401ea5765fe83e2c301753c215b181976fc7991",
+      "size": 115082
+    },
+    {
+      "path": "evidence/reviews/independent-v2-predecessor-routine-identity-review.json",
+      "sha256": "7a2d83e717328f385efcb799ae56cc50c87ef4fedf6cd66766a4625e02187768",
+      "size": 4797
+    },
+    {
+      "path": "evidence/reviews/independent-v2-scope-and-ledger-neutrality-review.json",
+      "sha256": "167e408a19b8437f16039ecf4b799604133a46ba8a2fded33c48e5cedd479050",
+      "size": 4704
+    },
+    {
+      "path": "evidence/reviews/independent-v2-stage-verifier-independence-review.json",
+      "sha256": "2d16507919a1aa6598f3f2ed655fdba02c76ee29065e6bcd68fde4f60d8e4382",
+      "size": 10920
+    },
+    {
+      "path": "independent-evidence-manifest.json",
+      "sha256": "6e5d42737826f48b91c4bbccdd71c457c0f8105b9efbf7f439568cbfd7ac92fc",
+      "size": 25913
+    },
+    {
+      "path": "independent-review-report.md",
+      "sha256": "ef7d88f25096391ea9b8071d85d6eee9aa0238153a4611c6aa6377eb20b22d04",
+      "size": 22748
+    },
+    {
+      "path": "independent-review-result.json",
+      "sha256": "d2a1318238d21153b47865ff74e29cb967699ca735d50357817d07af637a30af",
+      "size": 8814
+    }
+  ],
+  "review_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\migration-046-049-ledger-neutral-review-v2-e3375454",
+  "schema": "tairet-independent-v2-review-artifact-hash-manifest-v1",
+  "self_exclusion": "independent-artifact-hash-manifest.json"
+}

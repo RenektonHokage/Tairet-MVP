@@ -1,0 +1,74 @@
+{
+  "FINAL_ENVIRONMENT_CONTRACT": "PASS",
+  "authoritySha256": "362f1a575424f5856e8bb4efe93b28af899d99a087ee0ea60a720e319f8ef9f4",
+  "contractSha256": "e00a6c14a738883bf60df730da82b37b520006a657e0ef33aa501a66f445000d",
+  "exactIntendedFinal": {
+    "argv": [
+      "-NoProfile",
+      "-File",
+      "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\editable-source\\tools\\run-final-suite.ps1",
+      "-ExecutorRoot",
+      "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269",
+      "-RepositoryRoot",
+      "C:\\Importante\\Python\\tairet-mono-2"
+    ],
+    "cwd": "C:\\Importante\\Python\\tairet-mono-2",
+    "environment": {
+      "FINAL_EVIDENCE_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-evidence",
+      "FINAL_EXECUTION_ATTEMPT": "1",
+      "FINAL_OUTPUT_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output",
+      "FINAL_RUN_ID": "final001",
+      "FROZEN_RELEASE_READ_ONLY_REQUIRED": "1",
+      "FROZEN_RELEASE_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release",
+      "IDENTITY_MODEL": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\manifests\\executor-v3-identity-model.json",
+      "MUTATION_WORK_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output\\mutation-workspaces",
+      "POSTGRES_WORK_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output\\postgres-work",
+      "PRODUCTION_TEMPLATE": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\manifests\\production-manifest-template.json",
+      "RELEASE_MANIFEST": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\frozen-release-manifest.json",
+      "ROOT_EXECUTOR_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269",
+      "TAIRET_REPO_ROOT": "C:\\Importante\\Python\\tairet-mono-2",
+      "TEST_MANIFEST": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release\\manifests\\test-manifest.json",
+      "V1_EXECUTOR_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v1-008a2f38",
+      "V2_EXECUTOR_ROOT": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v2-b4aad405"
+    },
+    "executable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "frozenReleasePath": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\frozen-release\\release",
+    "mutationRoot": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output\\mutation-workspaces",
+    "outputRoot": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output",
+    "postgresRoot": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\final-run\\output\\postgres-work",
+    "resultPaths": {
+      "ATOMICITY": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\ATOMICITY.result.json",
+      "CLEANUP": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\CLEANUP.result.json",
+      "PARSER": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\PARSER.result.json",
+      "RECOVERY": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\RECOVERY.result.json",
+      "SEMANTIC_MUTATION": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\SEMANTIC_MUTATION.result.json",
+      "STATIC": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\statement-aware-atomic-migration-executor-v3-81648269\\suite-results\\final001\\STATIC.result.json"
+    },
+    "suiteOrder": [
+      "STATIC",
+      "PARSER",
+      "RECOVERY",
+      "ATOMICITY",
+      "SEMANTIC_MUTATION",
+      "CLEANUP"
+    ]
+  },
+  "localDependencies": {
+    "externalNetworkPermitted": false,
+    "nodeExecutable": "C:\\nvm4w\\nodejs\\node.exe",
+    "nodeImageId": "sha256:25a1f18c8f075b597b309c6fc7c09657353fd353b6bf912b48158b2af72b2b9c",
+    "nodeVersion": "v22.19.0",
+    "postgresImageId": "sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453",
+    "pullPolicy": "never",
+    "pwshExecutable": "C:\\Program Files\\PowerShell\\7\\pwsh.exe"
+  },
+  "permissions": {
+    "finalOutputSentinelCreatedAndRemoved": true,
+    "finalOutputSentinelSha256": "bf62be5b29b0da98788bf44a2c4d1a86196da8e3316c370de7ef3ad5781e9ad5",
+    "frozenReleaseExistsBeforeFreeze": false,
+    "frozenReleaseModified": false
+  },
+  "preFreeze": true,
+  "productionContact": 0,
+  "schema": "tairet-final-environment-contract-v3"
+}

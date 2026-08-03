@@ -1,0 +1,129 @@
+{
+  "all_negative_tests_reached_actual_parser": true,
+  "approved_artifact_count": 153,
+  "fail_count": 0,
+  "legacy_fields_rejected": [
+    "path",
+    "destination"
+  ],
+  "negative_test_count": 14,
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_input_manifest_test_matrix_sha256": "2a2326132b64b1f3282aa57e2999be9d204ac669d175b23ebad020ab9a713b32",
+  "pass_count": 15,
+  "positive_test_count": 1,
+  "production_contact": 0,
+  "production_parser": "editable-source/lib/input-manifest-v2.js",
+  "rows": [
+    {
+      "artifact_count": 153,
+      "description": "all approved 153 artifacts resolve relatively and byte-exactly through package_path using read-only handles",
+      "id": "POS-01",
+      "pass": true,
+      "production_parser_reached": true,
+      "read_mode": "READ_ONLY_PACKAGE_PATH_ONLY",
+      "runtime_required_count": 143
+    },
+    {
+      "expected_code": "LEGACY_FIELD_REJECTED",
+      "id": "NEG-01",
+      "observed_code": "LEGACY_FIELD_REJECTED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "LEGACY_FIELD_REJECTED",
+      "id": "NEG-02",
+      "observed_code": "LEGACY_FIELD_REJECTED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "RECORD_FIELD_SET_MISMATCH",
+      "id": "NEG-03",
+      "observed_code": "RECORD_FIELD_SET_MISMATCH",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "ABSOLUTE_PACKAGE_PATH_REJECTED",
+      "id": "NEG-04",
+      "observed_code": "ABSOLUTE_PACKAGE_PATH_REJECTED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "PACKAGE_PATH_TRAVERSAL_REJECTED",
+      "id": "NEG-05",
+      "observed_code": "PACKAGE_PATH_TRAVERSAL_REJECTED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "PACKAGE_PATH_TRAVERSAL_REJECTED",
+      "id": "NEG-06",
+      "observed_code": "PACKAGE_PATH_TRAVERSAL_REJECTED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "DUPLICATE_ARTIFACT_ID",
+      "id": "NEG-07",
+      "observed_code": "DUPLICATE_ARTIFACT_ID",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "DUPLICATE_PACKAGE_PATH",
+      "id": "NEG-08",
+      "observed_code": "DUPLICATE_PACKAGE_PATH",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "PACKAGE_ARTIFACT_HASH_MISMATCH",
+      "id": "NEG-09",
+      "observed_code": "PACKAGE_ARTIFACT_HASH_MISMATCH",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "PACKAGE_ARTIFACT_SIZE_MISMATCH",
+      "id": "NEG-10",
+      "observed_code": "PACKAGE_ARTIFACT_SIZE_MISMATCH",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "MISSING_RUNTIME_ARTIFACT",
+      "id": "NEG-11",
+      "observed_code": "MISSING_RUNTIME_ARTIFACT",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "NON_RUNTIME_ARTIFACT_MARKED_REQUIRED",
+      "id": "NEG-12",
+      "observed_code": "NON_RUNTIME_ARTIFACT_MARKED_REQUIRED",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "SCHEMA_VERSION_MISMATCH",
+      "id": "NEG-13",
+      "observed_code": "SCHEMA_VERSION_MISMATCH",
+      "pass": true,
+      "production_parser_reached": true
+    },
+    {
+      "expected_code": "BUILDER_RUNTIME_SCHEMA_DISAGREEMENT",
+      "id": "NEG-14",
+      "observed_code": "BUILDER_RUNTIME_SCHEMA_DISAGREEMENT",
+      "pass": true,
+      "production_parser_reached": true
+    }
+  ],
+  "runtime_resolution_field": "package_path",
+  "schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2_TEST_MATRIX_RESULT",
+  "schema_file": "package-contracts/input-manifest-v2.schema.json",
+  "test_count": 15
+}

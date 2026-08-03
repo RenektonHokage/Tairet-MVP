@@ -1,0 +1,44 @@
+{
+  "schema": "ACCESS_CORE_PACKAGE_V2_DOCKER_ORCHESTRATION_RESULT",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "mode": "Development",
+  "run_id": "devv2b",
+  "execution_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-v2-fac55618",
+  "network_internal": true,
+  "published_port_count": 0,
+  "package_mount_read_only": true,
+  "postgres_image": "public.ecr.aws/supabase/postgres:17.6.1.143",
+  "postgres_image_id": "sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453",
+  "client_image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "client_image_id": "sha256:25a1f18c8f075b597b309c6fc7c09657353fd353b6bf912b48158b2af72b2b9c",
+  "postgres_version": "17.6",
+  "postgres_material_pid": 87868,
+  "suite_exit_code": 0,
+  "suite_result_sha256": "ba50d087d6fc3f4b44291b76f62f86bab2c38093845ea07bc9251ad9b5cd838a",
+  "scenario_count": 19,
+  "pass_count": 19,
+  "fail_count": 0,
+  "runtime_stage_verifier_pass_count": 37,
+  "open_postgres_session_count": 0,
+  "production_contact": 0,
+  "external_network_contact": 0,
+  "pull_performed": 0,
+  "repository_write_count": 0,
+  "migration_file_change_count": 0,
+  "surviving_process_count": 0,
+  "cleanup": {
+    "removed_containers": [
+      "acv2_fac55618_client_devv2b",
+      "acv2_fac55618_pg_devv2b"
+    ],
+    "removed_networks": [
+      "acv2_fac55618_net_devv2b"
+    ],
+    "errors": [],
+    "residual_container_count": 0,
+    "residual_network_count": 0,
+    "residual_volume_count": 0,
+    "residual_resource_count": 0
+  },
+  "error": null
+}

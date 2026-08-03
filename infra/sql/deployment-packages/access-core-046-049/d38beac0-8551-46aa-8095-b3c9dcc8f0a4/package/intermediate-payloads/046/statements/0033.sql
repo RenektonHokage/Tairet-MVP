@@ -1,0 +1,1 @@
+alter function public.guard_access_entries_fulfilled() owner to postgres;

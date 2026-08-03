@@ -1,0 +1,4 @@
+-- Applying this migration requires a quiesce/maintenance window: these locks
+-- can block checkout, payment callbacks, issuance, and legacy email updates.
+-- Lock source tables once, in deterministic order, before any source read or
+-- trigger DDL. SHARE ROW EXCLUSIVE also avoids later trigger-lock upgrades.

@@ -1,0 +1,67 @@
+{
+  "schema": "ACCESS_CORE_PACKAGE_V2_REPOSITORY_READ_ONLY_EVIDENCE",
+  "before": {
+    "head": "715ad1cea644e45d688dca785de09c83e1956413",
+    "branch": "main",
+    "status": [
+      "?? .sigsegv-forensics/Dockerfile.debug",
+      "?? tmp-bancard/bancard-004.html"
+    ],
+    "staging": [],
+    "migrations": [
+      {
+        "name": "046_access_core_recoverable_fulfillment.sql",
+        "size": 163792,
+        "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c"
+      },
+      {
+        "name": "047_access_email_preclaim_terminal_failure.sql",
+        "size": 46349,
+        "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4"
+      },
+      {
+        "name": "048_access_email_preclaim_terminal_after_ambiguous.sql",
+        "size": 24852,
+        "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532"
+      },
+      {
+        "name": "049_access_email_delivery_claim_correlation.sql",
+        "size": 55698,
+        "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234"
+      }
+    ]
+  },
+  "after": {
+    "head": "715ad1cea644e45d688dca785de09c83e1956413",
+    "branch": "main",
+    "status": [
+      "?? .sigsegv-forensics/Dockerfile.debug",
+      "?? tmp-bancard/bancard-004.html"
+    ],
+    "staging": [],
+    "migrations": [
+      {
+        "name": "046_access_core_recoverable_fulfillment.sql",
+        "size": 163792,
+        "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c"
+      },
+      {
+        "name": "047_access_email_preclaim_terminal_failure.sql",
+        "size": 46349,
+        "sha256": "6bebbe803cc5c85094352bbcbc261df5ce26780fb1ae38d956089f48b67f20b4"
+      },
+      {
+        "name": "048_access_email_preclaim_terminal_after_ambiguous.sql",
+        "size": 24852,
+        "sha256": "249a75c0da2f80a66e0d0717a88d8c4710cf51f210098078a375692fd4567532"
+      },
+      {
+        "name": "049_access_email_delivery_claim_correlation.sql",
+        "size": 55698,
+        "sha256": "cc3b71a988fafa3298344ec73731abc0ce8219c1dc35110e59916e5344f6d234"
+      }
+    ]
+  },
+  "repository_write_count": 0,
+  "migration_file_change_count": 0
+}

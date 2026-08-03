@@ -1,0 +1,357 @@
+{
+  "after": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "2379820ec9a0b0fc",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "5d1b2838a20d1e584d80dadcdeafcad4b775a2cfd0e62726bd4fe58128285520",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2b_005_disconnect",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "before": {
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "58334cdd5e38bf77",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 4,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "evidence_sha256": "5d1b2838a20d1e584d80dadcdeafcad4b775a2cfd0e62726bd4fe58128285520",
+    "ledger": [
+      {
+        "name": "045_access_core_paid_checkin_operational_window",
+        "statements": [
+          "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+        ],
+        "version": "20260711062758"
+      }
+    ],
+    "material": {
+      "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+      "claimSha256": "",
+      "databaseId": "acv2_devv2b_005_disconnect",
+      "deliveryAttemptTable": false,
+      "fulfillmentTable": false,
+      "markerColumn": false,
+      "serverVersion": "17.6",
+      "terminalSha256": ""
+    },
+    "other_package_session_count": 0
+  },
+  "completed_utc": "2026-08-02T01:53:22.741Z",
+  "database_dropped": true,
+  "description": "disconnect before commit resolves as rolled back",
+  "disposable_database": "acv2_devv2b_005_disconnect",
+  "error": null,
+  "id": "ELR-05",
+  "mode": "Development",
+  "pass": true,
+  "precondition": {
+    "baseline": {
+      "source_data": {
+        "access_entries": [],
+        "access_order_items": [],
+        "access_orders": [],
+        "access_ticket_types": [],
+        "payment_attempts": []
+      },
+      "source_relation_oids": {
+        "access_entries": "16711",
+        "access_order_items": "16735",
+        "access_orders": "16751",
+        "access_ticket_types": "16776",
+        "payment_attempts": "16797"
+      }
+    },
+    "connection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "1f05ca3b3f14e254",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 3,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "material": {
+      "actual": {
+        "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claimSha256": "",
+        "databaseId": "acv2_devv2b_005_disconnect",
+        "deliveryAttemptTable": false,
+        "fulfillmentTable": false,
+        "markerColumn": false,
+        "serverVersion": "17.6",
+        "terminalSha256": ""
+      },
+      "evidenceSha256": "9e58df436b3384d472fc1e5f9dfcec0629122b9327353733964391c13afca528",
+      "expected": {
+        "catalog_fingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claim_sha256": "",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "marker_column": false,
+        "terminal_sha256": ""
+      },
+      "mismatches": [],
+      "pass": true,
+      "stage": "PRE_046"
+    },
+    "pass": true,
+    "snapshot": {
+      "evidence_sha256": "a354127b5283d6695e5e2d4125c96c1ec23d5f56a7411722868545f34dead9d4",
+      "filename": "PRE_046.post-commit.sql",
+      "pass": true,
+      "snapshot": {
+        "database": "acv2_devv2b_005_disconnect",
+        "delivery_attempt_table": false,
+        "fulfillment_table": false,
+        "ledger": [
+          {
+            "name": "045_access_core_paid_checkin_operational_window",
+            "statements": [
+              "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+            ],
+            "version": "20260711062758"
+          }
+        ],
+        "marker_column": false,
+        "server_version": "17.6",
+        "source_data": {
+          "access_entries": [],
+          "access_order_items": [],
+          "access_orders": [],
+          "access_ticket_types": [],
+          "payment_attempts": []
+        },
+        "source_relation_oids": {
+          "access_entries": "16711",
+          "access_order_items": "16735",
+          "access_orders": "16751",
+          "access_ticket_types": "16776",
+          "payment_attempts": "16797"
+        },
+        "stage": "PRE_046",
+        "transaction_read_only": "on"
+      },
+      "sql_sha256": "af3c2a0b8b03763816be035360469d43ee5da939d1069b2c2810b74c75e93d59"
+    }
+  },
+  "production_contact": 0,
+  "result": {
+    "classification": "AMBIGUOUS_COMMIT_RESOLVED_AS_ROLLED_BACK",
+    "commitCount": 0,
+    "identityBinding": {
+      "executorReleaseSha256": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+      "name": "access_core_recoverable_fulfillment",
+      "packageDescriptorSha256": "391066950187fac45a8cd3ca4cf759c86c98688ef54855b2791b831be15428a7",
+      "payloadSha256": "bc86b500ad4b01248edc1a20677bdeb49c8a39360215350b26b71d987b50f9bf",
+      "sourceSha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+      "verifierManifestSha256": "8f7478a81de7a7f65f1419d14a1a58b1b1ebaa285e5cac30ec0419df55abb519",
+      "version": "TEST_ONLY_00000046"
+    },
+    "logicalMigration": "046",
+    "mutationConnection": {
+      "automaticReconnect": false,
+      "automaticRetry": false,
+      "connectionId": "c6cee1f92560e39d",
+      "operationKinds": [
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query",
+        "simple-query"
+      ],
+      "physicalConnectionCount": 1,
+      "queryCount": 6,
+      "reconnectCount": 0,
+      "retryCount": 0
+    },
+    "packagePrecondition": {
+      "baseline": {
+        "source_data": {
+          "access_entries": [],
+          "access_order_items": [],
+          "access_orders": [],
+          "access_ticket_types": [],
+          "payment_attempts": []
+        },
+        "source_relation_oids": {
+          "access_entries": "16711",
+          "access_order_items": "16735",
+          "access_orders": "16751",
+          "access_ticket_types": "16776",
+          "payment_attempts": "16797"
+        }
+      },
+      "connection": {
+        "automaticReconnect": false,
+        "automaticRetry": false,
+        "connectionId": "b4508e5154996d16",
+        "operationKinds": [
+          "simple-query",
+          "simple-query",
+          "simple-query"
+        ],
+        "physicalConnectionCount": 1,
+        "queryCount": 3,
+        "reconnectCount": 0,
+        "retryCount": 0
+      },
+      "material": {
+        "actual": {
+          "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+          "claimSha256": "",
+          "databaseId": "acv2_devv2b_005_disconnect",
+          "deliveryAttemptTable": false,
+          "fulfillmentTable": false,
+          "markerColumn": false,
+          "serverVersion": "17.6",
+          "terminalSha256": ""
+        },
+        "evidenceSha256": "9e58df436b3384d472fc1e5f9dfcec0629122b9327353733964391c13afca528",
+        "expected": {
+          "catalog_fingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+          "claim_sha256": "",
+          "delivery_attempt_table": false,
+          "fulfillment_table": false,
+          "marker_column": false,
+          "terminal_sha256": ""
+        },
+        "mismatches": [],
+        "pass": true,
+        "stage": "PRE_046"
+      },
+      "pass": true,
+      "snapshot": {
+        "evidence_sha256": "a354127b5283d6695e5e2d4125c96c1ec23d5f56a7411722868545f34dead9d4",
+        "filename": "PRE_046.post-commit.sql",
+        "pass": true,
+        "snapshot": {
+          "database": "acv2_devv2b_005_disconnect",
+          "delivery_attempt_table": false,
+          "fulfillment_table": false,
+          "ledger": [
+            {
+              "name": "045_access_core_paid_checkin_operational_window",
+              "statements": [
+                "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+              ],
+              "version": "20260711062758"
+            }
+          ],
+          "marker_column": false,
+          "server_version": "17.6",
+          "source_data": {
+            "access_entries": [],
+            "access_order_items": [],
+            "access_orders": [],
+            "access_ticket_types": [],
+            "payment_attempts": []
+          },
+          "source_relation_oids": {
+            "access_entries": "16711",
+            "access_order_items": "16735",
+            "access_orders": "16751",
+            "access_ticket_types": "16776",
+            "payment_attempts": "16797"
+          },
+          "stage": "PRE_046",
+          "transaction_read_only": "on"
+        },
+        "sql_sha256": "af3c2a0b8b03763816be035360469d43ee5da939d1069b2c2810b74c75e93d59"
+      }
+    },
+    "preflight": {
+      "classification": "NOT_APPLIED_VERIFIED",
+      "effects": "absent",
+      "ledger": "absent",
+      "postExact": false,
+      "preExact": true
+    },
+    "recovery": {
+      "classification": "AMBIGUOUS_COMMIT_RESOLVED_AS_ROLLED_BACK",
+      "effects": "absent",
+      "identityBinding": {
+        "executorReleaseSha256": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+        "name": "access_core_recoverable_fulfillment",
+        "packageDescriptorSha256": "391066950187fac45a8cd3ca4cf759c86c98688ef54855b2791b831be15428a7",
+        "payloadSha256": "bc86b500ad4b01248edc1a20677bdeb49c8a39360215350b26b71d987b50f9bf",
+        "sourceSha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+        "verifierManifestSha256": "8f7478a81de7a7f65f1419d14a1a58b1b1ebaa285e5cac30ec0419df55abb519",
+        "version": "TEST_ONLY_00000046"
+      },
+      "ledger": "absent",
+      "ledgerRows": [
+        {
+          "name": "045_access_core_paid_checkin_operational_window",
+          "statements": [
+            "LOCAL_PACKAGE_SYNTHETIC_PREDECESSOR_STATEMENT"
+          ],
+          "version": "20260711062758"
+        }
+      ],
+      "material": {
+        "catalogFingerprint": "477ec48a3e1670d490209306b997adcbd94b66b4a76012bc43352fb336b7d30a",
+        "claimSha256": "",
+        "databaseId": "acv2_devv2b_005_disconnect",
+        "deliveryAttemptTable": false,
+        "fulfillmentTable": false,
+        "markerColumn": false,
+        "serverVersion": "17.6",
+        "terminalSha256": ""
+      },
+      "postCommit": null,
+      "postExact": false,
+      "preExact": true,
+      "readOnlyConnectionId": "cab76cf1953fcd50"
+    },
+    "status": "CONTROLLED_FAILURE",
+    "summary": "AMBIGUOUS_COMMIT_RESOLVED_AS_ROLLED_BACK"
+  },
+  "scenario_evidence_sha256": "6a9c7f16a397004758a262fcd79a22363931fcfda1c0994e063c7146cec8b0ee",
+  "schema": "ACCESS_CORE_PACKAGE_V2_SCENARIO_EVIDENCE",
+  "started_utc": "2026-08-02T01:53:21.957Z"
+}

@@ -1,0 +1,43 @@
+{
+  "failed_package_event_utc": "2026-08-01T23:51:30Z",
+  "failed_package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+  "failed_package_version_reservation_sha256": "cee908347293b96c45e09c0a3f344550347202347c827b67cd13ca8e1ebf6452",
+  "maximum_reserved_version": "20260801235133",
+  "production_contact": 0,
+  "replacement_allocator_rule": "ALL_LISTED_VERSIONS_ARE_UNAVAILABLE",
+  "reservations": [
+    {
+      "logical_migration": "046",
+      "statuses": [
+        "RESERVED_BY_FAILED_PACKAGE",
+        "NOT_DEPLOYABLE"
+      ],
+      "version": "20260801235130"
+    },
+    {
+      "logical_migration": "047",
+      "statuses": [
+        "RESERVED_BY_FAILED_PACKAGE",
+        "NOT_DEPLOYABLE"
+      ],
+      "version": "20260801235131"
+    },
+    {
+      "logical_migration": "048",
+      "statuses": [
+        "RESERVED_BY_FAILED_PACKAGE",
+        "NOT_DEPLOYABLE"
+      ],
+      "version": "20260801235132"
+    },
+    {
+      "logical_migration": "049",
+      "statuses": [
+        "RESERVED_BY_FAILED_PACKAGE",
+        "NOT_DEPLOYABLE"
+      ],
+      "version": "20260801235133"
+    }
+  ],
+  "schema": "ACCESS_CORE_FAILED_PACKAGE_VERSION_RESERVATION_V2"
+}

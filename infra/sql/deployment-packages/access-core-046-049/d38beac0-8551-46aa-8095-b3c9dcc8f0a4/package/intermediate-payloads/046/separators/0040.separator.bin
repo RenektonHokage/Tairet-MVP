@@ -1,0 +1,4 @@
+
+
+-- Backfill one authoritative fulfillment summary for each paid order with at
+-- least one approved payment attempt. Existing business rows remain unchanged.

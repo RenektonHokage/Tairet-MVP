@@ -1,0 +1,268 @@
+{
+  "disposable_database_residual_count": 0,
+  "executor_release_sha256": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+  "expected_scenario_count": 19,
+  "fail_count": 0,
+  "fatal": null,
+  "mode": "Development",
+  "network_policy": "DOCKER_INTERNAL_ONLY",
+  "open_postgres_session_count": 0,
+  "package_descriptor_sha256": "391066950187fac45a8cd3ca4cf759c86c98688ef54855b2791b831be15428a7",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_development_rehearsal_result_sha256": "ba50d087d6fc3f4b44291b76f62f86bab2c38093845ea07bc9251ad9b5cd838a",
+  "pass_count": 19,
+  "postgres_target": "17.6",
+  "production_contact": 0,
+  "rows": [
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-01.json",
+        "sha256": "3f78e506d6a8c3a465ca799e055f66249be04786afcd8058ae17b675a21f18d8",
+        "size": 5012840
+      },
+      "description": "normal full chain applies exact V046 through V049",
+      "error_code": null,
+      "id": "ELR-01",
+      "pass": true,
+      "result_summary": "NORMAL_CHAIN_EXACT",
+      "runtime_stage_verifier_pass_count": 14
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-02.json",
+        "sha256": "066c97a617a24b69999cecbe761633d54ec0a9346683c83d68084124a349b388",
+        "size": 7048
+      },
+      "description": "migration SQL failure rolls back effects and ledger",
+      "error_code": null,
+      "id": "ELR-02",
+      "pass": true,
+      "result_summary": "EFFECTS_AND_LEDGER_ROLLED_BACK",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-03.json",
+        "sha256": "0d5e93d9c228bcd48e95694fb7397361ab4128b4b169ef06fb1f4da61595a9a9",
+        "size": 7163
+      },
+      "description": "in-transaction verifier failure rolls back effects and ledger",
+      "error_code": null,
+      "id": "ELR-03",
+      "pass": true,
+      "result_summary": "EFFECTS_AND_LEDGER_ROLLED_BACK",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-04.json",
+        "sha256": "5eb035146057e01a449efab6f35ad53d1e3100afcdefadfeb311be48ac82712e",
+        "size": 7142
+      },
+      "description": "ledger insertion failure rolls back effects and ledger",
+      "error_code": null,
+      "id": "ELR-04",
+      "pass": true,
+      "result_summary": "EFFECTS_AND_LEDGER_ROLLED_BACK",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-05.json",
+        "sha256": "de2b24afe36aa40fa8696d9d41964bd60bc12a87c861c2dee8195f032f426541",
+        "size": 11792
+      },
+      "description": "disconnect before commit resolves as rolled back",
+      "error_code": null,
+      "id": "ELR-05",
+      "pass": true,
+      "result_summary": "AMBIGUOUS_COMMIT_RESOLVED_AS_ROLLED_BACK",
+      "runtime_stage_verifier_pass_count": 2
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-06.json",
+        "sha256": "0543b2060b9cbed2c75468b4ae6339984c7e6a29f617e218e09eb5df8d184988",
+        "size": 865142
+      },
+      "description": "commit success with simulated ACK loss resolves as committed",
+      "error_code": null,
+      "id": "ELR-06",
+      "pass": true,
+      "result_summary": "AMBIGUOUS_COMMIT_RESOLVED_AS_COMMITTED",
+      "runtime_stage_verifier_pass_count": 5
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-07.json",
+        "sha256": "0a7a39e058b058bd48b5f05d7e02263c02de52dbd03ea20a680466e7fcbdacc1",
+        "size": 6340
+      },
+      "description": "exact effects without ledger hard-stop as split state",
+      "error_code": null,
+      "id": "ELR-07",
+      "pass": true,
+      "result_summary": "HARD_STOP_SPLIT_STATE",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-08.json",
+        "sha256": "dc19a6b112139dd10a8b630c0221e1bbcc2d3a586cbc8da0272fd4ae306da2c7",
+        "size": 174552
+      },
+      "description": "exact ledger without effects hard-stop as split state",
+      "error_code": null,
+      "id": "ELR-08",
+      "pass": true,
+      "result_summary": "HARD_STOP_SPLIT_STATE",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-09.json",
+        "sha256": "b72358a785cdbc7016c548eb914bac361995bafd3c9afd6036483afb79431042",
+        "size": 6270
+      },
+      "description": "partial incompatible effects hard-stop",
+      "error_code": null,
+      "id": "ELR-09",
+      "pass": true,
+      "result_summary": "HARD_STOP_INCOMPATIBLE_STATE",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-10.json",
+        "sha256": "0c75c8406b37f9582e7423899fec955e130b24141c005bc07ccf4c7093e9bcc8",
+        "size": 1210552
+      },
+      "description": "second invocation after exact application verifies already applied without rerunning SQL",
+      "error_code": null,
+      "id": "ELR-10",
+      "pass": true,
+      "result_summary": "ALREADY_APPLIED_VERIFIED",
+      "runtime_stage_verifier_pass_count": 6
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-11.json",
+        "sha256": "ebe73b9bbcd9d60bf2da58345f2cfd209bb3c761403dc9dc5363fdae6445a474",
+        "size": 6513
+      },
+      "description": "conflicting assigned version name and statements hard-stop",
+      "error_code": null,
+      "id": "ELR-11",
+      "pass": true,
+      "result_summary": "HARD_STOP_INCOMPATIBLE_STATE",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/ELR-12.json",
+        "sha256": "3fc65b9fed6568c29c16c1553d583bc95fae8577dc9c738d49db9b45e25ea2e4",
+        "size": 6261
+      },
+      "description": "out-of-order V047 hard-stops before mutation",
+      "error_code": null,
+      "id": "ELR-12",
+      "pass": true,
+      "result_summary": "OUT_OF_ORDER_HARD_STOP_BEFORE_MUTATION",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-01.json",
+        "sha256": "d2b1a92898ded82352d3a0577657ee9aa8a1e3a4fb54eb180703fd7c229be135",
+        "size": 520
+      },
+      "description": "wrong executor release identity is rejected",
+      "error_code": null,
+      "id": "PM-01",
+      "pass": true,
+      "result_summary": "EXECUTOR_IDENTITY_MISMATCH",
+      "runtime_stage_verifier_pass_count": 0
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-02.json",
+        "sha256": "78c2c776eccc497eb0de6fab4ae8e04f7102bbd94656750d5a7fc7f066a144e0",
+        "size": 556
+      },
+      "description": "wrong canonical migration bytes identity is rejected",
+      "error_code": null,
+      "id": "PM-02",
+      "pass": true,
+      "result_summary": "CANONICAL_MIGRATION_IDENTITY_MISMATCH",
+      "runtime_stage_verifier_pass_count": 0
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-03.json",
+        "sha256": "60f73af63fe44d8ba9ee4c9b0672bc47ae704fded1ed35d80cc4cd995b26c52d",
+        "size": 553
+      },
+      "description": "wrong intermediate payload identity is rejected",
+      "error_code": null,
+      "id": "PM-03",
+      "pass": true,
+      "result_summary": "INTERMEDIATE_PAYLOAD_IDENTITY_MISMATCH",
+      "runtime_stage_verifier_pass_count": 0
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-04.json",
+        "sha256": "a9dccaa86860624ae5b384392939e672310b222e222a9f81e35c1eb48c84460b",
+        "size": 518
+      },
+      "description": "wrong stage verifier identity is rejected",
+      "error_code": null,
+      "id": "PM-04",
+      "pass": true,
+      "result_summary": "VERIFIER_IDENTITY_MISMATCH",
+      "runtime_stage_verifier_pass_count": 0
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-05.json",
+        "sha256": "70adc0093e82e1625450e9a015ae5b51daeda2afe6dd2378ec9bcf01868ca2ac",
+        "size": 506
+      },
+      "description": "wrong target identity is rejected",
+      "error_code": null,
+      "id": "PM-05",
+      "pass": true,
+      "result_summary": "TARGET_IDENTITY_MISMATCH",
+      "runtime_stage_verifier_pass_count": 0
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-06.json",
+        "sha256": "657ca4078ee7d68c6ab89c13ed779927332e668c347c523bdb2e2556f762c43f",
+        "size": 6215
+      },
+      "description": "wrong predecessor ledger identity is rejected",
+      "error_code": null,
+      "id": "PM-06",
+      "pass": true,
+      "result_summary": "WRONG_PREDECESSOR_HARD_STOP",
+      "runtime_stage_verifier_pass_count": 1
+    },
+    {
+      "artifact": {
+        "package_path": "scenarios/PM-07.json",
+        "sha256": "52137ffe5e91e7711ec79c95f97ed2f8b82c33070d2b037c03393b069c73bead",
+        "size": 6411
+      },
+      "description": "test-only assigned version collision is rejected",
+      "error_code": null,
+      "id": "PM-07",
+      "pass": true,
+      "result_summary": "VERSION_COLLISION_HARD_STOP",
+      "runtime_stage_verifier_pass_count": 1
+    }
+  ],
+  "runtime_stage_verifier_pass_count": 37,
+  "scenario_count": 19,
+  "schema": "ACCESS_CORE_046_049_DEVELOPMENT_REHEARSAL_RESULT_V2"
+}

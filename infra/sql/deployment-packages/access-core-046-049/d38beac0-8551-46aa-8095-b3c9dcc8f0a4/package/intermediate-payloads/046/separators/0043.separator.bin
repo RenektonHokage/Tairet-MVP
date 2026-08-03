@@ -1,0 +1,5 @@
+
+
+-- Recompute the backfill from its locked source tables. This verifies the
+-- chosen approved attempt, counts, exact expected-unit set, and legacy email
+-- projection rather than merely rechecking fulfillment CHECK constraints.

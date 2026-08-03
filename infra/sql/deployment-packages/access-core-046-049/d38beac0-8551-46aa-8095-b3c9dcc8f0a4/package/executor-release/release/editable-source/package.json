@@ -1,0 +1,15 @@
+{
+  "name": "tairet-statement-aware-atomic-migration-executor-v3",
+  "version": "3.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build:development": "node tools/build-development.js",
+    "test:protocol": "node tests/protocol-validation-suite.js",
+    "test:orchestration": "node tests/orchestration-acceptance-suite.js",
+    "run:development": "pwsh -NoProfile -File tools/run-development-suite.ps1",
+    "preflight:final": "node tools/preflight-final-environment.js",
+    "freeze": "node tools/freeze-release.js",
+    "run:final": "pwsh -NoProfile -File tools/run-final-suite.ps1"
+  }
+}

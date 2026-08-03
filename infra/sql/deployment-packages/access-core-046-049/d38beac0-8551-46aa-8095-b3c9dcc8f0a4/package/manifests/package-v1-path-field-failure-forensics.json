@@ -1,0 +1,56 @@
+{
+  "artifact_hash_manifest_file_sha256": "dae0fbdd1ab42e1c6a4c80cfc3deaf594c4a4107d5421f952044df58a9d21386",
+  "artifact_hash_manifest_identity_sha256": "3d05ee5d44358c8c2cdbe919ee6e3b3c043190f0e095c61e25e13f599f203686",
+  "authoritative_manifest_sha256": "ef5be8d334ffce33460d373b3c77067192189208d09b0245dd2a1fae8afa1f8f",
+  "bound_runtime_correction_reason": "The one-write authoritative manifest already bound the runtime source hash; changing the accessor would invalidate that manifest identity.",
+  "builder_output_property": "destination",
+  "builder_source": {
+    "expression": "destination: relative(destination)",
+    "package_path": "rehearsal-source/build-package.js",
+    "sha256": "2a2aecbfeee9e7ba6d3fd191de02d31f2ffeaa064bad32cedff8af9bddded207",
+    "size": 38234
+  },
+  "docker_not_reached_reason": "Runtime self-validation was a mandatory pre-Docker gate and the finding prohibited continuation.",
+  "exact_failed_record": {
+    "authority_classification": "CANONICAL_REPOSITORY_MIGRATION",
+    "byte_equal": true,
+    "destination": "canonical-migrations/046_access_core_recoverable_fulfillment.sql",
+    "runtime_use": "DEPLOYMENT_PAYLOAD_SOURCE",
+    "sha256": "6f1b39fc66b53856e19475b20539de1377f20e29fe6ad99a79472c97dba2fe0c",
+    "size": 163792,
+    "source_path": "C:\\Importante\\Python\\tairet-mono-2\\infra\\sql\\migrations\\046_access_core_recoverable_fulfillment.sql"
+  },
+  "failed_package_classification": "ACCESS_CORE_046_049_DEPLOYMENT_PACKAGE_FINDINGS",
+  "failed_package_executed": false,
+  "failed_package_id": "f290261c-96e0-4bcc-a982-37093e47e28d",
+  "failed_package_inventory_sha256": "be63a6b17a046b9966d106303015a3e20a5f7616d58004158c9de4e5eecd3e09",
+  "failed_package_modified": false,
+  "failed_package_root": "C:\\Users\\mateo\\AppData\\Local\\Tairet\\access-core-046-049-deployment-package-1f2c969e",
+  "finding_file_sha256": "b8792a38ec0b2a2a94fb83c1ace056a7f2fdccf2da1781ee20fed68c1432b2f3",
+  "finding_identity_sha256": "bd284d48f00c7e56290431ed883b2115aae094e1173eb7ef9aadb097e641ea8f",
+  "imported_artifact_count": 153,
+  "input_manifest_file_sha256": "7579457a77669c2093309f04b47a01bd29f3707be24f7ffe10804bcea4f3b7f2",
+  "input_manifest_identity_sha256": "2efd4832c37a65342c948337aca1a52bd4a4de95b7775a01e655396d5dbc1669",
+  "package_v1_path_field_failure_forensics_sha256": "6212265c9def84c3593717691707b47ddac15500016c2d67a3b74d19ae766208",
+  "production_contact": 0,
+  "root_cause": "INPUT_MANIFEST_RUNTIME_SCHEMA_MISMATCH",
+  "runtime_expected_property": "path",
+  "runtime_self_validation_detection": "The first imported-record runtime resolution evaluated undefined descriptor.path and failed closed before freeze.",
+  "runtime_source": {
+    "accessor": "normalized(descriptor.path)",
+    "finding_source_location": "rehearsal-source/package-runtime.js:137",
+    "package_path": "rehearsal-source/package-runtime.js",
+    "sha256": "2c5bf695f90cb1230210e3c0a68852069c5d971f9596fcd0eaa3aa6ad3113b38",
+    "size": 34157
+  },
+  "schema": "ACCESS_CORE_PACKAGE_V1_PATH_FIELD_FAILURE_FORENSICS_V2",
+  "static_checks_miss_reason": "The builder proved source/destination byte equality and emitted destination, while no pre-authoritative contract test invoked the runtime fileIdentity accessor against an emitted record.",
+  "v2_canonical_property": "package_path",
+  "validation_order": [
+    "authoritative manifest and sealed package manifests loaded",
+    "frozen executor release identity verified",
+    "input-manifest equality counters verified",
+    "each imported record passed to fileIdentity",
+    "fileIdentity attempted descriptor.path before Docker orchestration"
+  ]
+}

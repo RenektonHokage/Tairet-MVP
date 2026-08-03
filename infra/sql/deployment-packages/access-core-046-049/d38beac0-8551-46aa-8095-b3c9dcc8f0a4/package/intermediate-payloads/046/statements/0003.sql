@@ -1,0 +1,2 @@
+create index idx_access_order_fulfillments_approved_attempt
+  on public.access_order_fulfillments(approved_payment_attempt_id);

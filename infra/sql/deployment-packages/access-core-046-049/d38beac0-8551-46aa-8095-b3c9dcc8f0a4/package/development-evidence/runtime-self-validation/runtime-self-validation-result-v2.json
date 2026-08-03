@@ -1,0 +1,34 @@
+{
+  "artifact_count": 153,
+  "authoritative_manifest_status": "NOT_WRITTEN",
+  "authoritative_packaging_event_status": "NOT_CAPTURED",
+  "canonical_migration_count": 4,
+  "contract_test_result_sha256": "2a2326132b64b1f3282aa57e2999be9d204ac669d175b23ebad020ab9a713b32",
+  "eligibility_schema": "ACCESS_CORE_DEPLOYMENT_PACKAGE_ELIGIBILITY_POLICY_V2",
+  "exact_runtime_source": "editable-source/package-runtime.js",
+  "exact_shared_parser": "editable-source/lib/input-manifest-v2.js",
+  "executor_release_identity": "700cb1c385bcdb1c64d4d4a69fec585af4b769090aa72de2c1059da8d8e01da1",
+  "input_manifest_schema": "ACCESS_CORE_PACKAGE_INPUT_MANIFEST_V2",
+  "input_manifest_schema_version": 2,
+  "intermediate_payload_count": 4,
+  "legacy_fields_rejected": [
+    "path",
+    "destination"
+  ],
+  "package_classification": "DRAFT_NON_DEPLOYABLE",
+  "package_id": "d38beac0-8551-46aa-8095-b3c9dcc8f0a4",
+  "package_v2_runtime_self_validation_sha256": "a34a88c3bf619b8f8f5140435be2168bc666b03f883789e92c6b7c8f35d9501b",
+  "production_contact": 0,
+  "real_candidate_version_status": "NOT_ASSIGNED",
+  "runtime_required_count": 143,
+  "runtime_resolution_field": "package_path",
+  "runtime_self_validation": "PASS",
+  "schema": "ACCESS_CORE_046_049_RUNTIME_SELF_VALIDATION_RESULT_V2",
+  "stage_verifier_count": 9,
+  "statement_counts": [
+    69,
+    12,
+    6,
+    6
+  ]
+}

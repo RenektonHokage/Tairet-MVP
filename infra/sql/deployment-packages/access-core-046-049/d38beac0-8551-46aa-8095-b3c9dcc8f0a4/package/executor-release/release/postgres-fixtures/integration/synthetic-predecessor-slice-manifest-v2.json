@@ -1,0 +1,115 @@
+{
+  "apply_order": [
+    "000_bootstrap.sql",
+    "five_source_relations.sql",
+    "037_material_checkout_routine.sql",
+    "045_exact_checkin_routines.sql",
+    "999_finalize.sql"
+  ],
+  "classification": "SLICE_SPECIFIC_PREDECESSOR",
+  "complete_production_replay": false,
+  "dependency_relations": [
+    "public.locals",
+    "public.events"
+  ],
+  "exact_material_routines": [
+    {
+      "identity_arguments": "text, uuid, uuid, date, jsonb, jsonb, text, text, integer",
+      "name": "public.create_access_paid_checkout",
+      "source_file": "predecessor/037_material_checkout_routine.sql"
+    },
+    {
+      "identity_arguments": "date, timestamp with time zone",
+      "name": "public.get_access_checkin_window_status",
+      "source_file": "predecessor/045_exact_checkin_routines.sql"
+    },
+    {
+      "identity_arguments": "uuid, uuid, uuid",
+      "name": "public.check_in_access_entry_by_token",
+      "source_file": "predecessor/045_exact_checkin_routines.sql"
+    }
+  ],
+  "files": [
+    {
+      "origin": "slice-specific synthetic derivation from canonical pre-046 schema/migrations",
+      "path": "predecessor/000_bootstrap.sql",
+      "sha256": "42d11861423db60c597c13380991df5ac0a31aa1e6ac5e7b973bea1a6bf322ee",
+      "size": 1169
+    },
+    {
+      "origin": "slice-specific synthetic derivation from canonical pre-046 schema/migrations",
+      "path": "predecessor/five_source_relations.sql",
+      "sha256": "532b355f6426b3c9d2cba5bcb3dfaeaeb947db6776e71e2fb57defb509b14424",
+      "size": 27423
+    },
+    {
+      "origin": "infra/sql/migrations/037_access_core_slice_5.sql",
+      "path": "predecessor/037_material_checkout_routine.sql",
+      "sha256": "ebe658be9aa5ed99e9fec6cb16fc3ddf6422760eda85b787c581a11470f8d7c3",
+      "size": 16065
+    },
+    {
+      "origin": "infra/sql/migrations/045_access_core_paid_checkin_operational_window.sql",
+      "path": "predecessor/045_exact_checkin_routines.sql",
+      "sha256": "ed8ab99b34b53adc72aaf61cff319e7a69ea5148dcac59cb7f88f5883d63da60",
+      "size": 12558
+    },
+    {
+      "origin": "slice-specific synthetic derivation from canonical pre-046 schema/migrations",
+      "path": "predecessor/999_finalize.sql",
+      "sha256": "95c5e32d4c23c757e1946ef01411ab739d43ec2b08a7eca0628646f260bacee5",
+      "size": 1440
+    },
+    {
+      "origin": "slice-specific synthetic derivation from canonical pre-046 schema/migrations",
+      "path": "predecessor/apply-order.txt",
+      "sha256": "3b880f476c5e0131369edf9347528611d083bdd83e8c73c5878a3c952ceaeb6b",
+      "size": 126
+    }
+  ],
+  "limitation": "Only the material slice required by canonical migrations 046-049 is represented.",
+  "postgres_version": "17.6",
+  "roles": [
+    "anon",
+    "authenticated",
+    "service_role",
+    "supabase_admin",
+    "postgres"
+  ],
+  "schema": "tairet-synthetic-predecessor-slice-manifest-v2",
+  "schemas": [
+    "public",
+    "auth",
+    "extensions"
+  ],
+  "source_relations": [
+    "public.access_orders",
+    "public.payment_attempts",
+    "public.access_ticket_types",
+    "public.access_order_items",
+    "public.access_entries"
+  ],
+  "stage": "PRE_046",
+  "sufficiency_evidence": {
+    "development_run": "full-suite-007",
+    "exact_046_049_support_stage_build_success": true,
+    "final_case_pass_count": 36,
+    "predecessor_apply_success": true,
+    "stage_manifest_sha256": "55907954e1638863691a9831b32c30f37e4b8738575427bfa5643cdf4d82fb7b"
+  },
+  "surface": [
+    "columns",
+    "defaults",
+    "primary keys",
+    "foreign keys",
+    "unique constraints",
+    "check constraints",
+    "indexes",
+    "relevant ACL",
+    "relevant RLS",
+    "material predecessor routines",
+    "exact migration 045 routines"
+  ],
+  "v1_manifest_sha256": "bd5f997b4ca0f1d0ffb6f64c706fdaef227dadc8ebac42225fccbd33ac3675f1",
+  "v1_routine_name_correction_only": true
+}
