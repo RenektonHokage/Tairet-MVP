@@ -374,6 +374,46 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/access-core-pr01-operator-bearer:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: 2.48.1
+        version: 2.48.1
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.0
+        version: 22.19.0
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/access-core-pr02-bancard-signer:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.0
+        version: 22.19.0
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/access-core-pr04-postgres-connectivity:
+    devDependencies:
+      '@types/node':
+        specifier: 22.19.0
+        version: 22.19.0
+      tsx:
+        specifier: 4.20.6
+        version: 4.20.6
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/types:
     dependencies:
       zod:
