@@ -35,6 +35,96 @@ export type DirectPostgresStage =
 
 type AddressFamily = 4 | 6;
 
+type IanaIpv4SpecialPurposePrefix = Readonly<{
+  network: number;
+  prefixLength: number;
+  globallyReachable: boolean | null;
+}>;
+
+function strictIpv4ToUint32(address: string): number | undefined {
+  if (isIP(address) !== 4) return undefined;
+  const octets = address.split('.').map(Number) as [number, number, number, number];
+  return (
+    octets[0] * 0x1000000 +
+    octets[1] * 0x10000 +
+    octets[2] * 0x100 +
+    octets[3]
+  ) >>> 0;
+}
+
+function ipv4PrefixMask(prefixLength: number): number {
+  return prefixLength === 0 ? 0 : (0xffffffff << (32 - prefixLength)) >>> 0;
+}
+
+function ianaIpv4SpecialPurposePrefix(
+  cidr: string,
+  globallyReachable: boolean | null,
+): IanaIpv4SpecialPurposePrefix {
+  const [address, rawPrefixLength] = cidr.split('/');
+  const prefixLength = Number(rawPrefixLength);
+  const network = address === undefined ? undefined : strictIpv4ToUint32(address);
+  if (
+    network === undefined ||
+    !Number.isInteger(prefixLength) ||
+    prefixLength < 0 ||
+    prefixLength > 32 ||
+    ((network & ipv4PrefixMask(prefixLength)) >>> 0) !== network
+  ) {
+    throw new Error('INVALID_FROZEN_IANA_IPV4_SPECIAL_PURPOSE_PREFIX');
+  }
+  return Object.freeze({ network, prefixLength, globallyReachable });
+}
+
+const IANA_IPV4_SPECIAL_PURPOSE_PREFIXES = Object.freeze([
+  ianaIpv4SpecialPurposePrefix('0.0.0.0/8', false),
+  ianaIpv4SpecialPurposePrefix('0.0.0.0/32', false),
+  ianaIpv4SpecialPurposePrefix('10.0.0.0/8', false),
+  ianaIpv4SpecialPurposePrefix('100.64.0.0/10', false),
+  ianaIpv4SpecialPurposePrefix('127.0.0.0/8', false),
+  ianaIpv4SpecialPurposePrefix('169.254.0.0/16', false),
+  ianaIpv4SpecialPurposePrefix('172.16.0.0/12', false),
+  ianaIpv4SpecialPurposePrefix('192.0.0.0/24', false),
+  ianaIpv4SpecialPurposePrefix('192.0.0.0/29', false),
+  ianaIpv4SpecialPurposePrefix('192.0.0.8/32', false),
+  ianaIpv4SpecialPurposePrefix('192.0.0.9/32', true),
+  ianaIpv4SpecialPurposePrefix('192.0.0.10/32', true),
+  ianaIpv4SpecialPurposePrefix('192.0.0.170/32', false),
+  ianaIpv4SpecialPurposePrefix('192.0.0.171/32', false),
+  ianaIpv4SpecialPurposePrefix('192.0.2.0/24', false),
+  ianaIpv4SpecialPurposePrefix('192.31.196.0/24', true),
+  ianaIpv4SpecialPurposePrefix('192.52.193.0/24', true),
+  ianaIpv4SpecialPurposePrefix('192.88.99.0/24', null),
+  ianaIpv4SpecialPurposePrefix('192.88.99.2/32', null),
+  ianaIpv4SpecialPurposePrefix('192.168.0.0/16', false),
+  ianaIpv4SpecialPurposePrefix('192.175.48.0/24', true),
+  ianaIpv4SpecialPurposePrefix('198.18.0.0/15', false),
+  ianaIpv4SpecialPurposePrefix('198.51.100.0/24', false),
+  ianaIpv4SpecialPurposePrefix('203.0.113.0/24', false),
+  ianaIpv4SpecialPurposePrefix('224.0.0.0/4', false),
+  ianaIpv4SpecialPurposePrefix('233.252.0.0/24', false),
+  ianaIpv4SpecialPurposePrefix('240.0.0.0/4', false),
+  ianaIpv4SpecialPurposePrefix('255.255.255.255/32', false),
+]);
+
+export function isGloballyReachableIpv4(address: string): boolean {
+  const value = strictIpv4ToUint32(address);
+  if (value === undefined) return false;
+
+  let matchedPrefixLength = -1;
+  let matchedReachability: boolean | null = true;
+  for (const entry of IANA_IPV4_SPECIAL_PURPOSE_PREFIXES) {
+    const mask = ipv4PrefixMask(entry.prefixLength);
+    if (
+      entry.prefixLength > matchedPrefixLength &&
+      ((value & mask) >>> 0) === entry.network
+    ) {
+      matchedPrefixLength = entry.prefixLength;
+      matchedReachability = entry.globallyReachable;
+    }
+  }
+  return matchedReachability === true;
+}
+
 type FailureClassification =
   | 'DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE'
   | 'PRODUCTION_CA_AUTHORITY_MISMATCH'
@@ -449,11 +539,20 @@ export async function runDirectPostgresPreflight(
 
     records = normalizeRecords(dns.records);
     resolver = sanitizeResolver(dns.resolver);
-    if (records.length === 0) {
-      throw new PreflightFailure('DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE', 'CP02');
-    }
 
     enter('CP03');
+    const ipv4RecordCount = records.filter((record) => record.family === 4).length;
+    const ipv6RecordCount = records.filter((record) => record.family === 6).length;
+    if (ipv4RecordCount === 0) {
+      throw new PreflightFailure('DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE', 'CP03');
+    }
+    if (ipv6RecordCount !== 0) {
+      throw new PreflightFailure('PRODUCTION_TARGET_MISMATCH', 'CP03');
+    }
+    if (records.some((record) => !isGloballyReachableIpv4(record.address))) {
+      throw new PreflightFailure('PRODUCTION_TARGET_MISMATCH', 'CP03');
+    }
+
     const usableRoutes: { address: string; family: AddressFamily; metric: number }[] = [];
     for (const record of records) {
       const route = await abortable(
@@ -487,6 +586,15 @@ export async function runDirectPostgresPreflight(
     selectedRoute = usableRoutes[0];
     if (selectedRoute === undefined) {
       throw new PreflightFailure('DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE', 'CP03');
+    }
+    if (
+      selectedRoute.family !== 4 ||
+      !records.some(
+        (record) => record.family === 4 && record.address === selectedRoute?.address,
+      ) ||
+      !isGloballyReachableIpv4(selectedRoute.address)
+    ) {
+      throw new PreflightFailure('PRODUCTION_TARGET_MISMATCH', 'CP03');
     }
 
     enter('CP04');
