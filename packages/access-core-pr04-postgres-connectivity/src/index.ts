@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { promises as dnsPromises } from 'node:dns';
 import { promises as fs } from 'node:fs';
@@ -36,6 +36,91 @@ export type {
 type LiveConnection = {
   socket: Socket | TLSSocket;
 };
+
+const WINDOWS_ROUTE_EXECUTABLE = Object.freeze({
+  path: 'C:\\Windows\\System32\\route.exe',
+  realPath: 'C:\\Windows\\System32\\ROUTE.EXE',
+  sizeBytes: 49_152,
+  sha256: 'dae693240683cead1dd793011606474083f999f6371b100688fa122a0df73507',
+});
+const WINDOWS_ROUTE_ARGS = Object.freeze(['PRINT', '-4'] as const);
+const WINDOWS_ROUTE_MAX_OUTPUT_BYTES = 1024 * 1024;
+
+type WindowsRouteFailure =
+  | 'CATALOG_ACQUISITION_FAILURE'
+  | 'PERMISSION_ACCESS_FAILURE'
+  | 'SCHEMA_FAILURE'
+  | 'NO_MATCH'
+  | 'AMBIGUOUS';
+
+type WindowsRouteRecord = Readonly<{
+  gateway: string;
+  metric: number;
+  netmask: string;
+  network: string;
+  prefixLength: number;
+  sourceAddress: string;
+}>;
+
+type RouteExecutableIdentity = Readonly<{
+  device: string;
+  inode: string;
+  linkCount: number;
+  path: string;
+  realPath: string;
+  regularFile: true;
+  reparse: false;
+  sha256: string;
+  sizeBytes: number;
+}>;
+
+type RouteIdentityResult =
+  | Readonly<{ ok: true; identity: RouteExecutableIdentity }>
+  | Readonly<{ ok: false; classification: 'CATALOG_ACQUISITION_FAILURE' | 'PERMISSION_ACCESS_FAILURE' }>;
+
+type RouteProcessSpec = Readonly<{
+  args: readonly ['PRINT', '-4'];
+  cwd: 'C:\\Windows\\System32';
+  executable: 'C:\\Windows\\System32\\route.exe';
+  shell: false;
+  stdin: 'ignore';
+}>;
+
+type RouteProcessResult =
+  | Readonly<{ ok: true; stdout: Uint8Array }>
+  | Readonly<{ ok: false; classification: 'CATALOG_ACQUISITION_FAILURE' | 'PERMISSION_ACCESS_FAILURE' }>;
+
+type RouteCatalogDependencies = Readonly<{
+  runProcess: (spec: RouteProcessSpec, signal: AbortSignal) => Promise<RouteProcessResult>;
+  validateExecutable: () => Promise<RouteIdentityResult>;
+}>;
+
+type RouteCatalogAcquisition =
+  | Readonly<{
+      ok: true;
+      executableIdentity: RouteExecutableIdentity;
+      routes: readonly WindowsRouteRecord[];
+      validationCount: 2;
+    }>
+  | Readonly<{
+      ok: false;
+      classification: 'CATALOG_ACQUISITION_FAILURE' | 'PERMISSION_ACCESS_FAILURE' | 'SCHEMA_FAILURE';
+      validationCount: 0 | 1 | 2;
+    }>;
+
+type RouteCatalogInspection =
+  | Readonly<{
+      candidateCount: number;
+      classification: 'VALID_SELECTED_ROUTE';
+      executableIdentity: RouteExecutableIdentity;
+      selected: WindowsRouteRecord;
+      validationCount: 2;
+    }>
+  | Readonly<{
+      candidateCount: number;
+      classification: WindowsRouteFailure;
+      validationCount: 0 | 1 | 2;
+    }>;
 
 function fixedError(code: string): Error {
   return new Error(code);
@@ -87,84 +172,438 @@ async function resolveLiveDns(
   }
 }
 
-function runReadOnlyProcess(
-  executable: string,
-  args: readonly string[],
-  signal: AbortSignal,
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
-    let settled = false;
-    const child = execFile(
-      executable,
-      [...args],
-      { encoding: 'utf8', maxBuffer: 32 * 1024, windowsHide: true },
-      (error, stdout) => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', onAbort);
-        if (error !== null) reject(fixedError('DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE'));
-        else resolve(stdout);
+function isAccessFailure(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'EACCES' || code === 'EPERM';
+}
+
+function normalizeWindowsPath(value: string): string {
+  return value.replaceAll('/', '\\').replace(/\\+$/u, '').toLowerCase();
+}
+
+function strictIpv4ToNumber(value: string): number | undefined {
+  const parts = value.split('.');
+  if (parts.length !== 4) return undefined;
+  const octets: number[] = [];
+  for (const part of parts) {
+    if (!/^(?:0|[1-9][0-9]{0,2})$/u.test(part)) return undefined;
+    const octet = Number.parseInt(part, 10);
+    if (!Number.isSafeInteger(octet) || octet < 0 || octet > 255) return undefined;
+    octets.push(octet);
+  }
+  return (
+    ((octets[0] as number) * 0x1000000 +
+      (octets[1] as number) * 0x10000 +
+      (octets[2] as number) * 0x100 +
+      (octets[3] as number)) >>>
+    0
+  );
+}
+
+function prefixLengthFromNetmask(mask: number): number | undefined {
+  const inverted = (~mask) >>> 0;
+  if ((inverted & ((inverted + 1) >>> 0)) !== 0) return undefined;
+  let prefixLength = 0;
+  for (let bit = 31; bit >= 0; bit -= 1) {
+    if (((mask >>> bit) & 1) === 0) break;
+    prefixLength += 1;
+  }
+  return prefixLength;
+}
+
+function looksLikeIpv4Field(value: string | undefined): boolean {
+  return value !== undefined && /^[0-9]+(?:\.[0-9]+){3}$/u.test(value);
+}
+
+function parseWindowsRoutePrint(stdout: Uint8Array):
+  | Readonly<{ ok: true; routes: readonly WindowsRouteRecord[] }>
+  | Readonly<{ ok: false; classification: 'SCHEMA_FAILURE' }> {
+  if (stdout.byteLength === 0 || stdout.byteLength > WINDOWS_ROUTE_MAX_OUTPUT_BYTES) {
+    return { ok: false, classification: 'SCHEMA_FAILURE' };
+  }
+  const text = Buffer.from(stdout).toString('latin1');
+  if (text.includes('\0')) return { ok: false, classification: 'SCHEMA_FAILURE' };
+
+  type RouteSection = 'UNPROVEN' | 'ACTIVE' | 'PERSISTENT' | 'TERMINAL';
+  const routes: WindowsRouteRecord[] = [];
+  let section: RouteSection = 'UNPROVEN';
+  let persistentBoundarySeen = false;
+  let persistentMaterialSeen = false;
+  for (const rawLine of text.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (/^={8,}$/u.test(line)) {
+      if (section === 'ACTIVE') {
+        section = 'PERSISTENT';
+        persistentBoundarySeen = true;
+      } else if (section === 'PERSISTENT') {
+        section = 'TERMINAL';
+      }
+      continue;
+    }
+    if (line.length === 0) continue;
+
+    const tokens = line.split(/\s+/u);
+    const destinationToken = tokens[0];
+    const netmaskToken = tokens[1];
+    const sourceToken = tokens[tokens.length - 2];
+    const metricToken = tokens[tokens.length - 1];
+    const routeLike =
+      looksLikeIpv4Field(destinationToken) ||
+      looksLikeIpv4Field(netmaskToken);
+
+    if (section === 'PERSISTENT') {
+      persistentMaterialSeen = true;
+      continue;
+    }
+    if (section === 'TERMINAL') {
+      if (routeLike) return { ok: false, classification: 'SCHEMA_FAILURE' };
+      continue;
+    }
+    if (!routeLike) continue;
+    if (tokens.length < 5) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+    if (
+      destinationToken === undefined ||
+      netmaskToken === undefined ||
+      sourceToken === undefined ||
+      metricToken === undefined
+    ) return { ok: false, classification: 'SCHEMA_FAILURE' };
+
+    const destination = strictIpv4ToNumber(destinationToken);
+    const netmask = strictIpv4ToNumber(netmaskToken);
+    const source = strictIpv4ToNumber(sourceToken);
+    if (destination === undefined || netmask === undefined || source === undefined) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+    const prefixLength = prefixLengthFromNetmask(netmask);
+    if (prefixLength === undefined || ((destination & netmask) >>> 0) !== destination) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+    if (!/^(?:0|[1-9][0-9]*)$/u.test(metricToken)) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+    const metric = Number.parseInt(metricToken, 10);
+    if (!Number.isSafeInteger(metric) || metric < 0) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+
+    const gatewayTokens = tokens.slice(2, -2);
+    if (gatewayTokens.length === 0) return { ok: false, classification: 'SCHEMA_FAILURE' };
+    const gateway = gatewayTokens.join(' ');
+    if (
+      gateway.length > 128 ||
+      /[\u0000-\u001f\u007f]/u.test(gateway) ||
+      (gateway.includes('.') && strictIpv4ToNumber(gateway) === undefined)
+    ) {
+      return { ok: false, classification: 'SCHEMA_FAILURE' };
+    }
+
+    routes.push({
+      gateway,
+      metric,
+      netmask: netmaskToken,
+      network: destinationToken,
+      prefixLength,
+      sourceAddress: sourceToken,
+    });
+    section = 'ACTIVE';
+  }
+  return routes.length === 0 || !persistentBoundarySeen || !persistentMaterialSeen
+    ? { ok: false, classification: 'SCHEMA_FAILURE' }
+    : { ok: true, routes };
+}
+
+function routeRecordKey(route: WindowsRouteRecord): string {
+  return [
+    route.network,
+    route.netmask,
+    route.gateway,
+    route.sourceAddress,
+    String(route.metric),
+  ].join('|');
+}
+
+function selectWindowsRoute(
+  routes: readonly WindowsRouteRecord[],
+  address: string,
+):
+  | Readonly<{ candidateCount: number; classification: 'VALID_SELECTED_ROUTE'; selected: WindowsRouteRecord }>
+  | Readonly<{ candidateCount: number; classification: 'NO_MATCH' | 'AMBIGUOUS' | 'SCHEMA_FAILURE' }> {
+  const target = strictIpv4ToNumber(address);
+  if (target === undefined) return { candidateCount: 0, classification: 'SCHEMA_FAILURE' };
+  const candidates = routes.filter((route) => {
+    const network = strictIpv4ToNumber(route.network);
+    const netmask = strictIpv4ToNumber(route.netmask);
+    return network !== undefined && netmask !== undefined && ((target & netmask) >>> 0) === network;
+  });
+  if (candidates.length === 0) return { candidateCount: 0, classification: 'NO_MATCH' };
+
+  const bestPrefixLength = Math.max(...candidates.map((route) => route.prefixLength));
+  const prefixCandidates = candidates.filter((route) => route.prefixLength === bestPrefixLength);
+  const bestMetric = Math.min(...prefixCandidates.map((route) => route.metric));
+  const equalRank = prefixCandidates.filter((route) => route.metric === bestMetric);
+  const distinct = [...new Map(equalRank.map((route) => [routeRecordKey(route), route])).values()];
+  if (distinct.length !== 1) {
+    return { candidateCount: candidates.length, classification: 'AMBIGUOUS' };
+  }
+  return {
+    candidateCount: candidates.length,
+    classification: 'VALID_SELECTED_ROUTE',
+    selected: distinct[0] as WindowsRouteRecord,
+  };
+}
+
+function sameExecutableIdentity(
+  left: RouteExecutableIdentity,
+  right: RouteExecutableIdentity,
+): boolean {
+  return (
+    normalizeWindowsPath(left.path) === normalizeWindowsPath(right.path) &&
+    normalizeWindowsPath(left.realPath) === normalizeWindowsPath(right.realPath) &&
+    left.sizeBytes === right.sizeBytes &&
+    left.sha256 === right.sha256 &&
+    left.regularFile === right.regularFile &&
+    left.reparse === right.reparse &&
+    left.device === right.device &&
+    left.inode === right.inode
+  );
+}
+
+async function validateWindowsRouteExecutable(): Promise<RouteIdentityResult> {
+  try {
+    const before = await fs.lstat(WINDOWS_ROUTE_EXECUTABLE.path);
+    const realPath = await fs.realpath(WINDOWS_ROUTE_EXECUTABLE.path);
+    const bytes = await fs.readFile(WINDOWS_ROUTE_EXECUTABLE.path);
+    const after = await fs.lstat(WINDOWS_ROUTE_EXECUTABLE.path);
+    const regularFile = before.isFile() && after.isFile();
+    const reparse =
+      before.isSymbolicLink() ||
+      after.isSymbolicLink() ||
+      normalizeWindowsPath(realPath) !== normalizeWindowsPath(WINDOWS_ROUTE_EXECUTABLE.realPath);
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const stableDuringRead =
+      before.dev === after.dev &&
+      before.ino === after.ino &&
+      before.size === after.size &&
+      before.mtimeMs === after.mtimeMs;
+    if (
+      !regularFile ||
+      reparse ||
+      !stableDuringRead ||
+      after.size !== WINDOWS_ROUTE_EXECUTABLE.sizeBytes ||
+      sha256 !== WINDOWS_ROUTE_EXECUTABLE.sha256
+    ) {
+      return { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' };
+    }
+    return {
+      ok: true,
+      identity: {
+        device: String(after.dev),
+        inode: String(after.ino),
+        linkCount: after.nlink,
+        path: WINDOWS_ROUTE_EXECUTABLE.path,
+        realPath,
+        regularFile: true,
+        reparse: false,
+        sha256,
+        sizeBytes: after.size,
       },
-    );
-    const onAbort = (): void => {
+    };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      classification: isAccessFailure(error)
+        ? 'PERMISSION_ACCESS_FAILURE'
+        : 'CATALOG_ACQUISITION_FAILURE',
+    };
+  }
+}
+
+const WINDOWS_ROUTE_PROCESS_SPEC: RouteProcessSpec = Object.freeze({
+  args: WINDOWS_ROUTE_ARGS,
+  cwd: 'C:\\Windows\\System32',
+  executable: WINDOWS_ROUTE_EXECUTABLE.path,
+  shell: false,
+  stdin: 'ignore',
+});
+
+function runWindowsRouteProcess(
+  spec: RouteProcessSpec,
+  signal: AbortSignal,
+): Promise<RouteProcessResult> {
+  if (signal.aborted) {
+    return Promise.resolve({ ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' });
+  }
+  return new Promise<RouteProcessResult>((resolve) => {
+    const child = spawn(spec.executable, [...spec.args], {
+      cwd: spec.cwd,
+      detached: false,
+      shell: spec.shell,
+      stdio: [spec.stdin, 'pipe', 'ignore'],
+      windowsHide: true,
+      windowsVerbatimArguments: false,
+    });
+    const chunks: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    let terminationFailure: RouteProcessResult | undefined;
+    const finish = (result: RouteProcessResult): void => {
       if (settled) return;
       settled = true;
-      child.kill();
-      reject(fixedError('DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE'));
+      signal.removeEventListener('abort', onAbort);
+      resolve(result);
     };
+    const onAbort = (): void => {
+      if (settled) return;
+      terminationFailure = { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' };
+      child.kill();
+    };
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      if (settled) return;
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      outputBytes += bytes.byteLength;
+      if (outputBytes > WINDOWS_ROUTE_MAX_OUTPUT_BYTES) {
+        terminationFailure = { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' };
+        child.kill();
+        return;
+      }
+      chunks.push(bytes);
+    });
+    child.once('error', (error: NodeJS.ErrnoException) => {
+      finish({
+        ok: false,
+        classification: isAccessFailure(error)
+          ? 'PERMISSION_ACCESS_FAILURE'
+          : 'CATALOG_ACQUISITION_FAILURE',
+      });
+    });
+    child.once('close', (code) => {
+      if (terminationFailure !== undefined) {
+        finish(terminationFailure);
+        return;
+      }
+      if (code !== 0) {
+        finish({ ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' });
+        return;
+      }
+      finish({ ok: true, stdout: Buffer.concat(chunks) });
+    });
     signal.addEventListener('abort', onAbort, { once: true });
   });
 }
 
-async function inspectWindowsRoute(
+const WINDOWS_ROUTE_DEPENDENCIES: RouteCatalogDependencies = Object.freeze({
+  runProcess: runWindowsRouteProcess,
+  validateExecutable: validateWindowsRouteExecutable,
+});
+
+async function acquireWindowsRouteCatalog(
+  signal: AbortSignal,
+  dependencies: RouteCatalogDependencies,
+): Promise<RouteCatalogAcquisition> {
+  let before: RouteIdentityResult;
+  try {
+    before = await dependencies.validateExecutable();
+  } catch {
+    return { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE', validationCount: 0 };
+  }
+  if (!before.ok) return { ...before, validationCount: 0 };
+
+  let processResult: RouteProcessResult;
+  try {
+    processResult = await dependencies.runProcess(WINDOWS_ROUTE_PROCESS_SPEC, signal);
+  } catch {
+    processResult = { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE' };
+  }
+
+  let after: RouteIdentityResult;
+  try {
+    after = await dependencies.validateExecutable();
+  } catch {
+    return { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE', validationCount: 1 };
+  }
+  if (!after.ok) return { ...after, validationCount: 1 };
+  if (!sameExecutableIdentity(before.identity, after.identity)) {
+    return { ok: false, classification: 'CATALOG_ACQUISITION_FAILURE', validationCount: 2 };
+  }
+  if (!processResult.ok) return { ...processResult, validationCount: 2 };
+
+  const parsed = parseWindowsRoutePrint(processResult.stdout);
+  if (!parsed.ok) return { ...parsed, validationCount: 2 };
+  return {
+    ok: true,
+    executableIdentity: after.identity,
+    routes: parsed.routes,
+    validationCount: 2,
+  };
+}
+
+function inspectAcquiredWindowsRoute(
+  acquisition: RouteCatalogAcquisition,
+  address: string,
+): RouteCatalogInspection {
+  if (!acquisition.ok) {
+    return { candidateCount: 0, ...acquisition };
+  }
+  const selected = selectWindowsRoute(acquisition.routes, address);
+  if (selected.classification !== 'VALID_SELECTED_ROUTE') {
+    return { ...selected, validationCount: acquisition.validationCount };
+  }
+  return {
+    ...selected,
+    executableIdentity: acquisition.executableIdentity,
+    validationCount: acquisition.validationCount,
+  };
+}
+
+async function inspectWindowsRouteCatalog(
+  address: string,
+  signal: AbortSignal,
+  dependencies: RouteCatalogDependencies = WINDOWS_ROUTE_DEPENDENCIES,
+): Promise<RouteCatalogInspection> {
+  return inspectAcquiredWindowsRoute(
+    await acquireWindowsRouteCatalog(signal, dependencies),
+    address,
+  );
+}
+
+function projectWindowsRoute(
   address: string,
   family: 4 | 6,
-  signal: AbortSignal,
-): Promise<Readonly<{
+  acquisition: RouteCatalogAcquisition,
+): Readonly<{
   address: string;
   family: 4 | 6;
   usable: boolean;
   metric?: number;
   interfaceName?: string;
   sourceAddress?: string;
-}>> {
-  const executable = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
-  const script =
-    "$ErrorActionPreference='Stop';" +
-    '$route=Find-NetRoute -RemoteIPAddress $args[0] -ErrorAction Stop | Select-Object -First 1;' +
-    "if($null -eq $route){throw 'NO_ROUTE'};" +
-    '[ordered]@{InterfaceIndex=$route.InterfaceIndex;InterfaceAlias=$route.InterfaceAlias;' +
-    'SourceAddress=$route.IPAddress;RouteMetric=$route.RouteMetric}|ConvertTo-Json -Compress';
-  try {
-    const stdout = await runReadOnlyProcess(
-      executable,
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script, address],
-      signal,
-    );
-    const parsed = JSON.parse(stdout) as {
-      InterfaceAlias?: unknown;
-      InterfaceIndex?: unknown;
-      RouteMetric?: unknown;
-      SourceAddress?: unknown;
-    };
-    const interfaceIndex = Number(parsed.InterfaceIndex);
-    const metric = Number(parsed.RouteMetric);
-    return {
-      address,
-      family,
-      usable: Number.isInteger(interfaceIndex) && interfaceIndex > 0,
-      ...(Number.isSafeInteger(metric) && metric >= 0 ? { metric } : {}),
-      ...(typeof parsed.InterfaceAlias === 'string'
-        ? { interfaceName: parsed.InterfaceAlias.slice(0, 128) }
-        : {}),
-      ...(typeof parsed.SourceAddress === 'string'
-        ? { sourceAddress: parsed.SourceAddress.slice(0, 128) }
-        : {}),
-    };
-  } catch {
+}> {
+  if (family !== 4) return { address, family, usable: false };
+  const inspected = inspectAcquiredWindowsRoute(acquisition, address);
+  if (inspected.classification !== 'VALID_SELECTED_ROUTE') {
     return { address, family, usable: false };
   }
+  return {
+    address,
+    family,
+    metric: inspected.selected.metric,
+    sourceAddress: inspected.selected.sourceAddress,
+    usable: true,
+  };
 }
+
+export const __windowsRouteCatalogTest = Object.freeze({
+  boundExecutable: Object.freeze({
+    ...WINDOWS_ROUTE_EXECUTABLE,
+    linkCount: 2,
+    regularFile: true,
+    reparse: false,
+  }),
+  inspect: inspectWindowsRouteCatalog,
+  processSpec: WINDOWS_ROUTE_PROCESS_SPEC,
+});
 
 async function inspectLinuxRoute(
   address: string,
@@ -433,12 +872,17 @@ function startLiveTls(input: Readonly<{
 }
 
 function createLiveAdapters(): CredentialFreeNetworkAdapters {
+  let windowsRouteCatalog: Promise<RouteCatalogAcquisition> | undefined;
   return {
     readFile: (path) => fs.readFile(path),
     resolveDns: ({ hostname, signal }) => resolveLiveDns(hostname, signal),
     inspectRoute: async ({ address, family, signal }) => {
       if (signal.aborted) return { address, family, usable: false };
-      if (platform() === 'win32') return inspectWindowsRoute(address, family, signal);
+      if (platform() === 'win32') {
+        if (family !== 4) return { address, family, usable: false };
+        windowsRouteCatalog ??= acquireWindowsRouteCatalog(signal, WINDOWS_ROUTE_DEPENDENCIES);
+        return projectWindowsRoute(address, family, await windowsRouteCatalog);
+      }
       if (platform() === 'linux') return inspectLinuxRoute(address, family);
       return { address, family, usable: false };
     },
