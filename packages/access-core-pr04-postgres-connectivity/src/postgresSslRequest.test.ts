@@ -2,13 +2,12 @@ import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
 import { test } from 'node:test';
 
-import * as publicPackageSurface from './index';
+import * as pureSslRequestSurface from './postgresSslRequest';
 import {
   createPostgresSslRequest,
   requirePostgresSslResponse,
   writeCanonicalPostgresSslRequest,
 } from './postgresSslRequest';
-import './directPreflight.test';
 
 test('encodes exactly the PostgreSQL SSLRequest bytes', () => {
   const request = createPostgresSslRequest();
@@ -26,8 +25,8 @@ test('returns a fresh request buffer for every call', () => {
   assert.equal(createPostgresSslRequest().toString('hex'), '0000000804d2162f');
 });
 
-test('does not expose a mutable SSLRequest byte authority from the package root', () => {
-  assert.equal(Reflect.has(publicPackageSurface, 'POSTGRES_SSL_REQUEST_BYTES'), false);
+test('does not expose a mutable SSLRequest byte authority from the pure SSLRequest module', () => {
+  assert.equal(Reflect.has(pureSslRequestSurface, 'POSTGRES_SSL_REQUEST_BYTES'), false);
 });
 
 test('validates exact bytes and writes a fresh canonical request', () => {

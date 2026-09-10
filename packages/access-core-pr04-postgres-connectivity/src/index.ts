@@ -5,6 +5,7 @@ import { promises as fs } from 'node:fs';
 import { createConnection, isIP, type Socket } from 'node:net';
 import { platform } from 'node:os';
 import { connect as connectTls, type TLSSocket } from 'node:tls';
+import { startTlsWithConnector } from './tlsAdapter';
 
 import {
   DIRECT_POSTGRES_TARGET,
@@ -782,94 +783,8 @@ function exchangeLiveSslRequest(input: Readonly<{
   });
 }
 
-function startLiveTls(input: Readonly<{
-  connection: unknown;
-  ca: Uint8Array;
-  caSha256: string;
-  servername: string;
-  minimumVersion: 'TLSv1.2';
-  rejectUnauthorized: true;
-  signal: AbortSignal;
-}>): Promise<Readonly<{
-  authorized: boolean;
-  authorizationError: string | null;
-  caSha256: string;
-  chainVerified: boolean;
-  hostnameVerified: boolean;
-  peerAddress: string;
-  peerFamily: 4 | 6;
-  peerPort: number;
-  protocol: string;
-  servername: string;
-  cipher?: string;
-  peerCertificateSha256?: string;
-}>> {
-  const connection = asLiveConnection(input.connection);
-  return new Promise((resolve, reject) => {
-    const socket = connectTls({
-      ca: Buffer.from(input.ca),
-      minVersion: input.minimumVersion,
-      rejectUnauthorized: input.rejectUnauthorized,
-      servername: input.servername,
-      socket: connection.socket as Socket,
-    });
-    connection.socket = socket;
-    let settled = false;
-    const cleanup = (): void => {
-      socket.removeListener('secureConnect', onSecureConnect);
-      socket.removeListener('error', onError);
-      socket.removeListener('close', onClose);
-      input.signal.removeEventListener('abort', onAbort);
-    };
-    const fail = (): void => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      socket.destroy();
-      reject(fixedError('PRODUCTION_TLS_IDENTITY_MISMATCH'));
-    };
-    const onAbort = (): void => fail();
-    const onError = (): void => fail();
-    const onClose = (): void => fail();
-    const onSecureConnect = (): void => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      socket.on('error', () => undefined);
-      const remoteAddress = socket.remoteAddress;
-      const remotePort = socket.remotePort;
-      const peerFamily = socket.remoteFamily === 'IPv4' ? 4 : socket.remoteFamily === 'IPv6' ? 6 : 0;
-      const protocol = socket.getProtocol();
-      if (remoteAddress === undefined || remotePort === undefined || peerFamily === 0 || protocol === null) {
-        socket.destroy();
-        reject(fixedError('PRODUCTION_TLS_IDENTITY_MISMATCH'));
-        return;
-      }
-      const peer = socket.getPeerCertificate(true);
-      const cipher = socket.getCipher().name;
-      resolve({
-        authorized: socket.authorized,
-        authorizationError: socket.authorizationError === undefined ? null : 'TLS_AUTHORIZATION_ERROR',
-        caSha256: input.caSha256,
-        chainVerified: socket.authorized && socket.authorizationError === undefined,
-        hostnameVerified: socket.authorized && socket.authorizationError === undefined,
-        peerAddress: remoteAddress,
-        peerFamily,
-        peerPort: remotePort,
-        protocol,
-        servername: input.servername,
-        ...(cipher === '' ? {} : { cipher }),
-        ...(peer.raw === undefined
-          ? {}
-          : { peerCertificateSha256: createHash('sha256').update(peer.raw).digest('hex') }),
-      });
-    };
-    socket.once('secureConnect', onSecureConnect);
-    socket.once('error', onError);
-    socket.once('close', onClose);
-    input.signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
+const startLiveTls: CredentialFreeNetworkAdapters['startTls'] = (input) =>
+  startTlsWithConnector(input, connectTls);
 
 function createLiveAdapters(): CredentialFreeNetworkAdapters {
   let windowsRouteCatalog: Promise<RouteCatalogAcquisition> | undefined;

@@ -1,6 +1,9 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
+import {
+  diagnosticForCaughtTlsError, unavailableTlsDiagnostics, type TlsDiagnostics,
+} from './tlsDiagnostics';
 
 import {
   createPostgresSslRequest,
@@ -185,6 +188,7 @@ export type CredentialFreeNetworkAdapters = Readonly<{
     minimumVersion: 'TLSv1.2';
     rejectUnauthorized: true;
     signal: AbortSignal;
+    onDiagnostics?: (diagnostic: TlsDiagnostics) => void;
   }>): Promise<Readonly<{
     authorized: boolean;
     authorizationError: string | null;
@@ -215,6 +219,7 @@ export type DirectPostgresPreflightResult = Readonly<{
   ok: boolean;
   classification: 'DIRECT_POSTGRES_PREFLIGHT_PASS' | FailureClassification;
   failureStage?: DirectPostgresStage;
+  tlsDiagnostics: TlsDiagnostics;
   target: typeof DIRECT_POSTGRES_TARGET;
   ca: Readonly<{
     authorityId: string;
@@ -512,6 +517,7 @@ export async function runDirectPostgresPreflight(
   let resolver: readonly string[] = [];
   let selectedRoute: { address: string; family: AddressFamily; metric: number } | undefined;
   let tlsResult: DirectPostgresPreflightResult['tls'];
+  let tlsDiagnostics = unavailableTlsDiagnostics();
 
   const enter = (stage: DirectPostgresStage): void => {
     currentStage = stage;
@@ -634,6 +640,7 @@ export async function runDirectPostgresPreflight(
     }
 
     enter('CP06');
+    tlsDiagnostics = unavailableTlsDiagnostics('CP06', 'NONE');
     const tls = await abortable(
       adapters.startTls({
         connection,
@@ -643,6 +650,7 @@ export async function runDirectPostgresPreflight(
         minimumVersion: 'TLSv1.2',
         rejectUnauthorized: true,
         signal: controller.signal,
+        onDiagnostics: (diagnostic) => { tlsDiagnostics = diagnostic; },
       }),
       controller.signal,
     );
@@ -654,6 +662,7 @@ export async function runDirectPostgresPreflight(
       (tls.protocol !== 'TLSv1.2' && tls.protocol !== 'TLSv1.3') ||
       tls.servername !== DIRECT_POSTGRES_TARGET.hostname
     ) {
+      tlsDiagnostics = { ...tlsDiagnostics, stage: 'CP06', failureKind: 'TLS_RESULT_REJECTED' };
       throw new PreflightFailure('PRODUCTION_TLS_IDENTITY_MISMATCH', 'CP06');
     }
 
@@ -669,6 +678,7 @@ export async function runDirectPostgresPreflight(
       normalizedPeer !== selectedRoute.address ||
       tls.peerPort !== DIRECT_POSTGRES_TARGET.port
     ) {
+      tlsDiagnostics = { ...tlsDiagnostics, stage: 'CP07', failureKind: 'PEER_RESULT_REJECTED' };
       throw new PreflightFailure('PRODUCTION_TLS_IDENTITY_MISMATCH', 'CP07');
     }
     tlsResult = {
@@ -682,6 +692,12 @@ export async function runDirectPostgresPreflight(
       servername: tls.servername,
     };
   } catch (error: unknown) {
+    if (currentStage === 'CP06' && tlsDiagnostics.failureKind === 'NONE') {
+      tlsDiagnostics = diagnosticForCaughtTlsError(error, controller.signal.aborted);
+    }
+    if (currentStage === 'CP07') {
+      tlsDiagnostics = { ...tlsDiagnostics, stage: 'CP07', failureKind: 'PEER_RESULT_REJECTED' };
+    }
     failure = classifyUnknownFailure(error, currentStage, controller.signal.aborted);
   } finally {
     enter('CP08');
@@ -698,6 +714,7 @@ export async function runDirectPostgresPreflight(
   return {
     ok: failure === undefined,
     classification: failure?.classification ?? 'DIRECT_POSTGRES_PREFLIGHT_PASS',
+    tlsDiagnostics,
     ...(failure?.stage === undefined ? {} : { failureStage: failure.stage }),
     target: DIRECT_POSTGRES_TARGET,
     ca: {

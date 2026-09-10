@@ -318,6 +318,25 @@ test('uses one TCP attempt and performs zero retry or fallback on timeout', asyn
   assert.equal(current.closeCount, 1);
 });
 
+test('unexpected error before TLS retains phase classification and never invents a TLS identity cause', async () => {
+  const current = state();
+  const adapters = fakeAdapters(current, {
+    resolveDns: async () => { throw new Error('UNEXPECTED_SYNTHETIC_FAILURE'); },
+  });
+  const result = await runDirectPostgresPreflight(options(adapters));
+  assert.equal(result.classification, 'DIRECT_PRODUCTION_CATALOG_CHANNEL_UNAVAILABLE');
+  assert.equal(result.failureStage, 'CP02');
+  assert.equal(result.tlsDiagnostics.availability, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.stage, null);
+  assert.equal(result.tlsDiagnostics.failureKind, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.nodeErrorCode, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.causeCode, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.authorized, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.secureConnectObserved, 'NOT_AVAILABLE');
+  assert.equal(current.calls.includes('startTls'), false);
+  assert.doesNotMatch(JSON.stringify(result), /UNEXPECTED_SYNTHETIC_FAILURE|PRODUCTION_TLS_IDENTITY_MISMATCH/);
+});
+
 test('rejects an invalid SSLRequest response and never starts TLS', async () => {
   const current = state();
   const adapters = fakeAdapters(current, {
@@ -325,6 +344,10 @@ test('rejects an invalid SSLRequest response and never starts TLS', async () => 
   });
   const result = await runDirectPostgresPreflight(options(adapters));
   assert.equal(result.classification, 'PRODUCTION_TLS_REQUIRED');
+  assert.equal(result.tlsDiagnostics.availability, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.stage, null);
+  assert.equal(result.tlsDiagnostics.failureKind, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.secureConnectObserved, 'NOT_AVAILABLE');
   assert.deepEqual(result.stages, ['CP01', 'CP02', 'CP03', 'CP04', 'CP05', 'CP08']);
   assert.equal(current.calls.includes('startTls'), false);
   assert.equal(current.closeCount, 1);
@@ -349,6 +372,9 @@ test('rejects TLS trust failure', async () => {
   const result = await runDirectPostgresPreflight(options(adapters));
   assert.equal(result.classification, 'PRODUCTION_TLS_IDENTITY_MISMATCH');
   assert.equal(result.failureStage, 'CP06');
+  assert.equal(result.tlsDiagnostics.availability, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.failureKind, 'TLS_RESULT_REJECTED');
+  assert.equal(result.tlsDiagnostics.secureConnectObserved, 'NOT_AVAILABLE');
   assert.equal(current.closeCount, 1);
 });
 
@@ -378,6 +404,10 @@ test('passes CP01 through CP08 with only the SSLRequest bytes', async () => {
   const current = state();
   const result = await runDirectPostgresPreflight(options(fakeAdapters(current)));
   assert.equal(result.classification, 'DIRECT_POSTGRES_PREFLIGHT_PASS');
+  assert.equal(result.tlsDiagnostics.availability, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.failureKind, 'NONE');
+  assert.equal(result.tlsDiagnostics.authorized, 'NOT_AVAILABLE');
+  assert.equal(result.tlsDiagnostics.secureConnectObserved, 'NOT_AVAILABLE');
   assert.deepEqual(result.stages, ['CP01', 'CP02', 'CP03', 'CP04', 'CP05', 'CP06', 'CP07', 'CP08']);
   assert.equal(Buffer.from(current.lastRequest ?? []).toString('hex'), '0000000804d2162f');
   assert.deepEqual(result.counters, {
