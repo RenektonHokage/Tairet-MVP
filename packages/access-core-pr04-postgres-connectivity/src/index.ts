@@ -42,7 +42,7 @@ const WINDOWS_ROUTE_EXECUTABLE = Object.freeze({
   path: 'C:\\Windows\\System32\\route.exe',
   realPath: 'C:\\Windows\\System32\\ROUTE.EXE',
   sizeBytes: 49_152,
-  sha256: 'dae693240683cead1dd793011606474083f999f6371b100688fa122a0df73507',
+  sha256: '79a71edb01e35dcac272bffc400383286c14b8090c61687603fc51ad7999e5c9',
 });
 const WINDOWS_ROUTE_ARGS = Object.freeze(['PRINT', '-4'] as const);
 const WINDOWS_ROUTE_MAX_OUTPUT_BYTES = 1024 * 1024;
