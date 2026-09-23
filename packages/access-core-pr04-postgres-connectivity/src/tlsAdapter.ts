@@ -36,10 +36,14 @@ export function startTlsWithConnector(
     connection.socket = socket;
     let settled = false;
     let secureConnectObserved = false;
-    const observe = (failureKind: TlsFailureKind, error?: unknown) => {
+    const observe = (
+      failureKind: TlsFailureKind,
+      error?: unknown,
+      authorization = { authorized: socket.authorized, authorizationError: socket.authorizationError },
+    ) => {
       const diagnostic = observeTlsDiagnostics({
         failureKind, error, socketAvailable: true,
-        authorized: socket.authorized, authorizationError: socket.authorizationError,
+        authorized: authorization.authorized, authorizationError: authorization.authorizationError,
         secureConnectObserved,
       });
       input.onDiagnostics?.(diagnostic);
@@ -80,13 +84,15 @@ export function startTlsWithConnector(
       }
       const peer = socket.getPeerCertificate(true);
       const cipher = socket.getCipher().name;
-      observe('NONE');
+      const authorization = { authorized: socket.authorized, authorizationError: socket.authorizationError };
+      const noAuthorizationError = authorization.authorizationError === undefined || authorization.authorizationError === null;
+      observe('NONE', undefined, authorization);
       resolve({
-        authorized: socket.authorized,
-        authorizationError: socket.authorizationError === undefined ? null : 'TLS_AUTHORIZATION_ERROR',
+        authorized: authorization.authorized,
+        authorizationError: noAuthorizationError ? null : 'TLS_AUTHORIZATION_ERROR',
         caSha256: input.caSha256,
-        chainVerified: socket.authorized && socket.authorizationError === undefined,
-        hostnameVerified: socket.authorized && socket.authorizationError === undefined,
+        chainVerified: authorization.authorized && noAuthorizationError,
+        hostnameVerified: authorization.authorized && noAuthorizationError,
         peerAddress: remoteAddress,
         peerFamily,
         peerPort: remotePort,
