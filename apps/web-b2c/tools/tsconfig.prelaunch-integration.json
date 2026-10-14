@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.prelaunch.json",
+  "include": [
+    "../src/components/prelaunch/**/*",
+    "../src/App.tsx",
+    "../src/components/ScrollToTop.tsx",
+    "../src/pages/Index.tsx",
+    "../src/pages/Eventos.tsx",
+    "../src/vite-env.d.ts"
+  ]
+}

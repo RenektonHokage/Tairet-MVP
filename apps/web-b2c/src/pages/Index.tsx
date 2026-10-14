@@ -1,7 +1,2 @@
-import TemporaryLanding from "@/components/landing/TemporaryLanding";
-
-const Index = () => {
-  return <TemporaryLanding />;
-};
-
-export default Index;
+import PrelaunchLayout from "../components/prelaunch/PrelaunchLayout";
+export default function Index(){return <PrelaunchLayout/>;}

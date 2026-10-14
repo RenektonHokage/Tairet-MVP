@@ -1,0 +1,89 @@
+/* Integration adjustments only. All selectors stay inside the prelaunch subtree. */
+.prelaunch { min-height:100vh; isolation:isolate; overflow-x:clip; }
+.prelaunch img { display:inline-block; max-width:100%; }
+.prelaunch svg { display:inline-block; }
+.prelaunch button { text-align:inherit; }
+.prelaunch .tf-back { background:transparent; border:0; padding:0; cursor:pointer; }
+
+.prelaunch main:focus { outline:none; }
+.prelaunch .pl-asuncion .tu-body > main,
+.prelaunch .pl-halloween .tu-body > main { display:block; }
+.prelaunch .pl-halloween .tu-document { --ui:"Inter","Segoe UI",sans-serif; }
+.prelaunch .pl-halloween .party-dialog { max-height:90dvh; overflow:auto; }
+.prelaunch dialog { margin:auto; max-height:90dvh; overflow:auto; }
+.prelaunch dialog::backdrop { background:#0009; }
+.prelaunch :focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+.prelaunch .header .brand img { width:35px; height:35px; object-fit:contain; }
+.prelaunch[data-theme="light"] .header .brand img { filter:invert(1); }
+.prelaunch .pl-storage-notice { position:fixed; z-index:160; bottom:80px; left:20px; right:20px; padding:12px; background:var(--bg); color:var(--ink); border:1px solid var(--line); }
+.prelaunch .pl-coming { padding-top:100px; }
+.prelaunch .party-repeat-row input,
+.prelaunch .party-repeat-row select { min-width:0; }
+.prelaunch [hidden] { display:none!important; }
+@media(max-width:760px){
+ .prelaunch .tf-footer-group[open] > nav { display:grid; }
+ .prelaunch .tf-footer-group:not([open]) > nav { display:none; }
+ .prelaunch .tf-wrap { min-width:0; }
+}
+@media(prefers-reduced-motion:reduce){
+ .prelaunch *, .prelaunch *::before, .prelaunch *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}
+
+.prelaunch .pl-asuncion .tu-body { padding-top:0; }
+.prelaunch .header .brand, .prelaunch .header input, .prelaunch .header button { font-family:var(--ui)!important; }
+.prelaunch .pl-halloween .party-dialog, .prelaunch .pl-halloween .party-dialog input, .prelaunch .pl-halloween .party-dialog select, .prelaunch .pl-halloween .party-dialog textarea, .prelaunch .pl-halloween .party-dialog button, .prelaunch .pl-halloween .party-dialog label { font-family:var(--ui)!important; }
+
+.prelaunch .header .brand { font-family:var(--display)!important; }
+.prelaunch .header .brand img { width:42px; height:35px; }
+.prelaunch[data-theme="light"] .pl-halloween .launch-intro p { color:#665761!important; }
+.prelaunch[data-theme="light"] .pl-halloween .launch-text-action { color:#32262e!important; }
+@media(max-width:760px){.prelaunch .pl-asuncion .tu-body {padding-top:0;}}
+
+/* Original party-variant CTA tokens, explicitly scoped to the pre home. */
+.prelaunch[data-route="home"] .hw-campaign-cta { background:#ffc5a0!important; color:#281d22!important; }
+.prelaunch[data-route="home"][data-theme="light"] .hw-campaign-cta { background:#6d4438!important; color:#fff!important; }
+
+/* H06: interface controls inherit the approved UI token; Halloween artwork is unchanged. */
+.prelaunch .pl-halloween div.tu-document div:where(.tu-body) .hw16-hero .h16-cta-primary > span:first-child,
+.prelaunch .pl-halloween div.tu-document div:where(.tu-body) .hw16-hero .h16-cta-saved { font-family:var(--ui)!important; }
+
+.prelaunch #r4-cookie-dialog .r4-cookie-actions { flex-wrap:wrap; }
+
+/* P02: the public bar stays transparent; only its individual controls have surfaces. */
+.prelaunch[data-route][data-theme] > header.header {
+ --pl-header-ink:var(--ink); --pl-header-panel:var(--bg); --pl-header-muted:var(--muted); --pl-header-line:var(--line);
+ background:transparent!important; background-image:none!important; box-shadow:none!important;
+ backdrop-filter:none!important; -webkit-backdrop-filter:none!important; border-color:transparent!important; color:var(--pl-header-ink)!important;
+}
+.prelaunch[data-route][data-theme] > header.header::before,
+.prelaunch[data-route][data-theme] > header.header::after { content:none!important; background:none!important; }
+.prelaunch[data-route][data-theme] > header.header[data-surface="photo"] {
+ --pl-header-ink:#fff; --pl-header-panel:#090b0dee; --pl-header-muted:#c5cbd2; --pl-header-line:#ffffff50;
+}
+.prelaunch[data-route][data-theme] > header.header .brand { color:var(--pl-header-ink)!important; text-shadow:0 1px 2px var(--pl-header-panel); }
+.prelaunch[data-route][data-theme] > header.header .catalog-search,
+.prelaunch[data-route][data-theme] > header.header .icon-btn,
+.prelaunch[data-route][data-theme] > header.header .header-join {
+ background:var(--pl-header-panel)!important; color:var(--pl-header-ink)!important; border-color:var(--pl-header-line)!important;
+}
+.prelaunch[data-route][data-theme] > header.header .catalog-search input { color:var(--pl-header-ink)!important; }
+.prelaunch[data-route][data-theme] > header.header .catalog-search input::placeholder { color:var(--pl-header-muted)!important; opacity:1; }
+.prelaunch[data-route][data-theme="light"] > header.header .brand img { filter:invert(1) drop-shadow(0 1px 1px #fff9)!important; }
+.prelaunch[data-route][data-theme] > header.header[data-surface="photo"] .brand img { filter:drop-shadow(0 1px 2px #000c)!important; }
+
+/* P03: one short banner with three equally accessible decisions. */
+.prelaunch #r4-cookie-banner {
+ left:50%; right:auto; width:calc(100% - 24px); max-width:960px; transform:translateX(-50%);
+ padding:12px 16px; gap:18px; flex-direction:row; align-items:center;
+}
+.prelaunch #r4-cookie-banner p { margin:0; font-size:12px; line-height:1.5; }
+.prelaunch #r4-cookie-banner .r4-cookie-actions { width:auto; flex-wrap:nowrap; gap:8px; flex-shrink:0; }
+.prelaunch #r4-cookie-banner .tf-btn { min-height:40px; padding:9px 12px; font-size:12px; }
+@media(max-width:760px){
+ .prelaunch #r4-cookie-banner { padding:12px; flex-direction:column; align-items:stretch; gap:10px; }
+ .prelaunch #r4-cookie-banner .r4-cookie-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+ .prelaunch #r4-cookie-banner .tf-btn { padding:9px 5px; }
+ .prelaunch #r4-cookie-banner [data-r4-preferences] { flex-basis:auto; min-height:40px; border-color:var(--line); }
+}
+
+.prelaunch[data-route][data-theme] > header.header .catalog-back { color:var(--pl-header-ink)!important; text-shadow:0 1px 2px var(--pl-header-panel); }

@@ -1,0 +1,1 @@
+{"extends":"../tsconfig.app.json","compilerOptions":{"baseUrl":"..","paths":{"@/*":["src/*"]},"noUnusedLocals":true},"include":["../src/components/prelaunch/**/*","../src/vite-env.d.ts"]}
