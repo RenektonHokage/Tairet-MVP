@@ -2296,7 +2296,7 @@ export function Page_mapa(){return (<section aria-labelledby="tu-map-title" clas
 </div>
 </div>
 </section>);}
-export function ApprovedHeader(){return (<header className="header">
+export function ApprovedHeader({halloween=false}:{halloween?:boolean}){return (<header className="header">
 <div className="header-in">
 <Link aria-label="TAIRET, inicio" className="brand" to="/inicio">
 <img alt="" src={tairetMark} />
@@ -2321,6 +2321,9 @@ export function ApprovedHeader(){return (<header className="header">
 <input aria-label="Buscar por zona, local o música" data-search-input="" placeholder="Buscar fiesta, música o zona…" type="search" />
 </form>
 <div className="header-actions">
+{halloween?<button className="header-join" data-tu-join="" type="button">
+{"Sumar mi local"}
+</button>:null}
 <button aria-label="Activar modo claro" className="icon-btn" data-theme-toggle="" type="button" aria-pressed="false">
 <svg aria-hidden="true" className="icon" data-sun="" viewBox="0 0 24 24">
 <circle cx="12" cy="12" r="4">
@@ -2333,9 +2336,9 @@ export function ApprovedHeader(){return (<header className="header">
 </path>
 </svg>
 </button>
-<button className="header-join" data-tu-join="" type="button">
+{!halloween?<button className="header-join" data-tu-join="" type="button">
 {"Sumar mi local"}
-</button>
+</button>:null}
 </div>
 </div>
 </header>);}
@@ -2797,7 +2800,7 @@ export function Page_asuncion(){return (<div className="tu-document" data-theme=
 <p className="prelaunch-note">
 {"TAIRET está en prelanzamiento. Los locales, reservas y entradas todavía no están disponibles en la plataforma."}
 </p>
-<dialog aria-labelledby="owner-dialog-title" className="owner-dialog" id="owner-dialog">
+<dialog aria-labelledby="owner-dialog-title" aria-describedby="owner-description owner-hint" className="owner-dialog" id="owner-dialog">
 <div className="dialog-head">
 <h2 id="owner-dialog-title" tabIndex={-1}>
 {"Sumá tu local a TAIRET"}
@@ -2810,7 +2813,7 @@ export function Page_asuncion(){return (<div className="tu-document" data-theme=
 </button>
 </div>
 <div className="dialog-body">
-<p>
+<p id="owner-description">
 {"¿Qué tipo de local tenés? Elegí una opción y te llevamos a WhatsApp con un mensaje preparado."}
 </p>
 <div aria-label="Tipo de local" className="local-options" role="radiogroup">
@@ -2856,7 +2859,7 @@ export function Page_asuncion(){return (<div className="tu-document" data-theme=
 <path d="m2 6 10 7 10-7">
 </path>
 </svg>
-{"O escribir a TAIRET.contacto@gmail.com"}
+<span>{"O escribir a TAIRET.contacto@gmail.com"}</span>
 </a>
 </div>
 </dialog>
@@ -2983,7 +2986,7 @@ export function Page_halloween(){return (<div className="tu-document" data-art="
 {"Sumá tu fiesta."}
 </h2>
 <button aria-label="Cerrar formulario" className="party-close" type="button">
-{"×"}
+<svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
 </button>
 <div aria-label="Pasos del formulario" className="party-progress">
 <span data-progress="0">

@@ -17,3 +17,8 @@ export function prelaunchPage(path: string) {
  return page ?? (matchPath("/evento/:slug",pathname)?"halloween":matchPath("/club/:slug",pathname)||matchPath("/bar/:slug",pathname)?"coming":undefined);
 }
 export const isPrelaunchPath=(path: string)=>prelaunchPage(path)!==undefined;
+const informationPages=new Set(["informacion","about","how","faq","venues","venue-bar","venue-club","organizers","lead","contact","terms","privacy","cookies"]);
+export function prelaunchNav(page: string) {
+ if(["home","asuncion","mapa","halloween"].includes(page))return page;
+ return informationPages.has(page)?"informacion":undefined;
+}

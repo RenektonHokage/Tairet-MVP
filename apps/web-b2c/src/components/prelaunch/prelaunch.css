@@ -87,3 +87,60 @@
 }
 
 .prelaunch[data-route][data-theme] > header.header .catalog-back { color:var(--pl-header-ink)!important; text-shadow:0 1px 2px var(--pl-header-panel); }
+
+
+/* B6: contain the local-contact modal without changing other dialogs. */
+.prelaunch .pl-asuncion #owner-dialog .dialog-head { align-items:flex-start; gap:16px; padding:24px 24px 16px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-head h2 { min-width:0; font-size:34px; line-height:1.08; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-close { flex:0 0 44px; width:44px; height:44px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body { display:grid; gap:16px; padding:0 24px 24px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body > p { margin:0; font-size:14px; line-height:1.6; }
+.prelaunch .pl-asuncion #owner-dialog .local-options { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.prelaunch .pl-asuncion #owner-dialog .local-option { position:relative; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:14px 10px; text-align:center; }
+.prelaunch .pl-asuncion #owner-dialog .wa-link { margin:0; padding:12px; text-align:center; line-height:1.5; }
+.prelaunch .pl-asuncion #owner-dialog .wa-link svg,
+.prelaunch .pl-asuncion #owner-dialog .mail-link svg { flex:none; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body > .dialog-hint { min-height:0; font-size:12px; color:var(--muted); }
+.prelaunch .pl-asuncion #owner-dialog .mail-link { padding:0; align-items:flex-start; line-height:1.6; }
+.prelaunch .pl-asuncion #owner-dialog .mail-link span { min-width:0; overflow-wrap:anywhere; }
+.prelaunch .pl-asuncion #owner-dialog .mail-link svg { margin-top:2px; }
+@media(max-width:420px){
+ .prelaunch .pl-asuncion #owner-dialog .dialog-head { padding:20px 20px 16px; gap:12px; }
+ .prelaunch .pl-asuncion #owner-dialog .dialog-head h2 { font-size:30px; }
+ .prelaunch .pl-asuncion #owner-dialog .dialog-body { padding:0 20px 20px; }
+}
+
+/* B6: the motion control lives in the content flow, outside the artwork. */
+.prelaunch .pl-halloween .launch-intro .pl-video-toggle { display:flex; align-items:center; gap:10px; width:fit-content; min-height:44px; margin-top:16px; padding:8px 0; border:0; background:transparent; color:inherit; font:500 12px/1.5 var(--ui); cursor:pointer; }
+.prelaunch .pl-halloween .launch-intro .pl-video-toggle svg { flex:none; width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7; }
+
+/* B6: center the close icon in its own 44 px target. */
+.prelaunch .pl-halloween #party-form-dialog .party-close { display:grid; place-items:center; width:44px; height:44px; padding:0; right:20px; top:20px; text-align:center; line-height:1; }
+.prelaunch .pl-halloween #party-form-dialog .party-close svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+@media(max-width:560px){.prelaunch .pl-halloween #party-form-dialog .party-close { right:16px; top:16px; }}
+
+/* B6: Halloween header proportions from reference 3, using current actions. */
+.prelaunch[data-route="halloween"][data-theme] > header.header { height:74px; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .header-in { width:calc(100% - 64px); max-width:1450px; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .brand { font-size:31px!important; font-weight:700; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .brand img { width:35px; height:35px; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search { height:46px; max-width:720px; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input,
+.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input::placeholder { font-size:12px!important; }
+.prelaunch[data-route="halloween"][data-theme] > header.header .icon-btn { width:44px; height:44px; }
+.prelaunch[data-route="halloween"][data-theme] > header.header[data-surface="photo"] { --pl-header-panel:#090b0d55; --pl-header-line:#ffffff30; }
+@media(min-width:861px){
+ .prelaunch[data-route="halloween"][data-theme] > header.header .header-in { grid-template-columns:minmax(130px,1fr) minmax(0,720px) minmax(180px,1fr); column-gap:32px; }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .header-actions { justify-self:end; }
+}
+@media(max-width:860px){
+ .prelaunch[data-route="halloween"][data-theme] > header.header { height:64px; }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .header-in { width:calc(100% - 32px); }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .brand { font-size:23px!important; }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .brand img { width:28px; height:28px; }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search { height:40px; }
+ .prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input { font-size:16px!important; }
+}
+
+/* Keep page copy from colliding with the mark; the bar itself stays transparent. */
+.prelaunch[data-route="halloween"][data-theme] > header.header[data-surface="page"] .brand { background:var(--pl-header-panel); box-shadow:0 0 0 5px var(--pl-header-panel); border-radius:3px; }

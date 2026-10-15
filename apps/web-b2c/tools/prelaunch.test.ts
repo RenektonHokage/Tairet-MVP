@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { parseConsent, CONSENT_TTL } from "../src/components/prelaunch/consent";
-import { prelaunchPage, isPrelaunchPath } from "../src/components/prelaunch/routes";
+import { prelaunchPage, isPrelaunchPath, prelaunchNav } from "../src/components/prelaunch/routes";
 import { videoSource } from "../src/components/prelaunch/media";
 const base="05ff39dc340d98cddd01835a3d7bf01982a1f415",root=path.resolve(import.meta.dirname,"../../..");
 test("consent rejects missing, malformed, expired, future and wrong-version choices",()=>{
@@ -46,4 +46,12 @@ test("public equivalences use router matching without rewriting input URLs",()=>
  const groups:Record<string,string[]>={halloween:["/halloween","/halloween/","/Halloween","/Halloween/","/eventos","/eventos/?origen=QA_Mixto"],asuncion:["/asuncion","/asuncion/","/zona/asuncion/"],cookies:["/legal/cookies","/legal/cookies/","/Legal/Cookies/"]};
  for(const [expected,paths] of Object.entries(groups))for(const input of paths){const original=input;assert.equal(prelaunchPage(input),expected,input);assert(isPrelaunchPath(input));assert.equal(input,original);}
  for(const input of ["/halloween/falso","/halloweenish","/legal","/legal/no-existe","/access/no-existe","/asuncion-extra","/auth/login?qa=MiXto","/payments/access/status?ref=QA_aBc","/access/checkin/QA_Token_aBc?origen=MiXto","/confirmacion-compra?qa=MiXto","/reservar/Bar_QA_aBc?origen=MiXto"]){assert.equal(prelaunchPage(input),undefined,input);assert.equal(isPrelaunchPath(input),false,input);}
+});
+
+test("dock classification keeps map aliases out of Information",()=>{
+ for(const route of ["/mapa","/mapa/","/Mapa?origen=QA","#/mapa".slice(1)])assert.equal(prelaunchNav(prelaunchPage(route)!),"mapa",route);
+ for(const route of ["/informacion","/sobre/que-es-tairet","/sobre/como-funciona","/sobre/preguntas-frecuentes","/para-locales/solicitud","/contacto","/legal/cookies"])assert.equal(prelaunchNav(prelaunchPage(route)!),"informacion",route);
+ for(const route of ["/explorar","/zona/san-bernardino","/access/checkin/QA_SYNTHETIC","/unknown"])assert.equal(prelaunchNav(prelaunchPage(route)??""),undefined,route);
+ assert.equal(prelaunchNav(prelaunchPage("/eventos")!),"halloween");
+ assert.equal(prelaunchNav(prelaunchPage("/zona/asuncion")!),"asuncion");
 });

@@ -6,7 +6,7 @@ import { ApprovedHeader, ApprovedFooter, ApprovedDock, ApprovedConsentBanner, Di
 import { MediaPreferences, useConsentState, chooseConsent } from "./consent";
 import { analytics } from "./analyticsRuntime";
 import { socialPlacements, type SocialPlacement } from "./analyticsCatalog";
-import { prelaunchPage } from "./routes";
+import { prelaunchPage, prelaunchNav } from "./routes";
 import { setupVisualEffects } from "./visualEffects";
 import { setupConvocations } from "./convocations";
 import "./approved-shell.css";
@@ -73,7 +73,7 @@ export default function PrelaunchLayout(){
   const el=root.current;if(!el)return;
   closeDialogs();
   document.title=({home:"Inicio",asuncion:"Asunción",halloween:"Halloween 2026",coming:"Próximamente"}[page]??el.querySelector("h1")?.textContent??"Información")+" — TAIRET";
-  el.querySelectorAll<HTMLElement>("[data-nav]").forEach(n=>{const current=page==="home"?"home":page==="asuncion"?"asuncion":page==="halloween"?"halloween":"informacion";if(n.dataset.nav===current)n.setAttribute("aria-current","page");else n.removeAttribute("aria-current");});
+  el.querySelectorAll<HTMLElement>("[data-nav]").forEach(n=>{const current=prelaunchNav(page);if(n.dataset.nav===current)n.setAttribute("aria-current","page");else n.removeAttribute("aria-current");});
   const cleanupForms=setupConvocations(el,location.search),cleanupVisual=setupVisualEffects(el,page);let category="all";
   const filterFaq=()=>{
    const query=(el.querySelector<HTMLInputElement>("#tf-faq-search")?.value??"").toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g,"");let count=0;
@@ -138,7 +138,7 @@ export default function PrelaunchLayout(){
  return <MediaPreferences.Provider value={{external:consent?.external===true,openPreferences}}>
  <div ref={root} className="prelaunch" data-concept="cinema" data-route={page} data-theme={theme} data-reference="rojo" data-tf-page={!["home","asuncion","halloween"].includes(page)}>
  <a className="skip" href="#main" onClick={e=>{e.preventDefault();root.current?.querySelector<HTMLElement>("#main")?.focus();}}>Saltar al contenido</a>
- <ApprovedHeader/>
+ <ApprovedHeader halloween={page==="halloween"}/>
  <main id="main" tabIndex={-1} key={location.pathname}>
  {Page?<div className={"pl-"+page}><Page/></div>:<section className="tf-page r4"><div className="tf-wrap"><h1>Próximamente en TAIRET</h1><p>Estamos preparando la exploración de bares, discotecas y eventos. TAIRET está en prelanzamiento.</p><Link className="tf-btn" to="/asuncion">Conocé Asunción</Link><Link className="tf-btn secondary" to="/halloween">Halloween 2026</Link></div></section>}
  </main>
