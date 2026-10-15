@@ -2296,7 +2296,7 @@ export function Page_mapa(){return (<section aria-labelledby="tu-map-title" clas
 </div>
 </div>
 </section>);}
-export function ApprovedHeader({halloween=false}:{halloween?:boolean}){return (<header className="header">
+export function ApprovedHeader(){return (<header className="header">
 <div className="header-in">
 <Link aria-label="TAIRET, inicio" className="brand" to="/inicio">
 <img alt="" src={tairetMark} />
@@ -2321,9 +2321,7 @@ export function ApprovedHeader({halloween=false}:{halloween?:boolean}){return (<
 <input aria-label="Buscar por zona, local o música" data-search-input="" placeholder="Buscar fiesta, música o zona…" type="search" />
 </form>
 <div className="header-actions">
-{halloween?<button className="header-join" data-tu-join="" type="button">
-{"Sumar mi local"}
-</button>:null}
+
 <button aria-label="Activar modo claro" className="icon-btn" data-theme-toggle="" type="button" aria-pressed="false">
 <svg aria-hidden="true" className="icon" data-sun="" viewBox="0 0 24 24">
 <circle cx="12" cy="12" r="4">
@@ -2336,9 +2334,9 @@ export function ApprovedHeader({halloween=false}:{halloween?:boolean}){return (<
 </path>
 </svg>
 </button>
-{!halloween?<button className="header-join" data-tu-join="" type="button">
+<button className="header-join" data-tu-join="" type="button">
 {"Sumar mi local"}
-</button>:null}
+</button>
 </div>
 </div>
 </header>);}

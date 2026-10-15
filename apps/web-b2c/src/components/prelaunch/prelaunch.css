@@ -49,27 +49,49 @@
 
 .prelaunch #r4-cookie-dialog .r4-cookie-actions { flex-wrap:wrap; }
 
-/* P02: the public bar stays transparent; only its individual controls have surfaces. */
+/* Shared public navbar: original cinema gradient + darkening after 48px. */
 .prelaunch[data-route][data-theme] > header.header {
- --pl-header-ink:var(--ink); --pl-header-panel:var(--bg); --pl-header-muted:var(--muted); --pl-header-line:var(--line);
- background:transparent!important; background-image:none!important; box-shadow:none!important;
- backdrop-filter:none!important; -webkit-backdrop-filter:none!important; border-color:transparent!important; color:var(--pl-header-ink)!important;
+ --pl-header-ink:#fff; --pl-header-panel:rgba(9,12,15,.28);
+ --pl-header-muted:rgba(255,255,255,.76); --pl-header-line:rgba(255,255,255,.34);
+ position:fixed!important; inset:0 0 auto!important; width:100%; z-index:100;
+ background:linear-gradient(180deg,rgba(9,12,15,.87),rgba(9,12,15,.08))!important;
+ color:#fff!important; border-bottom:1px solid rgba(255,255,255,.14)!important;
+ box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important;
+ transition:border-color 240ms ease,box-shadow 240ms ease;
 }
-.prelaunch[data-route][data-theme] > header.header::before,
-.prelaunch[data-route][data-theme] > header.header::after { content:none!important; background:none!important; }
-.prelaunch[data-route][data-theme] > header.header[data-surface="photo"] {
- --pl-header-ink:#fff; --pl-header-panel:#090b0dee; --pl-header-muted:#c5cbd2; --pl-header-line:#ffffff50;
+.prelaunch[data-route][data-theme] > header.header::before {
+ content:""!important; position:absolute; inset:0; pointer-events:none;
+ background:rgba(10,12,14,.95)!important; opacity:0;
+ transition:opacity 240ms ease;
 }
-.prelaunch[data-route][data-theme] > header.header .brand { color:var(--pl-header-ink)!important; text-shadow:0 1px 2px var(--pl-header-panel); }
-.prelaunch[data-route][data-theme] > header.header .catalog-search,
+.prelaunch[data-route][data-theme] > header.header::after { content:none!important; }
+.prelaunch[data-route][data-theme] > header.header .header-in { position:relative; z-index:1; }
+.prelaunch[data-route][data-theme] > header.header.is-scroll-locked::before { opacity:1; }
+.prelaunch[data-route][data-theme] > header.header.is-scroll-locked {
+ border-bottom-color:rgba(255,255,255,.16)!important;
+ box-shadow:0 7px 22px rgba(0,0,0,.18)!important;
+ backdrop-filter:blur(14px)!important; -webkit-backdrop-filter:blur(14px)!important;
+}
+.prelaunch[data-route][data-theme] > header.header .brand,
+.prelaunch[data-route][data-theme] > header.header .catalog-back { color:#fff!important; text-shadow:0 1px 3px rgba(0,0,0,.5); }
+.prelaunch[data-route][data-theme] > header.header .brand img { width:35px; height:35px; filter:none!important; }
+.prelaunch[data-route][data-theme] > header.header .catalog-search {
+ background:rgba(9,12,15,.42)!important; border-color:var(--pl-header-line)!important;
+ color:#fff!important; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
 .prelaunch[data-route][data-theme] > header.header .icon-btn,
 .prelaunch[data-route][data-theme] > header.header .header-join {
- background:var(--pl-header-panel)!important; color:var(--pl-header-ink)!important; border-color:var(--pl-header-line)!important;
+ background:rgba(9,12,15,.16)!important; border-color:var(--pl-header-line)!important; color:#fff!important;
 }
-.prelaunch[data-route][data-theme] > header.header .catalog-search input { color:var(--pl-header-ink)!important; }
+.prelaunch[data-route][data-theme] > header.header .catalog-search input { color:#fff!important; }
 .prelaunch[data-route][data-theme] > header.header .catalog-search input::placeholder { color:var(--pl-header-muted)!important; opacity:1; }
-.prelaunch[data-route][data-theme="light"] > header.header .brand img { filter:invert(1) drop-shadow(0 1px 1px #fff9)!important; }
-.prelaunch[data-route][data-theme] > header.header[data-surface="photo"] .brand img { filter:drop-shadow(0 1px 2px #000c)!important; }
+@media(max-width:860px){
+ .prelaunch[data-route][data-theme] > header.header .brand img { width:28px; height:28px; }
+}
+@media(prefers-reduced-motion:reduce){
+ .prelaunch[data-route][data-theme] > header.header,
+ .prelaunch[data-route][data-theme] > header.header::before { transition:none!important; }
+}
 
 /* P03: one short banner with three equally accessible decisions. */
 .prelaunch #r4-cookie-banner {
@@ -85,9 +107,6 @@
  .prelaunch #r4-cookie-banner .tf-btn { padding:9px 5px; }
  .prelaunch #r4-cookie-banner [data-r4-preferences] { flex-basis:auto; min-height:40px; border-color:var(--line); }
 }
-
-.prelaunch[data-route][data-theme] > header.header .catalog-back { color:var(--pl-header-ink)!important; text-shadow:0 1px 2px var(--pl-header-panel); }
-
 
 /* B6: contain the local-contact modal without changing other dialogs. */
 .prelaunch .pl-asuncion #owner-dialog .dialog-head { align-items:flex-start; gap:16px; padding:24px 24px 16px; }
@@ -119,28 +138,3 @@
 .prelaunch .pl-halloween #party-form-dialog .party-close svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
 @media(max-width:560px){.prelaunch .pl-halloween #party-form-dialog .party-close { right:16px; top:16px; }}
 
-/* B6: Halloween header proportions from reference 3, using current actions. */
-.prelaunch[data-route="halloween"][data-theme] > header.header { height:74px; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .header-in { width:calc(100% - 64px); max-width:1450px; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .brand { font-size:31px!important; font-weight:700; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .brand img { width:35px; height:35px; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search { height:46px; max-width:720px; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input,
-.prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input::placeholder { font-size:12px!important; }
-.prelaunch[data-route="halloween"][data-theme] > header.header .icon-btn { width:44px; height:44px; }
-.prelaunch[data-route="halloween"][data-theme] > header.header[data-surface="photo"] { --pl-header-panel:#090b0d55; --pl-header-line:#ffffff30; }
-@media(min-width:861px){
- .prelaunch[data-route="halloween"][data-theme] > header.header .header-in { grid-template-columns:minmax(130px,1fr) minmax(0,720px) minmax(180px,1fr); column-gap:32px; }
- .prelaunch[data-route="halloween"][data-theme] > header.header .header-actions { justify-self:end; }
-}
-@media(max-width:860px){
- .prelaunch[data-route="halloween"][data-theme] > header.header { height:64px; }
- .prelaunch[data-route="halloween"][data-theme] > header.header .header-in { width:calc(100% - 32px); }
- .prelaunch[data-route="halloween"][data-theme] > header.header .brand { font-size:23px!important; }
- .prelaunch[data-route="halloween"][data-theme] > header.header .brand img { width:28px; height:28px; }
- .prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search { height:40px; }
- .prelaunch[data-route="halloween"][data-theme] > header.header .catalog-search input { font-size:16px!important; }
-}
-
-/* Keep page copy from colliding with the mark; the bar itself stays transparent. */
-.prelaunch[data-route="halloween"][data-theme] > header.header[data-surface="page"] .brand { background:var(--pl-header-panel); box-shadow:0 0 0 5px var(--pl-header-panel); border-radius:3px; }

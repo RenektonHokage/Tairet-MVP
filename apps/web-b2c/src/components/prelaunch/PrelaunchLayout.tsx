@@ -116,18 +116,7 @@ export default function PrelaunchLayout(){
   const submit=(event:Event)=>{if((event.target as HTMLFormElement).classList.contains("catalog-search")){event.preventDefault();openDialog("tu-search-notice");}};
   const onCancel=(event:Event)=>{event.preventDefault();closeDialogs();};
   const header=el.querySelector<HTMLElement>("header.header");
-  const onScroll=()=>{
-   if(!header)return;
-   header.classList.toggle("is-scroll-locked",window.scrollY>48);
-   const brand=header.querySelector(".brand")?.getBoundingClientRect(),y=header.getBoundingClientRect().height/2;
-   const x=brand?brand.left+brand.width/2:24;
-   const overPhoto=document.elementsFromPoint(x,y).filter(n=>!header.contains(n)).some(n=>{
-    if(n.closest(".cinema-hero,.pl-asuncion .hero,.hw16-hero"))return true;
-    const box=n.getBoundingClientRect();
-    return box.width>150&&box.height>100&&(n instanceof HTMLImageElement||getComputedStyle(n).backgroundImage.includes("url("));
-   });
-   header.dataset.surface=overPhoto?"photo":"page";
-  };
+  const onScroll=()=>{header?.classList.toggle("is-scroll-locked",window.scrollY>48);};
   const onClose=()=>{if(!el.querySelector("dialog[open]")&&previousOverflow.current!==null){document.documentElement.style.overflow=previousOverflow.current;previousOverflow.current=null;opener.current?.focus({preventScroll:true});}};
   el.addEventListener("click",click);el.addEventListener("input",input);el.addEventListener("submit",submit);el.addEventListener("close",onClose,true);el.addEventListener("cancel",onCancel,true);window.addEventListener("scroll",onScroll,{passive:true});window.addEventListener("resize",onScroll);
   const media=matchMedia("(max-width:760px)"),footer=()=>el.querySelectorAll<HTMLDetailsElement>(".tf-footer-group").forEach(d=>{d.open=!media.matches;const s=d.querySelector("summary");if(s){s.tabIndex=media.matches?0:-1;if(media.matches)s.removeAttribute("aria-disabled");else s.setAttribute("aria-disabled","true");}});footer();media.addEventListener("change",footer);onScroll();filterFaq();
@@ -138,7 +127,7 @@ export default function PrelaunchLayout(){
  return <MediaPreferences.Provider value={{external:consent?.external===true,openPreferences}}>
  <div ref={root} className="prelaunch" data-concept="cinema" data-route={page} data-theme={theme} data-reference="rojo" data-tf-page={!["home","asuncion","halloween"].includes(page)}>
  <a className="skip" href="#main" onClick={e=>{e.preventDefault();root.current?.querySelector<HTMLElement>("#main")?.focus();}}>Saltar al contenido</a>
- <ApprovedHeader halloween={page==="halloween"}/>
+ <ApprovedHeader/>
  <main id="main" tabIndex={-1} key={location.pathname}>
  {Page?<div className={"pl-"+page}><Page/></div>:<section className="tf-page r4"><div className="tf-wrap"><h1>Próximamente en TAIRET</h1><p>Estamos preparando la exploración de bares, discotecas y eventos. TAIRET está en prelanzamiento.</p><Link className="tf-btn" to="/asuncion">Conocé Asunción</Link><Link className="tf-btn secondary" to="/halloween">Halloween 2026</Link></div></section>}
  </main>
