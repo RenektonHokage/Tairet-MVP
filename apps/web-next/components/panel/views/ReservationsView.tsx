@@ -56,8 +56,10 @@ export interface ReservationsViewProps {
   onRefresh: () => void;
 
   // Handlers para acciones de reservas
+  busyReservations?: ReadonlySet<string>;
   onConfirm: (reservation: Reservation) => void;
   onCancel: (reservation: Reservation) => void;
+  allowConfirmedCancellation?: boolean;
   onEdit: (reservation: Reservation) => void;
 
   // Handler para limpiar filtros
@@ -95,8 +97,10 @@ export function ReservationsView({
   sortBy,
   onSortChange,
   onRefresh,
+  busyReservations,
   onConfirm,
   onCancel,
+  allowConfirmedCancellation,
   onEdit,
   onClearFilters,
   exportFrom,
@@ -488,8 +492,10 @@ export function ReservationsView({
             <ReservationCard
               key={reservation.id}
               reservation={reservation}
+              statusBusy={busyReservations?.has(reservation.id)}
               onConfirm={onConfirm}
               onCancel={onCancel}
+              allowConfirmedCancellation={allowConfirmedCancellation}
               onEdit={onEdit}
               showActivityHistory={showActivityHistory}
               activityHistoryItems={getActivityHistoryItems?.(reservation)}

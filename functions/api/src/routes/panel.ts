@@ -892,7 +892,7 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
     // Buscar la reserva actual
     const { data: reservation, error: fetchError } = await supabase
       .from("reservations")
-      .select("id, local_id, status, email, name, date, guests, table_note")
+      .select("id, local_id, status, email, name, date, guests, table_note, locals:local_id(name, type)")
       .eq("id", id)
       .single();
 
@@ -916,24 +916,41 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
       });
     }
 
-    // Preparar objeto de actualización
+    const venue = Array.isArray(reservation.locals) ? reservation.locals[0] : reservation.locals;
+    const isBar = venue?.type === "bar";
     const updateData: {
       status?: string;
+      cancel_reason?: string | null;
       table_note?: string | null;
       updated_at: string;
     } = {
       updated_at: new Date().toISOString(),
     };
 
-    // Si se intenta cambiar el status, validar que solo se puede desde 'en_revision'
+    const expectedStatus = validated.expected_status ?? "en_revision";
+    if (validated.cancel_reason !== undefined && validated.status !== "cancelled") {
+      return res.status(400).json({ error: "El motivo solo se puede guardar al cancelar la reserva." });
+    }
     if (validated.status !== undefined) {
-      if (reservation.status !== "en_revision") {
-        return res.status(400).json({
-          error: "La reserva ya fue procesada",
+      if (reservation.status !== expectedStatus) {
+        return res.status(409).json({
+          error: "La reserva cambió de estado. Actualizá el listado antes de volver a actuar.",
           currentStatus: reservation.status,
+          code: "RESERVATION_STATUS_CONFLICT",
         });
       }
+      if (expectedStatus === "confirmed") {
+        if (!isBar) {
+          return res.status(409).json({ error: "La cancelación de confirmadas solo está habilitada para bares." });
+        }
+        if (validated.status !== "cancelled" || !validated.cancel_reason) {
+          return res.status(400).json({ error: "La cancelación de una confirmada requiere un motivo para el cliente." });
+        }
+      }
       updateData.status = validated.status;
+      if (isBar && validated.status === "cancelled") {
+        updateData.cancel_reason = validated.cancel_reason ?? null;
+      }
     }
 
     // Permitir actualizar table_note independientemente del status
@@ -948,19 +965,29 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
     }
 
     // Actualizar la reserva
-    const { data: updated, error: updateError } = await supabase
+    let update = supabase
       .from("reservations")
       .update(updateData)
       .eq("id", id)
-      .select("id, status, table_note, updated_at")
-      .single();
+      .eq("local_id", req.panelUser.localId);
+
+    if (validated.status !== undefined) {
+      update = update.eq("status", expectedStatus);
+    }
+
+    const { data: updated, error: updateError } = await update
+      .select("id, status, cancel_reason, table_note, updated_at")
+      .maybeSingle();
 
     if (updateError) {
-      logger.error("Error updating reservation", {
-        error: updateError.message,
-        reservationId: id,
+      logger.error("Error updating reservation", { reservationId: id, code: updateError.code });
+      return res.status(500).json({ error: "No se pudo actualizar la reserva." });
+    }
+    if (!updated) {
+      return res.status(409).json({
+        error: "La reserva cambió mientras se guardaba. Actualizá el listado.",
+        code: "RESERVATION_STATUS_CONFLICT",
       });
-      return res.status(500).json({ error: updateError.message });
     }
 
     const statusChanged =
@@ -1018,21 +1045,7 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
     }
 
     if (statusChanged && (updated.status === "confirmed" || updated.status === "cancelled")) {
-      let localName: string | undefined;
-      const { data: localData, error: localError } = await supabase
-        .from("locals")
-        .select("name")
-        .eq("id", reservation.local_id)
-        .maybeSingle();
-
-      if (localError) {
-        logger.warn("Error fetching local name for reservation status email", {
-          error: localError.message,
-          localId: reservation.local_id,
-        });
-      } else {
-        localName = localData?.name ?? undefined;
-      }
+      const localName = venue?.name ?? undefined;
 
       if (updated.status === "confirmed") {
         sendReservationConfirmedEmail({
@@ -1041,8 +1054,8 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
           localName,
           date: reservation.date,
           people: reservation.guests,
-        }).catch((err) => {
-          logger.error("Error sending reservation confirmation email", { error: err });
+        }).catch(() => {
+          logger.error("Error sending reservation confirmation email", { reservationId: id, requestId: getRequestId(req) });
         });
       } else if (updated.status === "cancelled") {
         sendReservationCancelledEmail({
@@ -1051,9 +1064,9 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
           localName,
           date: reservation.date,
           people: reservation.guests,
-          cancelReason: validated.cancel_reason || validated.table_note || undefined,
-        }).catch((err) => {
-          logger.error("Error sending reservation cancellation email", { error: err });
+          cancelReason: isBar ? updated.cancel_reason ?? undefined : validated.cancel_reason,
+        }).catch(() => {
+          logger.error("Error sending reservation cancellation email", { reservationId: id, requestId: getRequestId(req) });
         });
       }
     }

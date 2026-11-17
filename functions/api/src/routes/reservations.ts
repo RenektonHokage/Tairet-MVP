@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { createReservationSchema } from "../schemas/reservations";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
@@ -7,13 +7,7 @@ import { recordOperationalActivity } from "../services/operationalActivity";
 import { getRequestId } from "../middlewares/requestId";
 import { panelAuth } from "../middlewares/panelAuth";
 import { requireRole } from "../middlewares/requireRole";
-import {
-  applyDailyOverride,
-  computeOperationalDate,
-  getTodayHoursDisplay,
-  isOpenOnOperationalDate,
-  validateOpeningHoursV1,
-} from "../services/openingHours";
+import { evaluateReservationSchedule, MIN_RESERVATION_NOTICE_MS } from "../services/barReservationSchedule";
 
 export const reservationsRouter = Router();
 const ASUNCION_TIMEZONE = "America/Asuncion";
@@ -90,7 +84,11 @@ function toAsuncionDateOnly(value: string | null | undefined): string | null {
 }
 
 // POST /reservations
-reservationsRouter.post("/", async (req, res, next) => {
+export const createReservationHandler = (dependencies: {
+  now?: () => Date;
+  sendReceived?: typeof sendReservationReceivedEmail;
+  recordActivity?: typeof recordOperationalActivity;
+} = {}): RequestHandler => async (req, res, next) => {
   try {
     const parsedBody = createReservationSchema.safeParse(req.body);
     if (!parsedBody.success) {
@@ -101,7 +99,12 @@ reservationsRouter.post("/", async (req, res, next) => {
           code: "INVALID_RESERVATION_DATE",
         });
       }
-      return next(parsedBody.error);
+      return res.status(400).json({
+        error: parsedBody.error.issues.some(issue => issue.path[0] === "guests")
+          ? "La cantidad de personas debe ser un entero entre 1 y 15"
+          : "Revisá los datos de la solicitud de reserva",
+        code: "INVALID_RESERVATION_INPUT",
+      });
     }
 
     const validated = parsedBody.data;
@@ -114,11 +117,14 @@ reservationsRouter.post("/", async (req, res, next) => {
       });
     }
 
-    const operationalDate = computeOperationalDate(reservationDate);
+    if (reservationDate.getTime() - (dependencies.now?.() ?? new Date()).getTime() < MIN_RESERVATION_NOTICE_MS) {
+      return res.status(400).json({ error: "Solicitá la reserva con al menos 30 minutos de anticipación", code: "RESERVATION_MIN_NOTICE" });
+    }
+    const arrivalIso = reservationDate.toISOString();
 
     const { data: localData, error: localError } = await supabase
       .from("locals")
-      .select("id, name, opening_hours")
+      .select("id, name, type, is_published, opening_hours")
       .eq("id", validated.local_id)
       .maybeSingle();
 
@@ -130,53 +136,41 @@ reservationsRouter.post("/", async (req, res, next) => {
       return res.status(500).json({ error: "Error validando disponibilidad del local" });
     }
 
-    if (!localData) {
+    if (!localData || localData.type !== "bar" || localData.is_published !== true) {
       return res.status(404).json({
         error: "Local no encontrado",
         code: "LOCAL_NOT_FOUND",
       });
     }
 
-    const { data: dailyOverrideRow, error: dailyOverrideError } = await supabase
+    const schedule = evaluateReservationSchedule(localData.opening_hours, reservationDate);
+    if (!schedule.ok) {
+      const messages = {
+        SCHEDULE_UNAVAILABLE: "No se pueden verificar los horarios del bar en este momento",
+        LOCAL_CLOSED_DAY: "El local está cerrado en la fecha seleccionada",
+        LOCAL_CLOSED_TIME: "La llegada está fuera del horario operativo del bar",
+      };
+      return res.status(409).json({ error: messages[schedule.code], code: schedule.code });
+    }
+    const { openingDates } = schedule;
+    const { data: dailyOverrides, error: dailyOverrideError } = await supabase
       .from("local_daily_ops")
-      .select("is_open")
+      .select("day, is_open")
       .eq("local_id", validated.local_id)
-      .eq("day", operationalDate)
-      .maybeSingle();
+      .in("day", openingDates);
 
-    if (dailyOverrideError) {
+    if (dailyOverrideError || !Array.isArray(dailyOverrides) || dailyOverrides.some(row => typeof row.is_open !== "boolean")) {
       logger.warn("Error fetching local_daily_ops for reservation validation", {
-        error: dailyOverrideError.message,
+        error: dailyOverrideError?.message ?? "Invalid daily override result",
         localId: validated.local_id,
-        operationalDate,
+        openingDates,
       });
+      return res.status(503).json({ error: "No se pueden verificar las excepciones de horario. Intentá nuevamente.", code: "SCHEDULE_UNAVAILABLE" });
     }
 
-    const dailyIsOpen = typeof dailyOverrideRow?.is_open === "boolean" ? dailyOverrideRow.is_open : undefined;
-
-    let openingHours = null;
-    if (localData.opening_hours && typeof localData.opening_hours === "object") {
-      const validation = validateOpeningHoursV1(localData.opening_hours);
-      if (validation.ok) {
-        openingHours = validation.value;
-      } else {
-        logger.warn("Invalid opening_hours in reservation validation (compat mode, not blocking by schedule)", {
-          localId: validated.local_id,
-          errors: validation.errors,
-        });
-      }
-    }
-
-    const baseIsOpenOnDate = isOpenOnOperationalDate(openingHours, operationalDate);
-    const baseHoursOnDate = getTodayHoursDisplay(openingHours, operationalDate);
-    const { isOpenToday } = applyDailyOverride(baseIsOpenOnDate, baseHoursOnDate, dailyIsOpen);
-
-    if (isOpenToday === false) {
-      return res.status(409).json({
-        error: "El local está cerrado en la fecha seleccionada",
-        code: "LOCAL_CLOSED_DAY",
-        operational_date: operationalDate,
-      });
+    const closedDates = new Set((dailyOverrides ?? []).filter(row => row.is_open === false).map(row => row.day));
+    if (openingDates.every(date => closedDates.has(date))) {
+      return res.status(409).json({ error: "El local está cerrado en la fecha seleccionada", code: "LOCAL_CLOSED_DAY" });
     }
 
     const { data, error } = await supabase
@@ -187,11 +181,10 @@ reservationsRouter.post("/", async (req, res, next) => {
         last_name: validated.last_name ?? null,
         email: validated.email,
         phone: validated.phone,
-        date: validated.date,
+        date: arrivalIso,
         guests: validated.guests,
         status: "en_revision",
         notes: validated.notes ?? null,
-        table_note: validated.table_note ?? null,
       })
       .select("id, status, date, guests, created_at")
       .single();
@@ -201,7 +194,7 @@ reservationsRouter.post("/", async (req, res, next) => {
       return res.status(400).json({ error: error.message });
     }
 
-    void recordOperationalActivity({
+    void (dependencies.recordActivity ?? recordOperationalActivity)({
       localId: validated.local_id,
       entityType: "reservation",
       entityId: data.id,
@@ -219,11 +212,11 @@ reservationsRouter.post("/", async (req, res, next) => {
     const localName = localData.name ?? undefined;
 
     // Enviar email de forma fire-and-forget
-    sendReservationReceivedEmail({
+    (dependencies.sendReceived ?? sendReservationReceivedEmail)({
       email: validated.email,
       name: validated.name,
       localName,
-      date: validated.date,
+      date: arrivalIso,
       people: validated.guests,
     }).catch((err) => {
       logger.error("Error sending reservation email", { error: err });
@@ -239,7 +232,8 @@ reservationsRouter.post("/", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-});
+};
+reservationsRouter.post("/", createReservationHandler());
 
 // PATCH /reservations/:id (DEPRECATED)
 // Este endpoint público ha sido deshabilitado por seguridad.
@@ -286,7 +280,7 @@ localsReservationsRouter.get("/:id/reservations", panelAuth, requireRole(["owner
       const { data, error } = await supabase
         .from("reservations")
         .select(
-          "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
+            "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, cancel_reason, created_at, updated_at"
         )
         .eq("local_id", id)
         .gte("date", `${fallbackFrom}T00:00:00.000Z`)
@@ -313,7 +307,7 @@ localsReservationsRouter.get("/:id/reservations", panelAuth, requireRole(["owner
     const { data, error } = await supabase
       .from("reservations")
       .select(
-        "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, created_at, updated_at"
+          "id, local_id, name, last_name, email, phone, date, guests, status, notes, table_note, cancel_reason, created_at, updated_at"
       )
       .eq("local_id", id)
       .order("created_at", { ascending: false })

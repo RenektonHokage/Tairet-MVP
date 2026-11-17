@@ -1,53 +1,29 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { BaseCarousel } from '@/components/BaseCarousel';
 import VenueCard from '@/components/shared/VenueCard';
 import VenueCardSkeleton from '@/components/shared/VenueCardSkeleton';
-import type { Bar } from '@/lib/types';
-import { slugify } from '@/lib/slug';
-import { selectBarVenues } from '@/lib/venueSelectors';
+import type { PublicBar } from '@/lib/publicBars';
 import { prefetchImages } from '@/lib/imagePrefetch';
 
 const BarsSection: React.FC<{
+  bars: PublicBar[];
   typeFilter?: string;
-  coverBySlug?: Map<string, string>;
-  scheduleBySlug?: Map<string, string>;
-  attributesBySlug?: Map<string, string[]>;
-  minAgeBySlug?: Map<string, number>;
   isLoading?: boolean;
-}> = ({
-  typeFilter,
-  coverBySlug,
-  scheduleBySlug,
-  attributesBySlug,
-  minAgeBySlug,
-  isLoading = false,
-}) => {
-  let bars = selectBarVenues({ city: "asuncion", scope: "zone" });
-
-  // Mantener compatibilidad si se llega a usar el filtro por tipo.
-  if (typeFilter) {
-    bars = bars.filter((bar) => {
-      if (typeFilter === "bar") return true;
-      return bar.type === typeFilter;
-    });
-  }
+}> = ({ bars: publicBars, typeFilter, isLoading = false }) => {
+  const bars = useMemo(() => typeFilter && typeFilter !== "bar" ? [] : publicBars, [typeFilter, publicBars]);
 
   // Dynamic title based on type filter
   const sectionTitle = typeFilter === 'bar' ? 'BARES' : typeFilter === 'boliche' ? 'BOLICHES' : typeFilter === 'evento' ? 'EVENTOS' : 'Bares';
 
   useEffect(() => {
     if (isLoading) return;
-    const topImages = bars.map((item) => {
-      const barSlug = slugify(item.name);
-      return coverBySlug?.get(barSlug) || item.image;
-    });
-    prefetchImages(topImages, 8);
-  }, [bars, coverBySlug, isLoading]);
+    prefetchImages(bars.map(bar => bar.image), 8);
+  }, [bars, isLoading]);
 
-  // Si no hay bares después del filtro MVP, mostrar estado vacío
+  // No hay registros publicados para esta selección.
   if (!isLoading && bars.length === 0) {
     return (
       <section className="py-6 md:py-8">
@@ -125,20 +101,17 @@ const BarsSection: React.FC<{
             options={{ dragFree: true, align: "start" }}
           >
             {bars.map((item, index) => {
-              const barSlug = slugify(item.name);
-              const minAge = minAgeBySlug?.get(barSlug) ?? null;
               return (
                 <VenueCard 
                   key={item.id}
                   id={item.id}
                   name={item.name}
-                  schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
-                  rating={item.rating}
-                  specialties={attributesBySlug?.get(barSlug) || item.specialties}
-                  image={coverBySlug?.get(barSlug) || item.image}
-                  href={`/bar/${barSlug}`}
+                  schedule={item.schedule}
+                  specialties={item.specialties}
+                  image={item.image}
+                  href={`/bar/${item.slug}`}
                   type="bar"
-                  minAge={minAge}
+                  minAge={item.minAge}
                   className="w-[280px] sm:w-[300px] lg:w-auto"
                   imagePriority={index < 6}
                 />
@@ -155,20 +128,17 @@ const BarsSection: React.FC<{
         }}>
             <CarouselContent className="-ml-6 [&>[role='group']]:pl-6">
               {bars.map((item, index) => {
-                const barSlug = slugify(item.name);
-                const minAge = minAgeBySlug?.get(barSlug) ?? null;
                 return (
                   <CarouselItem key={item.id} className="basis-1/4">
                     <VenueCard 
                       id={item.id}
                       name={item.name}
-                      schedule={scheduleBySlug?.get(barSlug) ?? "Horario no disponible"}
-                      rating={item.rating}
-                      specialties={attributesBySlug?.get(barSlug) || item.specialties}
-                      image={coverBySlug?.get(barSlug) || item.image}
-                      href={`/bar/${barSlug}`}
+                      schedule={item.schedule}
+                          specialties={item.specialties}
+                      image={item.image}
+                      href={`/bar/${item.slug}`}
                       type="bar"
-                      minAge={minAge}
+                      minAge={item.minAge}
                       imagePriority={index < 6}
                     />
                   </CarouselItem>

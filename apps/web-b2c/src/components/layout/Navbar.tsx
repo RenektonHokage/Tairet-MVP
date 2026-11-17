@@ -1,3 +1,4 @@
+import { usePublicBars } from "@/hooks/usePublicBars";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChevronRight, LogOut, Search } from "lucide-react";
@@ -328,6 +329,7 @@ function NavbarSearchForm({
 }
 
 const Navbar = () => {
+  const { bars } = usePublicBars();
   const [searchQuery, setSearchQuery] = useState("");
   const [coverBySlug, setCoverBySlug] = useState<Map<string, string>>(new Map());
   const [locationBySlug, setLocationBySlug] = useState<Map<string, string>>(new Map());
@@ -339,10 +341,11 @@ const Navbar = () => {
   const searchSuggestions = useMemo(
     () =>
       getNavbarSearchSuggestions(searchQuery, {
+        bars,
         coverBySlug,
         locationBySlug,
       }),
-    [coverBySlug, locationBySlug, searchQuery]
+    [bars, coverBySlug, locationBySlug, searchQuery]
   );
 
   useEffect(() => {
@@ -352,17 +355,12 @@ const Navbar = () => {
   useEffect(() => {
     let active = true;
 
-    Promise.allSettled([getLocalsList("bar", 100), getLocalsList("club", 100)])
-      .then(([barsResult, clubsResult]) => {
+    getLocalsList("club", 100)
+      .then((locals) => {
         if (!active) return;
 
         const nextCoverBySlug = new Map<string, string>();
         const nextLocationBySlug = new Map<string, string>();
-        const locals = [
-          ...(barsResult.status === "fulfilled" ? barsResult.value : []),
-          ...(clubsResult.status === "fulfilled" ? clubsResult.value : []),
-        ];
-
         locals.forEach((local) => {
           applyLocalLookupValues(local, nextCoverBySlug, nextLocationBySlug);
         });

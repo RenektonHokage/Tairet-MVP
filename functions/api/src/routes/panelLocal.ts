@@ -178,6 +178,11 @@ panelLocalRouter.patch(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
+      // Publication is a TAIRET administrative decision, never a profile edit.
+      if (Object.prototype.hasOwnProperty.call(req.body, "is_published")) {
+        return res.status(403).json({ error: "PUBLICATION_MANAGED_BY_TAIRET" });
+      }
+
       const {
         name,
         address,

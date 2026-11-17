@@ -62,30 +62,16 @@ function buildMinAgeMap(locals: LocalListItem[]): MinAgeBySlugMap {
 
 export async function getZoneCoverMaps(limit: number = 100): Promise<{
   clubCovers: CoverBySlugMap;
-  barCovers: CoverBySlugMap;
   clubSchedules: TodayScheduleBySlugMap;
-  barSchedules: TodayScheduleBySlugMap;
   clubAttributes: AttributesBySlugMap;
-  barAttributes: AttributesBySlugMap;
   clubMinAges: MinAgeBySlugMap;
-  barMinAges: MinAgeBySlugMap;
 }> {
-  const [clubResult, barResult] = await Promise.allSettled([
-    getLocalsList("club", limit),
-    getLocalsList("bar", limit),
-  ]);
-
-  const clubLocals = clubResult.status === "fulfilled" ? clubResult.value : [];
-  const barLocals = barResult.status === "fulfilled" ? barResult.value : [];
+  const clubLocals = await getLocalsList("club", limit).catch(() => []);
 
   return {
     clubCovers: buildCoverMap(clubLocals),
-    barCovers: buildCoverMap(barLocals),
     clubSchedules: buildTodayScheduleBySlug(clubLocals),
-    barSchedules: buildTodayScheduleBySlug(barLocals),
     clubAttributes: buildAttributesMap(clubLocals),
-    barAttributes: buildAttributesMap(barLocals),
     clubMinAges: buildMinAgeMap(clubLocals),
-    barMinAges: buildMinAgeMap(barLocals),
   };
 }

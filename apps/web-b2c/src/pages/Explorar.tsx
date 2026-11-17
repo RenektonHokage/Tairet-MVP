@@ -7,8 +7,9 @@ import { Card } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { usePublicBars } from "@/hooks/usePublicBars";
 import { images } from "@/lib/images";
-import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
+import { selectClubVenues } from "@/lib/venueSelectors";
 import { applySearchFilters, parseSearchParams, patchSearchParams } from "@/lib/search";
 import VenueCard from "@/components/shared/VenueCard";
 import { slugify } from "@/lib/slug";
@@ -41,18 +42,19 @@ function buildCoverMap(locals: LocalListItem[]) {
 const Explorar = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [todaySchedulesBySlug, setTodaySchedulesBySlug] = useState<Map<string, string>>(new Map());
-  const [barCoverBySlug, setBarCoverBySlug] = useState<Map<string, string>>(new Map());
+  const { bars: publicBars } = usePublicBars();
   const [clubCoverBySlug, setClubCoverBySlug] = useState<Map<string, string>>(new Map());
   const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const typeFilter = searchState.type === "all" ? undefined : searchState.type;
   const bars = useMemo(
     () =>
-      applySearchFilters(selectBarVenues({ city: "asuncion", scope: "all" }), searchState, {
+      applySearchFilters(publicBars, searchState, {
         getName: (bar) => bar.name,
         getLocation: (bar) => bar.location,
         getTags: (bar) => bar.specialties,
+        isOpenToday: (bar) => bar.isOpenToday,
       }),
-    [searchState],
+    [publicBars, searchState],
   );
   const clubs = useMemo(
     () =>
@@ -121,18 +123,10 @@ const Explorar = () => {
   useEffect(() => {
     let active = true;
 
-    Promise.allSettled([getLocalsList("bar", 100), getLocalsList("club", 100)])
-      .then(([barsResult, clubsResult]) => {
+    getLocalsList("club", 100)
+      .then((clubsLocals) => {
         if (!active) return;
-
-        const barsLocals = barsResult.status === "fulfilled" ? barsResult.value : [];
-        const clubsLocals = clubsResult.status === "fulfilled" ? clubsResult.value : [];
-        const nextMap = new Map<string, string>([
-          ...buildTodayScheduleBySlug(barsLocals),
-          ...buildTodayScheduleBySlug(clubsLocals),
-        ]);
-        setTodaySchedulesBySlug(nextMap);
-        setBarCoverBySlug(buildCoverMap(barsLocals));
+        setTodaySchedulesBySlug(buildTodayScheduleBySlug(clubsLocals));
         setClubCoverBySlug(buildCoverMap(clubsLocals));
       })
       .catch(() => {
@@ -151,7 +145,7 @@ const Explorar = () => {
 
     if (showBars) {
       candidateImages.push(
-        ...bars.map((bar) => barCoverBySlug.get(slugify(bar.name)) || bar.image)
+        ...bars.map((bar) => bar.image)
       );
     }
 
@@ -163,7 +157,6 @@ const Explorar = () => {
 
     prefetchImages(candidateImages, 8);
   }, [
-    barCoverBySlug,
     bars,
     clubCoverBySlug,
     clubs,
@@ -232,12 +225,12 @@ const Explorar = () => {
                           key={`bar-${bar.id}`}
                           id={bar.id}
                           name={bar.name}
-                          schedule={todaySchedulesBySlug.get(slugify(bar.name)) ?? "Horario no disponible"}
-                          rating={bar.rating}
+                          schedule={bar.schedule}
+                          minAge={bar.minAge}
                           specialties={bar.specialties}
                           location={bar.location}
-                          image={barCoverBySlug.get(slugify(bar.name)) || bar.image}
-                          href={`/bar/${slugify(bar.name)}`}
+                          image={bar.image}
+                          href={`/bar/${bar.slug}`}
                           type="bar"
                           imagePriority={index < 6}
                         />

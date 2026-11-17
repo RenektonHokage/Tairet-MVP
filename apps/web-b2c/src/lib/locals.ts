@@ -27,6 +27,7 @@ export interface LocalGalleryItem {
 }
 
 export interface LocalInfo {
+  is_published?: boolean;
   id: string; // UUID
   slug: string;
   name: string;
@@ -46,12 +47,15 @@ export interface LocalInfo {
   ticket_price: number;
   type: "bar" | "club";
   gallery: LocalGalleryItem[];
+  attributes?: string[];
+  min_age?: number | null;
   // Promotions from DB (may be undefined if backend is old, empty array if no promos)
   promotions?: ApiPromotion[];
 }
 
 // Tipo para listado de locales (resumido, con cover)
 export interface LocalListItem {
+  is_published?: boolean;
   id: string;
   slug: string;
   name: string;
@@ -555,12 +559,14 @@ export function getPrimaryHoursLine(hours: string[]): string {
  */
 export async function getLocalsList(
   type?: "bar" | "club",
-  limit: number = 50
+  limit: number = 50,
+  offset: number = 0,
 ): Promise<LocalListItem[]> {
   try {
     const params = new URLSearchParams();
     if (type) params.set("type", type);
     params.set("limit", String(limit));
+    if (offset > 0) params.set("offset", String(offset));
 
     const response = await fetch(
       `${getApiBase()}/public/locals?${params.toString()}`,

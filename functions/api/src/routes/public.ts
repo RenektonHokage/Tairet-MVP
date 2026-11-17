@@ -11,6 +11,7 @@ import {
   validateOpeningHoursV1,
 } from "../services/openingHours";
 import { logger } from "../utils/logger";
+import { PUBLIC_LOCAL_FILTER } from "../services/localPublication";
 
 export const publicRouter = Router();
 
@@ -21,6 +22,7 @@ const slugSchema = z.string().min(1).max(100).regex(/^[a-z0-9-]+$/);
 const listLocalsQuerySchema = z.object({
   type: z.enum(["bar", "club"]).optional(),
   limit: z.coerce.number().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
 });
 
 function resolveTodayScheduleState(
@@ -80,6 +82,7 @@ async function fetchDailyOverrides(
  * Incluye cover image de gallery para usar en cards del listado.
  */
 publicRouter.get("/locals", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const queryResult = listLocalsQuerySchema.safeParse(req.query);
     if (!queryResult.success) {
@@ -89,14 +92,16 @@ publicRouter.get("/locals", async (req, res) => {
       });
     }
 
-    const { type, limit } = queryResult.data;
+    const { type, limit, offset } = queryResult.data;
 
     // Query base
     let query = supabase
       .from("locals")
-      .select("id, slug, name, type, location, city, latitude, longitude, gallery, attributes, min_age, opening_hours")
+      .select("id, slug, name, type, location, city, latitude, longitude, gallery, attributes, min_age, opening_hours, is_published")
+      .or(PUBLIC_LOCAL_FILTER)
       .order("name", { ascending: true })
-      .limit(limit);
+      .order("id", { ascending: true })
+      .range(offset, offset + limit - 1);
 
     // Filtrar por tipo si se especifica
     if (type) {
@@ -136,6 +141,7 @@ publicRouter.get("/locals", async (req, res) => {
         slug: local.slug,
         name: local.name,
         type: local.type,
+        ...(local.type === "bar" ? { is_published: local.is_published === true } : {}),
         location: local.location || null,
         city: local.city || null,
         latitude: typeof local.latitude === "number" ? local.latitude : null,
@@ -165,6 +171,7 @@ publicRouter.get("/locals", async (req, res) => {
  * Usado por B2C para resolver slug → local_id.
  */
 publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const { slug } = req.params;
 
@@ -182,8 +189,9 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
     // Buscar local por slug
     const { data: local, error } = await supabase
       .from("locals")
-      .select("id, slug, name, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, ticket_price, type, gallery")
+      .select("id, slug, name, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, ticket_price, type, gallery, attributes, min_age, is_published")
       .eq("slug", validSlug)
+      .or(PUBLIC_LOCAL_FILTER)
       .single();
 
     if (error) {
@@ -263,7 +271,10 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       whatsapp: local.whatsapp || null,
       ticket_price: Number(local.ticket_price) || 0,
       type: local.type as "bar" | "club",
+      ...(local.type === "bar" ? { is_published: local.is_published === true } : {}),
       gallery: Array.isArray(local.gallery) ? local.gallery : [],
+      attributes: Array.isArray(local.attributes) ? local.attributes : [],
+      min_age: typeof local.min_age === "number" ? local.min_age : null,
       promotions: promotions ?? [],
     });
   } catch (error) {

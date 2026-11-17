@@ -1,10 +1,8 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { trackPromoOpen } from '@/lib/api';
 import { BaseCarousel } from '@/components/BaseCarousel';
-import { getRealPromoId } from '@/lib/promoIdMap';
 
 interface Promotion {
   id: string; // UUID string
@@ -61,11 +59,8 @@ const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) =>
     if (!promo || !localId) {
       return;
     }
-    // Obtener UUID real de la promo (mapeo de título a UUID de DB)
-    // Para bares, usar mapeo legacy por título solo
-    const realPromoId = getRealPromoId({ title: promo.title, fallbackId: promo.id });
-    // trackPromoOpen valida internamente si es UUID válido y envía el request
-    void trackPromoOpen(localId, realPromoId, "bar_promo_card");
+    // The API supplies the persisted id; a title is not a promotion identity.
+    void trackPromoOpen(localId, promo.id, "bar_promo_card");
   };
 
   if (!promotions || promotions.length === 0) {
@@ -88,10 +83,6 @@ const BarPromotions: React.FC<BarPromotionsProps> = ({ promotions, localId }) =>
     <section className="space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl sm:text-2xl font-bold text-foreground">Promos del bar</h2>
-        <Badge variant="secondary" className="flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          Actualizadas hoy
-        </Badge>
       </div>
 
       {/* Mobile: Always carousel with fixed-width slides */}

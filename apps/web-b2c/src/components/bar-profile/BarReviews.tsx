@@ -10,17 +10,12 @@ interface BarReviewsProps {
 }
 
 const BarReviews: React.FC<BarReviewsProps> = ({ venueId }) => {
-  const highlights = [
-    { label: "Ambiente y música", value: "Excelente" },
-    { label: "Servicio", value: "Muy bueno" },
-    { label: "Precios", value: "Razonable" },
-  ];
 
   return (
     <ReviewsSection
       venueId={venueId}
       venueType="bar"
-      highlights={highlights}
+      highlights={[]}
     />
   );
 };

@@ -3,6 +3,7 @@ import { Router, type Request } from "express";
 import { z, ZodError } from "zod";
 import { supabase } from "../services/supabase";
 import { logger } from "../utils/logger";
+import { PUBLIC_LOCAL_FILTER } from "../services/localPublication";
 
 export const reviewsRouter = Router();
 
@@ -72,7 +73,9 @@ function startOfUtcDay(date: Date) {
 }
 
 async function getStats(filters: { venueId?: string; venueType?: "bar" | "club" }) {
-  let query = supabase.from("reviews").select("rating");
+  let query = supabase.from("reviews")
+    .select("rating, locals:venue_id!inner(type, is_published)")
+    .or(PUBLIC_LOCAL_FILTER, { referencedTable: "locals" });
 
   if (filters.venueId) {
     query = query.eq("venue_id", filters.venueId);
@@ -109,6 +112,7 @@ function mapReviewRow(row: ReviewRow) {
 }
 
 reviewsRouter.get("/", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const parsed = listReviewsQuerySchema.parse(req.query);
     const { venue_id, venue_type, limit, offset } = parsed;
@@ -116,8 +120,9 @@ reviewsRouter.get("/", async (req, res) => {
     let query = supabase
       .from("reviews")
       .select(
-        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, locals:venue_id(name, slug)"
+        "id, venue_id, venue_type, display_name, rating, title, comment, created_at, locals:venue_id!inner(name, slug, type, is_published)"
       )
+      .or(PUBLIC_LOCAL_FILTER, { referencedTable: "locals" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -155,6 +160,20 @@ reviewsRouter.get("/", async (req, res) => {
 reviewsRouter.post("/", async (req, res) => {
   try {
     const parsed = createReviewBodySchema.parse(req.body);
+    // This response embeds venue identity, so publication applies to creation too.
+    const { data: venue, error: venueError } = await supabase
+      .from("locals")
+      .select("id")
+      .eq("id", parsed.venue_id)
+      .eq("type", parsed.venue_type)
+      .or(PUBLIC_LOCAL_FILTER)
+      .maybeSingle();
+    if (venueError) {
+      return res.status(500).json({ error: "INTERNAL_ERROR", message: "No se pudo consultar el local." });
+    }
+    if (!venue) {
+      return res.status(404).json({ error: "LOCAL_NOT_FOUND", message: "Local no disponible." });
+    }
     const fingerprintHeader = req.header("x-tairet-fp")?.trim();
     const fingerprint = (fingerprintHeader || parsed.fingerprint || "").trim();
 

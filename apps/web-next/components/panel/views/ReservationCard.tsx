@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Clock, Mail, Phone, Users } from "lucide-react";
 import { formatTimePy } from "@/lib/time";
+import { reservationDateLabel } from "@/lib/reservationDate";
 import type { OperationalActivityItem } from "@/lib/activity";
 
 import { OperationalActivityHistory } from "@/components/panel/OperationalActivityHistory";
@@ -20,14 +21,17 @@ export interface Reservation {
   status: ReservationStatus;
   notes?: string | null;
   table_note?: string | null;
+  cancel_reason?: string | null;
   created_at?: string;
   updated_at?: string | null;
 }
 
 export interface ReservationCardProps {
   reservation: Reservation;
+  statusBusy?: boolean;
   onConfirm?: (reservation: Reservation) => void;
   onCancel?: (reservation: Reservation) => void;
+  allowConfirmedCancellation?: boolean;
   onEdit?: (reservation: Reservation) => void;
   showActivityHistory?: boolean;
   activityHistoryItems?: OperationalActivityItem[];
@@ -42,29 +46,28 @@ const statusMap: Record<
   cancelled: { label: "Cancelada", variant: "danger" },
 };
 
-function formatDateLabel(value: string) {
-  const [datePart] = value.split(",");
-  return datePart?.trim() ?? value;
-}
 
 export function ReservationCard({
   reservation,
+  statusBusy = false,
   onConfirm,
   onCancel,
+  allowConfirmedCancellation = false,
   onEdit,
   showActivityHistory = true,
   activityHistoryItems,
 }: ReservationCardProps) {
   const status = statusMap[reservation.status];
   const timeLabel = formatTimePy(reservation.date);
-  const dateLabel = formatDateLabel(reservation.date);
+  const dateLabel = reservationDateLabel(reservation.date);
   const fullName = [reservation.name, reservation.last_name].filter(Boolean).join(" ");
   const emailLabel = reservation.email || "-";
   const isPending = reservation.status === "en_revision";
   const showInlineEdit = isPending && Boolean(onEdit);
   const showFooterEdit = !isPending && Boolean(onEdit);
+  const canCancel = onCancel && (isPending || (allowConfirmedCancellation && reservation.status === "confirmed"));
   const showActionFooter =
-    (isPending && (Boolean(onConfirm) || Boolean(onCancel))) || showFooterEdit;
+    (isPending && Boolean(onConfirm)) || canCancel || showFooterEdit;
 
   const notes = reservation.notes?.trim() || "Sin notas del cliente";
   const tableNote = reservation.table_note?.trim() || "Sin nota interna";
@@ -77,7 +80,7 @@ export function ReservationCard({
   );
 
   return (
-    <Card>
+    <Card data-reservation-id={reservation.id}>
       <CardHeader className="gap-2.5">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
@@ -168,6 +171,12 @@ export function ReservationCard({
           </div>
         </div>
 
+        {reservation.status === "cancelled" && reservation.cancel_reason && (
+          <div className={noteBoxClass}>
+            <div className="text-xs font-medium text-neutral-500">Motivo de cancelación para el cliente</div>
+            <p className="whitespace-pre-wrap break-words text-sm text-neutral-800">{reservation.cancel_reason}</p>
+          </div>
+        )}
         {showActivityHistory ? (
           <OperationalActivityHistory
             entityType="reservation"
@@ -186,18 +195,20 @@ export function ReservationCard({
                   panelUi.focusRing
                 )}
                 type="button"
+                disabled={statusBusy}
                 onClick={() => onConfirm(reservation)}
               >
                 Confirmar
               </button>
             ) : null}
-            {isPending && onCancel ? (
+            {canCancel ? (
               <button
                 className={cn(
                   "flex-1 rounded-full bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-sm",
                   panelUi.focusRing
                 )}
                 type="button"
+                disabled={statusBusy}
                 onClick={() => onCancel(reservation)}
               >
                 Cancelar

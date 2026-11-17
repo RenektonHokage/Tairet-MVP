@@ -67,6 +67,7 @@ function formatReservationDate(date?: string): string {
   }
 
   return parsed.toLocaleDateString("es-PY", {
+    timeZone: "America/Asuncion",
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -177,7 +178,7 @@ function getStatusBadgeStyles(status: ReservationEmailStatus): string {
   return "display:inline-block;padding:6px 12px;border-radius:999px;background:#e2e8f0;color:#334155;font-size:12px;font-weight:700;";
 }
 
-function renderReservationEmail(input: ReservationTemplateInput): { subject: string; html: string } {
+export function renderReservationEmail(input: ReservationTemplateInput): { subject: string; html: string } {
   const localName = input.localName?.trim() || "el local";
   const safeName = escapeHtml(input.name || "Cliente");
   const safeLocalName = escapeHtml(localName);

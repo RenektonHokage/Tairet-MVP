@@ -150,8 +150,8 @@ export async function createReservation(input: {
   if (!input.email?.trim()) throw new Error("Email requerido");
   if (!input.phone?.trim()) throw new Error("Teléfono requerido");
   if (!input.date?.trim()) throw new Error("Fecha requerida (ISO-8601)");
-  if (!Number.isFinite(input.guests) || input.guests < 1) {
-    throw new Error("Cantidad de personas debe ser >= 1");
+  if (!Number.isInteger(input.guests) || input.guests < 1 || input.guests > 15) {
+    throw new Error("La cantidad de personas debe ser un entero entre 1 y 15");
   }
 
   const res = await fetch(`${getApiBase()}/reservations`, {

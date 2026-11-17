@@ -28,6 +28,10 @@ const MAP_DIAGNOSTICS_ENABLED =
 
 const STYLE_TILES_ERROR_MESSAGE = 'No se pudo cargar el mapa (tiles/estilo)';
 
+function mapText(value: string): string {
+  return value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+}
+
 type MapboxRuntimeError = {
   message: string;
   status?: number;
@@ -115,6 +119,7 @@ function formatHoursLine(hourLine: string): string | null {
 }
 
 export interface MapSectionProps {
+  venueType?: "bar" | "club";
   venueId?: string;
   venue: string;
   location: string;
@@ -132,6 +137,7 @@ export interface MapSectionProps {
 }
 
 const MapSection: React.FC<MapSectionProps> = ({ 
+  venueType,
   venueId,
   venue,
   location,
@@ -174,6 +180,7 @@ const MapSection: React.FC<MapSectionProps> = ({
     ? `${zone} • ${effectiveCity}`
     : zone || effectiveCity || "Ubicación no disponible";
   const displayAddress = address?.trim() || null;
+  const configuredOnly = venueType === "bar";
   const providedCoords = useMemo<Coordinates | null>(
     () =>
       Number.isFinite(longitude) && Number.isFinite(latitude)
@@ -369,7 +376,7 @@ const MapSection: React.FC<MapSectionProps> = ({
 
         marker.current = new mapboxgl.Marker({ color: '#8B5CF6' })
           .setLngLat(resolvedCoords)
-          .setPopup(new mapboxgl.Popup().setHTML(`<strong>${venue}</strong><br/>${displayAddress ?? displayLocation}`))
+          .setPopup(new mapboxgl.Popup().setHTML(`<strong>${mapText(venue)}</strong><br/>${mapText(displayAddress ?? displayLocation)}`))
           .addTo(mapInstance);
         prevCoordsRef.current = resolvedCoords;
 
@@ -412,7 +419,7 @@ const MapSection: React.FC<MapSectionProps> = ({
   useEffect(() => {
     if (!map.current || !resolvedCoords || !mapboxglRef.current) return;
 
-    const popupHtml = `<strong>${venue}</strong><br/>${displayAddress ?? displayLocation}`;
+    const popupHtml = `<strong>${mapText(venue)}</strong><br/>${mapText(displayAddress ?? displayLocation)}`;
     if (!marker.current) {
       marker.current = new mapboxglRef.current.Marker({ color: '#8B5CF6' })
         .setLngLat(resolvedCoords)
@@ -510,6 +517,7 @@ const MapSection: React.FC<MapSectionProps> = ({
                       {isEvent ? 'Lugar del Evento' : 'Dirección'}
                     </p>
                     <p className="text-sm text-muted-foreground">{displayZoneCity}</p>
+                    {configuredOnly && displayAddress && <p className="text-sm text-muted-foreground">{displayAddress}</p>}
                   </div>
                 </div>
                 
@@ -553,17 +561,17 @@ const MapSection: React.FC<MapSectionProps> = ({
                   <Phone className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-foreground">Contacto</p>
-                    <p className="text-sm text-muted-foreground">{phone}</p>
+                    <p className="text-sm text-muted-foreground">{configuredOnly && !phone ? "Contacto no disponible" : phone}</p>
                   </div>
                 </div>
               </div>
               
               <div className="pt-2 space-y-2">
-                <Button className="w-full" variant="outline" onClick={handleGetDirections}>
+                <Button className="w-full" variant="outline" onClick={handleGetDirections} disabled={configuredOnly && !resolvedCoords && !displayAddress && !zone && !effectiveCity}>
                   <Navigation className="w-4 h-4 mr-2" />
                   Cómo llegar
                 </Button>
-                <Button className="w-full" variant="outline" onClick={() => window.open(`tel:${phone}`)}>
+                <Button className="w-full" variant="outline" onClick={() => window.open(`tel:${phone}`)} disabled={configuredOnly && !phone}>
                   <Phone className="w-4 h-4 mr-2" />
                   {isEvent ? 'Llamar al local' : 'Llamar'}
                 </Button>
@@ -581,6 +589,8 @@ const MapSection: React.FC<MapSectionProps> = ({
                   additionalInfo.map((info, index) => (
                     <p key={index}>• {info}</p>
                   ))
+                ) : configuredOnly ? (
+                  <p>No hay información adicional disponible.</p>
                 ) : isEvent ? (
                   <>
                     <p>• Entrada solo con documento de identidad</p>

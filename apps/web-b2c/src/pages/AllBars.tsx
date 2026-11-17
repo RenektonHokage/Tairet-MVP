@@ -11,9 +11,7 @@ import { MobileFiltersBar } from "@/components/shared/MobileFiltersBar";
 import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
 import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
-import { slugify } from "@/lib/slug";
-import { buildTodayScheduleBySlug, getLocalsList } from "@/lib/locals";
-import { selectBarVenues } from "@/lib/venueSelectors";
+import { usePublicBars } from "@/hooks/usePublicBars";
 import { prefetchImages } from "@/lib/imagePrefetch";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -49,9 +47,7 @@ const zones = [
 
 // Sort options
 const sortOptions = [
-  { label: "Relevancia", value: "relevance" },
-  { label: "Mejor puntuados", value: "rating" },
-  { label: "Más visitados", value: "popular" }
+  { label: "Relevancia", value: "relevance" }
 ];
 
 
@@ -74,104 +70,26 @@ export default function AllBars() {
 
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-  const [isLoadingBars, setIsLoadingBars] = useState(true);
-  
-  // DB data for enriching mocks (covers, location, city, attributes, minAge)
-  const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
-  const [dbLocations, setDbLocations] = useState<Map<string, string>>(new Map());
-  const [dbCities, setDbCities] = useState<Map<string, string>>(new Map());
-  const [dbAttributes, setDbAttributes] = useState<Map<string, string[]>>(new Map());
-  const [dbMinAges, setDbMinAges] = useState<Map<string, number>>(new Map());
-  const [dbTodaySchedules, setDbTodaySchedules] = useState<Map<string, string>>(new Map());
+  const { bars, isLoading: isLoadingBars, error: barsError } = usePublicBars();
 
-  useEffect(() => {
-    document.title = "Todos los Bares | Tairet";
-    let active = true;
-
-    // Cargar data desde DB para enriquecer cards
-    getLocalsList("bar", 100)
-      .then((locals) => {
-        if (!active) return;
-
-        const coverMap = new Map<string, string>();
-        const locationMap = new Map<string, string>();
-        const cityMap = new Map<string, string>();
-        const attributesMap = new Map<string, string[]>();
-        const minAgeMap = new Map<string, number>();
-        const todayScheduleMap = buildTodayScheduleBySlug(locals);
-        
-        locals.forEach((local) => {
-          if (local.cover_url) {
-            coverMap.set(local.slug, local.cover_url);
-          }
-          if (local.location) {
-            locationMap.set(local.slug, local.location);
-          }
-          if (local.city) {
-            cityMap.set(local.slug, local.city);
-          }
-          if (local.attributes && local.attributes.length > 0) {
-            attributesMap.set(local.slug, local.attributes);
-          }
-          if (local.min_age !== null && local.min_age !== undefined) {
-            minAgeMap.set(local.slug, local.min_age);
-          }
-        });
-        
-        setDbCovers(coverMap);
-        setDbLocations(locationMap);
-        setDbCities(cityMap);
-        setDbAttributes(attributesMap);
-        setDbMinAges(minAgeMap);
-        setDbTodaySchedules(todayScheduleMap);
-      })
-      .catch(() => {
-        // Silently fail - mocks will be used
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoadingBars(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const mvpBars = selectBarVenues({ city: "asuncion", scope: "all" });
+  useEffect(() => { document.title = "Todos los Bares | Tairet"; }, []);
 
   const filteredBars = useMemo(
     () =>
-      applySearchFilters(mvpBars, { ...searchState, type: "bar" }, {
+      applySearchFilters(bars, { ...searchState, type: "bar" }, {
         getName: (bar) => bar.name,
-        getLocation: (bar) => {
-          const slug = slugify(bar.name);
-          const dbLocation = dbLocations.get(slug);
-          const dbCity = dbCities.get(slug);
-          const parts = [dbLocation, dbCity].filter(Boolean);
-          return parts.length > 0 ? parts.join(" ") : bar.location;
-        },
-        getTags: (bar) => dbAttributes.get(slugify(bar.name)) || bar.specialties,
-        getZone: (bar) =>
-          getZoneFromLocation(dbLocations.get(slugify(bar.name)) || bar.location),
-        getRating: (bar) => Number.parseFloat(bar.rating),
-        customSortComparators: {
-          popular: () => Math.random() - 0.5,
-        },
+        getLocation: (bar) => bar.location,
+        getTags: (bar) => bar.specialties,
+        getZone: (bar) => getZoneFromLocation(bar.location),
+        isOpenToday: (bar) => bar.isOpenToday,
       }),
-    [dbAttributes, dbCities, dbLocations, mvpBars, searchState],
+    [bars, searchState],
   );
   const displayedBars = filteredBars;
 
   useEffect(() => {
-    const topImages = displayedBars.map((bar) => {
-      const barSlug = slugify(bar.name);
-      return dbCovers.get(barSlug) || bar.image;
-    });
-
-    prefetchImages(topImages, 8);
-  }, [dbCovers, displayedBars]);
+    prefetchImages(displayedBars.map(bar => bar.image), 8);
+  }, [displayedBars]);
 
   const activeFiltersCount = [
     filters.specialties.length > 0,
@@ -357,7 +275,7 @@ export default function AllBars() {
           </div>
         ) : filteredBars.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground mb-4">No encontramos bares con esos filtros</p>
+            <p className="text-lg text-muted-foreground mb-4">{barsError ? "No se pudieron cargar los bares. Intentá nuevamente." : bars.length === 0 ? "No hay bares publicados en este momento." : "No encontramos bares con esos filtros"}</p>
             <Button variant="outline" onClick={clearAllFilters}>
               Limpiar filtros
             </Button>
@@ -366,30 +284,18 @@ export default function AllBars() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
               {displayedBars.map((bar, index) => {
-                const barSlug = slugify(bar.name);
-                // DB-first: usar cover, location, city, attributes, minAge de DB si existen, fallback a mock
-                const coverUrl = dbCovers.get(barSlug) || bar.image;
-                const dbLocation = dbLocations.get(barSlug);
-                const dbCity = dbCities.get(barSlug);
-                // Build "Zona • Ciudad" display string
-                const locationDisplay = dbLocation && dbCity
-                  ? `${dbLocation} • ${dbCity}`
-                  : dbLocation || dbCity || bar.location;
-                const specialties = dbAttributes.get(barSlug) || bar.specialties;
-                const minAge = dbMinAges.get(barSlug) ?? null; // null = no badge, DB-first sin fallback
                 return (
                   <VenueCard 
                     key={bar.id}
                     id={bar.id}
                     name={bar.name}
-                    schedule={dbTodaySchedules.get(barSlug) ?? "Horario no disponible"}
-                    rating={bar.rating}
-                    specialties={specialties}
-                    location={locationDisplay}
-                    image={coverUrl}
-                    href={`/bar/${barSlug}`}
+                    schedule={bar.schedule}
+                    specialties={bar.specialties}
+                    location={bar.location}
+                    image={bar.image}
+                    href={`/bar/${bar.slug}`}
                     type="bar"
-                    minAge={minAge}
+                    minAge={bar.minAge}
                     imagePriority={index < 6}
                   />
                 );

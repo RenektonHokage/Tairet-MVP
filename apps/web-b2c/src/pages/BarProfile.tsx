@@ -1,258 +1,76 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Navigate } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import BackButton from "@/components/shared/BackButton";
 import ProfileSkeleton from "@/components/shared/ProfileSkeleton";
 import { useProfileViewOnce } from "@/hooks/useProfileViewOnce";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Play, Grid3X3 } from "lucide-react";
+import { Grid3X3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import TouchSlideGallery from "@/components/TouchSlideGallery";
 import BarPromotions from "@/components/bar-profile/BarPromotions";
 import BarReviews from "@/components/bar-profile/BarReviews";
 import BarReservation from "@/components/bar-profile/BarReservation";
 import LazyMapSection from "@/components/shared/LazyMapSection";
-import {
-  buildDetailHoursLines,
-  getDetailTodayScheduleLabelApiFirst,
-  getLocalBySlug,
-  type GalleryKind,
-  type LocalGalleryItem,
-} from "@/lib/locals";
-import { getCover, getHero, getBarGalleryImages, getBarCategory } from "@/lib/gallery";
-import { useNavigate } from "react-router-dom";
-import { mockBarData } from "@/lib/mocks/bars";
-import type { ContactInfo } from "@/lib/contact";
-import { getDemoBrand, getDemoBrandDisplayName } from "@/lib/demoBrands";
+import { buildDetailHoursLines, getDetailTodayScheduleLabelApiFirst, getLocalBySlug, type LocalInfo } from "@/lib/locals";
+import { getHero, getBarGalleryImages, getBarCategory } from "@/lib/gallery";
 
-const BarProfile = () => {
+const categoryToKind = { Comida: "food", Interior: "interior", Carta: "menu", Tragos: "drinks" } as const;
+type Category = keyof typeof categoryToKind;
+const categoryTitles = Object.keys(categoryToKind) as Category[];
+
+function BarProfileContent({ slug }: { slug?: string }) {
   const isMobile = useIsMobile();
-  const navigate = useNavigate();
-  const { barId } = useParams();
-  const [localId, setLocalId] = useState<string | null>(null);
-  const [localType, setLocalType] = useState<string | null>(null);
-  const [localAddress, setLocalAddress] = useState<string | null>(null);
-  const [localLocation, setLocalLocation] = useState<string | null>(null);
-  const [localCity, setLocalCity] = useState<string | null>(null);
-  const [localLatitude, setLocalLatitude] = useState<number | null>(null);
-  const [localLongitude, setLocalLongitude] = useState<number | null>(null);
-  const [localHours, setLocalHours] = useState<string[]>([]);
-  const [localTodayScheduleLabel, setLocalTodayScheduleLabel] = useState("Horario no disponible");
-  const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
-  const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
-  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
+  const [local, setLocal] = useState<LocalInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [showGalleryMenu, setShowGalleryMenu] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
-  // Promotions from API (undefined = backend viejo/fetch failed, [] = no promos, [...] = promos)
-  const [apiPromotions, setApiPromotions] = useState<
-    { id: string; title: string; image: string; validity?: string }[] | undefined
-  >(undefined);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Resolver local_id real desde slug
   useEffect(() => {
-    if (!barId) {
-      setNotFound(true);
-      setIsLoading(false);
-      return;
-    }
+    let active = true;
+    setLocal(null);
+    setIsLoading(true);
+    setFailed(false);
+    setSelectedImage(null);
+    setSelectedCategory(null);
+    setShowGalleryMenu(false);
+    getLocalBySlug(slug ?? "").then(result => {
+      if (active) setLocal(result?.type === "bar" && result.is_published === true ? result : null);
+    }).catch(() => {
+      if (active) setFailed(true);
+    }).finally(() => {
+      if (active) setIsLoading(false);
+    });
+    const refresh = () => setAttempt(value => value + 1);
+    window.addEventListener("focus", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); };
+  }, [slug, attempt]);
 
-    getLocalBySlug(barId)
-      .then((local) => {
-        if (!local) {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        // Verificar que sea un bar
-        if (local.type !== "bar") {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        // Verificar que exista mock data
-        const barData = mockBarData[barId as keyof typeof mockBarData];
-        if (!barData) {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        setLocalId(local.id);
-        setLocalType(local.type);
-        setLocalAddress(local.address);
-        setLocalLocation(local.location);
-        setLocalCity(local.city);
-        setLocalLatitude(local.latitude);
-        setLocalLongitude(local.longitude);
-        setLocalHours(buildDetailHoursLines(local.opening_hours, local.hours || []));
-        setLocalTodayScheduleLabel(getDetailTodayScheduleLabelApiFirst(local));
-        setLocalAdditionalInfo(local.additional_info || []);
-        setLocalGallery(local.gallery || []);
-        setContactInfo({
-          phone: local.phone,
-          whatsapp: local.whatsapp,
-        });
-
-        // DB-first promotions: if API returns promotions field, use it (even if empty)
-        // Only fallback to mock if promotions is undefined (old backend)
-        if (local.promotions !== undefined) {
-          setApiPromotions(
-            local.promotions.map((p) => ({
-              id: p.id,
-              title: p.title,
-              image: p.image_url ?? "/placeholder.svg",
-              validity: p.description?.trim() || undefined,
-            }))
-          );
-        }
-
-        setIsLoading(false);
-      })
-      .catch((error) => {
-        console.error("Error al obtener local por slug:", error);
-        setNotFound(true);
-        setIsLoading(false);
-      });
-  }, [barId]);
-
-  // Si no se encuentra, redirigir a NotFound después de un breve delay
   useEffect(() => {
-    if (notFound) {
-      const timer = setTimeout(() => {
-        navigate("/404", { replace: true });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [notFound, navigate]);
+    document.title = local ? `${local.name} | Tairet` : "Bar | Tairet";
+  }, [local]);
 
-  // Hook SIEMPRE se llama (incluso si localId es null/undefined)
-  // El hook internamente verifica si hay localId antes de trackear
-  useProfileViewOnce(localId || undefined);
+  useProfileViewOnce(local?.id);
 
-  // TODOS los hooks deben estar ANTES de cualquier return temprano
-  // Si está cargando o no se encontró, mostrar loading o nada (redirige a 404)
-  if (isLoading || notFound || !barId) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <ProfileSkeleton />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="min-h-screen bg-background"><Navbar /><ProfileSkeleton /></div>;
+  if (failed) return <div className="min-h-screen bg-background"><Navbar /><main className="mx-auto max-w-screen-2xl p-6 space-y-4"><p>No se pudo cargar el perfil del bar.</p><Button onClick={() => setAttempt(value => value + 1)}>Reintentar</Button></main></div>;
+  if (!local) return <Navigate to="/404" replace />;
 
-  const barData = mockBarData[barId as keyof typeof mockBarData];
-  if (!barData) {
-    return null; // Se redirige a 404
-  }
-  const demoBrand = getDemoBrand(barId, "bar");
-  const venueDisplayName = getDemoBrandDisplayName(barId, barData.name, "bar");
-
-  // ==========================================================================
-  // Galería DB-first con fallback a mocks
-  // ==========================================================================
-
-  // Obtener cover (foto de perfil para cards) - NUNCA usar como hero
-  const coverImage = getCover(localGallery);
-
-  // Obtener hero (imagen principal del perfil) - SEPARADO de cover
-  const heroImageItem = getHero(localGallery);
-
-  // Galería SIN cover (para mobile y modales de categoría)
-  // Incluye hero + categorías
-  const galleryWithoutCover = getBarGalleryImages(localGallery);
-
-  // Mapeo de categoría UI → kind en DB
-  const categoryToKind: Record<string, GalleryKind> = {
-    Comida: "food",
-    Interior: "interior",
-    Carta: "menu",
-    Tragos: "drinks",
-  };
-
-  // Labels para mostrar en modal
-  const GALLERY_KIND_LABELS: Record<GalleryKind, string> = {
-    cover: "Portada",
-    hero: "Principal",
-    carousel: "Galería",
-    food: "Comida",
-    interior: "Interior",
-    menu: "Carta",
-    drinks: "Tragos",
-  };
-
-  // Obtener primera imagen de una categoría para el tile del grid
-  const getCategoryImage = (kind: GalleryKind, fallbackIdx: number) => {
-    const categoryImages = getBarCategory(localGallery, kind);
-    if (categoryImages.length > 0) {
-      return { src: categoryImages[0].url, alt: GALLERY_KIND_LABELS[kind] };
-    }
-    // Fallback al mock
-    return {
-      src: barData.images[fallbackIdx % barData.images.length],
-      alt: GALLERY_KIND_LABELS[kind],
-    };
-  };
-
-  // Imágenes para el grid 2x2 por categoría (primera imagen de cada kind)
-  const categoryImages = {
-    Comida: getCategoryImage("food", 0),
-    Interior: getCategoryImage("interior", 1),
-    Carta: getCategoryImage("menu", 2),
-    Tragos: getCategoryImage("drinks", 3),
-  };
-
-  // Hero image: prioridad hero > primera imagen no-cover > mock
-  // NUNCA usar cover como hero
-  const heroImage = (() => {
-    // 1. Si existe hero, usarlo
-    if (heroImageItem) {
-      return { src: heroImageItem.url, alt: venueDisplayName };
-    }
-    // 2. Si existe alguna imagen que no sea cover ni hero, usar la primera
-    const firstNonCover = galleryWithoutCover.find(g => g.kind !== "hero");
-    if (firstNonCover) {
-      return { src: firstNonCover.url, alt: venueDisplayName };
-    }
-    // 3. Fallback a mock
-    return { src: barData.images[0], alt: venueDisplayName };
-  })();
-
-  // Galería para TouchSlideGallery (mobile) - SIN cover, incluye hero
-  const galleryImages = galleryWithoutCover.length > 0
-    ? galleryWithoutCover.map(g => ({ src: g.url, alt: GALLERY_KIND_LABELS[g.kind] }))
-    : barData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
-
-  const categoryTitles = ["Comida", "Interior", "Carta", "Tragos"] as const;
-  
-  // Obtener todas las imágenes de una categoría específica para el modal
-  const getCategoryImages = (category: string) => {
-    const kind = categoryToKind[category];
-    if (!kind) return []; // Categoría inválida: devolver vacío, NO todo
-    
-    // Filtrar imágenes de la galería por kind (excluye cover automáticamente)
-    const kindImages = getBarCategory(localGallery, kind)
-      .map(g => ({ src: g.url, alt: `${venueDisplayName} - ${GALLERY_KIND_LABELS[kind]}` }));
-    
-    // Si hay imágenes para ese kind, usarlas
-    if (kindImages.length > 0) {
-      return kindImages;
-    }
-    
-    // Fallback: usar imagen correspondiente del mock
-    const fallbackIndex = Object.keys(categoryToKind).indexOf(category);
-    return [{ 
-      src: barData.images[fallbackIndex % barData.images.length], 
-      alt: `${venueDisplayName} - ${category}`
-    }];
-  };
+  const localId = local.id;
+  const venueDisplayName = local.name;
+  const contactInfo = { phone: local.phone, whatsapp: local.whatsapp, email: null };
+  const galleryImages = getBarGalleryImages(local.gallery);
+  const hero = getHero(local.gallery) ?? galleryImages[0];
+  const heroImage = hero ? { src: hero.url, alt: venueDisplayName } : null;
+  const getCategoryImages = (category: Category) => getBarCategory(local.gallery, categoryToKind[category])
+    .map(image => ({ src: image.url, alt: `${venueDisplayName} - ${category}` }));
+  const categoryImages = Object.fromEntries(categoryTitles.map(category => [category, getCategoryImages(category)[0]])) as Record<Category, { src: string; alt: string } | undefined>;
+  const apiPromotions = (local.promotions ?? []).map(promo => ({ id: promo.id, title: promo.title, image: promo.image_url || "/placeholder.svg", description: promo.description?.trim() || undefined }));
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
       <Navbar />
@@ -261,9 +79,17 @@ const BarProfile = () => {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8">
         <BackButton label="Volver a explorar" fallbackTo="/explorar" />
 
-        {/* Gallery Section - DB-first con fallback a mocks */}
+        <header className="space-y-3">
+          <h1 className="text-2xl sm:text-3xl font-bold">{venueDisplayName}</h1>
+          <div className="flex flex-wrap gap-2">
+            {(local.attributes ?? []).map(attribute => <Badge key={attribute} variant="secondary">{attribute}</Badge>)}
+            {local.min_age != null && <Badge variant="secondary">+{local.min_age}</Badge>}
+          </div>
+        </header>
+
+        {/* Galería configurada desde B2B; cover se reserva para el listado. */}
         <section className="w-full relative">
-          {galleryImages.length === 0 ? (
+          {!heroImage ? (
             /* Placeholder when no images */
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 h-[400px] lg:h-[500px]">
               <div className="col-span-2 lg:col-span-4 row-span-2 relative overflow-hidden rounded-xl bg-muted flex items-center justify-center">
@@ -274,17 +100,12 @@ const BarProfile = () => {
             </div>
           ) : isMobile ? (
             <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden">
-              <img 
+              <img
                 src={heroImage.src}
                 alt={heroImage.alt}
                 className="absolute inset-0 w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              {demoBrand ? (
-                <div className="absolute bottom-6 left-6">
-                  <h2 className="text-white text-xl font-bold drop-shadow-md">{venueDisplayName}</h2>
-                </div>
-              ) : null}
               <Button
                 variant="outline"
                 onClick={() => setShowGalleryMenu(true)}
@@ -298,40 +119,33 @@ const BarProfile = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 h-[400px] lg:h-[500px]">
               {/* Imagen destacada (cover) - ocupa 2 columnas y 2 filas */}
               <div className="col-span-2 row-span-2 relative overflow-hidden rounded-xl">
-                <img 
+                <img
                   src={heroImage.src}
                   alt={heroImage.alt}
                   className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                 />
-                {demoBrand ? (
-                  <>
-                    <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 to-transparent" />
-                    <div className="absolute bottom-6 left-6">
-                      <h2 className="text-white text-2xl sm:text-3xl font-bold drop-shadow-md">
-                        {venueDisplayName}
-                      </h2>
-                    </div>
-                  </>
-                ) : null}
+
               </div>
-              
+
               {/* Imágenes pequeñas con categorías - DB-first por kind */}
               {categoryTitles.map((category) => (
-                <div 
+                <button
                   key={category}
+                  disabled={!categoryImages[category]}
+                  type="button"
                   className="relative overflow-hidden rounded-xl cursor-pointer group"
                   onClick={() => setSelectedCategory(category)}
                 >
-                  <img 
+                  {categoryImages[category] ? <img
                     src={categoryImages[category].src}
                     alt={categoryImages[category].alt}
                     className="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
+                  /> : <span className="absolute inset-0 flex items-center justify-center bg-muted text-sm text-muted-foreground">Sin fotos</span>}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   <div className="absolute bottom-3 left-3 sm:bottom-4 sm:left-4">
                     <h3 className="text-white text-base sm:text-lg font-bold">{category}</h3>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -340,27 +154,28 @@ const BarProfile = () => {
         {/* Reservation Section */}
         {localId && <BarReservation localId={localId} venueName={venueDisplayName} contactInfo={contactInfo} />}
 
-        {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
+        {/* Promociones vigentes de la API */}
         {localId && (
-          <BarPromotions 
-            promotions={apiPromotions !== undefined ? apiPromotions : barData.promotions} 
-            localId={localId} 
+          <BarPromotions
+            promotions={apiPromotions}
+            localId={localId}
           />
         )}
 
-        {/* Map - DB-first con fallback */}
+        {/* Ubicación y contacto configurados */}
         <LazyMapSection
           venueId={localId || undefined}
           venue={venueDisplayName}
-          location={localLocation || "Centro, Asuncion"}
-          address={localAddress || "Palma 123 esq. Chile"}
-          city={localCity}
-          latitude={localLatitude}
-          longitude={localLongitude}
-          hours={localHours}
-          todayScheduleLabel={localTodayScheduleLabel}
-          phone={contactInfo?.phone || "(021) 123-456"}
-          additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento disponible", "Acceso para personas con discapacidad", "WiFi gratuito", "Aceptamos tarjetas de credito", "Ambiente climatizado"]}
+          location={local.location || ""}
+          address={local.address || undefined}
+          city={local.city}
+          latitude={local.latitude}
+          longitude={local.longitude}
+          hours={buildDetailHoursLines(local.opening_hours, local.hours)}
+          todayScheduleLabel={getDetailTodayScheduleLabelApiFirst(local)}
+          phone={local.phone || ""}
+          venueType="bar"
+          additionalInfo={local.additional_info}
         />
 
         {/* Reviews */}
@@ -377,17 +192,18 @@ const BarProfile = () => {
             {categoryTitles.map((category) => (
               <button
                 key={category}
+                disabled={!categoryImages[category]}
                 onClick={() => {
                   setShowGalleryMenu(false);
                   setSelectedCategory(category);
                 }}
                 className="relative aspect-square rounded-xl overflow-hidden group"
               >
-                <img 
+                {categoryImages[category] ? <img
                   src={categoryImages[category].src}
                   alt={category}
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                /> : <span className="absolute inset-0 flex items-center justify-center bg-muted text-sm text-muted-foreground">Sin fotos</span>}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                 <div className="absolute bottom-3 left-3">
                   <h3 className="text-white text-base font-bold">{category}</h3>
@@ -406,14 +222,14 @@ const BarProfile = () => {
           </DialogHeader>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-4">
             {selectedCategory && getCategoryImages(selectedCategory).map((image, index) => (
-              <Card 
-                key={index} 
+              <Card
+                key={index}
                 className="overflow-hidden aspect-square cursor-pointer hover:opacity-90 transition-opacity"
                 onClick={() => setSelectedImage(image)}
               >
-                <img 
-                  src={image.src} 
-                  alt={image.alt} 
+                <img
+                  src={image.src}
+                  alt={image.alt}
                   className="w-full h-full object-cover"
                 />
               </Card>
@@ -426,9 +242,9 @@ const BarProfile = () => {
       <Dialog open={selectedImage !== null} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-w-7xl max-h-[95vh] p-0">
           {selectedImage && (
-            <img 
-              src={selectedImage.src} 
-              alt={selectedImage.alt} 
+            <img
+              src={selectedImage.src}
+              alt={selectedImage.alt}
               className="w-full h-full object-contain"
             />
           )}
@@ -436,4 +252,7 @@ const BarProfile = () => {
       </Dialog>
     </div>;
 };
-export default BarProfile;
+export default function BarProfile() {
+  const { barId } = useParams();
+  return <BarProfileContent key={barId} slug={barId} />;
+}

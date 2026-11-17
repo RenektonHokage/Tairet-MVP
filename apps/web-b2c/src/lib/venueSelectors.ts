@@ -1,7 +1,7 @@
-import { allBars, allClubs } from "@/lib/data/venues";
+import { allClubs } from "@/lib/data/venues";
 import { slugify } from "@/lib/slug";
-import { MVP_BAR_SLUGS, MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
-import type { Bar, Club } from "@/lib/types";
+import { MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
+import type { Club } from "@/lib/types";
 
 export type VenueSelectorType = "bar" | "club";
 export type VenueSelectorScope = "zone" | "all";
@@ -39,12 +39,4 @@ export function selectClubVenues(options: VenueSelectorOptions = {}): Club[] {
 
   // scope stays explicit for parity with zone/all usage.
   return orderByMvpSlugs(allClubs, MVP_CLUB_SLUGS, (club) => slugify(club.name));
-}
-
-export function selectBarVenues(options: VenueSelectorOptions = {}): Bar[] {
-  const { city = "asuncion" } = options;
-  if (!isCityOperative(city)) return [];
-
-  // scope stays explicit for parity with zone/all usage.
-  return orderByMvpSlugs(allBars, MVP_BAR_SLUGS, (bar) => slugify(bar.name));
 }

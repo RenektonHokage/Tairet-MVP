@@ -12,7 +12,7 @@ export interface VenueCardProps {
   id: number | string;
   name: string;
   schedule: string;
-  rating: string;
+  rating?: string;
   specialties?: string[];
   genres?: string[];
   location?: string;
@@ -110,10 +110,10 @@ const VenueCard: React.FC<VenueCardProps> = ({
           {/* Title and rating */}
           <div className="flex items-start justify-between gap-3 mb-2">
             <h3 className="font-bold text-foreground truncate">{name}</h3>
-            <div className={`${ratingStyles.container} flex-shrink-0`} aria-label="Valoración">
+            {rating && <div className={`${ratingStyles.container} flex-shrink-0`} aria-label="Valoración">
               <Star className="rating-star" />
               <span className="text-sm font-semibold text-foreground">{rating}</span>
-            </div>
+            </div>}
           </div>
 
           {/* Schedule */}

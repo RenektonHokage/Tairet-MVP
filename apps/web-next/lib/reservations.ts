@@ -12,6 +12,7 @@ export interface Reservation {
   status: "en_revision" | "confirmed" | "cancelled";
   notes?: string | null;
   table_note?: string | null;
+  cancel_reason?: string | null;
   created_at: string;
   updated_at: string | null; // Puede ser null
 }
@@ -79,6 +80,8 @@ export async function searchPanelReservations(
 }
 
 export interface UpdateReservationStatusInput {
+  expected_status?: "en_revision" | "confirmed";
+  cancel_reason?: string;
   status?: "confirmed" | "cancelled";
   table_note?: string | null;
 }
@@ -87,6 +90,7 @@ export interface PanelReservationMutationResponse {
   id: string;
   status: Reservation["status"];
   table_note: string | null;
+  cancel_reason: string | null;
   updated_at: string | null;
 }
 

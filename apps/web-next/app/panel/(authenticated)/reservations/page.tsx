@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePanelContext } from "@/lib/panelContext";
+import { ApiError } from "@/lib/api";
+import { reservationDateLabel } from "@/lib/reservationDate";
+import { formatTimePy } from "@/lib/time";
 import { NotAvailable } from "@/components/panel/NotAvailable";
 import {
   getPanelReservationsByLocalIdAndDate,
@@ -48,6 +51,22 @@ function isValidDateParam(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+type EditedFields = Partial<Pick<ApiReservation, "status" | "table_note" | "cancel_reason">>;
+
+function mergeReceipt<T extends { updated_at?: string | null; status?: ReservationStatus; cancel_reason?: string | null }>(
+  current: T,
+  fields: EditedFields,
+  savedAt: string | null,
+) {
+  const keepCurrentTime = !savedAt || (current.updated_at && Date.parse(current.updated_at) > Date.parse(savedAt));
+  const merged = { ...current, ...fields, updated_at: keepCurrentTime ? current.updated_at ?? null : savedAt };
+  // A later operator may already have cancelled the confirmation we just received.
+  if (current.status === "cancelled" && fields.status === "confirmed") {
+    return { ...merged, status: current.status, cancel_reason: current.cancel_reason };
+  }
+  return merged;
+}
+
 export default function ReservationsPage() {
   const {
     data: context,
@@ -81,10 +100,17 @@ export default function ReservationsPage() {
   const [exportTo, setExportTo] = useState(normalizedDateFromQuery);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  // Only receipts committed while the current list request is in flight need merging.
+  const receiptsDuringRead = useRef<Map<string, Partial<ApiReservation>> | null>(null);
+  const statusRequests = useRef(new Set<string>());
+  const [busyReservations, setBusyReservations] = useState<ReadonlySet<string>>(new Set());
+  const [actionResult, setActionResult] = useState("");
   const [noteSavingId, setNoteSavingId] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [cancelTarget, setCancelTarget] = useState<Reservation | null>(null);
+  const [reasonDraft, setReasonDraft] = useState("");
   const reservationsRequestIdRef = useRef(0);
   const reservationsInFlightRef = useRef(false);
   const refreshInFlightRef = useRef(false);
@@ -140,6 +166,8 @@ export default function ReservationsPage() {
     const isBackground = mode === "background";
     const requestId = ++reservationsRequestIdRef.current;
     reservationsInFlightRef.current = true;
+    const receipts = new Map<string, Partial<ApiReservation>>();
+    receiptsDuringRead.current = receipts;
     setHasLoadedDate(true);
     if (!isBackground) {
       setIsFetchingForDate(true);
@@ -156,18 +184,22 @@ export default function ReservationsPage() {
         return;
       }
 
+      const refreshed = data.map(item => {
+        const saved = receipts.get(item.id);
+        return saved ? mergeReceipt(item, saved, saved.updated_at ?? null) : item;
+      });
       setReservations((current) => {
         const editingId = editingReservationIdRef.current;
         if (!isBackground || !editingId) {
-          return data;
+          return refreshed;
         }
 
         const currentEditingReservation = current.find((item) => item.id === editingId);
         if (!currentEditingReservation) {
-          return data;
+          return refreshed;
         }
 
-        return data.map((item) =>
+        return refreshed.map((item) =>
           item.id === editingId
             ? {
                 ...item,
@@ -187,6 +219,7 @@ export default function ReservationsPage() {
       }
       setError(err instanceof Error ? err.message : "Error al cargar reservas");
     } finally {
+      if (receiptsDuringRead.current === receipts) receiptsDuringRead.current = null;
       reservationsInFlightRef.current = false;
       if (requestId === reservationsRequestIdRef.current && !isBackground) {
         setIsFetchingForDate(false);
@@ -417,41 +450,40 @@ export default function ReservationsPage() {
   }, [filteredReservations]);
 
   // Handlers para acciones de reservas (usan el tipo de la View)
-  const handleConfirm = async (reservation: Reservation) => {
-    if (isBlocked) return;
-    try {
-      if (isDemoBar && selectedDate) {
-        setReservations(
-          updatePanelDemoBarReservation(selectedDate, reservation.id, {
-            status: "confirmed",
-          })
-        );
-        return;
-      }
-
-      await updatePanelReservationStatus(reservation.id, { status: "confirmed" });
-      await loadReservations();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al confirmar reserva");
+  const applyReceipt = useCallback((id: string, fields: EditedFields, savedAt: string | null) => {
+    const receipts = receiptsDuringRead.current;
+    if (receipts) {
+      receipts.set(id, mergeReceipt(receipts.get(id) ?? {}, fields, savedAt));
     }
-  };
+    setReservations(rows => rows.map(row => row.id === id ? mergeReceipt(row, fields, savedAt) : row));
+  }, []);
 
-  const handleCancel = async (reservation: Reservation) => {
-    if (isBlocked) return;
+  const changeStatus = async (reservation: Reservation, status: "confirmed" | "cancelled", reason?: string) => {
+    if (isBlocked || reservation.status === "cancelled" || statusRequests.current.has(reservation.id)) return;
+    if (reservation.status === "confirmed" &&
+        (status !== "cancelled" || !reason || Array.from(reason).length > 160 || isDemoBar)) return;
+    statusRequests.current.add(reservation.id);
+    setBusyReservations(new Set(statusRequests.current));
+    setActionResult("");
+    setError(null);
+    const input = { status, expected_status: reservation.status, cancel_reason: reason };
+
     try {
       if (isDemoBar && selectedDate) {
-        setReservations(
-          updatePanelDemoBarReservation(selectedDate, reservation.id, {
-            status: "cancelled",
-          })
-        );
-        return;
+        setReservations(updatePanelDemoBarReservation(selectedDate, reservation.id, input));
+      } else {
+        const saved = await updatePanelReservationStatus(reservation.id, input);
+        applyReceipt(saved.id, {status: saved.status, cancel_reason: saved.cancel_reason}, saved.updated_at);
       }
-
-      await updatePanelReservationStatus(reservation.id, { status: "cancelled" });
-      await loadReservations();
+      if (reason) setCancelTarget(null);
+      setActionResult(status === "confirmed" ? "Reserva confirmada." : "Reserva cancelada.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cancelar reserva");
+      if (reason && err instanceof ApiError && err.status === 409) setCancelTarget(null);
+      await loadReservations();
+      setError(err instanceof Error ? err.message : "No se pudo actualizar la reserva.");
+    } finally {
+      statusRequests.current.delete(reservation.id);
+      setBusyReservations(new Set(statusRequests.current));
     }
   };
 
@@ -496,18 +528,7 @@ export default function ReservationsPage() {
       }
 
       const updated = await updatePanelReservationStatus(editingReservation.id, { table_note: tableNote });
-      const savedNote = updated.table_note ?? tableNote;
-
-      setReservations((prev) =>
-        prev.map((item) =>
-          item.id === editingReservation.id
-            ? {
-                ...item,
-                table_note: savedNote,
-              }
-            : item
-        )
-      );
+      applyReceipt(updated.id, {table_note: updated.table_note}, updated.updated_at);
       setEditingReservation(null);
       setNoteDraft("");
     } catch (err) {
@@ -515,7 +536,7 @@ export default function ReservationsPage() {
     } finally {
       setNoteSavingId(null);
     }
-  }, [editingReservation, isBlocked, isDemoBar, noteDraft, noteSavingId, selectedDate]);
+  }, [applyReceipt, editingReservation, isBlocked, isDemoBar, noteDraft, noteSavingId, selectedDate]);
 
   const handleClearFilters = () => {
     setSearchQuery("");
@@ -546,15 +567,25 @@ export default function ReservationsPage() {
   }
 
   // RENDER PRINCIPAL con ReservationsView
-  const noteDraftLength = noteDraft.length;
-  const noteDraftTooLong = noteDraftLength > 500;
-  const isSavingNote = Boolean(editingReservation && noteSavingId === editingReservation.id);
-  const editingReservationName = editingReservation
-    ? [editingReservation.name, editingReservation.last_name].filter(Boolean).join(" ")
+  const dialogReservation = cancelTarget ?? editingReservation;
+  const normalizedReason = reasonDraft.trim();
+  const draftLength = cancelTarget ? Array.from(normalizedReason).length : noteDraft.length;
+  const draftLimit = cancelTarget ? 160 : 500;
+  const invalidDraft = draftLength > draftLimit || (Boolean(cancelTarget) && !draftLength);
+  const saving = cancelTarget ? busyReservations.has(cancelTarget.id) : Boolean(noteSavingId);
+  const dialogError = cancelTarget ? error : noteError;
+  const closeDialog = () => {
+    if (saving) return;
+    if (cancelTarget) setCancelTarget(null);
+    else closeEditModal();
+  };
+  const dialogName = dialogReservation
+    ? [dialogReservation.name, dialogReservation.last_name].filter(Boolean).join(" ")
     : "";
 
   return (
     <>
+      {actionResult && <p role="status" className="mb-4 text-sm text-emerald-800">{actionResult}</p>}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
           <p className="text-sm text-red-800">{error}</p>
@@ -587,8 +618,18 @@ export default function ReservationsPage() {
         sortBy={sortBy}
         onSortChange={setSortBy}
         onRefresh={handleRefresh}
-        onConfirm={handleConfirm}
-        onCancel={handleCancel}
+        onConfirm={reservation => void changeStatus(reservation, "confirmed")}
+        allowConfirmedCancellation={context.local.type === "bar" && !isDemoBar}
+        onCancel={reservation => {
+          if (reservation.status === "confirmed") {
+            setReasonDraft("");
+            setError(null);
+            setCancelTarget(reservation);
+          } else {
+            void changeStatus(reservation, "cancelled");
+          }
+        }}
+        busyReservations={busyReservations}
         onEdit={handleEdit}
         onClearFilters={handleClearFilters}
         exportFrom={exportFrom}
@@ -616,59 +657,63 @@ export default function ReservationsPage() {
         }
       />
 
-      {editingReservation && (
+      {dialogReservation && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 px-4 py-4 sm:items-center sm:py-6"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="edit-note-title"
-          onClick={closeEditModal}
+          aria-labelledby="reservation-editor-title"
+          onClick={closeDialog}
         >
           <div
             className="w-full max-w-lg rounded-2xl border border-neutral-200 bg-white p-4 shadow-2xl sm:p-5"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="space-y-1">
-              <h2 id="edit-note-title" className="text-base font-semibold text-neutral-900 sm:text-lg">
-                Editar nota interna
+              <h2 id="reservation-editor-title" className="text-base font-semibold text-neutral-900 sm:text-lg">
+                {cancelTarget ? "Cancelar reserva confirmada" : "Editar nota interna"}
               </h2>
               <p className="text-xs text-neutral-600 sm:text-sm">
-                {editingReservationName || "Reserva seleccionada"} · {editingReservation.date}
+                {dialogName || "Reserva seleccionada"} · {reservationDateLabel(dialogReservation.date)} · {formatTimePy(dialogReservation.date)}
               </p>
             </div>
 
             <div className="mt-4 space-y-2">
-              <label htmlFor="table-note-editor" className="text-xs font-medium text-neutral-700 sm:text-sm">
-                Nota de operación
+              <label htmlFor="reservation-editor" className="text-xs font-medium text-neutral-700 sm:text-sm">
+                {cancelTarget ? "Motivo que se comunicará al cliente (obligatorio)" : "Nota de operación"}
               </label>
               <textarea
-                id="table-note-editor"
-                value={noteDraft}
+                id="reservation-editor"
+                value={cancelTarget ? reasonDraft : noteDraft}
                 onChange={(event) => {
-                  setNoteDraft(event.target.value);
-                  if (noteError) {
+                  if (cancelTarget) {
+                    setReasonDraft(event.target.value);
+                    setError(null);
+                  } else {
+                    setNoteDraft(event.target.value);
                     setNoteError(null);
                   }
                 }}
                 rows={5}
                 maxLength={2000}
                 className="w-full resize-y rounded-xl border border-neutral-300 px-3 py-2 text-sm text-neutral-900 outline-none focus:border-[#8d1313] focus:ring-2 focus:ring-[#8d1313]/20"
-                placeholder="Agregar nota interna para operación..."
-                disabled={isSavingNote}
+                placeholder={cancelTarget ? "Indicá el motivo de la cancelación" : "Agregar nota interna para operación..."}
+                required={Boolean(cancelTarget)}
+                disabled={saving}
               />
               <div className="flex items-center justify-between gap-2">
-                <span className={`text-xs ${noteDraftTooLong ? "text-rose-700" : "text-neutral-500"}`}>
-                  {noteDraftLength}/500
+                <span className={`text-xs ${draftLength > draftLimit ? "text-rose-700" : "text-neutral-500"}`}>
+                  {draftLength}/{draftLimit}
                 </span>
-                {noteDraftTooLong && (
+                {draftLength > draftLimit && (
                   <span className="text-xs font-medium text-rose-700">
-                    La nota interna no puede superar los 500 caracteres.
+                    El texto no puede superar los {draftLimit} caracteres.
                   </span>
                 )}
               </div>
-              {noteError && (
+              {dialogError && (
                 <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:text-sm">
-                  {noteError}
+                  {dialogError}
                 </p>
               )}
             </div>
@@ -676,19 +721,21 @@ export default function ReservationsPage() {
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
-                onClick={closeEditModal}
-                disabled={isSavingNote}
+                onClick={closeDialog}
+                disabled={saving}
                 className="inline-flex h-9 items-center justify-center rounded-full border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Cancelar
+                {cancelTarget ? "Volver" : "Cancelar"}
               </button>
               <button
                 type="button"
-                onClick={() => void handleSaveNote()}
-                disabled={isSavingNote || noteDraftTooLong}
+                onClick={() => cancelTarget
+                  ? void changeStatus(cancelTarget, "cancelled", normalizedReason)
+                  : void handleSaveNote()}
+                disabled={saving || invalidDraft}
                 className="inline-flex h-9 items-center justify-center rounded-full bg-[#8d1313] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSavingNote ? "Guardando..." : "Guardar"}
+                {saving ? "Guardando..." : cancelTarget ? "Confirmar cancelación" : "Guardar"}
               </button>
             </div>
           </div>

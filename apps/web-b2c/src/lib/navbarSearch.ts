@@ -1,8 +1,8 @@
-import { mockBarData } from "@/lib/mocks/bars";
+import type { PublicBar } from "@/lib/publicBars";
 import { mockClubData } from "@/lib/mocks/clubs";
 import { getZoneFromLocation, normalizeForSearch } from "@/lib/search";
 import { slugify } from "@/lib/slug";
-import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
+import { selectClubVenues } from "@/lib/venueSelectors";
 
 export interface NavbarSearchSuggestion {
   id: string;
@@ -19,6 +19,7 @@ interface RankedSuggestion extends NavbarSearchSuggestion {
 }
 
 interface NavbarSearchSuggestionOptions {
+  bars?: PublicBar[];
   maxSuggestions?: number;
   coverBySlug?: ReadonlyMap<string, string>;
   locationBySlug?: ReadonlyMap<string, string>;
@@ -47,18 +48,17 @@ export function getNavbarSearchSuggestions(
   query: string,
   options: NavbarSearchSuggestionOptions = {}
 ): NavbarSearchSuggestion[] {
-  const { maxSuggestions = 6, coverBySlug, locationBySlug } = options;
+  const { bars = [], maxSuggestions = 6, coverBySlug, locationBySlug } = options;
   const normalizedQuery = normalizeForSearch(query);
   if (!normalizedQuery) {
     return [];
   }
 
-  const rankedBars: RankedSuggestion[] = selectBarVenues({ city: "asuncion", scope: "all" })
+  const rankedBars: RankedSuggestion[] = bars
     .map((bar) => {
-      const slug = slugify(bar.name);
-      const mockBar = mockBarData[slug as keyof typeof mockBarData];
-      const ageLabel = mockBar?.ageRestriction;
-      const resolvedLocation = locationBySlug?.get(slug) ?? bar.location;
+      const slug = bar.slug;
+      const ageLabel = bar.minAge == null ? undefined : `+${bar.minAge}`;
+      const resolvedLocation = bar.location;
       const neighborhood = getZoneFromLocation(resolvedLocation);
 
       return {
@@ -66,7 +66,7 @@ export function getNavbarSearchSuggestions(
         title: bar.name,
         typeLabel: "Bar" as const,
         href: `/bar/${slug}`,
-        imageSrc: coverBySlug?.get(slug) ?? bar.image ?? mockBar?.images[0] ?? "/images/bar.jpg",
+        imageSrc: bar.image || "/placeholder.svg",
         metadata: compactMetadata([neighborhood, bar.specialties[0]]),
         ageLabel,
         rank: getRank(

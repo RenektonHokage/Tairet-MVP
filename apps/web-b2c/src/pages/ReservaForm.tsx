@@ -4,13 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createReservation } from '@/lib/api';
-import {
-  getReservationTimeSlotsForDate,
-  isPastCalendarDateInAsuncion,
-  isOpenOnWeekdayFromOpeningHours,
-  isTimeAllowedOnDateFromOpeningHours,
-} from '@/lib/locals';
-import { useLocalOpeningHoursBySlug } from '@/hooks/useLocalOpeningHoursBySlug';
+import { getLocalBySlug, type LocalInfo } from '@/lib/locals';
+import { arrivalIsoInAsuncion, barArrivalWithinHours, barReservationSlots, civilDateKey, hasBarArrivalDate, hasReservationSchedule, isPastReservationDate } from '@/lib/barReservationTime';
 import { Calendar as CalendarIcon, Users, Clock, User, Mail, Phone, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +27,7 @@ const reservationSchema = z.object({
   lastName: z.string().trim().min(2, { message: "El apellido debe tener al menos 2 caracteres" }).max(100),
   email: z.string().trim().email({ message: "Correo electrónico inválido" }).max(255),
   phone: z.string().trim().min(8, { message: "Número de teléfono inválido" }).max(20),
-  people: z.string().min(1, { message: "Selecciona la cantidad de personas" }),
+  people: z.string().regex(/^(?:[1-9]|1[0-5])$/, { message: "Seleccioná entre 1 y 15 personas" }),
   date: z.date({ required_error: "Selecciona una fecha" }),
   time: z
     .string()
@@ -41,17 +36,25 @@ const reservationSchema = z.object({
   comments: z.string().max(200).optional(),
 });
 
-const LEGACY_TIME_SLOTS = [
-  "18:00", "18:30", "19:00", "19:30", "20:00", "20:30",
-  "21:00", "21:30", "22:00", "22:30", "23:00", "23:30",
-  "00:00", "00:30", "01:00", "01:30", "02:00",
-];
-
 const ReservaForm = () => {
   const navigate = useNavigate();
   const { barId } = useParams();
   const [loading, setLoading] = useState(false);
-  const { local, openingHours } = useLocalOpeningHoursBySlug(barId, Boolean(barId));
+  const [local, setLocal] = useState<LocalInfo | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    let active = true;
+    setLocal(null);
+    getLocalBySlug(barId ?? "").then(result => {
+      if (active) setLocal(result?.type === "bar" && result.is_published === true ? result : null);
+    }).catch(() => { if (active) setLocal(null); });
+    return () => { active = false; };
+  }, [barId]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const openingHours = local?.opening_hours;
   const localId = local?.id ?? null;
   const previousDateKeyRef = useRef<string | null>(null);
 
@@ -79,13 +82,8 @@ const ReservaForm = () => {
       return [];
     }
 
-    const dynamicSlots = getReservationTimeSlotsForDate(openingHours, selectedDate, { stepMinutes: 30 });
-    if (dynamicSlots === null) {
-      return LEGACY_TIME_SLOTS;
-    }
-
-    return dynamicSlots;
-  }, [openingHours, selectedDate]);
+    return barReservationSlots(openingHours, selectedDate, now);
+  }, [openingHours, selectedDate, now]);
 
   useEffect(() => {
     const previousDateKey = previousDateKeyRef.current;
@@ -122,27 +120,16 @@ const ReservaForm = () => {
       return;
     }
 
-    const isOpenOnSelectedDate = isOpenOnWeekdayFromOpeningHours(openingHours, data.date);
-
-    if (isOpenOnSelectedDate === false) {
-      toast.error("El local está cerrado en la fecha seleccionada.");
+    const civilDate = civilDateKey(data.date);
+    const dateISO = arrivalIsoInAsuncion(civilDate, normalizedTime);
+    if (!dateISO || !barArrivalWithinHours(openingHours, civilDate, normalizedTime)) {
+      toast.error("No se puede reservar fuera de un horario operativo verificable del bar.");
       return;
     }
-
-    const isTimeAllowed = isTimeAllowedOnDateFromOpeningHours(openingHours, data.date, normalizedTime);
-    if (isTimeAllowed === false) {
-      toast.error("La hora seleccionada está fuera del horario del local.");
+    if (Date.parse(dateISO) - Date.now() < 30 * 60_000) {
+      toast.error("Solicitá la reserva con al menos 30 minutos de anticipación.");
       return;
     }
-
-    // Combinar fecha y hora en ISO-8601
-    const dateISO = (() => {
-      if (!data.date || !data.time) return "";
-      const d = new Date(data.date);
-      const [hours, minutes] = normalizedTime.split(":");
-      d.setHours(Number(hours), Number(minutes), 0, 0);
-      return d.toISOString();
-    })();
 
     try {
       setLoading(true);
@@ -161,8 +148,8 @@ const ReservaForm = () => {
       setTimeout(() => {
         navigate(-1);
       }, 1500);
-    } catch (err: any) {
-      const errorMessage = err?.message || "No se pudo crear la reserva";
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "No se pudo crear la reserva";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
@@ -322,8 +309,8 @@ const ReservaForm = () => {
                               selected={field.value}
                               onSelect={field.onChange}
                               disabled={(date) => {
-                                if (isPastCalendarDateInAsuncion(date)) return true;
-                                return isOpenOnWeekdayFromOpeningHours(openingHours, date) === false;
+                                if (isPastReservationDate(date, now)) return true;
+                                return !hasBarArrivalDate(openingHours, date);
                               }}
                               classNames={getCalendarClassNames()}
                               initialFocus
@@ -382,6 +369,8 @@ const ReservaForm = () => {
                   />
                 </div>
 
+                <p className="text-sm text-muted-foreground">Fecha y hora de llegada en America/Asuncion. Anticipación mínima: 30 minutos. Sujeto a aprobación del bar.</p>
+                {!localId ? <p role="status">No se pudo cargar un bar disponible para solicitudes.</p> : !hasReservationSchedule(openingHours) ? <p role="status">No se pueden verificar los horarios del bar en este momento.</p> : null}
                 {/* Comentarios */}
                 <FormField
                   control={form.control}
@@ -423,6 +412,7 @@ const ReservaForm = () => {
                   </Button>
                   <Button
                     type="submit"
+                    disabled={loading || !localId || !hasReservationSchedule(openingHours)}
                     className="flex-1 h-12 text-base"
                   >
                     Solicitar reserva

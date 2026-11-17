@@ -18,7 +18,7 @@ import { createZoneBars } from "@/lib/data/venues";
 import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { selectBarVenues, selectClubVenues } from "@/lib/venueSelectors";
+import { selectClubVenues } from "@/lib/venueSelectors";
 import {
   getZoneCoverMaps,
   type AttributesBySlugMap,
@@ -26,6 +26,7 @@ import {
   type MinAgeBySlugMap,
   type TodayScheduleBySlugMap,
 } from "@/lib/localCoverMaps";
+import { usePublicBars } from "@/hooks/usePublicBars";
 import { prefetchImages } from "@/lib/imagePrefetch";
 
 const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
@@ -75,31 +76,24 @@ function BarCard({
 }
 export default function ZonaAsuncion() {
   const [clubCoverBySlug, setClubCoverBySlug] = useState<CoverBySlugMap>(new Map());
-  const [barCoverBySlug, setBarCoverBySlug] = useState<CoverBySlugMap>(new Map());
   const [clubScheduleBySlug, setClubScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
-  const [barScheduleBySlug, setBarScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
   const [clubAttributesBySlug, setClubAttributesBySlug] = useState<AttributesBySlugMap>(new Map());
-  const [barAttributesBySlug, setBarAttributesBySlug] = useState<AttributesBySlugMap>(new Map());
   const [clubMinAgeBySlug, setClubMinAgeBySlug] = useState<MinAgeBySlugMap>(new Map());
-  const [barMinAgeBySlug, setBarMinAgeBySlug] = useState<MinAgeBySlugMap>(new Map());
   const [isLoadingCovers, setIsLoadingCovers] = useState(true);
-  const bars = useMemo(() => selectBarVenues({ city: "asuncion", scope: "zone" }), []);
+  const { bars: publicBars, isLoading: isLoadingBars } = usePublicBars();
+  const bars = useMemo(() => publicBars.filter(bar => bar.city === "Asunción"), [publicBars]);
 
   useEffect(() => {
     let active = true;
     document.title = "Descubrí Asunción | Zonas - Tairet";
 
     getZoneCoverMaps(100)
-      .then(({ clubCovers, barCovers, clubSchedules, barSchedules, clubAttributes, barAttributes, clubMinAges, barMinAges }) => {
+      .then(({ clubCovers, clubSchedules, clubAttributes, clubMinAges }) => {
         if (!active) return;
         setClubCoverBySlug(clubCovers);
-        setBarCoverBySlug(barCovers);
         setClubScheduleBySlug(clubSchedules);
-        setBarScheduleBySlug(barSchedules);
         setClubAttributesBySlug(clubAttributes);
-        setBarAttributesBySlug(barAttributes);
         setClubMinAgeBySlug(clubMinAges);
-        setBarMinAgeBySlug(barMinAges);
       })
       .catch(() => {
         // Silently fail - current mock images/placeholders remain
@@ -123,13 +117,8 @@ export default function ZonaAsuncion() {
       return clubCoverBySlug.get(clubSlug) || item.customImage;
     });
 
-    const topBarImages = bars.map((item) => {
-      const barSlug = slugify(item.name);
-      return barCoverBySlug.get(barSlug) || item.image;
-    });
-
-    prefetchImages([...topClubImages, ...topBarImages], 8);
-  }, [barCoverBySlug, bars, clubCoverBySlug, isLoadingCovers]);
+    prefetchImages([...topClubImages, ...bars.map(bar => bar.image)], 8);
+  }, [bars, clubCoverBySlug, isLoadingCovers]);
   return <>
       {/* Navbar */}
       <Navbar />
@@ -256,13 +245,7 @@ export default function ZonaAsuncion() {
       </section>
 
       
-      <BarsSection
-        coverBySlug={barCoverBySlug}
-        scheduleBySlug={barScheduleBySlug}
-        attributesBySlug={barAttributesBySlug}
-        minAgeBySlug={barMinAgeBySlug}
-        isLoading={isLoadingCovers}
-      />
+      <BarsSection bars={bars} isLoading={isLoadingBars} />
     </main>
     </>;
 }
