@@ -1,17 +1,17 @@
-import { useState, useRef, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Navbar from "@/components/layout/Navbar";
 import BackButton from "@/components/shared/BackButton";
 import ProfileSkeleton from "@/components/shared/ProfileSkeleton";
 import { useProfileViewOnce } from "@/hooks/useProfileViewOnce";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Play, Grid3X3, Clock, Music } from "lucide-react";
+import { Grid3X3, Clock, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import PurchaseSelector from "@/components/shared/PurchaseSelector";
 import ClubPromotions from "@/components/club-profile/ClubPromotions";
-import ClubReviews from "@/components/club-profile/ClubReviews";
+import ReviewsSection from "@/components/shared/ReviewsSection";
 import LazyMapSection from "@/components/shared/LazyMapSection";
 import TouchSlideGallery from "@/components/TouchSlideGallery";
 import {
@@ -20,148 +20,52 @@ import {
   getClubAccessCatalog,
   getLocalBySlug,
   getClubCatalog,
-  type AccessCatalogTicket,
-  type CatalogTable,
-  type CatalogTicket,
-  type LocalGalleryItem,
+  type ClubAccessCatalog,
+  type ClubCatalog,
+  type LocalInfo,
 } from "@/lib/locals";
 import { parseBenefits } from "@/lib/parseBenefits";
-import { useNavigate } from "react-router-dom";
-import { mockClubData } from "@/lib/mocks/clubs";
-import type { ContactInfo } from "@/lib/contact";
 import { getDemoBrandDisplayName } from "@/lib/demoBrands";
+
+interface ClubProfileData {
+  local: LocalInfo;
+  catalog: ClubCatalog | null;
+  accessCatalog: ClubAccessCatalog | null;
+}
 
 const ClubProfile = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { clubId } = useParams();
-  const [localId, setLocalId] = useState<string | null>(null);
-  const [localType, setLocalType] = useState<string | null>(null);
-  const [localAddress, setLocalAddress] = useState<string | null>(null);
-  const [localLocation, setLocalLocation] = useState<string | null>(null);
-  const [localCity, setLocalCity] = useState<string | null>(null);
-  const [localLatitude, setLocalLatitude] = useState<number | null>(null);
-  const [localLongitude, setLocalLongitude] = useState<number | null>(null);
-  const [localHours, setLocalHours] = useState<string[]>([]);
-  const [localTodayScheduleLabel, setLocalTodayScheduleLabel] = useState("Horario no disponible");
-  const [localAdditionalInfo, setLocalAdditionalInfo] = useState<string[]>([]);
-  const [localGallery, setLocalGallery] = useState<LocalGalleryItem[]>([]);
-  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [catalogTickets, setCatalogTickets] = useState<CatalogTicket[] | null>(null);
-  const [catalogTables, setCatalogTables] = useState<CatalogTable[] | null>(null);
-  const [selectedImage, setSelectedImage] = useState<{src: string, alt: string} | null>(null);
-  // Promotions from API (undefined = backend viejo/fetch failed, [] = no promos, [...] = promos)
-  const [apiPromotions, setApiPromotions] = useState<
-    { id: string; title: string; image: string; validity?: string }[] | undefined
-  >(undefined);
-  const [accessCatalogTickets, setAccessCatalogTickets] = useState<AccessCatalogTicket[] | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const clubId = useParams().clubId?.trim();
+  const [profile, setProfile] = useState<ClubProfileData | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; alt: string } | null>(null);
 
-  // Resolver local_id real desde slug
   useEffect(() => {
-    if (!clubId) {
-      setNotFound(true);
-      setIsLoading(false);
-      return;
-    }
-
-    getLocalBySlug(clubId)
-      .then((local) => {
-        if (!local) {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        // Verificar que sea un club
-        if (local.type !== "club") {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        // Verificar que exista mock data
-        const clubData = mockClubData[clubId as keyof typeof mockClubData];
-        if (!clubData) {
-          setNotFound(true);
-          setIsLoading(false);
-          return;
-        }
-
-        setLocalId(local.id);
-        setLocalType(local.type);
-        setLocalAddress(local.address);
-        setLocalLocation(local.location);
-        setLocalCity(local.city);
-        setLocalLatitude(local.latitude);
-        setLocalLongitude(local.longitude);
-        const resolvedHours = buildDetailHoursLines(local.opening_hours, local.hours || []);
-        setLocalHours(resolvedHours);
-        setLocalTodayScheduleLabel(getDetailTodayScheduleLabelApiFirst(local));
-        setLocalAdditionalInfo(local.additional_info || []);
-        setLocalGallery(local.gallery || []);
-        setContactInfo({
-          phone: local.phone,
-          whatsapp: local.whatsapp,
-        });
-
-        // DB-first promotions: if API returns promotions field, use it (even if empty)
-        // Only fallback to mock if promotions is undefined (old backend)
-        if (local.promotions !== undefined) {
-          setApiPromotions(
-            local.promotions.map((p) => ({
-              id: p.id,
-              title: p.title,
-              image: p.image_url ?? "/placeholder.svg",
-              validity: p.description?.trim() || undefined,
-            }))
-          );
-        }
-
-        // Cargar catálogos DB-first. Legacy conserva Free Pass/mesas; Access Core alimenta pagos Bancard.
-        Promise.all([getClubCatalog(clubId), getClubAccessCatalog(clubId)])
-          .then(([catalog, accessCatalog]) => {
-            setCatalogTickets(catalog?.tickets ?? []);
-            setCatalogTables(catalog?.tables ?? []);
-            setAccessCatalogTickets(accessCatalog?.tickets ?? []);
-          })
-          .catch((err) => {
-            console.warn("Error al cargar catálogos:", err);
-            setCatalogTickets([]);
-            setCatalogTables([]);
-            setAccessCatalogTickets([]);
-          })
-          .finally(() => {
-            setIsLoading(false);
-          });
-      })
-      .catch((error) => {
-        console.error("Error al obtener local por slug:", error);
-        setNotFound(true);
-        setIsLoading(false);
-      });
-  }, [clubId]);
-
-  // Si no se encuentra, redirigir a NotFound después de un breve delay
-  useEffect(() => {
-    if (notFound) {
-      const timer = setTimeout(() => {
+    let active = true;
+    setSelectedImage(null);
+    async function loadProfile() {
+      const local = clubId ? await getLocalBySlug(clubId) : null;
+      if (!active) return;
+      if (!clubId || local?.type !== "club") {
         navigate("/404", { replace: true });
-      }, 100);
-      return () => clearTimeout(timer);
+        return;
+      }
+
+      const [catalog, accessCatalog] = await Promise.all([
+        getClubCatalog(clubId).catch(() => null),
+        getClubAccessCatalog(clubId).catch(() => null),
+      ]);
+      if (active) setProfile({ local, catalog, accessCatalog });
     }
-  }, [notFound, navigate]);
+    void loadProfile().catch(() => {
+      if (active) navigate("/404", { replace: true });
+    });
+    return () => { active = false; };
+  }, [clubId, navigate]);
 
-  // Hook SIEMPRE se llama (incluso si localId es null/undefined)
-  // El hook internamente verifica si hay localId antes de trackear
-  useProfileViewOnce(localId || undefined);
-
-  // TODOS los hooks deben estar ANTES de cualquier return temprano
-  // Si está cargando o no se encontró, mostrar loading o nada (redirige a 404)
-  if (isLoading || notFound || !clubId) {
+  const current = profile && profile.local.slug === clubId ? profile : null;
+  useProfileViewOnce(current?.local.id);
+  if (!current) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -170,11 +74,22 @@ const ClubProfile = () => {
     );
   }
 
-  const clubData = mockClubData[clubId as keyof typeof mockClubData];
-  if (!clubData) {
-    return null; // Se redirige a 404
-  }
-  const venueDisplayName = getDemoBrandDisplayName(clubId, clubData.name, "club");
+  const { local, catalog, accessCatalog } = current;
+  const localId = local.id;
+  const venueDisplayName = getDemoBrandDisplayName(local.slug, local.name, "club");
+  const localTodayScheduleLabel = getDetailTodayScheduleLabelApiFirst(local);
+  const localAdditionalInfo = local.additional_info ?? [];
+  const contactInfo = { phone: local.phone, whatsapp: local.whatsapp, email: null };
+  const tags = [...new Set([
+    ...(local.min_age != null ? [`+${local.min_age}`] : []),
+    ...(local.attributes ?? []),
+  ])];
+  const tagBadges = tags.map(tag => (
+    <span key={tag} className="border border-current/30 rounded-full px-3 py-1">{tag}</span>
+  ));
+  const apiPromotions = (local.promotions ?? []).map(p => ({
+    id: p.id, title: p.title, image: p.image_url ?? "/placeholder.svg", validity: p.description?.trim() || undefined,
+  }));
 
   const liveMusicLabel = localAdditionalInfo.find((item) => {
     const normalized = item
@@ -184,69 +99,15 @@ const ClubProfile = () => {
     return normalized.includes("dj") || normalized.includes("musica") || normalized.includes("live");
   });
 
-  const handlePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  // ==========================================================================
-  // Galería DB-first con fallback a mocks
-  // ==========================================================================
-
-  // ==========================================================================
-  // Galería DB-first con fallback a mocks
-  // ==========================================================================
-
-  // Ordenar galería por order
-  const sortedGallery = [...localGallery].sort((a, b) => a.order - b.order);
-
-  // Para clubs: separar cover, hero y carousel
-  const coverImage = sortedGallery.find(g => g.kind === "cover");
-  const heroImageItem = sortedGallery.find(g => g.kind === "hero");
-  const carouselImages = sortedGallery.filter(g => g.kind === "carousel");
-
-  // Hero image: 
-  // 1. Si existe hero => usar hero
-  // 2. Si NO existe hero => fallback a primer carousel
-  // 3. Si no hay nada => fallback a mock
-  // NUNCA usar cover como hero
-  const heroImage = heroImageItem
-    ? heroImageItem.url
-    : carouselImages[0]?.url || clubData.images[0];
-
-  // Galería completa para modal desktop - DB-first con fallback a mocks
-  // Si hay carousel en DB, usar solo esos. Si no, fallback a mocks.
-  const galleryImages = carouselImages.length > 0
-    ? carouselImages.map(g => ({ src: g.url, alt: "Galería" }))
-    : clubData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
-
-  // Mobile gallery: hero como primera imagen + carousel (NUNCA cover)
-  const mobileGalleryImages = (() => {
-    const images: { src: string; alt: string }[] = [];
-    // Hero primero si existe
-    if (heroImage) {
-      images.push({ src: heroImage, alt: "Imagen principal" });
-    }
-    // Luego carousel (excluyendo hero si ya está)
-    carouselImages.forEach(g => {
-      if (g.url !== heroImage) {
-        images.push({ src: g.url, alt: "Galería" });
-      }
-    });
-    // Fallback a mocks si no hay nada
-    if (images.length === 0) {
-      return clubData.images.map((src, i) => ({ src, alt: `${venueDisplayName} ${i + 1}` }));
-    }
-    return images;
-  })();
+  const sortedGallery = [...(local.gallery ?? [])].sort((a, b) => a.order - b.order);
+  const carousel = sortedGallery.filter(image => image.kind === "carousel");
+  const heroImage = sortedGallery.find(image => image.kind === "hero")?.url ?? carousel[0]?.url;
+  const carouselImages = carousel.map(image => ({ src: image.url, alt: `Galería de ${venueDisplayName}` }));
+  const heroSlide = heroImage ? [{ src: heroImage, alt: "Imagen principal" }] : [];
+  const galleryImages = carouselImages.length ? carouselImages : heroSlide;
+  const mobileGalleryImages = [...heroSlide, ...carouselImages.filter(image => image.src !== heroImage)];
   const purchaseTickets = [
-    ...((catalogTickets ?? [])
+    ...((catalog?.tickets ?? [])
       .filter((ticket) => ticket.price <= 0)
       .sort((a, b) => a.price - b.price)
       .map((ticket) => ({
@@ -257,7 +118,7 @@ const ClubProfile = () => {
         description: "",
         benefits: parseBenefits(ticket.description),
       }))),
-    ...((accessCatalogTickets ?? [])
+    ...([...(accessCatalog?.tickets ?? [])]
       .sort((a, b) => a.price_gs - b.price_gs)
       .map((ticket) => ({
         id: ticket.access_ticket_type_id,
@@ -268,18 +129,16 @@ const ClubProfile = () => {
         benefits: parseBenefits(ticket.description),
       }))),
   ];
-  const purchaseTables = catalogTables && catalogTables.length > 0
-    ? [...catalogTables]
-        .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
-        .map((table) => ({
-          id: table.id,
-          name: table.name,
-          capacity: table.capacity || 0,
-          price: table.price || 0,
-          drinks: parseBenefits(table.includes),
-        }))
-    : [];
-  const hasLoadedPurchaseCatalogs = catalogTickets !== null && accessCatalogTickets !== null;
+  const purchaseTables = [...(catalog?.tables ?? [])]
+    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+    .map((table) => ({
+      id: table.id,
+      name: table.name,
+      capacity: table.capacity || 0,
+      price: table.price || 0,
+      drinks: parseBenefits(table.includes),
+    }));
+  const hasLoadedPurchaseCatalogs = catalog !== null || accessCatalog !== null;
 
   return <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -289,11 +148,13 @@ const ClubProfile = () => {
       <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8">
         <BackButton label="Volver a explorar" fallbackTo="/explorar" />
         
-        {/* Gallery - DB-first con fallback a mocks */}
+        {/* Galería del local */}
         <section className="w-full relative">
           {galleryImages.length === 0 ? (
             /* Placeholder when no images */
-            <div className="w-full h-[400px] sm:h-[500px] lg:h-[600px] bg-muted rounded-lg flex items-center justify-center">
+            <div className="w-full h-[400px] sm:h-[500px] lg:h-[600px] bg-muted rounded-lg flex flex-col items-center justify-center">
+              <h2 className="text-2xl font-bold mb-2">{venueDisplayName}</h2>
+              <div className="flex flex-wrap justify-center gap-2 text-sm mb-2">{tagBadges}</div>
               <p className="text-muted-foreground text-sm text-center px-4">
                 Fotos no disponibles por el momento
               </p>
@@ -301,16 +162,12 @@ const ClubProfile = () => {
           ) : isMobile ? (
             <TouchSlideGallery 
               images={mobileGalleryImages}
-              onPlayClick={clubData.video ? handlePlayPause : undefined}
-              isPlaying={isPlaying}
               hideSlideButton={true}
               overlayContent={
                 <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-4 rounded-b-lg">
                   <h2 className="text-white text-xl font-bold mb-2">{venueDisplayName}</h2>
                   <div className="flex flex-wrap gap-2 text-white/90 text-sm mb-2">
-                    <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
-                    <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>
-                    <span className="border border-white/30 rounded-full px-3 py-1">{clubData.genre}</span>
+                    {tagBadges}
                   </div>
                   <p className="text-white/90 text-sm mb-1 flex items-center gap-2">
                     <Clock size={16} />
@@ -331,9 +188,7 @@ const ClubProfile = () => {
               <div className="absolute bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent w-full p-6 sm:p-8 rounded-b-lg">
                 <h2 className="text-white text-2xl sm:text-3xl font-bold mb-2">{venueDisplayName}</h2>
                 <div className="flex flex-wrap gap-2 sm:gap-3 text-white/90 text-sm sm:text-base mb-2">
-                  <span className="border border-white/30 rounded-full px-3 py-1">{clubData.ageRestriction}</span>
-                  <span className="border border-white/30 rounded-full px-3 py-1">Cocktails</span>
-                  <span className="border border-white/30 rounded-full px-3 py-1">{clubData.genre}</span>
+                  {tagBadges}
                 </div>
                 <p className="text-white/90 text-sm sm:text-base mb-1 flex items-center gap-2">
                   <Clock size={16} />
@@ -429,32 +284,33 @@ const ClubProfile = () => {
           </section>
         )}
 
-        {/* Promotions - DB-first: API promotions if available, mock only if undefined */}
+        {/* Promociones vigentes del local */}
         {localId && (
           <ClubPromotions 
-            promotions={apiPromotions !== undefined ? apiPromotions : clubData.promotions} 
+            promotions={apiPromotions}
             localId={localId} 
-            localSlug={clubId} 
+            localSlug={local.slug}
           />
         )}
 
-        {/* Map - DB-first con fallback */}
+        {/* Ubicación y contacto configurados */}
         <LazyMapSection
-          venueId={localId || undefined}
+          venueType="club"
+          venueId={localId}
           venue={venueDisplayName}
-          location={localLocation || "Villa Morra, Asuncion"}
-          address={localAddress || "Av. Mariscal Lopez 1234"}
-          city={localCity}
-          latitude={localLatitude}
-          longitude={localLongitude}
-          hours={localHours}
+          location={local.location || ""}
+          address={local.address || undefined}
+          city={local.city}
+          latitude={local.latitude}
+          longitude={local.longitude}
+          hours={buildDetailHoursLines(local.opening_hours, local.hours ?? [])}
           todayScheduleLabel={localTodayScheduleLabel}
-          phone={contactInfo?.phone || "(021) 555-123"}
-          additionalInfo={localAdditionalInfo.length > 0 ? localAdditionalInfo : ["Estacionamiento valet disponible", "Dress code: Elegante", "Entrada solo +18 con documento", "Reservas recomendadas", "Sistema de sonido profesional"]}
+          phone={local.phone || ""}
+          additionalInfo={localAdditionalInfo}
         />
 
         {/* Reviews */}
-        <ClubReviews venueId={localId} />
+        <ReviewsSection venueId={localId} venueType="club" highlights={[]} />
       </div>
     </div>;
 };

@@ -213,6 +213,10 @@ ordersRouter.post("/", async (req, res, next) => {
       totalQuantity = qty;
     }
 
+    if (validated.payment_method === "free_pass" && calculatedTotal !== 0) {
+      return res.status(400).json({ error: "El importe final de un Free Pass debe ser cero" });
+    }
+
     // Free pass nace como "paid", el resto como "pending"
     const status = validated.payment_method === "free_pass" ? "paid" : "pending";
 

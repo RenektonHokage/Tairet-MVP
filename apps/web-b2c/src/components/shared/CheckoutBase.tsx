@@ -636,7 +636,7 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
       
       toast({
         title: "¡Listo!",
-        description: "Tu Free Pass fue creado. Revisa tu email.",
+        description: "Tu Free Pass está listo.",
       });
     } catch (err) {
       const description =
@@ -684,9 +684,9 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
         >
           <div className="p-6 space-y-6 text-center">
             <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
-            <h2 className="text-2xl font-bold text-foreground">¡Free Pass Creado!</h2>
+            <h2 className="text-2xl font-bold text-foreground">Tu Free Pass está listo</h2>
             <p className="text-muted-foreground">
-              Te enviamos un email con tu código a <strong>{formData.email}</strong>
+              Guardá este QR o código para ingresar.
             </p>
             
             {/* QR Code */}
@@ -710,10 +710,6 @@ const CheckoutBase = ({ isOpen, onClose, title = "Finalizar Compra", venue }: Ch
                 </Button>
               </div>
             </div>
-            
-            <p className="text-sm text-muted-foreground">
-              Guarda el código de entrada y revisa tu email para volver a consultarlo durante el pre-relanzamiento.
-            </p>
             
             <div className="flex gap-3 justify-center pt-4">
               <Button variant="outline" onClick={() => { setOrderCreated(null); onClose(); }}>

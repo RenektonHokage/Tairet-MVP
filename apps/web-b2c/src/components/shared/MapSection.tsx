@@ -180,7 +180,7 @@ const MapSection: React.FC<MapSectionProps> = ({
     ? `${zone} • ${effectiveCity}`
     : zone || effectiveCity || "Ubicación no disponible";
   const displayAddress = address?.trim() || null;
-  const configuredOnly = venueType === "bar";
+  const configuredOnly = venueType === "bar" || venueType === "club";
   const providedCoords = useMemo<Coordinates | null>(
     () =>
       Number.isFinite(longitude) && Number.isFinite(latitude)

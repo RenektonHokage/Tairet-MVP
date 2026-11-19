@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import * as XLSX from "xlsx";
 import { ZodError } from "zod";
 import { panelAuth } from "../middlewares/panelAuth";
@@ -1080,281 +1080,121 @@ panelRouter.patch("/reservations/:id", panelAuth, requireRole(["owner", "staff"]
   }
 });
 
-// PATCH /panel/orders/:id/use (check-in)
-// Roles permitidos: owner, staff
-panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
-  try {
-    if (!req.panelUser) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+// Both panel entry points consume the same row in orders.
+function checkInPanelOrder(by: "id" | "checkin_token"): RequestHandler {
+  return async (req, res, next) => {
+    try {
+      const actor = req.panelUser;
+      if (!actor) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+      const byToken = by === "checkin_token";
+      const key = byToken ? req.params.token : req.params.id;
+      if (!key) {
+        return res.status(400).json({ error: byToken ? "Missing checkin token" : "Missing order id" });
+      }
 
-    if (!id) {
-      return res.status(400).json({ error: "Missing order id" });
-    }
+      const readOrder = () => supabase.from("orders")
+        .select("id, local_id, status, used_at, valid_from, valid_to, is_window_legacy, created_at")
+        .eq(by, key)
+        .maybeSingle();
+      const databaseFailure = (code?: string) => {
+        logger.error("Failed to check in order", { by, code });
+        return res.status(500).json({ error: byToken ? "Failed to check in" : "Failed to update order" });
+      };
 
-    // Buscar la orden
-    const { data: order, error: fetchError } = await supabase
-      .from("orders")
-      .select("id, local_id, status, used_at, valid_from, valid_to, is_window_legacy, created_at")
-      .eq("id", id)
-      .single();
+      const { data: order, error: fetchError } = await readOrder();
+      if (fetchError && fetchError.code !== "22P02") return databaseFailure(fetchError.code);
+      if (!order) return res.status(404).json({ error: "Order not found" });
 
-    if (fetchError || !order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
+      // Use the same responses for the initial read and for a lost conditional update.
+      const rejectUnavailable = (current: NonNullable<typeof order>) => {
+        if (current.local_id !== actor.localId) {
+          logger.warn("Tenant mismatch in order check-in", { orderId: current.id, userLocalId: actor.localId });
+          return res.status(403).json({
+            error: byToken ? "Forbidden: This order belongs to another local" : "Forbidden: You can only update orders for your own local",
+          });
+        }
+        if (current.status !== "paid") {
+          return res.status(400).json({ error: "Order must be paid before use", currentStatus: current.status });
+        }
+        if (current.used_at !== null) {
+          void recordOperationalActivity({
+            localId: actor.localId,
+            entityType: "order",
+            entityId: current.id,
+            eventType: "order_already_used_attempt",
+            actorType: "panel_user",
+            actorUserId: actor.userId,
+            actorRole: getOperationalActivityActorRole(actor.role),
+            message: "Intento de validación duplicado",
+            metadata: { status: current.status, used_at: current.used_at },
+            requestId: getRequestId(req),
+          });
+          return res.status(409).json({ error: "Order already used", usedAt: current.used_at });
+        }
+      };
 
-    // TENANT CHECK: validar que la orden pertenece al local del usuario
-    if (order.local_id !== req.panelUser.localId) {
-      logger.warn("Tenant mismatch in order check-in", {
-        orderId: id,
-        orderLocalId: order.local_id,
-        userLocalId: req.panelUser.localId,
+      if (rejectUnavailable(order)) return;
+      const { data: local, error: localError } = await supabase.from("locals")
+        .select("type").eq("id", actor.localId).maybeSingle();
+      if (localError) return databaseFailure(localError.code);
+      if (!local) return res.status(404).json({ error: "Local not found for order" });
+
+      const now = new Date();
+      if (local.type === "club") {
+        const windowValidation = validateOrderWindowForCheckin(order, now);
+        if (!windowValidation.allowed) {
+          const payload = buildCheckinWindowErrorPayload(windowValidation);
+          return res.status(payload.status).json(payload.body);
+        }
+      }
+
+      let consume = supabase.from("orders")
+        .update({ used_at: now.toISOString() })
+        .eq("id", order.id)
+        .eq("local_id", actor.localId)
+        .eq("status", "paid")
+        .is("used_at", null);
+      if (byToken) consume = consume.eq("checkin_token", key);
+
+      const { data: rows, error } = await consume
+        .select("id, status, used_at, customer_name, customer_last_name, customer_document");
+      if (error || !rows || rows.length > 1) return databaseFailure(error?.code);
+
+      if (rows.length === 0) {
+        const { data: current, error: readError } = await readOrder();
+        if (readError) return databaseFailure(readError.code);
+        if (!current || current.id !== order.id) return res.status(404).json({ error: "Order not found" });
+        if (rejectUnavailable(current)) return;
+        // No observed state explains the missing row. Do not acknowledge a consumption.
+        return databaseFailure();
+      }
+
+      const [updated] = rows;
+      logger.info(byToken ? "Token check-in successful" : "Order checked in successfully", {
+        orderId: updated.id, localId: actor.localId, checkedInBy: actor.role,
       });
-      return res.status(403).json({
-        error: "Forbidden: You can only update orders for your own local",
-      });
-    }
-
-    // Validar que la orden está pagada
-    if (order.status !== "paid") {
-      return res.status(400).json({
-        error: "Order must be paid before use",
-        currentStatus: order.status,
-      });
-    }
-
-    // Validar que no fue usada previamente
-    if (order.used_at !== null) {
       void recordOperationalActivity({
-        localId: req.panelUser.localId,
+        localId: actor.localId,
         entityType: "order",
-        entityId: order.id,
-        eventType: "order_already_used_attempt",
+        entityId: updated.id,
+        eventType: "order_checked_in",
         actorType: "panel_user",
-        actorUserId: req.panelUser.userId,
-        actorRole: getOperationalActivityActorRole(req.panelUser.role),
-        message: "Intento de validación duplicado",
-        metadata: {
-          status: order.status,
-          used_at: order.used_at,
-        },
+        actorUserId: actor.userId,
+        actorRole: getOperationalActivityActorRole(actor.role),
+        message: "Entrada validada",
+        metadata: { status: updated.status, used_at: updated.used_at },
         requestId: getRequestId(req),
       });
-
-      return res.status(409).json({
-        error: "Order already used",
-        usedAt: order.used_at,
-      });
+      return res.status(200).json(updated);
+    } catch (error) {
+      next(error);
     }
+  };
+}
 
-    const { data: local, error: localError } = await supabase
-      .from("locals")
-      .select("type")
-      .eq("id", order.local_id)
-      .single();
-
-    if (localError || !local) {
-      logger.error("Local not found while validating check-in window", {
-        orderId: id,
-        localId: order.local_id,
-        error: localError?.message,
-      });
-      return res.status(404).json({ error: "Local not found for order" });
-    }
-
-    if (local.type === "club") {
-      const windowValidation = validateOrderWindowForCheckin(order, new Date());
-      if (!windowValidation.allowed) {
-        const payload = buildCheckinWindowErrorPayload(windowValidation);
-        return res.status(payload.status).json(payload.body);
-      }
-    }
-
-    // Actualizar used_at
-    const { data: updated, error: updateError } = await supabase
-      .from("orders")
-      .update({ used_at: new Date().toISOString() })
-      .eq("id", id)
-      .select("id, status, used_at, customer_name, customer_last_name, customer_document")
-      .single();
-
-    if (updateError) {
-      logger.error("Error updating order for check-in", {
-        error: updateError.message,
-        orderId: id,
-      });
-      return res.status(500).json({ error: "Failed to update order" });
-    }
-
-    logger.info("Order checked in successfully", {
-      orderId: id,
-      localId: req.panelUser.localId,
-      checkedInBy: req.panelUser.role,
-    });
-
-    void recordOperationalActivity({
-      localId: req.panelUser.localId,
-      entityType: "order",
-      entityId: updated.id,
-      eventType: "order_checked_in",
-      actorType: "panel_user",
-      actorUserId: req.panelUser.userId,
-      actorRole: getOperationalActivityActorRole(req.panelUser.role),
-      message: "Entrada validada",
-      metadata: {
-        status: updated.status,
-        used_at: updated.used_at,
-      },
-      requestId: getRequestId(req),
-    });
-
-    res.status(200).json(updated);
-  } catch (error) {
-    next(error);
-  }
-});
-
-// PATCH /panel/checkin/:token
-// Check-in por QR token
-// Roles permitidos: owner, staff
-panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]), async (req, res, next) => {
-  try {
-    if (!req.panelUser) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const { token } = req.params;
-
-    if (!token) {
-      return res.status(400).json({ error: "Missing checkin token" });
-    }
-
-    // Buscar order por checkin_token
-    const { data: order, error: fetchError } = await supabase
-      .from("orders")
-      .select("id, local_id, status, used_at, valid_from, valid_to, is_window_legacy, created_at")
-      .eq("checkin_token", token)
-      .single();
-
-    if (fetchError || !order) {
-      return res.status(404).json({ error: "Order not found" });
-    }
-
-    // TENANT CHECK: validar que la orden pertenece al local del usuario
-    if (order.local_id !== req.panelUser.localId) {
-      logger.warn("Tenant mismatch in token check-in", {
-        tokenPresent: true,
-        tokenLength: token.length,
-        orderLocalId: order.local_id,
-        userLocalId: req.panelUser.localId,
-      });
-      return res.status(403).json({
-        error: "Forbidden: This order belongs to another local",
-      });
-    }
-
-    // Validar que la orden está pagada
-    if (order.status !== "paid") {
-      return res.status(400).json({
-        error: "Order must be paid before use",
-        currentStatus: order.status,
-      });
-    }
-
-    // Validar que no fue usada previamente
-    if (order.used_at !== null) {
-      void recordOperationalActivity({
-        localId: req.panelUser.localId,
-        entityType: "order",
-        entityId: order.id,
-        eventType: "order_already_used_attempt",
-        actorType: "panel_user",
-        actorUserId: req.panelUser.userId,
-        actorRole: getOperationalActivityActorRole(req.panelUser.role),
-        message: "Intento de validación duplicado",
-        metadata: {
-          status: order.status,
-          used_at: order.used_at,
-        },
-        requestId: getRequestId(req),
-      });
-
-      return res.status(409).json({
-        error: "Order already used",
-        usedAt: order.used_at,
-      });
-    }
-
-    const { data: local, error: localError } = await supabase
-      .from("locals")
-      .select("type")
-      .eq("id", order.local_id)
-      .single();
-
-    if (localError || !local) {
-      logger.error("Local not found while validating token check-in window", {
-        tokenPresent: true,
-        tokenLength: token.length,
-        localId: order.local_id,
-        error: localError?.message,
-      });
-      return res.status(404).json({ error: "Local not found for order" });
-    }
-
-    if (local.type === "club") {
-      const windowValidation = validateOrderWindowForCheckin(order, new Date());
-      if (!windowValidation.allowed) {
-        const payload = buildCheckinWindowErrorPayload(windowValidation);
-        return res.status(payload.status).json(payload.body);
-      }
-    }
-
-    // Actualizar used_at y devolver datos del comprador para verificación
-    const { data: updated, error: updateError } = await supabase
-      .from("orders")
-      .update({ used_at: new Date().toISOString() })
-      .eq("checkin_token", token)
-      .select("id, status, used_at, customer_name, customer_last_name, customer_document")
-      .single();
-
-    if (updateError) {
-      logger.error("Error in token check-in", {
-        error: updateError.message,
-        tokenPresent: true,
-        tokenLength: token.length,
-      });
-      return res.status(500).json({ error: "Failed to check in" });
-    }
-
-    logger.info("Token check-in successful", {
-      orderId: updated.id,
-      localId: req.panelUser.localId,
-      checkedInBy: req.panelUser.role,
-    });
-
-    void recordOperationalActivity({
-      localId: req.panelUser.localId,
-      entityType: "order",
-      entityId: updated.id,
-      eventType: "order_checked_in",
-      actorType: "panel_user",
-      actorUserId: req.panelUser.userId,
-      actorRole: getOperationalActivityActorRole(req.panelUser.role),
-      message: "Entrada validada",
-      metadata: {
-        status: updated.status,
-        used_at: updated.used_at,
-      },
-      requestId: getRequestId(req),
-    });
-
-    res.status(200).json(updated);
-  } catch (error) {
-    next(error);
-  }
-});
+panelRouter.patch("/orders/:id/use", panelAuth, requireRole(["owner", "staff"]), checkInPanelOrder("id"));
+panelRouter.patch("/checkin/:token", panelAuth, requireRole(["owner", "staff"]), checkInPanelOrder("checkin_token"));
 
 // GET /panel/checkins
 // Últimos check-ins del local (used_at NOT NULL)
