@@ -1,0 +1,8 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap");
+.prelaunch{--tairet-font-family:Inter,"Segoe UI",sans-serif}
+.prelaunch,.prelaunch .pl-halloween .tu-document,.prelaunch .pl-asuncion .tu-document{--ui:var(--tairet-font-family)}
+.prelaunch{font-family:var(--tairet-font-family)}
+
+/* Public interface families; preserve the existing wordmark and graphical assets. */
+.prelaunch{--display:var(--tairet-font-family);--hw-display:var(--tairet-font-family);--tairet-brand-family:"Barlow Condensed","DisplayFallback","Arial Narrow",sans-serif}
+.prelaunch .header .brand,.prelaunch #tairet-footer .tf-brand{font-family:var(--tairet-brand-family)!important}

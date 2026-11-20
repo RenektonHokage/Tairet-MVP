@@ -1,0 +1,790 @@
+{
+  "schemaVersion": 1,
+  "campaign": "halloween-2026",
+  "kind": "public",
+  "contentVersion": 3,
+  "generatedAt": "2026-10-27T04:03:32.842Z",
+  "events": [
+    {
+      "id": "fc2944e4-ccfd-48b4-9b98-d7aed06a9cf9",
+      "slug": "wave-milena-adamis",
+      "name": "WAVE – MILENA ADAMIS",
+      "subtitle": "ON BEAT · techno en Jetlag",
+      "description": "WAVE – MILENA ADAMIS, organizado por ON BEAT, en Jetlag, Carmelitas, Asunción. Viernes 30 de octubre de 2026 a las 23:00 hasta el sábado 31 de octubre a las 05:00 (America/Asuncion). Entradas exclusivamente por Ticketea. Mesas informativas con diez entradas para diez personas y consumición incluida. Presentar cédula de identidad al ingresar.",
+      "startsAt": "2026-10-30T23:00:00-03:00",
+      "endsAt": "2026-10-31T05:00:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Jetlag",
+      "location": {
+        "address": "Gral. Eugenio Alejandrino Garay 333, Asunción",
+        "zone": "Carmelitas",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Jetlag%2C+Gral.+Eugenio+Alejandrino+Garay+333%2C+Asunci%C3%B3n%2C+Paraguay"
+      },
+      "organizer": "ON BEAT",
+      "poster": {
+        "src": "/halloween/wave-milena-adamis-ff8c5850.jpg",
+        "alt": "Afiche original WAVE – MILENA ADAMIS, 30 de octubre, Jetlag"
+      },
+      "music": [
+        "techno"
+      ],
+      "admissionNote": "Presentar cédula de identidad al ingresar. TAIRET no solicita ni recopila su número.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Entradas exclusivamente en Ticketea. Lote 2 informado; un clic no acredita compra ni disponibilidad.",
+        "provider": "Ticketea",
+        "url": "https://ticketea.com.py/events/wave-milena-adamis",
+        "prices": [
+          {
+            "id": "7e3b054c-0e45-4317-b91d-a1dd0f5d21e1",
+            "label": "Generales",
+            "description": "Lote 2 · Precio informado. Consultá las condiciones vigentes en Ticketea.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 105000
+            }
+          },
+          {
+            "id": "f6797930-4ce5-42d9-a4a8-3fb0a77dd133",
+            "label": "Backstage",
+            "description": "Lote 2 · Precio informado. Consultá las condiciones vigentes en Ticketea.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 185000
+            }
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "1e92c576-897b-4939-8707-84c3c2382540",
+          "name": "Mesa Pista",
+          "capacity": 10,
+          "includes": [
+            "Diez entradas para diez personas",
+            "₲ 500.000 de consumición incluida en el precio total"
+          ],
+          "price": {
+            "kind": "confirmed",
+            "amount": 1000000
+          }
+        },
+        {
+          "id": "5a43db64-7c68-415e-b4e4-1ebc8f33f419",
+          "name": "Mesa Back",
+          "capacity": 10,
+          "includes": [
+            "Diez entradas para diez personas",
+            "₲ 1.500.000 de consumición incluida en el precio total"
+          ],
+          "price": {
+            "kind": "confirmed",
+            "amount": 3000000
+          }
+        }
+      ],
+      "verifiedAt": "2026-10-19T20:07:41Z",
+      "contentVersion": 1,
+      "verification": "verified"
+    },
+    {
+      "id": "8c416190-0b17-41a8-abe4-461453b35edc",
+      "slug": "halloween-offsite-tao",
+      "name": "Halloween Offsite TAO",
+      "subtitle": "Centro de Convenciones Mariscal",
+      "description": "Halloween Offsite TAO en el Centro de Convenciones Mariscal. Entradas por Ticketea y consultas de mesas por WhatsApp.",
+      "startsAt": "2026-10-31T22:00:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Centro de Convenciones Mariscal",
+      "location": {
+        "address": "Dr. Juan Eulogio Estigarribia",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Centro%20de%20Convenciones%20Mariscal%2C%20Dr.%20Juan%20Eulogio%20Estigarribia%2C%20Asunci%C3%B3n%2C%20Paraguay",
+        "zone": "Zona Shopping Mariscal"
+      },
+      "poster": {
+        "src": "/halloween/lote1-halloween-offsite-tao.jpg",
+        "alt": "Flyer de Halloween Offsite TAO"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Compra por Ticketea.",
+        "provider": "Ticketea",
+        "url": "https://ticketea.com.py/events/halloween-offsite-tao",
+        "prices": [
+          {
+            "id": "69824203-7ccc-4589-a217-8de99773ae21",
+            "label": "Hombres",
+            "description": "Precio informado para esta modalidad.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 100000
+            }
+          },
+          {
+            "id": "f04d6a13-785d-46de-b67a-51468c596d9b",
+            "label": "Mujeres",
+            "description": "Precio informado para esta modalidad.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 65000
+            }
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "cac3d3ae-ca1b-42b6-9f3a-87c0fe8009ea",
+          "name": "Virus",
+          "price": {
+            "kind": "confirmed",
+            "amount": 400000
+          },
+          "includes": [
+            "1 Fernet",
+            "6 Coca-Colas",
+            "6 aguas"
+          ],
+          "note": "No incluye entradas. Registro en TAIRET pendiente de confirmar el cupo.",
+          "requestStatus": "pending"
+        },
+        {
+          "id": "9b95ff05-5446-4f64-94c9-ebec38ad9152",
+          "name": "Emergency",
+          "price": {
+            "kind": "confirmed",
+            "amount": 1500000
+          },
+          "includes": [
+            "10 accesos incluidos",
+            "24 cervezas",
+            "1 Fernet",
+            "1 gin",
+            "6 tónicas",
+            "6 gaseosas",
+            "6 aguas"
+          ],
+          "note": "10 accesos incluidos",
+          "capacity": 10
+        },
+        {
+          "id": "0a3730c6-c033-4732-82f4-af0b0cff2f1d",
+          "name": "X-Ray",
+          "price": {
+            "kind": "confirmed",
+            "amount": 2500000
+          },
+          "includes": [
+            "12 accesos incluidos",
+            "30 cervezas",
+            "1 whisky",
+            "2 Fernet",
+            "1 gin",
+            "12 Coca-Colas",
+            "6 tónicas",
+            "6 aguas",
+            "Ubicación preferencial"
+          ],
+          "note": "12 accesos incluidos",
+          "capacity": 12
+        },
+        {
+          "id": "2e6bb5b0-2177-41de-acaa-bfe330b9c802",
+          "name": "Restricted Zone",
+          "price": {
+            "kind": "confirmed",
+            "amount": 3500000
+          },
+          "includes": [
+            "15 accesos VIP incluidos",
+            "40 cervezas",
+            "1 whisky premium",
+            "2 Fernet",
+            "1 gin",
+            "1 Licor 43",
+            "12 Coca-Colas",
+            "12 tónicas",
+            "12 aguas",
+            "Ubicación VIP"
+          ],
+          "note": "15 accesos VIP incluidos",
+          "capacity": 15
+        },
+        {
+          "id": "32ef3f17-3ccf-45bf-b86a-2a2683a2340a",
+          "name": "Room 66",
+          "price": {
+            "kind": "confirmed",
+            "amount": 6000000
+          },
+          "includes": [
+            "20 accesos VIP incluidos",
+            "50 cervezas",
+            "2 whisky premium",
+            "2 Fernet",
+            "1 gin premium",
+            "1 Licor 43",
+            "2 champagnes franceses",
+            "15 tónicas",
+            "15 Coca-Colas",
+            "20 aguas",
+            "Ubicación VIP, guardia y mozo propios"
+          ],
+          "note": "20 accesos VIP incluidos",
+          "capacity": 20
+        }
+      ],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "endsAt": "2026-11-01T05:00:00-03:00",
+      "organizer": "Tao"
+    },
+    {
+      "id": "e8f737ba-9307-4ba8-9ccf-78a2a1870c6c",
+      "slug": "halloween-zazil-nightmare-cinema",
+      "name": "Halloween Zazil Nightmare Cinema",
+      "subtitle": "Complejo Barrail Costanera",
+      "description": "Nightmare Cinema en Complejo Barrail Costanera. Las mesas no incluyen entradas; los accesos se compran aparte en Ticketea.",
+      "startsAt": "2026-10-31T22:00:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Complejo Barrail Costanera",
+      "location": {
+        "address": "Concepción Leyes de Chávez",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Complejo%20Barrail%20Costanera%2C%20Concepci%C3%B3n%20Leyes%20de%20Ch%C3%A1vez%2C%20Asunci%C3%B3n%2C%20Paraguay",
+        "zone": "Zona Costanera"
+      },
+      "poster": {
+        "src": "/halloween/lote1-halloween-zazil-nightmare-cinema.jpg",
+        "alt": "Flyer de Halloween Zazil Nightmare Cinema"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Compra por Ticketea.",
+        "provider": "Ticketea",
+        "url": "https://ticketea.com.py/events/halloween-zazil-nightmare-cinema",
+        "prices": [
+          {
+            "id": "5167d3d6-18d8-4a82-92ec-8eb25f8553b0",
+            "label": "Hot Tickets Pista",
+            "description": "Precio informado para esta modalidad.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 55000
+            }
+          },
+          {
+            "id": "c9798824-04d1-425c-a61e-b62caa4109b9",
+            "label": "Hot Tickets VIP",
+            "description": "Precio informado para esta modalidad.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 75000
+            }
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "ed9ba91c-8221-43c1-b5ba-78d2ee6f49be",
+          "name": "Mesa VIP",
+          "price": {
+            "kind": "confirmed",
+            "amount": 600000
+          },
+          "includes": [
+            "6 a 8 asientos. Las entradas se adquieren aparte.",
+            "Los accesos se compran aparte",
+            "1 combo de gin o Fernet",
+            "4 gaseosas",
+            "5 aguas",
+            "10 cervezas"
+          ],
+          "note": "No incluye entradas",
+          "seatingLabel": "6 a 8 asientos",
+          "capacity": 8
+        },
+        {
+          "id": "0272e4b1-b055-4876-b6e1-a8556f7b91a6",
+          "name": "Mesa Pista",
+          "price": {
+            "kind": "confirmed",
+            "amount": 300000
+          },
+          "includes": [
+            "6 a 8 asientos. Las entradas se adquieren aparte.",
+            "Los accesos se compran aparte",
+            "1 combo de gin o Fernet",
+            "4 gaseosas"
+          ],
+          "note": "No incluye entradas",
+          "seatingLabel": "6 a 8 asientos",
+          "capacity": 8
+        }
+      ],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "endsAt": "2026-11-01T05:00:00-03:00",
+      "organizer": "Zazil"
+    },
+    {
+      "id": "11810dbe-5b25-4839-9a24-b235111ecd78",
+      "slug": "vertigo-halloween",
+      "name": "Vértigo Halloween",
+      "subtitle": "Vértigo Asunción",
+      "description": "Halloween en Vértigo Asunción. Las cinco categorías de mesas fueron informadas como disponibles. Los números 4 y 8 identifican mesas, no su capacidad. La organización anuncia premios para disfraces.",
+      "startsAt": "2026-10-30T23:00:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Vértigo Asunción",
+      "location": {
+        "address": "Paseo Los Árboles, avenida San Martín y Sucre",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=V%C3%A9rtigo%20Asunci%C3%B3n%2C%20Paseo%20Los%20%C3%81rboles%2C%20avenida%20San%20Mart%C3%ADn%20y%20Sucre%2C%20Asunci%C3%B3n&query_place_id=ChIJndOJlSOpXZQRViBwgMbVejQ",
+        "zone": "Zona San Martín"
+      },
+      "poster": {
+        "src": "/halloween/lote1-vertigo-halloween.jpg",
+        "alt": "Flyer de Vértigo Halloween"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años. Presentar cédula de identidad al ingresar.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Compra por Entry.",
+        "provider": "Entry",
+        "url": "https://vertigo.entry.com.py/halloween-2026",
+        "prices": [
+          {
+            "id": "c96fb5f1-e72c-4a80-b001-bccc82eb6633",
+            "label": "Entrada general",
+            "description": "Tier 1",
+            "price": {
+              "kind": "confirmed",
+              "amount": 80000
+            }
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "cc3abefa-e78e-41fc-9560-807a9c0afedb",
+          "name": "Mesa Pista 4",
+          "price": {
+            "kind": "confirmed",
+            "amount": 500000
+          },
+          "includes": [
+            "8 accesos incluidos",
+            "Consumición no especificada"
+          ],
+          "note": "8 accesos incluidos",
+          "availability": "available",
+          "capacity": 8
+        },
+        {
+          "id": "bf359240-b19d-4010-989b-f13201f37db0",
+          "name": "Mesa Pista 8",
+          "price": {
+            "kind": "confirmed",
+            "amount": 1000000
+          },
+          "includes": [
+            "15 accesos incluidos",
+            "₲ 400.000 de consumición incluida"
+          ],
+          "note": "15 accesos incluidos",
+          "availability": "available",
+          "capacity": 15
+        },
+        {
+          "id": "4f905cfb-59c8-4545-aa66-efa4aa7fafb0",
+          "name": "Living Pista",
+          "price": {
+            "kind": "confirmed",
+            "amount": 1500000
+          },
+          "includes": [
+            "15 accesos incluidos",
+            "₲ 750.000 de consumición incluida"
+          ],
+          "note": "15 accesos incluidos",
+          "availability": "available",
+          "capacity": 15
+        },
+        {
+          "id": "df02a915-06f5-4fb6-a9b3-d497db5662f0",
+          "name": "Box",
+          "price": {
+            "kind": "confirmed",
+            "amount": 2500000
+          },
+          "includes": [
+            "15 accesos incluidos",
+            "₲ 1.500.000 de consumición incluida"
+          ],
+          "note": "15 accesos incluidos",
+          "availability": "available",
+          "capacity": 15
+        },
+        {
+          "id": "b587d2b5-4cd1-4397-8ca7-afb0b8c93d68",
+          "name": "Camarote",
+          "price": {
+            "kind": "confirmed",
+            "amount": 4000000
+          },
+          "includes": [
+            "20 accesos incluidos",
+            "₲ 2.500.000 de consumición incluida"
+          ],
+          "note": "20 accesos incluidos",
+          "availability": "available",
+          "capacity": 20
+        }
+      ],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "endsAt": "2026-10-31T05:00:00-03:00",
+      "organizer": "Vertigo"
+    },
+    {
+      "id": "0cc599ec-c6a6-4213-b951-f7348f640d4f",
+      "slug": "hapore-four-lokoween",
+      "name": "Hapore Four Lokoween",
+      "subtitle": "Austria 1783",
+      "description": "Four Lokoween en Austria 1783. Entradas y mesas se gestionan por el mismo WhatsApp comercial. Los paquetes incluyen las entradas indicadas.",
+      "startsAt": "2026-10-31T23:30:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Austria 1783",
+      "location": {
+        "address": "Austria 1783",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Austria%201783%2C%20Asunci%C3%B3n%2C%20Paraguay",
+        "zone": "Zona Shopping del Sol"
+      },
+      "poster": {
+        "src": "/halloween/lote1-hapore-four-lokoween.jpg",
+        "alt": "Flyer de Hapore Four Lokoween"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años.",
+      "ticketing": {
+        "mode": "whatsapp",
+        "note": "Consultas y gestión de entradas con la organización por WhatsApp.",
+        "batches": [
+          {
+            "id": "039c39ea-66e1-4ea6-b726-287ad84be28e",
+            "label": "Tier 1",
+            "status": "current",
+            "prices": [
+              {
+                "id": "9e46ea07-b9b0-4f42-b33d-6339017d36fd",
+                "label": "Entrada individual",
+                "description": "Tier 1",
+                "price": {
+                  "kind": "confirmed",
+                  "amount": 50000
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "7d1124b4-f2f7-4b8a-b1e9-554bf8333c84",
+          "name": "Lokoween",
+          "price": {
+            "kind": "confirmed",
+            "amount": 800000
+          },
+          "includes": [
+            "10 entradas incluidas",
+            "12 Four Loko",
+            "6 aguas"
+          ],
+          "note": "10 entradas incluidas",
+          "capacity": 10
+        },
+        {
+          "id": "52069ddd-2076-45f4-a90b-b372ef0d6bd9",
+          "name": "Trick or Treat",
+          "price": {
+            "kind": "confirmed",
+            "amount": 1000000
+          },
+          "includes": [
+            "12 entradas incluidas",
+            "1 botella de Fernet",
+            "6 Four Loko",
+            "6 gaseosas",
+            "6 aguas"
+          ],
+          "note": "12 entradas incluidas",
+          "capacity": 12
+        },
+        {
+          "id": "59fec5a5-1784-47d3-9fdb-c6845cea8a47",
+          "name": "Haunted House",
+          "price": {
+            "kind": "confirmed",
+            "amount": 1500000
+          },
+          "includes": [
+            "18 entradas incluidas",
+            "1 botella de whisky",
+            "1 botella de Fernet",
+            "6 Four Loko",
+            "12 gaseosas",
+            "12 aguas"
+          ],
+          "note": "18 entradas incluidas",
+          "capacity": 18
+        },
+        {
+          "id": "6c7098eb-003e-48ca-8b16-89fda78f6edf",
+          "name": "Dark Mansion",
+          "price": {
+            "kind": "confirmed",
+            "amount": 2000000
+          },
+          "includes": [
+            "20 entradas incluidas",
+            "2 botellas de whisky",
+            "2 botellas de Fernet",
+            "2 botellas de ron",
+            "12 Four Loko",
+            "12 gaseosas",
+            "12 aguas"
+          ],
+          "note": "20 entradas incluidas",
+          "capacity": 20
+        }
+      ],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "endsAt": "2026-11-01T05:00:00-03:00",
+      "organizer": "Hapore"
+    },
+    {
+      "id": "2e0ad4c0-bd25-40f6-99e0-f204a5599264",
+      "slug": "par-normal-the-abandoned-factory",
+      "name": "Parªnormal The Abandoned Factory",
+      "subtitle": "Estero Bellaco 302",
+      "description": "The Abandoned Factory. Entradas por Ticketea. Las mesas están agotadas; no se habilitan reservas.",
+      "startsAt": "2026-10-31T23:00:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Estero Bellaco 302",
+      "location": {
+        "address": "Estero Bellaco 302, Guillermo Arias",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Estero%20Bellaco%20302%2C%20Estero%20Bellaco%20302%2C%20Guillermo%20Arias%2C%20Asunci%C3%B3n%2C%20Paraguay",
+        "zone": "Zona Estero Bellaco / Hospital Militar"
+      },
+      "poster": {
+        "src": "/halloween/lote1-par-normal-the-abandoned-factory.jpg",
+        "alt": "Flyer de Parªnormal The Abandoned Factory"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Compra por Ticketea.",
+        "provider": "Ticketea",
+        "url": "https://ticketea.com.py/events/par-normal-the-abandoned-factory",
+        "prices": [
+          {
+            "id": "c3738a14-5c4d-41a8-aded-465c5011ef66",
+            "label": "Entrada",
+            "description": "Precio informado para esta modalidad.",
+            "price": {
+              "kind": "confirmed",
+              "amount": 210000
+            }
+          }
+        ]
+      },
+      "tables": [],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "tablesAvailability": "sold-out",
+      "endsAt": "2026-11-01T05:00:00-03:00",
+      "organizer": "Anormal"
+    },
+    {
+      "id": "434743b1-06c7-40b2-9c37-a7558c139e80",
+      "slug": "terraza-dlirio-halloween-2026",
+      "name": "Terraza D'Lirio Halloween 2026",
+      "subtitle": "Terraza D'Lirio",
+      "description": "Cuarto aniversario de Terraza D'Lirio, con concurso de disfraces y sonido Funktion-One. Las cuatro categorías de mesas están agotadas. Los importes de consumición informados no son precios totales de mesa.",
+      "startsAt": "2026-10-31T22:30:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Terraza D'Lirio",
+      "location": {
+        "address": "Av. General San Martín y Sucre",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Terraza%20D%27Lirio%2C%20Av.%20General%20San%20Mart%C3%ADn%20y%20Sucre%2C%20Asunci%C3%B3n%2C%20Paraguay",
+        "zone": "Zona San Martín"
+      },
+      "poster": {
+        "src": "/halloween/lote1-terraza-dlirio-halloween-2026.jpg",
+        "alt": "Flyer de Terraza D'Lirio Halloween 2026"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 21 años.",
+      "ticketing": {
+        "mode": "external",
+        "note": "Compra por Entry.",
+        "provider": "Entry",
+        "url": "https://dlirio.entry.com.py/halloween-2026",
+        "prices": [
+          {
+            "id": "c359bd63-823a-4dc1-8b98-f0850699c20f",
+            "label": "Entrada general",
+            "description": "Tier 1",
+            "price": {
+              "kind": "confirmed",
+              "amount": 100000
+            }
+          }
+        ]
+      },
+      "tables": [
+        {
+          "id": "5c1bcce3-f661-458e-8187-dc55e26cab11",
+          "name": "Mesa Pista",
+          "price": {
+            "kind": "unknown"
+          },
+          "includes": [
+            "Consumición informada: ₲ 400.000"
+          ],
+          "availability": "sold-out"
+        },
+        {
+          "id": "808b9910-2e3c-45b0-9451-3717a2189fbe",
+          "name": "Living Pista",
+          "price": {
+            "kind": "unknown"
+          },
+          "includes": [
+            "Consumición informada: ₲ 1.000.000"
+          ],
+          "availability": "sold-out"
+        },
+        {
+          "id": "91f3a092-235a-4b1b-bbc4-6f1bf11db04e",
+          "name": "Box",
+          "price": {
+            "kind": "unknown"
+          },
+          "includes": [
+            "Consumición informada: ₲ 2.000.000"
+          ],
+          "availability": "sold-out"
+        },
+        {
+          "id": "ce7e24d3-4ee1-4702-bed9-aba5c0c29c58",
+          "name": "Camarote",
+          "price": {
+            "kind": "unknown"
+          },
+          "includes": [
+            "Consumición informada: ₲ 3.000.000"
+          ],
+          "availability": "sold-out"
+        }
+      ],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "tablesAvailability": "sold-out",
+      "endsAt": "2026-11-01T05:00:00-03:00",
+      "organizer": "D’Lirio"
+    },
+    {
+      "id": "25bd161a-6227-46e2-b9d3-7218aea8f3d7",
+      "slug": "saoko-halloween-vol-2",
+      "name": "Saoko Halloween Vol. 2",
+      "subtitle": "Lux Club",
+      "description": "Halloween Vol. 2 en Lux Club. Entradas exclusivamente por WhatsApp. Mesas agotadas, sin reservas.",
+      "startsAt": "2026-10-30T23:30:00-03:00",
+      "timezone": "America/Asuncion",
+      "venue": "Lux Club",
+      "location": {
+        "address": "O'Higgins y Teniente Vera",
+        "city": "Asunción",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=Lux%20Club%2C%20O%27Higgins%20y%20Teniente%20Vera%2C%20Asunci%C3%B3n&query_place_id=ChIJmYPEawCpXZQR7T3bvpPJ0Wg",
+        "zone": "Villa Morra"
+      },
+      "poster": {
+        "src": "/halloween/lote1-saoko-halloween-vol-2.jpg",
+        "alt": "Flyer de Saoko Halloween Vol. 2"
+      },
+      "music": [
+        "reggaeton"
+      ],
+      "admissionNote": "Edad mínima: 18 años.",
+      "ticketing": {
+        "mode": "whatsapp",
+        "note": "Consultas y gestión de entradas con la organización por WhatsApp.",
+        "batches": [
+          {
+            "id": "cfbaed61-36a4-4a83-a79a-191212d33bef",
+            "label": "Entradas",
+            "status": "current",
+            "prices": [
+              {
+                "id": "2d335351-e8bd-4bc1-8e4c-e10b945389f0",
+                "label": "Hombres",
+                "description": "Precio informado para esta modalidad.",
+                "price": {
+                  "kind": "confirmed",
+                  "amount": 100000
+                }
+              },
+              {
+                "id": "67bfe733-2ad1-4b19-acfc-a78365d9a48b",
+                "label": "Mujeres",
+                "description": "Precio informado para esta modalidad.",
+                "price": {
+                  "kind": "confirmed",
+                  "amount": 80000
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "tables": [],
+      "verifiedAt": "2026-10-27T04:03:32.842Z",
+      "contentVersion": 2,
+      "verification": "verified",
+      "tablesAvailability": "sold-out",
+      "endsAt": "2026-10-31T05:00:00-03:00",
+      "organizer": "Saoko"
+    }
+  ]
+}

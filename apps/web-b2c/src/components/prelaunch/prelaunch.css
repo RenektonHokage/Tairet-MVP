@@ -1,0 +1,208 @@
+/* Integration adjustments only. All selectors stay inside the prelaunch subtree. */
+.prelaunch { min-height:100vh; isolation:isolate; overflow-x:clip; }
+.prelaunch img { display:inline-block; max-width:100%; }
+.prelaunch svg { display:inline-block; }
+.prelaunch button { text-align:inherit; }
+.prelaunch .tf-back { background:transparent; border:0; padding:0; cursor:pointer; }
+
+.prelaunch main:focus { outline:none; }
+.prelaunch .pl-asuncion .tu-body > main,
+.prelaunch .pl-halloween .tu-body > main { display:block; }
+.prelaunch .pl-halloween .tu-document { --ui:"Inter","Segoe UI",sans-serif; }
+.prelaunch .pl-halloween .party-dialog { max-height:90dvh; overflow:auto; }
+.prelaunch dialog { margin:auto; max-height:90dvh; overflow:auto; }
+.prelaunch dialog::backdrop { background:#0009; }
+.prelaunch :focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+.prelaunch .header .brand img { width:35px; height:35px; object-fit:contain; }
+.prelaunch[data-theme="light"] .header .brand img { filter:invert(1); }
+.prelaunch .pl-storage-notice { position:fixed; z-index:160; bottom:80px; left:20px; right:20px; padding:12px; background:var(--bg); color:var(--ink); border:1px solid var(--line); }
+.prelaunch .pl-coming { padding-top:100px; }
+.prelaunch .party-repeat-row input,
+.prelaunch .party-repeat-row select { min-width:0; }
+.prelaunch [hidden] { display:none!important; }
+@media(max-width:760px){
+ .prelaunch .tf-footer-group[open] > nav { display:grid; }
+ .prelaunch .tf-footer-group:not([open]) > nav { display:none; }
+ .prelaunch .tf-wrap { min-width:0; }
+}
+@media(prefers-reduced-motion:reduce){
+ .prelaunch *, .prelaunch *::before, .prelaunch *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}
+
+.prelaunch .pl-asuncion .tu-body { padding-top:0; }
+.prelaunch .header .brand, .prelaunch .header input, .prelaunch .header button { font-family:var(--ui)!important; }
+.prelaunch .pl-halloween .party-dialog, .prelaunch .pl-halloween .party-dialog input, .prelaunch .pl-halloween .party-dialog select, .prelaunch .pl-halloween .party-dialog textarea, .prelaunch .pl-halloween .party-dialog button, .prelaunch .pl-halloween .party-dialog label { font-family:var(--ui)!important; }
+
+.prelaunch .header .brand { font-family:var(--display)!important; }
+.prelaunch .header .brand img { width:42px; height:35px; }
+.prelaunch[data-theme="light"] .pl-halloween .launch-intro p { color:#665761!important; }
+.prelaunch[data-theme="light"] .pl-halloween .launch-text-action { color:#32262e!important; }
+@media(max-width:760px){.prelaunch .pl-asuncion .tu-body {padding-top:0;}}
+
+/* Original party-variant CTA tokens, explicitly scoped to the pre home. */
+.prelaunch[data-route="home"] .hw-campaign-cta { background:#ffc5a0!important; color:#281d22!important; }
+.prelaunch[data-route="home"][data-theme="light"] .hw-campaign-cta { background:#6d4438!important; color:#fff!important; }
+
+/* H06: interface controls inherit the approved UI token; Halloween artwork is unchanged. */
+.prelaunch .pl-halloween div.tu-document div:where(.tu-body) .hw16-hero .h16-cta-primary > span:first-child,
+.prelaunch .pl-halloween div.tu-document div:where(.tu-body) .hw16-hero .h16-cta-saved { font-family:var(--ui)!important; }
+
+.prelaunch #r4-cookie-dialog .r4-cookie-actions { flex-wrap:wrap; }
+
+/* Shared public navbar: original cinema gradient + darkening after 48px. */
+.prelaunch[data-route][data-theme] > header.header {
+ --pl-header-ink:#fff; --pl-header-panel:rgba(9,12,15,.28);
+ --pl-header-muted:rgba(255,255,255,.76); --pl-header-line:rgba(255,255,255,.34);
+ position:fixed!important; inset:0 0 auto!important; width:100%; z-index:100;
+ background:linear-gradient(180deg,rgba(9,12,15,.87),rgba(9,12,15,.08))!important;
+ color:#fff!important; border-bottom:1px solid rgba(255,255,255,.14)!important;
+ box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important;
+ transition:border-color 240ms ease,box-shadow 240ms ease;
+}
+.prelaunch[data-route][data-theme] > header.header::before {
+ content:""!important; position:absolute; inset:0; pointer-events:none;
+ background:rgba(10,12,14,.95)!important; opacity:0;
+ transition:opacity 240ms ease;
+}
+.prelaunch[data-route][data-theme] > header.header::after { content:none!important; }
+.prelaunch[data-route][data-theme] > header.header .header-in { position:relative; z-index:1; }
+.prelaunch[data-route][data-theme] > header.header.is-scroll-locked::before { opacity:1; }
+.prelaunch[data-route][data-theme] > header.header.is-scroll-locked {
+ border-bottom-color:rgba(255,255,255,.16)!important;
+ box-shadow:0 7px 22px rgba(0,0,0,.18)!important;
+ backdrop-filter:blur(14px)!important; -webkit-backdrop-filter:blur(14px)!important;
+}
+.prelaunch[data-route][data-theme] > header.header .brand,
+.prelaunch[data-route][data-theme] > header.header .catalog-back { color:#fff!important; text-shadow:0 1px 3px rgba(0,0,0,.5); }
+.prelaunch[data-route][data-theme] > header.header .brand img { width:35px; height:35px; filter:none!important; }
+.prelaunch[data-route][data-theme] > header.header .catalog-search {
+ background:rgba(9,12,15,.42)!important; border-color:var(--pl-header-line)!important;
+ color:#fff!important; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+}
+.prelaunch[data-route][data-theme] > header.header .icon-btn,
+.prelaunch[data-route][data-theme] > header.header .header-join {
+ background:rgba(9,12,15,.16)!important; border-color:var(--pl-header-line)!important; color:#fff!important;
+}
+.prelaunch[data-route][data-theme] > header.header .catalog-search input { color:#fff!important; }
+.prelaunch[data-route][data-theme] > header.header .catalog-search input::placeholder { color:var(--pl-header-muted)!important; opacity:1; }
+@media(max-width:860px){
+ .prelaunch[data-route][data-theme] > header.header .brand img { width:28px; height:28px; }
+}
+@media(prefers-reduced-motion:reduce){
+ .prelaunch[data-route][data-theme] > header.header,
+ .prelaunch[data-route][data-theme] > header.header::before { transition:none!important; }
+}
+
+/* P03: one short banner with three equally accessible decisions. */
+.prelaunch #r4-cookie-banner {
+ left:50%; right:auto; width:calc(100% - 24px); max-width:960px; transform:translateX(-50%);
+ padding:12px 16px; gap:18px; flex-direction:row; align-items:center;
+}
+.prelaunch #r4-cookie-banner p { margin:0; font-size:12px; line-height:1.5; }
+.prelaunch #r4-cookie-banner .r4-cookie-actions { width:auto; flex-wrap:nowrap; gap:8px; flex-shrink:0; }
+.prelaunch #r4-cookie-banner .tf-btn { min-height:40px; padding:9px 12px; font-size:12px; }
+@media(max-width:760px){
+ .prelaunch #r4-cookie-banner { padding:12px; flex-direction:column; align-items:stretch; gap:10px; }
+ .prelaunch #r4-cookie-banner .r4-cookie-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+ .prelaunch #r4-cookie-banner .tf-btn { padding:9px 5px; }
+ .prelaunch #r4-cookie-banner [data-r4-preferences] { flex-basis:auto; min-height:40px; border-color:var(--line); }
+}
+
+/* B6: contain the local-contact modal without changing other dialogs. */
+.prelaunch .pl-asuncion #owner-dialog .dialog-head { align-items:flex-start; gap:16px; padding:24px 24px 16px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-head h2 { min-width:0; font-size:34px; line-height:1.08; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-close { flex:0 0 44px; width:44px; height:44px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body { display:grid; gap:16px; padding:0 24px 24px; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body > p { margin:0; font-size:14px; line-height:1.6; }
+.prelaunch .pl-asuncion #owner-dialog .local-options { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.prelaunch .pl-asuncion #owner-dialog .local-option { position:relative; display:flex; flex-direction:column; justify-content:center; gap:8px; padding:14px 10px; text-align:center; }
+.prelaunch .pl-asuncion #owner-dialog .wa-link { margin:0; padding:12px; text-align:center; line-height:1.5; }
+.prelaunch .pl-asuncion #owner-dialog .wa-link svg,
+.prelaunch .pl-asuncion #owner-dialog .mail-link svg { flex:none; }
+.prelaunch .pl-asuncion #owner-dialog .dialog-body > .dialog-hint { min-height:0; font-size:12px; color:var(--muted); }
+.prelaunch .pl-asuncion #owner-dialog .mail-link { padding:0; align-items:flex-start; line-height:1.6; }
+.prelaunch .pl-asuncion #owner-dialog .mail-link span { min-width:0; overflow-wrap:anywhere; }
+.prelaunch .pl-asuncion #owner-dialog .mail-link svg { margin-top:2px; }
+@media(max-width:420px){
+ .prelaunch .pl-asuncion #owner-dialog .dialog-head { padding:20px 20px 16px; gap:12px; }
+ .prelaunch .pl-asuncion #owner-dialog .dialog-head h2 { font-size:30px; }
+ .prelaunch .pl-asuncion #owner-dialog .dialog-body { padding:0 20px 20px; }
+}
+
+/* B6: the motion control lives in the content flow, outside the artwork. */
+.prelaunch .pl-halloween .launch-intro .pl-video-toggle { display:flex; align-items:center; justify-content:center; width:44px; height:44px; margin-top:16px; padding:0; border:1px solid currentColor; border-radius:50%; background:transparent; color:var(--hw-ink); cursor:pointer; }
+.prelaunch .pl-halloween .launch-intro .pl-video-toggle svg { flex:none; width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7; }
+
+/* B6: center the close icon in its own 44 px target. */
+.prelaunch .pl-halloween #party-form-dialog .party-close { display:grid; place-items:center; width:44px; height:44px; padding:0; right:20px; top:20px; text-align:center; line-height:1; }
+.prelaunch .pl-halloween #party-form-dialog .party-close svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; }
+@media(max-width:560px){.prelaunch .pl-halloween #party-form-dialog .party-close { right:16px; top:16px; }}
+
+/* UI R1: canonical mark and readable footer tokens, scoped to the existing footer. */
+.prelaunch #tairet-footer { --muted:#c8cdd2; --line:#454b50; --tf-accent:var(--ink); }
+.prelaunch[data-theme="light"] #tairet-footer { --muted:#414a53; --line:#c5cbd0; }
+.prelaunch #tairet-footer .tf-brand { font:700 31px/1 var(--display); letter-spacing:normal; gap:11px; }
+.prelaunch #tairet-footer .tf-brand img { width:35px; height:35px; }
+.prelaunch #tairet-footer .tf-footer-group summary { font-size:12px; font-weight:700; }
+.prelaunch #tairet-footer .tf-footer-group a { font-weight:500; }
+.prelaunch #tairet-footer :is(a,button):focus-visible { outline-color:var(--ink); }
+@media(max-width:860px){
+ .prelaunch #tairet-footer .tf-brand { font-size:25px; gap:8px; }
+ .prelaunch #tairet-footer .tf-brand img { width:28px; height:28px; }
+}
+@media(max-width:430px){
+ .prelaunch #tairet-footer .tf-brand { font-size:23px; }
+ .prelaunch #tairet-footer .tf-brand img { width:26px; height:26px; }
+}
+
+/* C1: organizer proposal rows only; no public-card or general layout changes. */
+.prelaunch #party-form-dialog .party-includes-rows { display:grid; gap:12px; }
+.prelaunch #party-form-dialog .party-included-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:end; }
+.prelaunch #party-form-dialog .party-included-row label { min-width:0; }
+.prelaunch #party-form-dialog .party-remove-included { min-width:44px; min-height:44px; padding:8px; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
+.prelaunch #party-form-dialog .party-includes-editor > .party-add { margin-top:12px; }
+
+/* Restored B2B proposal: retain the original wizard geometry and site theme tokens. */
+.prelaunch .b2b-convocations #party-form-dialog { background:var(--surface); color:var(--ink); border-color:var(--line); }
+.prelaunch .b2b-convocations #party-form :is(input,select,textarea),
+.prelaunch .b2b-convocations #party-message-preview { background:var(--bg); color:var(--ink); border-color:var(--line); color-scheme:inherit; }
+.prelaunch .b2b-convocations #party-form label,
+.prelaunch .b2b-convocations :is(.party-close,.party-back,.party-announcement-top button) { color:var(--ink); border-color:var(--line); }
+.prelaunch .b2b-convocations :is(.party-hint,.party-wizard-note,.party-step-heading p,.party-progress>span,.party-repeat-head,.party-row-heading span,.party-more summary,.party-wizard-nav>span,#party-review p) { color:var(--muted); }
+.prelaunch .b2b-convocations .party-progress>span { min-width:0; overflow-wrap:anywhere; }
+.prelaunch .b2b-convocations .party-progress>span[aria-current="step"] { color:var(--ink); }
+.prelaunch .b2b-convocations #party-form .r4-check { display:flex; flex-direction:row; align-items:flex-start; gap:10px; line-height:1.6; font-weight:400; }
+.prelaunch .b2b-convocations #party-form .r4-check input { flex:0 0 18px; width:18px; height:18px; margin-top:3px; }
+.prelaunch .b2b-convocations #party-form .r4-check a { text-decoration:underline; }
+.prelaunch .b2b-convocations .r4-permissions { display:grid; gap:16px; margin-top:12px; }
+.prelaunch .b2b-convocations .party-review-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:16px; }
+.prelaunch .b2b-convocations .party-review-actions a { color:var(--ink)!important; }
+.prelaunch .b2b-convocations #party-review #party-whatsapp-link { color:#fff; }
+.prelaunch .b2b-convocations .party-add,.prelaunch .b2b-convocations .party-remove { color:var(--ink); border-color:var(--line); }
+
+/* Shared landing and Halloween header geometry; enlarged original brand. */
+.prelaunch:is([data-route="home"],[data-route="halloween"]){--header:80px}
+.prelaunch:is([data-route="home"],[data-route="halloween"])>header.header{height:var(--header)!important}
+.prelaunch:is([data-route="home"],[data-route="halloween"])>header.header .brand{font-size:34px!important}
+.prelaunch:is([data-route="home"],[data-route="halloween"])>header.header .brand img{width:44px!important;height:44px!important}
+@media(max-width:860px){
+ .prelaunch:is([data-route="home"],[data-route="halloween"]){--header:64px!important}
+ .prelaunch:is([data-route="home"],[data-route="halloween"])>header.header .brand{font-size:25px!important}
+ .prelaunch:is([data-route="home"],[data-route="halloween"])>header.header .brand img{width:34px!important;height:34px!important}
+}
+
+/* Approved compact campaign CTA; the interface remains Inter. */
+.prelaunch[data-route="home"] .cinema-copy .actions{align-items:center;justify-content:center;flex-wrap:nowrap}
+.prelaunch[data-route="home"][data-theme] .cinema-copy .hw-campaign-cta{width:285px;max-width:100%;height:63px;min-height:63px!important;padding:10px 24px;gap:24px!important;flex:none;justify-content:space-between;background:#ffc5a0!important;color:#281d22!important;border-radius:3px!important}
+.prelaunch[data-route="home"] .hw-campaign-cta>span{min-width:0;gap:5px}
+.prelaunch[data-route="home"] .hw-campaign-cta strong{font:800 29px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:0;white-space:nowrap}
+.prelaunch[data-route="home"] .hw-campaign-cta small{font:500 10px/1.2 var(--tairet-font-family);white-space:nowrap}
+.prelaunch[data-route="home"] .hw-campaign-cta>svg{width:20px;height:20px;flex:none}
+@media(max-width:760px){
+ .prelaunch[data-route="home"] .cinema-copy .actions{flex-direction:column;gap:10px}
+ .prelaunch[data-route="home"][data-theme] .cinema-copy .hw-campaign-cta{width:280px;height:64px;min-height:64px!important;padding-inline:23px}
+ .prelaunch[data-route="home"] .hw-campaign-cta strong{font-size:28px}
+ .prelaunch[data-route="home"] .cinema-copy .actions>.text-link{align-self:center}
+}
+.prelaunch .pl-halloween .hw16-hero,.prelaunch .pl-halloween .hw16-hero .hwo-media{background-color:#100e11!important}
+.prelaunch .pl-halloween .hw16-hero .fixed-hero-video{background:transparent}

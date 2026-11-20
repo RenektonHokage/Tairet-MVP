@@ -1,0 +1,12 @@
+/* Original CSS tapes; no stock imagery or watermark. Kept in their own row so table facts remain legible. */
+.hp-table-sold-out{overflow:hidden}
+.hp-sold-ribbons{position:relative;height:66px;grid-column:1/-1;overflow:hidden;pointer-events:none;--sold-angle:2.5deg;margin:-4px 0 8px}
+.hp-sold-ribbon{position:absolute;left:-10%;top:23px;width:120%;height:20px;display:flex;align-items:center;justify-content:center;gap:23px;white-space:nowrap;background:#d71920;color:#fff;font:800 12px/1 var(--tairet-font-family);letter-spacing:.025em;transform:rotate(var(--sold-angle));box-shadow:0 1px 2px #0002}
+.hp-sold-ribbon+ .hp-sold-ribbon{transform:rotate(calc(-1 * var(--sold-angle)))}
+.hp-sold-ribbon span{flex:none;color:#fff}
+.hp .hp-table-sold-out .hp-button:disabled{cursor:not-allowed;opacity:.65}
+.hp .hp-table-name{flex-wrap:wrap}
+.hp .hp-table-note{flex-basis:100%;font-size:13px;line-height:1.45;margin:5px 0 0}
+.hp .hp-tables-sold-out-general>div:not(.hp-sold-ribbons){min-width:0}
+.hp-editorial-review-notice{padding-top:calc(var(--header) + 16px);font:500 13px/1.5 var(--tairet-font-family)}
+@media(max-width:720px){.hp-sold-ribbons{--sold-angle:7deg;height:64px;margin-bottom:14px}.hp-sold-ribbon{font-size:11px;gap:16px}.hp .hp-table-note{margin-top:8px}}

@@ -8,9 +8,12 @@ import { ThemeProvider } from "next-themes";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import ScrollToTop from "./components/ScrollToTop";
+import { linkedPaths } from "./components/prelaunch/publicPaths";
 
 const queryClient = new QueryClient();
 const Index = lazy(() => import("./pages/Index"));
+const LinkedPage = lazy(() => import("./components/prelaunch/LinkedPage"));
+const HalloweenArchive = lazy(() => import("./components/halloweenPost/HalloweenArchive"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ZonaAsuncion = lazy(() => import("./pages/zona/Asuncion"));
 const ZonaSanBernardino = lazy(() => import("./pages/zona/SanBernardino"));
@@ -62,6 +65,10 @@ const App = () => (
           <Suspense fallback={<RouteFallback />}>
             <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/inicio" element={<Index />} />
+            {linkedPaths.map(path => <Route key={path} path={path} element={<LinkedPage path={path} />} />)}
+            <Route path="/halloween" element={<HalloweenArchive />} />
+            <Route path="/halloween/fiesta/:slug" element={<HalloweenArchive />} />
             <Route path="/zona/asuncion" element={<ZonaAsuncion />} />
             <Route path="/zona/san-bernardino" element={<ZonaSanBernardino />} />
             <Route path="/zona/ciudad-del-este" element={<ZonaCiudadDelEste />} />

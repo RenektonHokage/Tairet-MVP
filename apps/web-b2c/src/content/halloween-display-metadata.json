@@ -1,0 +1,106 @@
+{
+  "halloween-offsite-tao": {
+    "startsAt": "2026-10-31T22:00:00-03:00",
+    "zone": "Zona Shopping Mariscal",
+    "venueType": "boliche",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Centro de Convenciones Mariscal",
+      "address": "Dr. Juan Eulogio Estigarribia",
+      "latitude": -25.2955743,
+      "longitude": -57.5816494,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Centro%20de%20Convenciones%20Mariscal%2C%20Dr.%20Juan%20Eulogio%20Estigarribia%2C%20Asunci%C3%B3n%2C%20Paraguay",
+      "precision": "owner-venue"
+    }
+  },
+  "halloween-zazil-nightmare-cinema": {
+    "startsAt": "2026-10-31T22:00:00-03:00",
+    "zone": "Zona Costanera",
+    "venueType": "boliche",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Complejo Barrail Costanera",
+      "address": "Concepción Leyes de Chávez",
+      "latitude": -25.272043,
+      "longitude": -57.6090982,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Complejo%20Barrail%20Costanera%2C%20Concepci%C3%B3n%20Leyes%20de%20Ch%C3%A1vez%2C%20Asunci%C3%B3n%2C%20Paraguay",
+      "precision": "owner-venue"
+    }
+  },
+  "vertigo-halloween": {
+    "startsAt": "2026-10-30T23:00:00-03:00",
+    "zone": "Zona San Martín",
+    "venueType": "boliche",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Vértigo Asunción",
+      "address": "Paseo Los Árboles, avenida San Martín y Sucre",
+      "latitude": -25.2914787,
+      "longitude": -57.5743204,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=V%C3%A9rtigo%20Asunci%C3%B3n%2C%20Paseo%20Los%20%C3%81rboles%2C%20avenida%20San%20Mart%C3%ADn%20y%20Sucre%2C%20Asunci%C3%B3n&query_place_id=ChIJndOJlSOpXZQRViBwgMbVejQ",
+      "precision": "reference"
+    }
+  },
+  "hapore-four-lokoween": {
+    "startsAt": "2026-10-31T23:30:00-03:00",
+    "zone": "Zona Shopping del Sol",
+    "venueType": "fiesta independiente",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Austria 1783",
+      "address": "Austria 1783",
+      "latitude": -25.2884028,
+      "longitude": -57.5705453,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Austria%201783%2C%20Asunci%C3%B3n%2C%20Paraguay",
+      "precision": "owner-venue"
+    }
+  },
+  "par-normal-the-abandoned-factory": {
+    "startsAt": "2026-10-31T23:00:00-03:00",
+    "zone": "Zona Estero Bellaco / Hospital Militar",
+    "venueType": "boliche",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Estero Bellaco 302",
+      "address": "Estero Bellaco 302, Guillermo Arias",
+      "latitude": -25.2785903,
+      "longitude": -57.6464331,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Estero%20Bellaco%20302%2C%20Estero%20Bellaco%20302%2C%20Guillermo%20Arias%2C%20Asunci%C3%B3n%2C%20Paraguay",
+      "precision": "owner-venue"
+    }
+  },
+  "terraza-dlirio-halloween-2026": {
+    "startsAt": "2026-10-31T22:30:00-03:00",
+    "zone": "Zona San Martín",
+    "venueType": "boliche",
+    "minimumAge": 21,
+    "pin": {
+      "venue": "Terraza D'Lirio",
+      "address": "Av. General San Martín y Sucre",
+      "latitude": -25.2915475,
+      "longitude": -57.5742576,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Terraza%20D%27Lirio%2C%20Av.%20General%20San%20Mart%C3%ADn%20y%20Sucre%2C%20Asunci%C3%B3n%2C%20Paraguay",
+      "precision": "owner-venue"
+    }
+  },
+  "saoko-halloween-vol-2": {
+    "startsAt": "2026-10-30T23:30:00-03:00",
+    "zone": "Villa Morra",
+    "venueType": "boliche",
+    "minimumAge": 18,
+    "pin": {
+      "venue": "Lux Club",
+      "address": "O'Higgins y Teniente Vera",
+      "latitude": -25.2881679,
+      "longitude": -57.5739489,
+      "sourceUrl": "https://www.google.com/maps/search/?api=1&query=Lux%20Club%2C%20O%27Higgins%20y%20Teniente%20Vera%2C%20Asunci%C3%B3n&query_place_id=ChIJmYPEawCpXZQR7T3bvpPJ0Wg",
+      "precision": "reference"
+    }
+  },
+  "wave-milena-adamis": {
+    "startsAt": "2026-10-30T23:00:00-03:00",
+    "zone": "Villa Morra",
+    "venueType": "fiesta independiente",
+    "minimumAge": 18
+  }
+}
