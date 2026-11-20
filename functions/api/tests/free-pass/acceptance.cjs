@@ -33,6 +33,7 @@ async function seed(sql) {
     " UPDATE locals SET is_published=true WHERE id=" + q(locals.other) + ";" +
     " INSERT INTO ticket_types(id,local_id,name,price) VALUES (" + q(free) + "," + q(locals.club) +
     ",'Free Pass',0),(" + q(paid) + "," + q(locals.club) + ",'Entrada de prueba',50000);");
+  await sql(fs.readFileSync(path.join(schemaDir, "migrations/052_add_club_catalog_visibility.sql"), "utf8"));
   await sql("CREATE TABLE fixture_writes(order_id uuid, stamp timestamptz);\n" +
     "CREATE FUNCTION observe_use() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN " +
     "IF OLD.transaction_id = 'fixture-error' THEN RAISE EXCEPTION 'fixture failure'; END IF; " +

@@ -76,6 +76,21 @@ function installTransport(sql, locals) {
       let query;
       if (method === "GET") {
         query = "SELECT " + projection + " FROM " + table + where;
+        if (params.has("order")) {
+          const terms = params.get("order").split(",").map(term => {
+            const parts = /^([a-z_]+)\.(asc|desc)(?:\.(nullsfirst|nullslast))?$/.exec(term);
+            assert.ok(parts, "Unsupported fixture ordering");
+            return identifier(parts[1]) + " " + parts[2] +
+              (parts[3] ? (parts[3] === "nullsfirst" ? " NULLS FIRST" : " NULLS LAST") : "");
+          });
+          query += " ORDER BY " + terms.join(",");
+        }
+        for (const key of ["limit", "offset"]) {
+          if (!params.has(key)) continue;
+          const amount = params.get(key);
+          assert.match(amount, /^\d+$/);
+          query += " " + key + " " + amount;
+        }
       } else if (method === "PATCH" && name === "orders") {
         assert.deepEqual(Object.keys(body), ["used_at"]);
         query = "UPDATE orders SET used_at=" + literal(body.used_at) + where + " RETURNING " + projection;

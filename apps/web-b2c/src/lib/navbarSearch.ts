@@ -2,7 +2,7 @@ import type { PublicBar } from "@/lib/publicBars";
 import { mockClubData } from "@/lib/mocks/clubs";
 import { getZoneFromLocation, normalizeForSearch } from "@/lib/search";
 import { slugify } from "@/lib/slug";
-import { selectClubVenues } from "@/lib/venueSelectors";
+import type { Club } from "@/lib/types";
 
 export interface NavbarSearchSuggestion {
   id: string;
@@ -20,6 +20,7 @@ interface RankedSuggestion extends NavbarSearchSuggestion {
 
 interface NavbarSearchSuggestionOptions {
   bars?: PublicBar[];
+  clubs?: Club[];
   maxSuggestions?: number;
   coverBySlug?: ReadonlyMap<string, string>;
   locationBySlug?: ReadonlyMap<string, string>;
@@ -48,7 +49,7 @@ export function getNavbarSearchSuggestions(
   query: string,
   options: NavbarSearchSuggestionOptions = {}
 ): NavbarSearchSuggestion[] {
-  const { bars = [], maxSuggestions = 6, coverBySlug, locationBySlug } = options;
+  const { bars = [], clubs = [], maxSuggestions = 6, coverBySlug, locationBySlug } = options;
   const normalizedQuery = normalizeForSearch(query);
   if (!normalizedQuery) {
     return [];
@@ -82,10 +83,7 @@ export function getNavbarSearchSuggestions(
     })
     .filter((suggestion) => Number.isFinite(suggestion.rank));
 
-  const rankedClubs: RankedSuggestion[] = selectClubVenues({
-    city: "asuncion",
-    scope: "all",
-  })
+  const rankedClubs: RankedSuggestion[] = clubs
     .map((club) => {
       const slug = slugify(club.name);
       const mockClub = mockClubData[slug as keyof typeof mockClubData];

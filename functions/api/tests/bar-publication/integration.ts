@@ -57,6 +57,7 @@ async function main() {
   sql(readFileSync(resolve(__dirname, "fixture.sql"), "utf8"));
   sql(readFileSync(resolve(root, "infra/sql/migrations/021_harden_locals_data_api.sql"), "utf8"));
   sql(readFileSync(resolve(root, "infra/sql/migrations/050_add_bar_publication.sql"), "utf8"));
+  sql(readFileSync(resolve(root, "infra/sql/migrations/052_add_club_catalog_visibility.sql"), "utf8"));
   await check("Migration keeps existing demos unpublished and defaults new bars to false", () => {
     assert.equal(sql("select count(*) from locals where is_published"), "0");
     sql("insert into locals(name,slug,type) values ('Nuevo default','b01-default','bar')");

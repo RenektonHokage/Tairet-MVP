@@ -1,6 +1,7 @@
 import { allClubs } from "@/lib/data/venues";
 import { slugify } from "@/lib/slug";
 import { MVP_CLUB_SLUGS } from "@/lib/mvpSlugs";
+import { getLocalsList, type LocalListItem } from "@/lib/locals";
 import type { Club } from "@/lib/types";
 
 export type VenueSelectorType = "bar" | "club";
@@ -33,10 +34,31 @@ export function isCityOperative(city: VenueSelectorCity): boolean {
   return OPERATIVE_CITIES.has(city);
 }
 
-export function selectClubVenues(options: VenueSelectorOptions = {}): Club[] {
+export async function getPublicClubSelection(options: VenueSelectorOptions = {}): Promise<{
+  clubs: Club[];
+  locals: LocalListItem[];
+}> {
   const { city = "asuncion" } = options;
-  if (!isCityOperative(city)) return [];
+  if (!isCityOperative(city)) return { clubs: [], locals: [] };
 
-  // scope stays explicit for parity with zone/all usage.
-  return orderByMvpSlugs(allClubs, MVP_CLUB_SLUGS, (club) => slugify(club.name));
+  const bySlug = new Map<string, LocalListItem>();
+  const seen = new Set<string>();
+  const pageSize = 100;
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await getLocalsList("club", pageSize, offset);
+    const previousCount = seen.size;
+    for (const local of page) {
+      seen.add(local.id);
+      if (local.type === "club" && local.slug) bySlug.set(local.slug, local);
+    }
+    if (page.length < pageSize || MVP_CLUB_SLUGS.every(slug => bySlug.has(slug))) break;
+    if (seen.size === previousCount) throw new Error("La paginación del catálogo no avanzó");
+  }
+
+  // Keep the editorial order and metadata, but never list a slug absent from the public API.
+  const visibleSlugs = MVP_CLUB_SLUGS.filter(slug => bySlug.has(slug));
+  return {
+    clubs: orderByMvpSlugs(allClubs, visibleSlugs, club => slugify(club.name)),
+    locals: visibleSlugs.map(slug => bySlug.get(slug)!),
+  };
 }

@@ -11,7 +11,7 @@ import {
   validateOpeningHoursV1,
 } from "../services/openingHours";
 import { logger } from "../utils/logger";
-import { PUBLIC_LOCAL_FILTER } from "../services/localPublication";
+import { NOT_HIDDEN_FROM_CATALOG, PUBLIC_LOCAL_FILTER } from "../services/localPublication";
 
 export const publicRouter = Router();
 
@@ -99,6 +99,7 @@ publicRouter.get("/locals", async (req, res) => {
       .from("locals")
       .select("id, slug, name, type, location, city, latitude, longitude, gallery, attributes, min_age, opening_hours, is_published")
       .or(PUBLIC_LOCAL_FILTER)
+      .match(NOT_HIDDEN_FROM_CATALOG)
       .order("name", { ascending: true })
       .order("id", { ascending: true })
       .range(offset, offset + limit - 1);
@@ -192,6 +193,7 @@ publicRouter.get("/locals/by-slug/:slug", async (req, res) => {
       .select("id, slug, name, address, location, city, latitude, longitude, hours, opening_hours, additional_info, phone, whatsapp, ticket_price, type, gallery, attributes, min_age, is_published")
       .eq("slug", validSlug)
       .or(PUBLIC_LOCAL_FILTER)
+      .match(NOT_HIDDEN_FROM_CATALOG)
       .single();
 
     if (error) {
@@ -304,6 +306,7 @@ publicRouter.get("/orders", (_req, res) => {
  * Solo funciona para locales tipo "club".
  */
 publicRouter.get("/locals/by-slug/:slug/catalog", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const { slug } = req.params;
 
@@ -323,6 +326,7 @@ publicRouter.get("/locals/by-slug/:slug/catalog", async (req, res) => {
       .from("locals")
       .select("id, type")
       .eq("slug", validSlug)
+      .match(NOT_HIDDEN_FROM_CATALOG)
       .single();
 
     if (localError || !local) {

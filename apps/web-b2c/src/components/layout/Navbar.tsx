@@ -24,7 +24,9 @@ import {
   getNavbarSearchSuggestions,
   type NavbarSearchSuggestion,
 } from "@/lib/navbarSearch";
-import { getLocalsList, type LocalListItem } from "@/lib/locals";
+import type { LocalListItem } from "@/lib/locals";
+import type { Club } from "@/lib/types";
+import { getPublicClubSelection } from "@/lib/venueSelectors";
 import { slugify } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 
@@ -330,6 +332,7 @@ function NavbarSearchForm({
 
 const Navbar = () => {
   const { bars } = usePublicBars();
+  const [clubs, setClubs] = useState<Club[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [coverBySlug, setCoverBySlug] = useState<Map<string, string>>(new Map());
   const [locationBySlug, setLocationBySlug] = useState<Map<string, string>>(new Map());
@@ -342,10 +345,11 @@ const Navbar = () => {
     () =>
       getNavbarSearchSuggestions(searchQuery, {
         bars,
+        clubs,
         coverBySlug,
         locationBySlug,
       }),
-    [bars, coverBySlug, locationBySlug, searchQuery]
+    [bars, clubs, coverBySlug, locationBySlug, searchQuery]
   );
 
   useEffect(() => {
@@ -355,9 +359,10 @@ const Navbar = () => {
   useEffect(() => {
     let active = true;
 
-    getLocalsList("club", 100)
-      .then((locals) => {
+    getPublicClubSelection()
+      .then(({ clubs, locals }) => {
         if (!active) return;
+        setClubs(clubs);
 
         const nextCoverBySlug = new Map<string, string>();
         const nextLocationBySlug = new Map<string, string>();
@@ -369,7 +374,7 @@ const Navbar = () => {
         setLocationBySlug(nextLocationBySlug);
       })
       .catch(() => {
-        // Keep fixture-based fallbacks when public locals are unavailable.
+        // Leave club suggestions empty when the public list is unavailable.
       });
 
     return () => {

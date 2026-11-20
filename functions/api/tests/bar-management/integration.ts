@@ -96,6 +96,7 @@ async function main() {
   });
   sql("grant all privileges on reservations to service_role");
   sql(readFileSync(resolve(root, "infra/sql/migrations/025_create_operational_activity_events.sql"), "utf8"));
+  sql(readFileSync(resolve(root, "infra/sql/migrations/052_add_club_catalog_visibility.sql"), "utf8"));
   sql("grant insert,select on operational_activity_events to service_role");
   sql("alter table panel_users add column display_name text");
   sql(`insert into panel_users(id, auth_user_id, email, local_id, role) values

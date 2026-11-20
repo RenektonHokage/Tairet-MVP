@@ -18,7 +18,6 @@ import { createZoneBars } from "@/lib/data/venues";
 import { promosAsuncion } from "@/lib/data/promos";
 import type { Club, ZonePromo, ZoneBar } from "@/lib/types";
 import { slugify } from "@/lib/slug";
-import { selectClubVenues } from "@/lib/venueSelectors";
 import {
   getZoneCoverMaps,
   type AttributesBySlugMap,
@@ -29,7 +28,6 @@ import {
 import { usePublicBars } from "@/hooks/usePublicBars";
 import { prefetchImages } from "@/lib/imagePrefetch";
 
-const discotecas = selectClubVenues({ city: "asuncion", scope: "zone" });
 const promos = promosAsuncion;
 
 // Generate bares with local images
@@ -75,6 +73,7 @@ function BarCard({
     </Card>;
 }
 export default function ZonaAsuncion() {
+  const [discotecas, setDiscotecas] = useState<Club[]>([]);
   const [clubCoverBySlug, setClubCoverBySlug] = useState<CoverBySlugMap>(new Map());
   const [clubScheduleBySlug, setClubScheduleBySlug] = useState<TodayScheduleBySlugMap>(new Map());
   const [clubAttributesBySlug, setClubAttributesBySlug] = useState<AttributesBySlugMap>(new Map());
@@ -87,16 +86,17 @@ export default function ZonaAsuncion() {
     let active = true;
     document.title = "Descubrí Asunción | Zonas - Tairet";
 
-    getZoneCoverMaps(100)
-      .then(({ clubCovers, clubSchedules, clubAttributes, clubMinAges }) => {
+    getZoneCoverMaps()
+      .then(({ clubs, clubCovers, clubSchedules, clubAttributes, clubMinAges }) => {
         if (!active) return;
+        setDiscotecas(clubs);
         setClubCoverBySlug(clubCovers);
         setClubScheduleBySlug(clubSchedules);
         setClubAttributesBySlug(clubAttributes);
         setClubMinAgeBySlug(clubMinAges);
       })
       .catch(() => {
-        // Silently fail - current mock images/placeholders remain
+        // Leave the public club selection empty.
       })
       .finally(() => {
         if (active) {
@@ -118,7 +118,7 @@ export default function ZonaAsuncion() {
     });
 
     prefetchImages([...topClubImages, ...bars.map(bar => bar.image)], 8);
-  }, [bars, clubCoverBySlug, isLoadingCovers]);
+  }, [bars, discotecas, clubCoverBySlug, isLoadingCovers]);
   return <>
       {/* Navbar */}
       <Navbar />

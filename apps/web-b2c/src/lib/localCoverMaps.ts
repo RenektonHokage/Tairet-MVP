@@ -1,4 +1,6 @@
-import { buildTodayScheduleBySlug, getLocalsList, type LocalListItem } from "@/lib/locals";
+import { buildTodayScheduleBySlug, type LocalListItem } from "@/lib/locals";
+import { getPublicClubSelection } from "@/lib/venueSelectors";
+import type { Club } from "@/lib/types";
 import { slugify } from "@/lib/slug";
 
 export type CoverBySlugMap = Map<string, string>;
@@ -60,15 +62,17 @@ function buildMinAgeMap(locals: LocalListItem[]): MinAgeBySlugMap {
   return minAgeMap;
 }
 
-export async function getZoneCoverMaps(limit: number = 100): Promise<{
+export async function getZoneCoverMaps(): Promise<{
+  clubs: Club[];
   clubCovers: CoverBySlugMap;
   clubSchedules: TodayScheduleBySlugMap;
   clubAttributes: AttributesBySlugMap;
   clubMinAges: MinAgeBySlugMap;
 }> {
-  const clubLocals = await getLocalsList("club", limit).catch(() => []);
+  const { clubs, locals: clubLocals } = await getPublicClubSelection({ city: "asuncion", scope: "zone" });
 
   return {
+    clubs,
     clubCovers: buildCoverMap(clubLocals),
     clubSchedules: buildTodayScheduleBySlug(clubLocals),
     clubAttributes: buildAttributesMap(clubLocals),

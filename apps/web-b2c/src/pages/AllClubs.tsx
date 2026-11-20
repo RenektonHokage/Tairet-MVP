@@ -12,8 +12,9 @@ import { FilterBottomSheet } from "@/components/shared/FilterBottomSheet";
 import VenueCard from "@/components/shared/VenueCard";
 import VenueCardSkeleton from "@/components/shared/VenueCardSkeleton";
 import { slugify } from "@/lib/slug";
-import { buildTodayScheduleBySlug, getLocalsList } from "@/lib/locals";
-import { selectClubVenues } from "@/lib/venueSelectors";
+import { buildTodayScheduleBySlug } from "@/lib/locals";
+import { getPublicClubSelection } from "@/lib/venueSelectors";
+import type { Club } from "@/lib/types";
 import { prefetchImages } from "@/lib/imagePrefetch";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -72,6 +73,7 @@ export default function AllClubs() {
   const [isZonesSheetOpen, setIsZonesSheetOpen] = useState(false);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [isLoadingClubs, setIsLoadingClubs] = useState(true);
+  const [mvpClubs, setMvpClubs] = useState<Club[]>([]);
   
   // DB data for enriching mocks (covers, location, city, attributes, minAge)
   const [dbCovers, setDbCovers] = useState<Map<string, string>>(new Map());
@@ -86,9 +88,10 @@ export default function AllClubs() {
     let active = true;
     
     // Cargar data desde DB para enriquecer cards
-    getLocalsList("club", 100)
-      .then((locals) => {
+    getPublicClubSelection()
+      .then(({ clubs, locals }) => {
         if (!active) return;
+        setMvpClubs(clubs);
 
         const coverMap = new Map<string, string>();
         const locationMap = new Map<string, string>();
@@ -123,7 +126,7 @@ export default function AllClubs() {
         setDbTodaySchedules(todayScheduleMap);
       })
       .catch(() => {
-        // Silently fail - mocks will be used
+        // Keep the club list empty if public visibility cannot be verified.
       })
       .finally(() => {
         if (active) {
@@ -136,7 +139,6 @@ export default function AllClubs() {
     };
   }, []);
 
-  const mvpClubs = selectClubVenues({ city: "asuncion", scope: "all" });
 
   const filteredClubs = useMemo(
     () =>

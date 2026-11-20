@@ -9,14 +9,14 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { usePublicBars } from "@/hooks/usePublicBars";
 import { images } from "@/lib/images";
-import { selectClubVenues } from "@/lib/venueSelectors";
+import { getPublicClubSelection } from "@/lib/venueSelectors";
+import type { Club } from "@/lib/types";
 import { applySearchFilters, parseSearchParams, patchSearchParams } from "@/lib/search";
 import VenueCard from "@/components/shared/VenueCard";
 import { slugify } from "@/lib/slug";
 import { prefetchImages } from "@/lib/imagePrefetch";
 import {
   buildTodayScheduleBySlug,
-  getLocalsList,
   type LocalListItem,
 } from "@/lib/locals";
 
@@ -44,6 +44,7 @@ const Explorar = () => {
   const [todaySchedulesBySlug, setTodaySchedulesBySlug] = useState<Map<string, string>>(new Map());
   const { bars: publicBars } = usePublicBars();
   const [clubCoverBySlug, setClubCoverBySlug] = useState<Map<string, string>>(new Map());
+  const [listedClubs, setListedClubs] = useState<Club[] | null>(null);
   const searchState = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const typeFilter = searchState.type === "all" ? undefined : searchState.type;
   const bars = useMemo(
@@ -58,11 +59,11 @@ const Explorar = () => {
   );
   const clubs = useMemo(
     () =>
-      applySearchFilters(selectClubVenues({ city: "asuncion", scope: "all" }), searchState, {
+      applySearchFilters(listedClubs ?? [], searchState, {
         getName: (club) => club.name,
         getTags: (club) => club.genres,
       }),
-    [searchState],
+    [listedClubs, searchState],
   );
   const hasActiveQuery =
     Boolean(searchState.q) ||
@@ -73,6 +74,7 @@ const Explorar = () => {
     searchState.promos;
   const showBars = searchState.type === "all" || searchState.type === "bar";
   const showClubs = searchState.type === "all" || searchState.type === "club";
+  const loadingClubs = showClubs && listedClubs === null;
   const totalResults = (showBars ? bars.length : 0) + (showClubs ? clubs.length : 0);
 
   // Title based on type filter
@@ -85,7 +87,7 @@ const Explorar = () => {
           ? "Eventos"
           : "Explorá la vida nocturna";
 
-  const pageSubtitle = hasActiveQuery
+  const pageSubtitle = hasActiveQuery && loadingClubs ? "Cargando resultados…" : hasActiveQuery
     ? typeFilter === "bar"
       ? `${bars.length} bares coinciden con tu búsqueda`
       : typeFilter === "club"
@@ -123,14 +125,15 @@ const Explorar = () => {
   useEffect(() => {
     let active = true;
 
-    getLocalsList("club", 100)
-      .then((clubsLocals) => {
+    getPublicClubSelection()
+      .then(({ clubs, locals: clubsLocals }) => {
         if (!active) return;
+        setListedClubs(clubs);
         setTodaySchedulesBySlug(buildTodayScheduleBySlug(clubsLocals));
         setClubCoverBySlug(buildCoverMap(clubsLocals));
       })
       .catch(() => {
-        // Fallback to fixture schedule on API errors.
+        if (active) setListedClubs([]);
       });
 
     return () => {
@@ -197,7 +200,7 @@ const Explorar = () => {
       {hasActiveQuery ? (
         <section className="py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {totalResults === 0 ? (
+            {totalResults === 0 && loadingClubs ? null : totalResults === 0 ? (
               <div className="text-center py-12">
                 <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
                   No encontramos resultados
@@ -239,7 +242,7 @@ const Explorar = () => {
                   </div>
                 )}
 
-                {showClubs && (
+                {showClubs && !loadingClubs && (
                   <div>
                     <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
                       Discotecas ({clubs.length})

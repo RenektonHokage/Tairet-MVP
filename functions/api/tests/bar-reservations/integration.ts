@@ -63,6 +63,7 @@ async function main() {
   sql(readFileSync(resolve(root, "infra/sql/migrations/050_add_bar_publication.sql"), "utf8"));
   sql(schema.slice(schema.indexOf("CREATE TABLE IF NOT EXISTS reservations"),schema.indexOf("-- Tabla: events_public")));
   sql(readFileSync(resolve(root, "infra/sql/migrations/051_add_bar_reservation_cancel_reason.sql"), "utf8"));
+  sql(readFileSync(resolve(root, "infra/sql/migrations/052_add_club_catalog_visibility.sql"), "utf8"));
   sql("grant all privileges on reservations to service_role");
   await check("Migration keeps existing demos unpublished and defaults new bars to false", () => {
     assert.equal(sql("select count(*) from locals where is_published"), "0");
