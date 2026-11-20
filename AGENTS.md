@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Durable operating map for this repository. Access Core state, decisions, roadmap, validation, and checkpoints live under [`docs/access-core/`](docs/access-core/INDEX.md).
+Start with the [canonical context index](docs/CONTEXT_INDEX.md) for Bares, Discotecas (Free Pass and paid entries), Events and Access Core. The [Access Core index](docs/access-core/INDEX.md) routes to its decisions, roadmap, validation and checkpoints.
 
 Read the minimum route required by the task. Do not load every historical document by default.
 
@@ -113,7 +113,7 @@ Do not use a stop for unrelated unknowns.
 
 ## Documentation maintenance
 
-- Update `CURRENT_STATE.md` after a product closure, deployment/activation change, authority change, or authorization change.
+- Update the affected area's `CURRENT_STATE.md` when a functional milestone closes, publication or deployment changes operations, an E2E result changes readiness, activation or withdrawal occurs, authority or authorization changes, or a product or architecture decision changes scope. Routine commits, intermediate tests and investigations only need an update if they change that state.
 - Update `ROADMAP.md` when eligibility, sequencing, or gates change.
 - Update `INVARIANTS.md` only for deliberate stable decisions.
 - Create a completed checkpoint after each remotely closed sensitive slice; do not paste full logs.

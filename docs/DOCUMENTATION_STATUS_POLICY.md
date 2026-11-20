@@ -54,6 +54,8 @@ Regla práctica:
 
 ## 5. Qué es fuente operativa primaria
 
+Para el estado vigente de Bares, Discotecas, Events y Access Core, usar el [índice canónico](CONTEXT_INDEX.md). Los planes, mapas de flujos y cierres de la clasificación por familias conservan el alcance de su revisión y entorno.
+
 Un documento es fuente operativa primaria cuando:
 
 - está `Vivo`;

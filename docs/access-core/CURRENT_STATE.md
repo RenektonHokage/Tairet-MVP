@@ -1,5 +1,21 @@
 # Access Core — Current State
 
+## Corte del 20/11/2026
+
+**El último cierre de producto del roadmap de Access es 9E.5B4B. B6 (transferencia de autoridad) y B7 (rollout productivo) siguen bloqueados y requieren autorización propia.** El despliegue de las aplicaciones compartidas y el ensayo Staging de Events se acreditaron en sus respectivos entornos. [Roadmap y gates](ROADMAP.md) · [Índice transversal](../CONTEXT_INDEX.md)
+
+| Dimensión | Estado y evidencia al corte |
+| --- | --- |
+| Decisión e implementación | `VERIFIED_REPOSITORY`. Pago, emisión, entrega por correo y check-in son hechos separados. `access_entries` es la autoridad para las entradas validables. El worker y el correo durable tienen default OFF y el correo directo legacy, ON. La exclusión mutua sigue en el contrato. [Invariantes](INVARIANTS.md) · [Configuración del worker](../../functions/api/src/config/accessFulfillment.ts) |
+| Prueba aceptada | Producto `b287b92`, cierre `715ad1c`. En B2C pasaron 27/27 pruebas de estado y polling, typecheck, build y lint dirigido. El lint global quedó limitado por deuda previa fuera del candidato. El detalle y la identidad revisada están en el [checkpoint 9E.5B4B](exec-plans/completed/9E.5B4B.md). |
+| Integración Git | `VERIFIED_REPOSITORY`. El cierre, el paquete 046–049 (`0c503b5`) y las herramientas M1/PR01/PR02/PR04 hasta `014eaaa` están en la historia de `main` al SHA `b5a23f4`. Los consumidores posteriores de Access de la [rama Events](../events/CURRENT_STATE.md) tienen otra identidad. |
+| Publicación y esquema | `VERIFIED_RUNTIME` en el recibo de producción del 20/11 para API, B2C y panel en `b5a23f4`, revisión que contiene el código de estado público de Access. `UNKNOWN` para la aplicación efectiva de 046–049 en producción, el ejercicio de sus RPC y el despliegue de un worker durable productivo. Los asientos publicados de Bares/Discotecas y la instalación privada R5 tienen otros ámbitos. [Recibo de publicación](../discotecas/CURRENT_STATE.md) |
+| Activación, autoridad y uso comercial | El último estado `REPORTED` de producción atribuía el envío al camino directo legacy, con worker y correo durable apagados. La configuración efectiva actual y un traspaso efectivo de autoridad siguen `UNKNOWN`. El PASS pagado de D'Lirio acredita Bancard Staging para `source_type=local`. La habilitación de cobros reales sigue sin acreditar. [E2E de D'Lirio](../payments/ACCESS_CORE_BANCARD_E2E_CHECKPOINT.md) |
+
+**Pendiente operacional.** El último expediente propio recuperado de PR04 (29/10, `001_ACCESS_PR04_HUMAN_LIVE_PIN_V001_INFORME.md`, SHA-256 `ea774ddfa078abfddd7ab2e38c8e82acdcd948b79f2170328ec27e908afa66e2`) registró `STOP_PIN_REGISTRATION_CONTRACT_NOT_ESTABLISHED`. Hubo confirmación humana, sin registro o verificación del pin ni ejecución de PR04. Un levantamiento posterior de ese STOP sigue `UNKNOWN`. B6 requiere evidencia del destino, exclusión de autoridades, rollback y autorización explícita. B7 requiere B6 cerrado y un rollout aprobado por separado.
+
+> **Corte histórico V1A.** Desde «Reading rule» se conserva el registro original de 9E.5B4B. Sus campos de checkout, despliegue, activación y autorización describen aquel cierre. Para el estado posterior, usar el corte fechado arriba.
+
 ## Reading rule
 
 This document records a stable evidence cut, not a permanent assertion about the current checkout. Always verify the actual repository root, branch, `HEAD`, worktree, and staging with Git before acting.
